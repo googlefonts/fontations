@@ -1626,6 +1626,59 @@ mod tests {
     }
 
     #[test]
+    fn duplicated_root_is_linked_from_its_wide_parent() {
+        // When a space root is linked from both 16 and 32-bit space it is
+        // duplicated, and the 32-bit links must be moved to the duplicate.
+        // Here the two roots (2, 3) share a child (4) that is also reachable
+        // from 16-bit space, so 4 is duplicated as well. If the wide link from
+        // 0 is not moved to 2', then 2' is orphaned while still linking to 4',
+        // and sort_shortest_distance panics because 4' has a parent that is
+        // never visited.
+        //
+        //  before           after
+        //      0               0
+        //     /║⑊           ┌─┘║⑊
+        //    1 ║ ⑊          1  ║ ⑊
+        //    │\║  ⑊         │\ 2' 3
+        //    │ 2   3        │ \  \│
+        //    │/    │        │ 2   4'
+        //    4─────┘        │/
+        //                   4
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let ids = make_ids::<5>();
+        let sizes = [10; 5];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[0], ids[3], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .add_link(ids[1], ids[4], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[4], OffsetLen::Offset16)
+            .build();
+
+        graph.assign_spaces_hb();
+        // this used to panic with "cycle or something?"
+        graph.sort_shortest_distance();
+
+        // 2 and 4 are duplicated
+        assert_eq!(graph.nodes.len(), 7);
+        // the wide link from the root now points at the duplicate of 2
+        let wide_targets = graph.objects[&ids[0]]
+            .offsets
+            .iter()
+            .filter(|link| link.len == OffsetLen::Offset32)
+            .map(|link| link.object)
+            .collect::<HashSet<_>>();
+        assert!(!wide_targets.contains(&ids[2]));
+        assert!(wide_targets.contains(&ids[3]));
+        // and nothing was orphaned
+        let reachable = graph.find_descendents(ids[0]);
+        assert_eq!(reachable.len(), graph.nodes.len());
+    }
+
+    #[test]
     fn assign_space_even_without_any_duplication() {
         // the subgraph of the long offset (0->2) is already isolated, and
         // so requires no duplication; but we should still correctly assign a
