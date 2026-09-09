@@ -336,11 +336,73 @@ impl<'a> CffFontRef<'a> {
         }
     }
 
+    /// Evaluates the charstring for the requested glyph far enough to read
+    /// its advance width, without drawing it.
+    ///
+    /// A Type 2 charstring states its width, where it states one at all, as
+    /// an optional extra argument on the first operator that clears the
+    /// stack, so evaluation stops there. Where the charstring states none,
+    /// the subfont's default width applies.
+    ///
+    /// The font matrix is applied and no size is, so the width is exact and
+    /// in the units the rest of the font is measured in.
+    /// [`advance`](Self::advance) applies a size as well and reports what
+    /// [`draw`](Self::draw) does.
+    ///
+    /// Unlike [`evaluate_charstring`], the matrix is applied here rather than
+    /// left to a caller. That one withholds it so a hinter can be slotted in
+    /// ahead of it; nothing hints a width.
+    ///
+    /// [`evaluate_charstring`]: Self::evaluate_charstring
+    pub fn evaluate_width(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+    ) -> Result<Option<Fixed>, Error> {
+        let transform = self.transform(subfont, None);
+        Ok(self
+            .charstring_width(subfont, gid, coords)?
+            .map(|width| transform.transform_h_metric(width)))
+    }
+
+    /// The width the charstring itself gives, before any transform.
+    ///
+    /// Where it gives none the subfont's default applies, as it does when the
+    /// glyph is drawn.
+    fn charstring_width(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+    ) -> Result<Option<Fixed>, Error> {
+        let charstrings = self.top_dict.charstrings.clone();
+        let blend = self.blend_state(subfont.vs_index, coords);
+        let subrs = if subfont.subrs_offset != 0 {
+            let data = self
+                .data
+                .get(subfont.subrs_offset as usize..)
+                .ok_or(Error::Malformed)?;
+            Index::new(data, self.is_cff2)?
+        } else {
+            Index::Empty
+        };
+        let charstring_data = charstrings
+            .get(gid.to_u32() as usize)
+            .ok_or(Error::Malformed)?;
+        let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
+        Ok(match cs::evaluate_width(&ctx, blend, charstring_data)? {
+            Some(width) => Some(width + subfont.nominal_width),
+            None => subfont.default_width,
+        })
+    }
+
     /// Evaluates the charstring for the requested glyph and sends the results
     /// to the given sink.
     ///
-    /// Returns the advance with of the glyph in font units if the charstring
-    /// provides one.
+    /// Returns the width the charstring states, in the charstring's own
+    /// space: neither the font matrix nor a size is applied, to the width or
+    /// to the commands. [`draw`](Self::draw) applies both.
     pub fn evaluate_charstring(
         &self,
         subfont: &Subfont,
@@ -368,6 +430,24 @@ impl<'a> CffFontRef<'a> {
         } else {
             Ok(subfont.default_width)
         }
+    }
+
+    /// Returns the advance width of the glyph with an optional size in
+    /// ppem, without drawing it.
+    ///
+    /// This is the width [`draw`](Self::draw) reports, arrived at without
+    /// the drawing.
+    pub fn advance(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+        ppem: Option<f32>,
+    ) -> Result<Option<f32>, Error> {
+        let transform = self.transform(subfont, ppem);
+        Ok(self
+            .charstring_width(subfont, gid, coords)?
+            .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
     }
 
     /// Draws the glyph with an optional size in ppem to the given pen.
@@ -1234,5 +1314,80 @@ mod tests {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
         let cff = CffFontRef::new(font.cff2().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         assert!(cff.encoding().is_none());
+    }
+}
+
+#[cfg(test)]
+mod width_only_tests {
+    use super::*;
+    use crate::{model::pen::NullPen, FontRef, TableProvider};
+
+    const FONTS: [&[u8]; 3] = [
+        font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+        font_test_data::ift::CFF_FONT,
+        // A nested matrix, so the charstring's space and the font's differ
+        // and the two widths are not the same number.
+        font_test_data::MATERIAL_ICONS_SUBSET_MATRIX,
+    ];
+
+    /// Calls `check` for every glyph, with the subfont that glyph belongs to.
+    fn for_each_glyph(data: &[u8], mut check: impl FnMut(&CffFontRef, &Subfont, GlyphId)) {
+        let font = FontRef::new(data).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        let num_glyphs = font.maxp().unwrap().num_glyphs() as u32;
+        assert!(num_glyphs > 1);
+        for gid in (0..num_glyphs).map(GlyphId::new) {
+            let index = cff.subfont_index(gid).unwrap_or(0);
+            let subfont = cff.subfont(index, &[]).unwrap();
+            check(&cff, &subfont, gid);
+        }
+    }
+
+    #[test]
+    fn the_quick_width_is_what_a_full_run_reports() {
+        let mut mapped = 0;
+        for data in FONTS {
+            let mut stated = 0;
+            for_each_glyph(data, |cff, subfont, gid| {
+                // `evaluate_charstring` answers in the charstring's own space
+                // and `evaluate_width` in design units, so the matrix goes on
+                // the full run before the two can be compared.
+                let transform = cff.transform(subfont, None);
+                let full = cff
+                    .evaluate_charstring(subfont, gid, &[], &mut cs::NullSink)
+                    .unwrap();
+                let quick = cff.evaluate_width(subfont, gid, &[]).unwrap();
+                assert_eq!(
+                    full.map(|width| transform.transform_h_metric(width)),
+                    quick,
+                    "glyph {gid}"
+                );
+                stated += full.is_some() as u32;
+                if let (Some(full), Some(quick)) = (full, quick) {
+                    mapped += (full != quick) as u32;
+                }
+            });
+            // The comparison is worthless if nothing reported a width at all.
+            assert!(stated > 0, "no glyph reported a width");
+        }
+        // And worthless again if the matrix never moved one, since then the
+        // two spaces coincide and the comparison spans nothing.
+        assert!(mapped > 0, "no width was moved by a matrix");
+    }
+
+    #[test]
+    fn the_quick_advance_is_what_drawing_reports() {
+        // Drawing scales the width by the font matrix, and by ppem where one
+        // is given, so this is what catches an advance that skipped either.
+        for data in FONTS {
+            for ppem in [None, Some(16.0), Some(72.0)] {
+                for_each_glyph(data, |cff, subfont, gid| {
+                    let drawn = cff.draw(subfont, gid, &[], ppem, &mut NullPen).unwrap();
+                    let quick = cff.advance(subfont, gid, &[], ppem).unwrap();
+                    assert_eq!(drawn, quick, "glyph {gid} at {ppem:?}");
+                });
+            }
+        }
     }
 }
