@@ -147,8 +147,8 @@ impl Font {
 
     /// Returns what `vmtx` states, parsed once for the font.
     ///
-    /// Unlike `hmtx` this is read on demand: most text is horizontal and
-    /// never asks.
+    /// Read on demand, unlike `hmtx`: most text is horizontal and never
+    /// asks.
     #[inline]
     pub(crate) fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
         let Some(tables) = self.tables_arc() else {
@@ -246,8 +246,7 @@ struct FontRepr {
     // What `hmtx` states, parsed once for the font. Held beside the tables
     // it borrows, which is what lets it live here at all.
     h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
-    /// `vmtx`, read only by a caller measuring vertically, which is the
-    /// minority of them.
+    /// `vmtx`, read only when something measures vertically.
     v_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
     // `HVAR` states the deltas a location makes to a metric outright, and
     // `gvar` states them as phantom points on an outline, which `glyf` and

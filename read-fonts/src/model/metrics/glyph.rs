@@ -101,8 +101,8 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns the exact advance height of `glyph`, in design units.
     ///
-    /// The height is positive, as the font states it. A caller laying text
-    /// down the page is the one that knows its axis points the other way.
+    /// The height is positive, as the font states it. A caller whose axis
+    /// runs down the page negates it.
     #[inline]
     pub fn v_advance_exact(&self, glyph: GlyphId) -> F48Dot16 {
         let mut height = F48Dot16::ZERO;
@@ -122,9 +122,9 @@ impl<'a> GlyphMetrics<'a> {
     ) {
         let raw = self.font.v_metrics();
         if raw.is_empty() {
-            // A font that states no vertical metrics stacks its glyphs by
-            // the line it lays horizontal text on, so every glyph advances
-            // the same way and no location moves it.
+            // Such a font stacks its glyphs by the line it lays horizontal
+            // text on, so every glyph advances the same and no location
+            // moves it.
             let height = self.line_height();
             for (_, out) in glyphs {
                 *out = convert(height);
@@ -138,12 +138,11 @@ impl<'a> GlyphMetrics<'a> {
         self.v_advance_batched_varied(raw, coords, convert, glyphs)
     }
 
-    /// The height a glyph advances where the font states no `vmtx`.
+    /// The height a glyph advances where the font has no `vmtx`.
     ///
-    /// The line's own extent, without the gap that separates one line from
-    /// the next, as HarfBuzz and FreeType both take it. A font stating no
-    /// line at all is read as one em, which is what a caller with nothing
-    /// else to go on would assume.
+    /// The extent of the line, without the gap after it, as HarfBuzz and
+    /// FreeType both take it. A font that states no line at all measures one
+    /// em.
     fn line_height(&self) -> F48Dot16 {
         match self.global.h_line() {
             Some(line) => line.ascender - line.descender,
@@ -171,10 +170,9 @@ impl<'a> GlyphMetrics<'a> {
                 glyphs,
             );
         }
-        // Without `VVAR`, the answer comes from the phantom points on the
-        // outline. The vertical pair runs downward, the origin above the
-        // bottom, so the height spans them the other way round from the
-        // width.
+        // Without `VVAR`, the phantom points answer. The vertical pair runs
+        // downward from the origin, so the height is the top less the
+        // bottom, the reverse of the width.
         if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
             return raw.run_varied(
                 self.num_glyphs,
@@ -533,10 +531,9 @@ mod tests {
 
     #[test]
     fn a_type1_glyph_stacks_by_the_line() {
-        // Type 1 has no `vmtx`, so its glyphs take the line, which for such
-        // a font is the bounding box its metrics are read from. Every glyph
-        // gets the same height while their widths differ, and no location
-        // moves either.
+        // Type 1 has no `vmtx`, so its glyphs take the line, which such a
+        // font derives from its bounding box. Every glyph gets the same
+        // height while their widths differ, and no location moves either.
         //
         // FreeType instead gives each Type 1 glyph 12/10 of its own ink
         // height. Nothing here follows it: one rule for every font without

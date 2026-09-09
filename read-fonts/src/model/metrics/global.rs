@@ -160,24 +160,23 @@ impl GlobalMetrics {
         metrics
     }
 
-    /// Returns the line to lay horizontal text on.
+    /// Returns the ascender, descender and gap for horizontal text.
     ///
-    /// A font can state this line three times over and disagree with itself.
-    /// The choice follows FreeType, which is HarfBuzz's rule with one more
-    /// step for a font that states zeros:
+    /// A font states this line up to three times and the three disagree, so
+    /// the choice follows FreeType:
     ///
-    /// 1. `OS/2` asking for its typographic line, through `USE_TYPO_METRICS`.
+    /// 1. The typographic line, if `OS/2` asks for it through
+    ///    `USE_TYPO_METRICS`.
     /// 2. Otherwise `hhea`.
-    /// 3. Where `hhea` states nothing, the typographic line if it says
-    ///    anything, and the clipping line if it does not.
+    /// 3. If `hhea` is zero, the typographic line if it is not, and the
+    ///    clipping line otherwise.
     ///
-    /// HarfBuzz stops after the second. The third is there because a font can
-    /// state one line and mean another: Arial Narrow ships four files, and
-    /// the bold one alone zeroes its typographic metrics while stating usable
-    /// clipping ones, so stopping early lays out one weight of a family
-    /// differently from the rest.
+    /// HarfBuzz stops at the second. The third matters because Arial Narrow
+    /// Bold zeroes its typographic metrics where its siblings do not, and
+    /// stopping early would lay it out differently from the rest of the
+    /// family.
     ///
-    /// `None` where the font states no line at all.
+    /// Returns `None` if the font states no line at all.
     pub fn h_line(&self) -> Option<LineBox> {
         if self.use_typo_metrics {
             if let Some(typo) = self.typo_line {
