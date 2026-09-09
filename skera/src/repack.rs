@@ -1874,8 +1874,8 @@ pub(crate) mod test {
         if expected_graph.has_overflows() {
             if check_binary_equivalence {
                 println!(
-                "when binary equivalence checking is enabled, the expected graph cannot overflow."
-            );
+                    "when binary equivalence checking is enabled, the expected graph cannot overflow."
+                );
                 assert!(!check_binary_equivalence);
             }
             expected_graph.assign_spaces().unwrap();
