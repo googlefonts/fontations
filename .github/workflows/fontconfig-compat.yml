@@ -62,8 +62,17 @@ jobs:
       # meson comes from PyPI rather than apt: fontconfig asks for >= 1.11.0
       # and the runner image ships 1.3.2. pipx because Ubuntu marks its
       # Python externally managed, so a plain pip install is refused.
+      #
+      # The runner image carries third-party apt repositories that nothing
+      # here installs from, and one of them publishing while we read it fails
+      # the whole update: a Release file newer than the Packages.gz it points
+      # at reads as a hash sum mismatch. Dropping them leaves Ubuntu's own
+      # archive, which is where every package below comes from, and which the
+      # image keeps in ubuntu.sources rather than beside these.
       - name: install build dependencies
         run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ninja-build pkg-config gperf \
