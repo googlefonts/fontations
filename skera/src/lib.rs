@@ -334,7 +334,6 @@ pub struct Plan {
     num_output_glyphs: usize,
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
-    codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 
     subset_flags: SubsetFlags,
     no_subset_tables: IntSet<Tag>,
@@ -455,13 +454,11 @@ impl Plan {
         if input_gids.is_empty() && unicodes.len() < (self.font_num_glyphs as u64) {
             let cap: usize = unicodes.len().try_into().unwrap_or(usize::MAX);
             self.unicode_to_new_gid_list.reserve(cap);
-            self.codepoint_to_glyph.reserve(cap);
             //TODO: add support for subset accelerator?
 
             for cp in unicodes.iter() {
                 match charmap.map(cp) {
                     Some(gid) => {
-                        self.codepoint_to_glyph.insert(cp, gid);
                         self.unicode_to_new_gid_list.push((cp, gid));
                     }
                     None => {
@@ -471,31 +468,17 @@ impl Plan {
             }
         } else {
             //TODO: add support for subset accelerator?
-            let cmap_unicodes = charmap.mappings().map(|t| t.0).collect::<IntSet<u32>>();
-            let unicode_gid_map = charmap.mappings().collect::<FnvHashMap<u32, GlyphId>>();
-
             let vec_cap: u64 = input_gids.len() + unicodes.len();
             let vec_cap: usize = vec_cap
-                .min(cmap_unicodes.len())
+                .min(self.font_num_glyphs as u64)
                 .try_into()
                 .unwrap_or(usize::MAX);
-            self.codepoint_to_glyph.reserve(vec_cap);
             self.unicode_to_new_gid_list.reserve(vec_cap);
-            for range in cmap_unicodes.iter_ranges() {
-                for cp in range {
-                    match unicode_gid_map.get(&cp) {
-                        Some(gid) => {
-                            if !input_gids.contains(*gid) && !unicodes.contains(cp) {
-                                continue;
-                            }
-                            self.codepoint_to_glyph.insert(cp, *gid);
-                            self.unicode_to_new_gid_list.push((cp, *gid));
-                        }
-                        None => {
-                            continue;
-                        }
-                    }
+            for (cp, gid) in charmap.mappings() {
+                if !input_gids.contains(gid) && !unicodes.contains(cp) {
+                    continue;
                 }
+                self.unicode_to_new_gid_list.push((cp, gid));
             }
 
             /* Add gids which where requested, but not mapped in cmap */
@@ -1462,16 +1445,6 @@ mod test {
         assert_eq!(plan.unicode_to_new_gid_list.len(), 2);
         assert_eq!(plan.unicode_to_new_gid_list[0], (0x2c_u32, GlyphId::new(2)));
         assert_eq!(plan.unicode_to_new_gid_list[1], (0x31_u32, GlyphId::new(4)));
-
-        assert_eq!(plan.codepoint_to_glyph.len(), 2);
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x2c_u32),
-            Some(GlyphId::new(2)).as_ref()
-        );
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x31_u32),
-            Some(GlyphId::new(4)).as_ref()
-        );
     }
 
     #[test]
@@ -1497,16 +1470,6 @@ mod test {
         assert_eq!(plan.unicode_to_new_gid_list.len(), 2);
         assert_eq!(plan.unicode_to_new_gid_list[0], (0x2c_u32, GlyphId::new(2)));
         assert_eq!(plan.unicode_to_new_gid_list[1], (0x31_u32, GlyphId::new(4)));
-
-        assert_eq!(plan.codepoint_to_glyph.len(), 2);
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x2c_u32),
-            Some(GlyphId::new(2)).as_ref()
-        );
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x31_u32),
-            Some(GlyphId::new(4)).as_ref()
-        );
     }
 
     #[test]
