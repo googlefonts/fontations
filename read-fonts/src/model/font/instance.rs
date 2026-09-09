@@ -90,7 +90,7 @@ impl FontInstance {
     /// location.
     #[inline]
     pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        GlyphMetrics::new(self.font(), self.normalized_coords())
+        GlyphMetrics::new(self.font(), self.global_metrics(), self.normalized_coords())
     }
 
     /// Returns the metrics describing the font as a whole, at this

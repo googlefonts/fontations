@@ -22,13 +22,13 @@ pub mod interop;
 
 use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
 use super::once::Once;
-use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca};
+use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vvar::Vvar};
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
     ReadError,
 };
 use alloc::{boxed::Box, sync::Arc};
-use cache::{GlyfLoca, GvarTable, HvarTable, TableCache};
+use cache::{GlyfLoca, GvarTable, HvarTable, TableCache, VvarTable};
 use core::any::Any;
 
 /// An OpenType or PostScript font.
@@ -65,8 +65,10 @@ impl Font {
             shaping_data: Once::new(),
             global_metrics: Once::new(),
             h_metrics: Once::new(),
+            v_metrics: Once::new(),
             glyf_loca: Once::new(),
             hvar: Once::new(),
+            vvar: Once::new(),
             gvar: Once::new(),
         };
         Ok(Self(Arc::new(repr)))
@@ -118,7 +120,7 @@ impl Font {
     /// design space.
     #[inline]
     pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        GlyphMetrics::new(self, &[])
+        GlyphMetrics::new(self, self.global_metrics(), &[])
     }
 
     /// Returns the tables behind this font, for a cache that holds them.
@@ -139,6 +141,23 @@ impl Font {
             .h_metrics
             .get_or_init(|| {
                 TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_hmtx(&tables))
+            })
+            .get()
+    }
+
+    /// Returns what `vmtx` states, parsed once for the font.
+    ///
+    /// Unlike `hmtx` this is read on demand: most text is horizontal and
+    /// never asks.
+    #[inline]
+    pub(crate) fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
+        let Some(tables) = self.tables_arc() else {
+            return empty_glyph_metrics();
+        };
+        self.0
+            .v_metrics
+            .get_or_init(|| {
+                TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_vmtx(&tables))
             })
             .get()
     }
@@ -165,6 +184,18 @@ impl Font {
         self.0
             .hvar
             .get_or_init(|| TableCache::read(tables.clone(), |tables| HvarTable::read(&tables)))
+            .get()
+            .0
+            .as_ref()
+    }
+
+    /// Returns `VVAR`, parsed once for the font.
+    #[inline]
+    pub(crate) fn vvar(&self) -> Option<&Vvar<'_>> {
+        let tables = self.tables_arc()?;
+        self.0
+            .vvar
+            .get_or_init(|| TableCache::read(tables.clone(), |tables| VvarTable::read(&tables)))
             .get()
             .0
             .as_ref()
@@ -215,6 +246,9 @@ struct FontRepr {
     // What `hmtx` states, parsed once for the font. Held beside the tables
     // it borrows, which is what lets it live here at all.
     h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
+    /// `vmtx`, read only by a caller measuring vertically, which is the
+    /// minority of them.
+    v_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
     // `HVAR` states the deltas a location makes to a metric outright, and
     // `gvar` states them as phantom points on an outline, which `glyf` and
     // `loca` are read to reach and which outlines will read for their own
@@ -223,6 +257,7 @@ struct FontRepr {
     // at its default location touches none of them.
     glyf_loca: Once<TableCache<GlyfLoca<'static>>>,
     hvar: Once<TableCache<HvarTable<'static>>>,
+    vvar: Once<TableCache<VvarTable<'static>>>,
     gvar: Once<TableCache<GvarTable<'static>>>,
 }
 

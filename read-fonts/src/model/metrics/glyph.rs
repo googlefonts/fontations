@@ -1,7 +1,7 @@
 //! Per-glyph metrics.
 
 use crate::{
-    model::{Font, FontKind},
+    model::{metrics::GlobalMetrics, Font, FontKind},
     ps::{cs::CommandSink, type1::Type1Font},
     tables::hmtx::LongMetric,
     TableProvider,
@@ -15,6 +15,7 @@ use types::{F2Dot14, F48Dot16, Fixed, GlyphId};
 pub struct GlyphMetrics<'a> {
     h_metrics: &'a RawGlyphMetrics<'a>,
     font: &'a Font,
+    global: &'a GlobalMetrics,
     coords: &'a [F2Dot14],
     num_glyphs: u32,
     units_per_em: u16,
@@ -23,11 +24,11 @@ pub struct GlyphMetrics<'a> {
 impl<'a> GlyphMetrics<'a> {
     /// Binds a font to the location its glyphs are measured at.
     #[inline]
-    pub(crate) fn new(font: &'a Font, coords: &'a [F2Dot14]) -> Self {
-        let global = font.global_metrics();
+    pub(crate) fn new(font: &'a Font, global: &'a GlobalMetrics, coords: &'a [F2Dot14]) -> Self {
         Self {
             h_metrics: font.h_metrics(),
             font,
+            global,
             coords,
             num_glyphs: global.num_glyphs,
             units_per_em: global.units_per_em,
@@ -89,10 +90,115 @@ impl<'a> GlyphMetrics<'a> {
         self.h_advance_batched_varied(raw, coords, convert, glyphs)
     }
 
+    /// Returns the advance height of `glyph`, in design units.
+    ///
+    /// See [`v_advance_exact`](Self::v_advance_exact) for the height before
+    /// it is narrowed to `f32`.
+    #[inline]
+    pub fn v_advance(&self, glyph: GlyphId) -> f32 {
+        self.v_advance_exact(glyph).to_f32()
+    }
+
+    /// Returns the exact advance height of `glyph`, in design units.
+    ///
+    /// The height is positive, as the font states it. A caller laying text
+    /// down the page is the one that knows its axis points the other way.
+    #[inline]
+    pub fn v_advance_exact(&self, glyph: GlyphId) -> F48Dot16 {
+        let mut height = F48Dot16::ZERO;
+        self.v_advance_batched(|value| value, core::iter::once((glyph, &mut height)));
+        height
+    }
+
+    /// Writes the advance height of each glyph to its slot, in order.
+    ///
+    /// Each height passes through `convert`, so a caller working in another
+    /// number type writes into that type directly.
+    #[inline]
+    pub fn v_advance_batched<'o, V: 'o>(
+        &self,
+        convert: impl Fn(F48Dot16) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        let raw = self.font.v_metrics();
+        if raw.is_empty() {
+            // A font that states no vertical metrics stacks its glyphs by
+            // the line it lays horizontal text on, so every glyph advances
+            // the same way and no location moves it.
+            let height = self.line_height();
+            for (_, out) in glyphs {
+                *out = convert(height);
+            }
+            return;
+        }
+        let coords = self.coords;
+        if coords.is_empty() {
+            return raw.run(self.num_glyphs, convert, glyphs);
+        }
+        self.v_advance_batched_varied(raw, coords, convert, glyphs)
+    }
+
+    /// The height a glyph advances where the font states no `vmtx`.
+    ///
+    /// The line's own extent, without the gap that separates one line from
+    /// the next, as HarfBuzz and FreeType both take it. A font stating no
+    /// line at all is read as one em, which is what a caller with nothing
+    /// else to go on would assume.
+    fn line_height(&self) -> F48Dot16 {
+        match self.global.h_line() {
+            Some(line) => line.ascender - line.descender,
+            None => F48Dot16::from_i32(self.units_per_em as i32),
+        }
+    }
+
+    /// The varied half of [`v_advance_batched`](Self::v_advance_batched).
+    ///
+    /// `#[inline(never)]` for the same reason as the horizontal one.
+    #[inline(never)]
+    fn v_advance_batched_varied<'o, V: 'o>(
+        &self,
+        raw: &RawGlyphMetrics<'_>,
+        coords: &[F2Dot14],
+        convert: impl Fn(F48Dot16) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        // Ask the table that answers directly, and stop there if it does.
+        if let Some(vvar) = self.font.vvar() {
+            return raw.run_varied(
+                self.num_glyphs,
+                |gid| vvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                convert,
+                glyphs,
+            );
+        }
+        // Without `VVAR`, the answer comes from the phantom points on the
+        // outline. The vertical pair runs downward, the origin above the
+        // bottom, so the height spans them the other way round from the
+        // width.
+        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+            return raw.run_varied(
+                self.num_glyphs,
+                |gid| match gvar.phantom_point_deltas(glyf, loca, coords, gid) {
+                    Ok(Some(deltas)) => (deltas[2].y - deltas[3].y).to_f48dot16(),
+                    // A glyph the table says nothing about does not move,
+                    // and neither does one it says something unreadable
+                    // about. They are different states, not different
+                    // answers.
+                    _ => F48Dot16::ZERO,
+                },
+                convert,
+                glyphs,
+            );
+        }
+        // A location, but nothing stating what it changes.
+        raw.run(self.num_glyphs, convert, glyphs)
+    }
+
     /// The varied half of [`h_advance_batched`](Self::h_advance_batched).
     ///
-    /// Out of line because reading `gvar` pulls in a large amount of code,
-    /// whose size would otherwise be charged to every unvaried measurement.
+    /// `#[inline(never)]` because reading `gvar` pulls in a large amount of
+    /// code, whose size would otherwise be charged to every unvaried
+    /// measurement.
     #[inline(never)]
     fn h_advance_batched_varied<'o, V: 'o>(
         &self,
@@ -200,6 +306,16 @@ impl<'a> RawGlyphMetrics<'a> {
             metrics: tables
                 .hmtx()
                 .map(|hmtx| hmtx.h_metrics())
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Reads what `vmtx` states.
+    pub(crate) fn from_vmtx(tables: &impl TableProvider<'a>) -> Self {
+        Self {
+            metrics: tables
+                .vmtx()
+                .map(|vmtx| vmtx.v_metrics())
                 .unwrap_or_default(),
         }
     }
@@ -407,6 +523,149 @@ mod tests {
                 "glyph {gid} is beyond the font"
             );
             assert_eq!(font.glyph_metrics().h_advance_exact(gid), F48Dot16::ZERO);
+        }
+    }
+
+    /// Has `vmtx`, `VVAR` and one axis, so it can vary vertically.
+    const VERT_VAR: &[u8] = font_test_data::ift::CFF2_FONT;
+    /// Has `vmtx`, `VVAR` and `gvar`, which disagree about the advance.
+    const VERT: &[u8] = font_test_data::MPLUS1CODE_VERTICAL_SUBSET;
+
+    #[test]
+    fn a_type1_glyph_stacks_by_the_line() {
+        // Type 1 has no `vmtx`, so its glyphs take the line, which for such
+        // a font is the bounding box its metrics are read from. Every glyph
+        // gets the same height while their widths differ, and no location
+        // moves either.
+        //
+        // FreeType instead gives each Type 1 glyph 12/10 of its own ink
+        // height. Nothing here follows it: one rule for every font without
+        // vertical metrics is easier to predict than a per-glyph heuristic,
+        // and HarfBuzz has no opinion because it does not read Type 1.
+        let font = Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap();
+        let line = font.global_metrics().h_line().unwrap();
+        let height = line.ascender - line.descender;
+        assert!(height > F48Dot16::ZERO);
+        let metrics = font.glyph_metrics();
+        let mut widths = std::collections::HashSet::new();
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            assert_eq!(metrics.v_advance_exact(gid), height, "glyph {gid}");
+            widths.insert(metrics.h_advance_exact(gid).to_bits());
+        }
+        assert!(
+            widths.len() > 1,
+            "every glyph is the same width, so this proves nothing"
+        );
+    }
+
+    #[test]
+    fn vertical_advances_come_from_vmtx() {
+        let font = Font::new(VERT_VAR, 0).unwrap();
+        let direct = FontRef::new(VERT_VAR).unwrap();
+        let vmtx = direct.vmtx().unwrap();
+        let metrics = font.glyph_metrics();
+        let mut checked = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let Some(stated) = vmtx.advance(gid) else {
+                continue;
+            };
+            assert_eq!(
+                metrics.v_advance_exact(gid),
+                F48Dot16::from_i32(stated as i32),
+                "glyph {gid}"
+            );
+            checked += 1;
+        }
+        assert!(checked > 1, "this font states no vertical advances");
+    }
+
+    #[test]
+    fn without_vmtx_glyphs_advance_by_the_line() {
+        // A horizontal font stacks by the line it lays text on, so every
+        // glyph gets the same height whatever its width.
+        let font = Font::new(STATIC, 0).unwrap();
+        let line = font.global_metrics().h_line().unwrap();
+        let expected = line.ascender - line.descender;
+        assert!(expected > F48Dot16::ZERO);
+        let metrics = font.glyph_metrics();
+        for gid in (0..font.num_glyphs().min(16)).map(GlyphId::new) {
+            assert_eq!(metrics.v_advance_exact(gid), expected, "glyph {gid}");
+        }
+    }
+
+    #[test]
+    fn a_location_moves_a_vertical_advance() {
+        let font = Font::new(VERT, 0).unwrap();
+        let instance = at(&font, -1.0);
+        let (varied, plain) = (instance.glyph_metrics(), font.glyph_metrics());
+        let moved = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .filter(|gid| varied.v_advance_exact(*gid) != plain.v_advance_exact(*gid))
+            .count();
+        assert!(moved > 0, "no glyph moved at the light end of the axis");
+    }
+
+    #[test]
+    fn phantom_points_measure_a_glyph_the_same_as_vvar() {
+        // Both describe the same font, so where the font is written
+        // consistently they agree. Withholding `VVAR` drives the phantom
+        // point path rather than reimplementing it alongside.
+        let with = Font::new(VERT, 0).unwrap();
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let without = callback_font(VERT, asked.clone(), &[b"VVAR"]);
+        let (a, b) = (at(&with, -1.0), at(&without, -1.0));
+        let (ma, mb) = (a.glyph_metrics(), b.glyph_metrics());
+        // The composite is the exception: it carries its component's metrics
+        // through `USE_MY_METRICS`, and this font states a delta there that
+        // its own `vmtx` has already counted, so the two differ by it.
+        let composite = GlyphId::new(2);
+        for gid in (0..with.num_glyphs()).map(GlyphId::new) {
+            if gid == composite {
+                continue;
+            }
+            assert_eq!(
+                ma.v_advance_exact(gid),
+                mb.v_advance_exact(gid),
+                "glyph {gid}"
+            );
+        }
+        assert_eq!(
+            mb.v_advance_exact(composite) - ma.v_advance_exact(composite),
+            F48Dot16::from_i32(235)
+        );
+    }
+
+    #[test]
+    fn vvar_answering_keeps_gvar_and_the_outlines_unread() {
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let font = callback_font(VERT, asked.clone(), &[]);
+        let instance = at(&font, -1.0);
+        let metrics = instance.glyph_metrics();
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            assert!(metrics.v_advance_exact(gid) > F48Dot16::ZERO);
+        }
+        assert!(asked_for(&asked, b"VVAR"));
+        for unread in [b"gvar", b"glyf", b"loca"] {
+            assert!(
+                !asked_for(&asked, unread),
+                "{:?} was read",
+                Tag::new(unread)
+            );
+        }
+    }
+
+    #[test]
+    fn a_vertical_batch_agrees_with_one_at_a_time() {
+        for (data, coord) in [(VERT_VAR, 0.0), (VERT_VAR, -1.0), (STATIC, 0.0)] {
+            let font = Font::new(data, 0).unwrap();
+            let instance = at(&font, coord);
+            let metrics = instance.glyph_metrics();
+            let gids: Vec<_> = (0..16u32).map(GlyphId::new).collect();
+            let mut batch = vec![F48Dot16::ZERO; 16];
+            metrics.v_advance_batched(|v| v, gids.iter().copied().zip(batch.iter_mut()));
+            for (gid, expected) in gids.iter().zip(&batch) {
+                assert_eq!(metrics.v_advance_exact(*gid), *expected, "glyph {gid}");
+            }
         }
     }
 
