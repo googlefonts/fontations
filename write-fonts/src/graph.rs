@@ -687,6 +687,9 @@ impl Graph {
 
         // map of object id -> number of incoming edges
         let mut subgraph = BTreeMap::new();
+        // the parents of the roots that link to them via long offsets; if a
+        // root gets duplicated, these links must be moved to the duplicate
+        let mut wide_parents = HashSet::new();
 
         for root in roots.iter() {
             // for the roots, we set the edge count to the number of long
@@ -696,6 +699,9 @@ impl Graph {
                 .parents
                 .iter()
                 .filter(|(_, len)| !matches!(len, OffsetLen::Offset16))
+                .inspect(|(parent_id, _)| {
+                    wide_parents.insert(*parent_id);
+                })
                 .count();
             subgraph.insert(*root, inbound_wide_offsets);
             self.find_subgraph_map_hb(*root, &mut subgraph);
@@ -728,21 +734,17 @@ impl Graph {
             return false;
         }
 
-        // now everything but the links to the roots roots has been remapped;
-        // remap those, if needed
-        for root in roots.iter() {
-            let Some(new_id) = id_map.get(root) else {
-                continue;
-            };
-            self.parents_invalid = true;
-            self.positions_invalid = true;
-            for (parent_id, len) in &self.nodes[new_id].parents {
-                if !matches!(len, OffsetLen::Offset16) {
-                    for link in &mut self.objects.get_mut(parent_id).unwrap().offsets {
-                        if link.object == *root {
-                            link.object = *new_id;
-                        }
-                    }
+        // now everything but the long links into the subgraph has been
+        // remapped; move those to the duplicates, if any
+        for parent_id in &wide_parents {
+            for link in &mut self.objects.get_mut(parent_id).unwrap().offsets {
+                if matches!(link.len, OffsetLen::Offset16) {
+                    continue;
+                }
+                if let Some(new_id) = id_map.get(&link.object) {
+                    link.object = *new_id;
+                    self.parents_invalid = true;
+                    self.positions_invalid = true;
                 }
             }
         }
