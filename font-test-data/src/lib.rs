@@ -44,6 +44,9 @@ pub static NOTO_SERIF_DISPLAY_TRIMMED_GLYPHS: &str =
 pub static NOTO_SANS_JP_CFF: &[u8] =
     include_bytes!("../test_data/ttf/NotoSansJP-Regular.subset.otf");
 
+pub static MPLUS1CODE_VERTICAL_SUBSET: &[u8] =
+    include_bytes!("../test_data/ttf/mplus1code_vertical_subset.ttf");
+
 pub static CANTARELL_VF_TRIMMED: &[u8] =
     include_bytes!("../test_data/ttf/cantarell_vf_trimmed.ttf");
 

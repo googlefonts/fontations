@@ -130,6 +130,21 @@ Describes the provenance, usage and generation procedures for font data used for
     ```shell
     pyftsubset cousine-regular.ttf --gids=85
     ```
+* _mplus1code_vertical_subset_
+  * font: M PLUS 1 Code
+  * source: https://fonts.google.com/specimen/M+PLUS+1+Code
+  * license: [Open Font License][OFL]
+  * usage: testing varied vertical advances, in both the `VVAR` and `gvar`
+    paths. Of the fonts surveyed this is the only one whose `gvar` moves a
+    vertical advance at all: it varies the bottom phantom point without the
+    top, so the two disagree about the advance where `VVAR` says it does not
+    move. `VVAR` wins when present, and withholding it drives the phantom
+    point path.
+  * subset: one composite glyph and the component carrying its metrics
+    ```shell
+    pyftsubset "MPLUS1Code[wght].ttf" --gids=0,2 --drop-tables+=DSIG,GPOS,GSUB,STAT,gasp
+    ```
+
 * _cmap6_
   * font: Hand rolled cmap 6 subtable
   * usage: testing cmap format 6 mapping and iteration

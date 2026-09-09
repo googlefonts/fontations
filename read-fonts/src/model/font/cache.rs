@@ -11,7 +11,7 @@
 //! variable font and must not be read to answer what another table can.
 
 use super::FontTables;
-use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca};
+use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vvar::Vvar};
 use crate::TableProvider;
 use alloc::sync::Arc;
 use yoke::{Yoke, Yokeable};
@@ -55,6 +55,16 @@ pub(crate) struct HvarTable<'a>(pub(crate) Option<Hvar<'a>>);
 impl<'a> HvarTable<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
         Self(tables.hvar().ok())
+    }
+}
+
+/// The table stating how a location changes vertical metrics.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct VvarTable<'a>(pub(crate) Option<Vvar<'a>>);
+
+impl<'a> VvarTable<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.vvar().ok())
     }
 }
 

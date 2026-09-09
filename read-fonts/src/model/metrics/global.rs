@@ -29,6 +29,16 @@ pub struct LineBox {
     pub line_gap: F48Dot16,
 }
 
+impl LineBox {
+    /// Returns `true` if either end of the line is away from the baseline.
+    ///
+    /// A font that leaves both at zero has filled the field in without
+    /// saying anything with it, which the choice of line has to account for.
+    pub(crate) fn has_nonzero_extent(&self) -> bool {
+        self.ascender != F48Dot16::ZERO || self.descender != F48Dot16::ZERO
+    }
+}
+
 /// Metrics that describe a font rather than any glyph in it.
 ///
 /// Read from `head`, `maxp`, `hhea`, `vhea` and `OS/2`, which together are a
@@ -160,6 +170,41 @@ impl GlobalMetrics {
         metrics
     }
 
+    /// Returns the ascender, descender and gap for horizontal text.
+    ///
+    /// A font states this line up to three times and the three disagree, so
+    /// the choice follows FreeType:
+    ///
+    /// 1. The typographic line, if `OS/2` asks for it through
+    ///    `USE_TYPO_METRICS`.
+    /// 2. Otherwise `hhea`.
+    /// 3. If `hhea` is zero, the typographic line if it is not, and the
+    ///    clipping line otherwise.
+    ///
+    /// HarfBuzz stops at the second. The third matters because Arial Narrow
+    /// Bold zeroes its typographic metrics where its siblings do not, and
+    /// stopping early would lay it out differently from the rest of the
+    /// family.
+    ///
+    /// Returns `None` if the font states no line at all.
+    pub fn h_line(&self) -> Option<LineBox> {
+        match (self.hhea_line, self.typo_line) {
+            (_, Some(typo)) if self.use_typo_metrics => Some(typo),
+            (Some(hhea), _) if hhea.has_nonzero_extent() => Some(hhea),
+            (_, Some(typo)) if typo.has_nonzero_extent() => Some(typo),
+            // The clipping line has no gap between one line and the next, so
+            // there is none to report.
+            (hhea, _) => match (self.win_ascent, self.win_descent) {
+                (Some(ascent), Some(descent)) => Some(LineBox {
+                    ascender: ascent,
+                    descender: -descent,
+                    line_gap: F48Dot16::ZERO,
+                }),
+                _ => hhea,
+            },
+        }
+    }
+
     /// Reads the metrics a Type1 font states.
     ///
     /// Such a font has only a bounding box, a glyph count and a matrix. The
@@ -192,6 +237,69 @@ impl GlobalMetrics {
 mod tests {
     use super::*;
     use crate::FontRef;
+
+    fn line(ascender: i32, descender: i32) -> LineBox {
+        LineBox {
+            ascender: F48Dot16::from_i32(ascender),
+            descender: F48Dot16::from_i32(descender),
+            line_gap: F48Dot16::ZERO,
+        }
+    }
+
+    #[test]
+    fn the_typographic_line_is_read_when_the_font_asks() {
+        let metrics = GlobalMetrics {
+            hhea_line: Some(line(800, -200)),
+            typo_line: Some(line(750, -250)),
+            use_typo_metrics: true,
+            ..Default::default()
+        };
+        assert_eq!(metrics.h_line(), Some(line(750, -250)));
+    }
+
+    #[test]
+    fn hhea_is_read_when_it_does_not() {
+        let metrics = GlobalMetrics {
+            hhea_line: Some(line(800, -200)),
+            typo_line: Some(line(750, -250)),
+            use_typo_metrics: false,
+            ..Default::default()
+        };
+        assert_eq!(metrics.h_line(), Some(line(800, -200)));
+    }
+
+    #[test]
+    fn a_silent_hhea_gives_way_to_the_typographic_line() {
+        let metrics = GlobalMetrics {
+            hhea_line: Some(line(0, 0)),
+            typo_line: Some(line(750, -250)),
+            use_typo_metrics: false,
+            ..Default::default()
+        };
+        assert_eq!(metrics.h_line(), Some(line(750, -250)));
+    }
+
+    #[test]
+    fn a_font_silent_twice_over_falls_back_to_the_clipping_line() {
+        // Arial Narrow Bold is the case: zeroed typographic metrics beside
+        // usable clipping ones, where its siblings state all three.
+        let metrics = GlobalMetrics {
+            hhea_line: Some(line(0, 0)),
+            typo_line: Some(line(0, 0)),
+            win_ascent: Some(F48Dot16::from_i32(905)),
+            win_descent: Some(F48Dot16::from_i32(212)),
+            use_typo_metrics: false,
+            ..Default::default()
+        };
+        // The clipping metrics state a descent below the baseline as a
+        // positive number, so it is negated to describe the same line.
+        assert_eq!(metrics.h_line(), Some(line(905, -212)));
+    }
+
+    #[test]
+    fn a_font_stating_no_line_reports_none() {
+        assert_eq!(GlobalMetrics::default().h_line(), None);
+    }
 
     /// A horizontal font with `OS/2` and `post`, but no `vhea`.
     fn horizontal() -> FontRef<'static> {
