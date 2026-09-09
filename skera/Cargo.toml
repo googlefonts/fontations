@@ -23,13 +23,16 @@ required-features = ["cli"]
 
 [features]
 default = []
-cli = ["clap"]
+cli = ["clap", "tracing", "tracing-subscriber"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 hashbrown = { version = "0.17.0", default-features = false, features = ["inline-more"] }
+log = { workspace = true }
 skrifa = { workspace = true }
 thiserror = "2.0"
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], optional = true }
 write-fonts = { workspace = true, features = ["read"] }
 
 

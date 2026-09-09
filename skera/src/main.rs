@@ -4,12 +4,15 @@
 //! font file containing only the data specified in the input.
 //!
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+use log::error;
 use skera::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
     subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN,
     KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
 };
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 use write_fonts::read::{
     collections::IntSet,
     tables::{ebdt, eblc, feat, svg},
@@ -105,16 +108,21 @@ struct Args {
     ///run subsetter N times
     #[arg(short, long)]
     num_iterations: Option<u32>,
+
+    /// Set the log level. Defaults to warn.
+    #[arg(long, value_enum)]
+    log: Option<LogLevel>,
 }
 
 fn main() {
     let args = Args::parse();
+    init_logging(&args);
 
     let subset_flags = parse_subset_flags(&args);
     let gids = match populate_gids(&args.gids.unwrap_or_default()) {
         Ok(gids) => gids,
         Err(e) => {
-            eprintln!("{e}");
+            error!("{e}");
             std::process::exit(1);
         }
     };
@@ -122,7 +130,7 @@ fn main() {
     let unicodes = match parse_unicodes(&args.unicodes.unwrap_or_default()) {
         Ok(unicodes) => unicodes,
         Err(e) => {
-            eprintln!("{e}");
+            error!("{e}");
             std::process::exit(1);
         }
     };
@@ -135,7 +143,7 @@ fn main() {
         Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
             Ok(drop_tables) => drop_tables,
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 std::process::exit(1);
             }
         },
@@ -172,7 +180,7 @@ fn main() {
         Some(name_ids_input) => match parse_name_ids(name_ids_input) {
             Ok(name_ids) => name_ids,
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 std::process::exit(1);
             }
         },
@@ -188,7 +196,7 @@ fn main() {
         Some(name_languages_input) => match parse_name_languages(name_languages_input) {
             Ok(name_languages) => name_languages,
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 std::process::exit(1);
             }
         },
@@ -204,7 +212,7 @@ fn main() {
         Some(layout_scripts_input) => match parse_tag_list(layout_scripts_input) {
             Ok(layout_scripts) => layout_scripts,
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 std::process::exit(1);
             }
         },
@@ -220,7 +228,7 @@ fn main() {
         Some(layout_features_input) => match parse_tag_list(layout_features_input) {
             Ok(layout_features) => layout_features,
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 std::process::exit(1);
             }
         },
@@ -250,7 +258,7 @@ fn main() {
                 output_bytes = out;
             }
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 std::process::exit(1);
             }
         };
@@ -309,4 +317,39 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
         flags |= SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS;
     }
     flags
+}
+
+fn init_logging(args: &Args) {
+    let fmt_filter = match args.log {
+        Some(level) => EnvFilter::default().add_directive(LevelFilter::from(level).into()),
+        None => EnvFilter::builder()
+            .with_default_directive(LevelFilter::WARN.into())
+            .from_env_lossy(),
+    };
+    let fmt_layer = tracing_subscriber::fmt::layer().with_filter(fmt_filter);
+    tracing_subscriber::registry().with(fmt_layer).init();
+}
+
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+#[value(rename_all = "lower")]
+enum LogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<LogLevel> for LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Off => LevelFilter::OFF,
+            LogLevel::Error => LevelFilter::ERROR,
+            LogLevel::Warn => LevelFilter::WARN,
+            LogLevel::Info => LevelFilter::INFO,
+            LogLevel::Debug => LevelFilter::DEBUG,
+            LogLevel::Trace => LevelFilter::TRACE,
+        }
+    }
 }
