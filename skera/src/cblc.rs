@@ -76,6 +76,73 @@ impl Subset for Cblc<'_> {
     }
 }
 
+/// Returns true when subsetting would copy the bitmap tables without changing them.
+///
+/// Keep this deliberately conservative. In particular, multiple subtables or empty bitmap
+/// ranges may require repacking even when the glyph-id map itself is the identity map.
+pub(crate) fn can_passthrough_bitmap_tables(cblc: &Cblc, cbdt: &Cbdt, plan: &Plan) -> bool {
+    if !plan.has_identity_glyph_map() {
+        return false;
+    }
+
+    let [bitmap_size] = cblc.bitmap_sizes() else {
+        return false;
+    };
+    if bitmap_size.number_of_index_subtables() != 1
+        || bitmap_size.index_subtable_list_offset() as usize != cblc.bitmap_sizes_byte_range().end
+        || bitmap_size.index_subtable_list_offset() as usize
+            + bitmap_size.index_subtable_list_size() as usize
+            != cblc.offset_data().len()
+    {
+        return false;
+    }
+
+    let Ok(index_subtable_list) = bitmap_size.index_subtable_list(cblc.offset_data()) else {
+        return false;
+    };
+    let [record] = index_subtable_list.index_subtable_records() else {
+        return false;
+    };
+    if bitmap_size.start_glyph_index() != record.first_glyph_index()
+        || bitmap_size.end_glyph_index() != record.last_glyph_index()
+    {
+        return false;
+    }
+
+    let Ok(subtable) = record.index_subtable(index_subtable_list.offset_data()) else {
+        return false;
+    };
+    if IndexSubtableRecord::RAW_BYTE_LEN + subtable.min_table_bytes().len()
+        != bitmap_size.index_subtable_list_size() as usize
+    {
+        return false;
+    }
+
+    let cbdt_header_len = cbdt.min_table_bytes().len();
+    let cbdt_len = cbdt.offset_data().len();
+    match subtable {
+        IndexSubtable::Format1(subtable) => {
+            let offsets = subtable.sbit_offsets();
+            subtable.image_data_offset() as usize == cbdt_header_len
+                && offsets.first().is_some_and(|offset| offset.get() == 0)
+                && offsets.windows(2).all(|pair| pair[0].get() < pair[1].get())
+                && offsets.last().is_some_and(|offset| {
+                    subtable.image_data_offset() as usize + offset.get() as usize == cbdt_len
+                })
+        }
+        IndexSubtable::Format3(subtable) => {
+            let offsets = subtable.sbit_offsets();
+            subtable.image_data_offset() as usize == cbdt_header_len
+                && offsets.first().is_some_and(|offset| offset.get() == 0)
+                && offsets.windows(2).all(|pair| pair[0].get() < pair[1].get())
+                && offsets.last().is_some_and(|offset| {
+                    subtable.image_data_offset() as usize + offset.get() as usize == cbdt_len
+                })
+        }
+        _ => false,
+    }
+}
+
 impl<'a> SubsetTable<'a> for BitmapSize {
     // (Cblc table, CBDT table, src_bitmapsize_bytes, cbdt_out)
     type ArgsForSubset = (&'a Cblc<'a>, &'a Cbdt<'a>, &'a [u8], &'a mut Vec<u8>);
@@ -499,6 +566,78 @@ impl<'a> SubsetTable<'a> for IndexSubtable3<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    fn single_subtable_bitmap_font() -> Vec<u8> {
+        let mut cblc = Vec::from([
+            0x00, 0x03, 0x00, 0x00, // version 3.0
+            0x00, 0x00, 0x00, 0x01, // one bitmap-size record
+            0x00, 0x00, 0x00, 0x38, // index-subtable list offset
+            0x00, 0x00, 0x00, 0x1C, // index-subtable list size
+            0x00, 0x00, 0x00, 0x01, // one index subtable
+            0x00, 0x00, 0x00, 0x00, // color ref
+        ]);
+        cblc.extend_from_slice(&[0; 24]); // horizontal and vertical line metrics
+        cblc.extend_from_slice(&[
+            0x00, 0x01, 0x00, 0x02, // glyph range 1..=2
+            0x10, 0x10, 0x20, 0x01, // ppem, bit depth, and flags
+            0x00, 0x01, 0x00, 0x02, // index-subtable record glyph range
+            0x00, 0x00, 0x00, 0x08, // subtable follows the record
+            0x00, 0x01, 0x00, 0x11, // index format 1, image format 17
+            0x00, 0x00, 0x00, 0x04, // image data follows the CBDT header
+            0x00, 0x00, 0x00, 0x00, // first bitmap offset
+            0x00, 0x00, 0x00, 0x02, // second bitmap offset
+            0x00, 0x00, 0x00, 0x05, // end of bitmap data
+        ]);
+
+        let mut builder = FontBuilder::new();
+        builder.add_raw(Cblc::TAG, cblc);
+        builder.add_raw(
+            Cbdt::TAG,
+            [0x00, 0x03, 0x00, 0x00, 10, 11, 12, 13, 14].as_slice(),
+        );
+        builder.build()
+    }
+
+    #[test]
+    fn detects_unchanged_bitmap_tables() {
+        let font_data = single_subtable_bitmap_font();
+        let font = FontRef::new(&font_data).unwrap();
+        let cblc = font.cblc().unwrap();
+        let cbdt = font.cbdt().unwrap();
+
+        let mut plan = Plan {
+            font_num_glyphs: 3,
+            num_output_glyphs: 3,
+            ..Default::default()
+        };
+        plan.glyphset
+            .insert_range(GlyphId::NOTDEF..=GlyphId::from(2_u32));
+        plan.new_to_old_gid_list.extend((0_u32..3).map(|gid| {
+            let gid = GlyphId::from(gid);
+            (gid, gid)
+        }));
+
+        assert!(can_passthrough_bitmap_tables(&cblc, &cbdt, &plan));
+
+        // Verify that the existing subsetter really does reproduce both tables byte-for-byte
+        // under the conditions accepted by the fast path.
+        let mut output_builder = FontBuilder::new();
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        cblc.subset(&plan, &font, &mut s, &mut output_builder)
+            .unwrap();
+        s.end_serialize();
+        output_builder.add_raw(Cblc::TAG, s.copy_bytes());
+        let output_data = output_builder.build();
+        let output = FontRef::new(&output_data).unwrap();
+        for tag in [Cblc::TAG, Cbdt::TAG] {
+            assert_eq!(
+                font.data_for_tag(tag).unwrap().as_bytes(),
+                output.data_for_tag(tag).unwrap().as_bytes()
+            );
+        }
+    }
+
     #[test]
     fn test_subset_cbdt_noop() {
         let font = FontRef::new(include_bytes!(
