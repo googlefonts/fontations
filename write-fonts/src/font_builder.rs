@@ -182,10 +182,10 @@ impl<'a> FontBuilder<'a> {
         let table_order = self.ordered_tags();
 
         let mut position = header_len as u32;
-        let mut checksums = Vec::new();
+        let mut checksums = Vec::with_capacity(self.tables.len() + 1);
         let head_tag = Tag::new(b"head");
 
-        let mut table_records = Vec::new();
+        let mut table_records = Vec::with_capacity(self.tables.len());
         for tag in table_order.iter() {
             // safe to unwrap as ordered_tags() guarantees that all keys exist
             let data = self.tables.get_mut(tag).unwrap();
@@ -212,6 +212,8 @@ impl<'a> FontBuilder<'a> {
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
         let mut data = writer.into_data().bytes;
+        data.reserve_exact((position as usize).saturating_sub(data.len()));
+        let expected_data_len = data.capacity();
         checksums.push(read_fonts::tables::compute_checksum(&data));
 
         // Summing all the individual table checksums, including the table directory's,
@@ -234,6 +236,12 @@ impl<'a> FontBuilder<'a> {
             let rem = round4(table.len()) - table.len();
             let padding = [0u8; 4];
             data.extend_from_slice(&padding[..rem]);
+        }
+        if expected_data_len != data.len() {
+            log::warn!(
+                "suboptimal: allocated {expected_data_len} bytes but needed {actual_len}",
+                actual_len = data.len()
+            );
         }
         data
     }
