@@ -289,31 +289,37 @@ impl U32Set {
         if self.len() > other.len() {
             return false;
         }
-        let mut it_b = other.page_map.iter().peekable();
+        let mut a_index = 0;
+        let mut b_index = 0;
 
-        for a_info in self.page_map.iter() {
+        while a_index < self.page_map.len() {
+            let a_info = &self.page_map[a_index];
             let page_a = &self.pages[a_info.index as usize];
             if page_a.is_empty() {
+                a_index += 1;
                 continue;
             }
 
-            while let Some(b_info) = it_b.peek() {
-                if b_info.major_value < a_info.major_value {
-                    it_b.next();
+            while b_index < other.page_map.len() {
+                if other.page_map[b_index].major_value < a_info.major_value {
+                    b_index += 1;
                 } else {
                     break;
                 }
             }
 
-            match it_b.peek() {
-                Some(b_info) if b_info.major_value == a_info.major_value => {
-                    let page_b = &other.pages[b_info.index as usize];
-                    if !page_a.is_subset(page_b) {
-                        return false;
-                    }
-                    it_b.next();
+            let Some(b_info) = &other.page_map.get(b_index) else {
+                return false;
+            };
+            if b_info.major_value == a_info.major_value {
+                let page_b = &other.pages[b_info.index as usize];
+                if !page_a.is_subset(page_b) {
+                    return false;
                 }
-                _ => return false,
+                a_index += 1;
+                b_index += 1;
+            } else {
+                return false;
             }
         }
 
@@ -322,24 +328,26 @@ impl U32Set {
 
     /// Returns the number of members present in both `self` and `other`.
     pub fn intersection_len(&self, other: &U32Set) -> u64 {
-        let mut it_a = self.page_map.iter().peekable();
-        let mut it_b = other.page_map.iter().peekable();
+        let mut a_index = 0;
+        let mut b_index = 0;
         let mut count = 0u64;
 
-        while let (Some(a), Some(b)) = (it_a.peek(), it_b.peek()) {
+        while a_index < self.page_map.len() && b_index < other.page_map.len() {
+            let a = &self.page_map[a_index];
+            let b = &other.page_map[b_index];
             match a.major_value.cmp(&b.major_value) {
                 Ordering::Equal => {
                     count += self.pages[a.index as usize]
                         .intersection_len(&other.pages[b.index as usize])
                         as u64;
-                    it_a.next();
-                    it_b.next();
+                    a_index += 1;
+                    b_index += 1;
                 }
                 Ordering::Less => {
-                    it_a.next();
+                    a_index += 1;
                 }
                 Ordering::Greater => {
-                    it_b.next();
+                    b_index += 1;
                 }
             }
         }

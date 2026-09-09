@@ -172,27 +172,29 @@ impl<T: Domain> IntSet<T> {
 
     /// Returns an iterator over members of this set that are in `range`.
     pub fn range<R: RangeBounds<T>>(&self, range: R) -> impl Iterator<Item = T> + '_ {
-        let mut it = match range.start_bound() {
-            Bound::Included(start) | Bound::Excluded(start) => {
-                self.iter_from_u32(*start).peekable()
+        let (first, it) = match range.start_bound() {
+            Bound::Included(start) => (None, self.iter_from_u32(*start)),
+            Bound::Excluded(start) => {
+                let mut it = self.iter_from_u32(*start);
+                let first = it.next().filter(|v| v != &start.to_u32());
+                (first, it)
             }
             Bound::Unbounded => {
                 let min = T::from_u32(InDomain(T::ordered_values().next().unwrap()));
-                self.iter_from_u32(min).peekable()
+                (None, self.iter_from_u32(min))
             }
         };
 
-        if let Bound::Excluded(start) = range.start_bound() {
-            it.next_if_eq(&start.to_u32());
-        }
-
         let range_end = range.end_bound().cloned();
-        it.take_while(move |v| match range_end {
-            Bound::Included(end) => *v <= end.to_u32(),
-            Bound::Excluded(end) => *v < end.to_u32(),
-            Bound::Unbounded => true,
-        })
-        .map(move |v| T::from_u32(InDomain(v)))
+        first
+            .into_iter()
+            .chain(it)
+            .take_while(move |v| match range_end {
+                Bound::Included(end) => *v <= end.to_u32(),
+                Bound::Excluded(end) => *v < end.to_u32(),
+                Bound::Unbounded => true,
+            })
+            .map(move |v| T::from_u32(InDomain(v)))
     }
 
     /// Returns an iterator over all disjoint ranges of values within the set in sorted ascending order.
@@ -656,13 +658,14 @@ where
     T: Domain + Display,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut ranges = self.iter_ranges().peekable();
         write!(f, "{{ ")?;
-        while let Some(range) = ranges.next() {
-            write!(f, "{}..={}", range.start(), range.end())?;
-            if ranges.peek().is_some() {
+        let mut first = true;
+        for range in self.iter_ranges() {
+            if !first {
                 write!(f, ", ")?;
             }
+            first = false;
+            write!(f, "{}..={}", range.start(), range.end())?;
         }
         write!(f, "}}")
     }
