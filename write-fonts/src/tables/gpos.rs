@@ -270,12 +270,33 @@ impl RemapVarStore<VariationIndex> for PositionLookup {
             PositionLookup::MarkToBase(lookup) => lookup.remap_variation_indices(key_map),
             PositionLookup::MarkToLig(lookup) => lookup.remap_variation_indices(key_map),
             PositionLookup::MarkToMark(lookup) => lookup.remap_variation_indices(key_map),
+            PositionLookup::Extension(lookup) => lookup.remap_variation_indices(key_map),
 
             // don't contain any metrics directly
-            PositionLookup::Contextual(_)
-            | PositionLookup::ChainContextual(_)
-            | PositionLookup::Extension(_) => (),
+            PositionLookup::Contextual(_) | PositionLookup::ChainContextual(_) => (),
         }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for ExtensionSubtable {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        match self {
+            ExtensionSubtable::Single(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::Pair(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::Cursive(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::MarkToBase(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::MarkToLig(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::MarkToMark(table) => table.remap_variation_indices(key_map),
+
+            // don't contain any metrics directly
+            ExtensionSubtable::Contextual(_) | ExtensionSubtable::ChainContextual(_) => (),
+        }
+    }
+}
+
+impl<T: RemapVarStore<VariationIndex>> RemapVarStore<VariationIndex> for ExtensionPosFormat1<T> {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.extension.as_mut().remap_variation_indices(key_map)
     }
 }
 
@@ -411,6 +432,82 @@ mod tests {
     use crate::tables::layout::VariationIndex;
 
     use super::*;
+
+    #[test]
+    fn remap_variation_indices_through_extension() {
+        use crate::tables::variations::{
+            ivs_builder::VariationStoreBuilder, RegionAxisCoordinates, VariationRegion,
+        };
+        use font_types::F2Dot14;
+
+        let region = VariationRegion::new(vec![RegionAxisCoordinates {
+            start_coord: F2Dot14::from_f32(0.0),
+            peak_coord: F2Dot14::from_f32(1.0),
+            end_coord: F2Dot14::from_f32(1.0),
+        }]);
+        let mut var_store = VariationStoreBuilder::new(1);
+        let temp_id = var_store.add_deltas(vec![(region, -20)]);
+        let (_, key_map) = var_store.build();
+
+        let value_record = ValueRecord::new()
+            .with_x_advance(-20)
+            .with_x_advance_device(DeviceOrVariationIndex::pending_variation_index(temp_id));
+        let pair_set = PairSet::new(vec![PairValueRecord::new(
+            GlyphId16::new(2),
+            value_record,
+            ValueRecord::default(),
+        )]);
+        let pair_pos = PairPos::format_1(
+            CoverageTable::format_1(vec![GlyphId16::new(1)]),
+            vec![pair_set],
+        );
+
+        // the same subtable, in a plain lookup and wrapped in an extension lookup
+        let mut plain =
+            PositionLookup::Pair(Lookup::new(LookupFlag::default(), vec![pair_pos.clone()]));
+        let mut extension = PositionLookup::Extension(Lookup::new(
+            LookupFlag::default(),
+            vec![ExtensionSubtable::Pair(ExtensionPosFormat1::new(
+                <PairPos as LookupSubtable>::TYPE.to_raw(),
+                pair_pos,
+            ))],
+        ));
+
+        plain.remap_variation_indices(&key_map);
+        extension.remap_variation_indices(&key_map);
+
+        // writing a PendingVariationIndex panics, so dump_table succeeding is the assertion
+        let plain_bytes = crate::dump_table(&plain).unwrap();
+        let ext_bytes = crate::dump_table(&extension).unwrap();
+
+        let parsed = read_gpos::PositionLookup::read(FontData::new(&ext_bytes)).unwrap();
+        let read_gpos::PositionSubtables::Pair(subtables) = parsed.subtables().unwrap() else {
+            panic!("expected a pair lookup");
+        };
+        let read_gpos::PairPos::Format1(subtable) = subtables.get(0).unwrap() else {
+            panic!("expected format 1");
+        };
+        let pair_set = subtable.pair_sets().get(0).unwrap();
+        let record = &pair_set.pair_value_records().get(0).unwrap();
+        let read_fonts::tables::layout::DeviceOrVariationIndex::VariationIndex(var_idx) =
+            record.value_record1.x_advance_device().unwrap().unwrap()
+        else {
+            panic!("expected a VariationIndex");
+        };
+        let expected = key_map.get(temp_id).unwrap();
+        assert_eq!(
+            (
+                var_idx.delta_set_outer_index(),
+                var_idx.delta_set_inner_index()
+            ),
+            (
+                expected.delta_set_outer_index,
+                expected.delta_set_inner_index
+            )
+        );
+        // the extension wrapper is the only difference, so the inner bytes must match
+        assert_eq!(plain_bytes.len() + 8, ext_bytes.len());
+    }
 
     // adapted from/motivated by https://github.com/fonttools/fonttools/issues/471
     #[test]
