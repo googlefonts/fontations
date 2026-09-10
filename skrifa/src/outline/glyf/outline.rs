@@ -1,7 +1,7 @@
 //! TrueType outline types.
 
 use super::super::{pen::PathStyle, DrawError, Hinting, OutlinePen};
-use crate::MAX_GLYF_POINTS;
+use crate::MAX_OUTLINE_POINTS;
 use raw::tables::glyf::PointCoord;
 use read_fonts::{
     tables::glyf::{Glyph, PointFlags},
@@ -93,7 +93,7 @@ impl Outline<'_> {
     }
 
     pub(super) fn ensure_point_count_limit(&self) -> Result<(), DrawError> {
-        if self.points > MAX_GLYF_POINTS {
+        if self.points > MAX_OUTLINE_POINTS {
             Err(DrawError::TooManyPoints(self.glyph_id))
         } else {
             Ok(())

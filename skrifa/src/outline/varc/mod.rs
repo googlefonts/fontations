@@ -18,8 +18,8 @@ use crate::{
     instance::Size,
     outline::{cff, glyf, metrics::GlyphHMetrics, pen::PathStyle, DrawError, OutlinePen},
     provider::MetadataProvider,
-    GLYF_COMPOSITE_RECURSION_LIMIT, MAX_GRAPH_EDGES,
 };
+use read_fonts::limits::{MAX_COMPOSITE_EDGES, MAX_RECURSION_DEPTH};
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
@@ -48,7 +48,7 @@ impl Scratchpad {
             deltas: DeltaVec::new(),
             axis_indices: AxisIndexVec::new(),
             axis_values: AxisValueVec::new(),
-            edges_left: MAX_GRAPH_EDGES,
+            edges_left: MAX_COMPOSITE_EDGES,
         }
     }
 }
@@ -219,7 +219,7 @@ impl<'a> Outlines<'a> {
         coverage_index: u16,
     ) -> Result<usize, DrawError> {
         let mut stack = GlyphStack::new();
-        let mut edges_left = MAX_GRAPH_EDGES;
+        let mut edges_left = MAX_COMPOSITE_EDGES;
         self.max_component_memory_for_glyph(glyph_id, coverage_index, &mut stack, &mut edges_left)
     }
 
@@ -235,7 +235,7 @@ impl<'a> Outlines<'a> {
         }
         // HB returns success for both recursion and edge limits, so we do the same.
         // See <https://github.com/harfbuzz/harfbuzz/blob/0fef675a5ea4973ce49d6dd00c02e70ec409eee3/src/OT/Var/VARC/VARC.cc#L386>
-        if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
+        if stack.len() >= MAX_RECURSION_DEPTH {
             return Ok(0);
         }
         if *edges_left == 0 {
@@ -332,7 +332,7 @@ impl<'a> Outlines<'a> {
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
     ) -> Result<(), DrawError> {
-        if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
+        if stack.len() >= MAX_RECURSION_DEPTH {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
         if scratch.edges_left == 0 {
@@ -684,7 +684,7 @@ impl<'a> Outlines<'a> {
         // is fully attacker-controlled. Bound the recursion so a deeply nested
         // (or degenerate) condition tree returns an error instead of overflowing
         // the stack, mirroring the component-recursion guard in `draw_glyph`.
-        if depth >= GLYF_COMPOSITE_RECURSION_LIMIT {
+        if depth >= MAX_RECURSION_DEPTH {
             return Err(DrawError::RecursionLimitExceeded(GlyphId::NOTDEF));
         }
         match condition {

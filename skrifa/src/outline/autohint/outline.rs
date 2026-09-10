@@ -12,6 +12,7 @@ use super::{
 use crate::collections::SmallVec;
 use core::ops::Range;
 use raw::{
+    limits::MAX_OUTLINE_POINTS,
     tables::glyf::{PointFlags, PointMarker},
     types::Point as Coord,
     types::{F26Dot6, F2Dot14, GlyphId},
@@ -177,10 +178,7 @@ impl Outline {
     }
 
     fn analyze_and_validate(&mut self, gid: GlyphId, quirks: QuirksMode) -> Result<(), DrawError> {
-        // All of our u16 ranges are inclusive so this allows point indices up
-        // to u16::MAX
-        const MAX_LEN: usize = u16::MAX as usize + 1;
-        if self.points.len() > MAX_LEN || self.contours.len() > MAX_LEN {
+        if self.points.len() > MAX_OUTLINE_POINTS || self.contours.len() > MAX_OUTLINE_POINTS {
             return Err(DrawError::TooManyPoints(gid));
         }
         // Heuristic value

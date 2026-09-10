@@ -59,7 +59,7 @@ impl fmt::Display for DrawError {
             Self::RecursionLimitExceeded(gid) => write!(
                 f,
                 "Recursion limit ({}) exceeded when loading composite component {gid}",
-                super::GLYF_COMPOSITE_RECURSION_LIMIT,
+                read_fonts::limits::MAX_RECURSION_DEPTH,
             ),
             Self::TooManyPoints(gid) => write!(f, "Glyph {gid} contains more than 64k points"),
             Self::HintingFailed(e) => write!(f, "{e}"),
