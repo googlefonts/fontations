@@ -49,15 +49,15 @@ impl Subset for Glyf<'_> {
                             .subset_flags
                             .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
                     {
-                        subset_glyphs.push(Vec::new());
+                        subset_glyphs.push(SubsetGlyph::Empty);
                         continue;
                     }
 
                     let Some(glyph) = g.into_glyph() else {
-                        subset_glyphs.push(Vec::new());
+                        subset_glyphs.push(SubsetGlyph::Empty);
                         continue;
                     };
-                    let subset_glyph = subset_glyph(&glyph, plan);
+                    let subset_glyph = SubsetGlyph::new(&glyph, plan);
                     let trimmed_len = subset_glyph.len();
                     max_offset += padded_size(trimmed_len) as u32;
                     subset_glyphs.push(subset_glyph);
@@ -90,7 +90,7 @@ fn write_glyf_loca(
     plan: &Plan,
     s: &mut Serializer,
     loca_format: u8,
-    subset_glyphs: &[Vec<u8>],
+    subset_glyphs: &[SubsetGlyph<'_>],
 ) -> Result<Vec<u8>, SubsetError> {
     let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
     let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
@@ -118,8 +118,7 @@ fn write_glyf_loca(
             offset += padded_len as u32;
             value = ((offset >> 1) as u16).to_be_bytes();
             loca_out.extend_from_slice(&value);
-            s.embed_bytes(g)
-                .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
+            g.write(s)?;
             if padded_len > g.len() {
                 s.embed_bytes(&[0])
                     .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
@@ -147,8 +146,7 @@ fn write_glyf_loca(
             value = offset.to_be_bytes();
             loca_out.extend_from_slice(&value);
 
-            s.embed_bytes(g)
-                .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
+            g.write(s)?;
 
             last += 1;
         }
@@ -170,6 +168,109 @@ fn write_glyf_loca(
     Ok(loca_out)
 }
 
+enum SubsetGlyph<'a> {
+    Empty,
+    Simple(SimpleSubsetGlyph<'a>),
+    Composite(Vec<u8>),
+}
+
+impl<'a> SubsetGlyph<'a> {
+    fn new(glyph: &Glyph<'a>, plan: &Plan) -> Self {
+        match glyph {
+            Simple(glyph) => SimpleSubsetGlyph::new(glyph, plan)
+                .map(Self::Simple)
+                .unwrap_or(Self::Empty),
+            Composite(glyph) => Self::Composite(subset_composite_glyph(glyph, plan)),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Empty => 0,
+            Self::Simple(glyph) => glyph.len(),
+            Self::Composite(bytes) => bytes.len(),
+        }
+    }
+
+    fn write(&self, s: &mut Serializer) -> Result<(), SubsetError> {
+        match self {
+            Self::Empty => Ok(()),
+            Self::Simple(glyph) => glyph.write(s),
+            Self::Composite(bytes) => s
+                .embed_bytes(bytes)
+                .map(|_| ())
+                .map_err(|_| SubsetTableError(Glyf::TAG)),
+        }
+    }
+}
+
+struct SimpleSubsetGlyph<'a> {
+    header: &'a [u8],
+    instructions: &'a [u8],
+    glyph_data: &'a [u8],
+    drop_hinting: bool,
+    set_overlaps_flag: bool,
+}
+
+impl<'a> SimpleSubsetGlyph<'a> {
+    fn new(g: &SimpleGlyph<'a>, plan: &Plan) -> Option<Self> {
+        let num_coords = g.end_pts_of_contours().last()?.get() + 1;
+        let glyph_data = g.glyph_data();
+        let glyph_data = glyph_data.get(..trim_simple_glyph_padding(glyph_data, num_coords))?;
+        if glyph_data.is_empty() {
+            return None;
+        }
+
+        let glyph_bytes = g.offset_data().as_bytes();
+        let header_len = 10 + 2 * g.end_pts_of_contours().len() + 2;
+        let header = glyph_bytes.get(..header_len)?;
+        let drop_hinting = plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
+        let instructions = if drop_hinting {
+            &[]
+        } else {
+            glyph_bytes.get(header_len..header_len + g.instruction_length() as usize)?
+        };
+
+        Some(Self {
+            header,
+            instructions,
+            glyph_data,
+            drop_hinting,
+            set_overlaps_flag: plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG),
+        })
+    }
+
+    fn len(&self) -> usize {
+        self.header.len() + self.instructions.len() + self.glyph_data.len()
+    }
+
+    fn write(&self, s: &mut Serializer) -> Result<(), SubsetError> {
+        let map_err = |_| SubsetTableError(Glyf::TAG);
+        if self.drop_hinting {
+            s.embed_bytes(&self.header[..self.header.len() - 2])
+                .map_err(map_err)?;
+            s.embed(0_u16).map_err(map_err)?;
+        } else {
+            s.embed_bytes(self.header).map_err(map_err)?;
+            s.embed_bytes(self.instructions).map_err(map_err)?;
+        }
+
+        if self.set_overlaps_flag {
+            s.embed(self.glyph_data[0] | SimpleGlyphFlags::OVERLAP_SIMPLE.bits())
+                .map_err(map_err)?;
+            s.embed_bytes(&self.glyph_data[1..]).map_err(map_err)?;
+        } else {
+            s.embed_bytes(self.glyph_data).map_err(map_err)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
     //TODO: support set_overlaps_flag and drop_hints
     match glyph {
@@ -179,6 +280,7 @@ fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
 }
 
 // TODO: drop_hints and set_overlaps_flag
+#[cfg(test)]
 fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
     let mut out = Vec::with_capacity(g.offset_data().len());
 

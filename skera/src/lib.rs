@@ -334,7 +334,6 @@ pub struct Plan {
     num_output_glyphs: usize,
     font_num_glyphs: usize,
     unicode_to_new_gid_list: Vec<(u32, GlyphId)>,
-    codepoint_to_glyph: FnvHashMap<u32, GlyphId>,
 
     subset_flags: SubsetFlags,
     no_subset_tables: IntSet<Tag>,
@@ -394,6 +393,18 @@ struct Os2Info {
 }
 
 impl Plan {
+    fn has_identity_glyph_map(&self) -> bool {
+        self.num_output_glyphs == self.font_num_glyphs
+            && self.new_to_old_gid_list.len() == self.font_num_glyphs
+            && self
+                .new_to_old_gid_list
+                .iter()
+                .enumerate()
+                .all(|(gid, &(new_gid, old_gid))| {
+                    new_gid.to_u32() as usize == gid && old_gid == new_gid
+                })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         input_gids: &IntSet<GlyphId>,
@@ -455,13 +466,11 @@ impl Plan {
         if input_gids.is_empty() && unicodes.len() < (self.font_num_glyphs as u64) {
             let cap: usize = unicodes.len().try_into().unwrap_or(usize::MAX);
             self.unicode_to_new_gid_list.reserve(cap);
-            self.codepoint_to_glyph.reserve(cap);
             //TODO: add support for subset accelerator?
 
             for cp in unicodes.iter() {
                 match charmap.map(cp) {
                     Some(gid) => {
-                        self.codepoint_to_glyph.insert(cp, gid);
                         self.unicode_to_new_gid_list.push((cp, gid));
                     }
                     None => {
@@ -471,31 +480,17 @@ impl Plan {
             }
         } else {
             //TODO: add support for subset accelerator?
-            let cmap_unicodes = charmap.mappings().map(|t| t.0).collect::<IntSet<u32>>();
-            let unicode_gid_map = charmap.mappings().collect::<FnvHashMap<u32, GlyphId>>();
-
             let vec_cap: u64 = input_gids.len() + unicodes.len();
             let vec_cap: usize = vec_cap
-                .min(cmap_unicodes.len())
+                .min(self.font_num_glyphs as u64)
                 .try_into()
                 .unwrap_or(usize::MAX);
-            self.codepoint_to_glyph.reserve(vec_cap);
             self.unicode_to_new_gid_list.reserve(vec_cap);
-            for range in cmap_unicodes.iter_ranges() {
-                for cp in range {
-                    match unicode_gid_map.get(&cp) {
-                        Some(gid) => {
-                            if !input_gids.contains(*gid) && !unicodes.contains(cp) {
-                                continue;
-                            }
-                            self.codepoint_to_glyph.insert(cp, *gid);
-                            self.unicode_to_new_gid_list.push((cp, *gid));
-                        }
-                        None => {
-                            continue;
-                        }
-                    }
+            for (cp, gid) in charmap.mappings() {
+                if !input_gids.contains(gid) && !unicodes.contains(cp) {
+                    continue;
                 }
+                self.unicode_to_new_gid_list.push((cp, gid));
             }
 
             /* Add gids which where requested, but not mapped in cmap */
@@ -1135,8 +1130,8 @@ trait Serialize<'a> {
     fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags>;
 }
 
-pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
-    let mut builder = FontBuilder::default();
+pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
+    let mut builder = FontBuilder::<'a>::default();
 
     let mut state = SubsetState::default();
     let mut tags_with_dependencies = Vec::with_capacity(5);
@@ -1144,6 +1139,42 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
         let tag = record.tag();
         if should_drop_table(tag, plan) {
             continue;
+        }
+
+        // CBDT is handled together with CBLC. Avoid allocating a serializer sized for the
+        // (typically much larger) bitmap-data table when there is nothing to do here.
+        if tag == Cbdt::TAG {
+            continue;
+        }
+
+        // When glyph ids are unchanged, the bitmap location and data tables need no rewriting.
+        // Borrow them directly until FontBuilder assembles the final font instead of copying the
+        // bitmap data into an intermediate buffer first.
+        if tag == Cblc::TAG {
+            if let (Ok(cblc), Ok(cbdt)) = (font.cblc(), font.cbdt()) {
+                if cblc::can_passthrough_bitmap_tables(&cblc, &cbdt, plan) {
+                    builder.add_raw_with_checksum(
+                        Cblc::TAG,
+                        cblc.offset_data().as_bytes(),
+                        record.checksum(),
+                    );
+                    if let Some(cbdt_record) = font
+                        .table_directory()
+                        .table_records()
+                        .iter()
+                        .find(|record| record.tag() == Cbdt::TAG)
+                    {
+                        builder.add_raw_with_checksum(
+                            Cbdt::TAG,
+                            cbdt.offset_data().as_bytes(),
+                            cbdt_record.checksum(),
+                        );
+                    } else {
+                        builder.add_raw(Cbdt::TAG, cbdt.offset_data().as_bytes());
+                    }
+                    continue;
+                }
+            }
         }
 
         // TODO: add more tags with dependencies for instancing
@@ -1462,16 +1493,6 @@ mod test {
         assert_eq!(plan.unicode_to_new_gid_list.len(), 2);
         assert_eq!(plan.unicode_to_new_gid_list[0], (0x2c_u32, GlyphId::new(2)));
         assert_eq!(plan.unicode_to_new_gid_list[1], (0x31_u32, GlyphId::new(4)));
-
-        assert_eq!(plan.codepoint_to_glyph.len(), 2);
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x2c_u32),
-            Some(GlyphId::new(2)).as_ref()
-        );
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x31_u32),
-            Some(GlyphId::new(4)).as_ref()
-        );
     }
 
     #[test]
@@ -1497,16 +1518,6 @@ mod test {
         assert_eq!(plan.unicode_to_new_gid_list.len(), 2);
         assert_eq!(plan.unicode_to_new_gid_list[0], (0x2c_u32, GlyphId::new(2)));
         assert_eq!(plan.unicode_to_new_gid_list[1], (0x31_u32, GlyphId::new(4)));
-
-        assert_eq!(plan.codepoint_to_glyph.len(), 2);
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x2c_u32),
-            Some(GlyphId::new(2)).as_ref()
-        );
-        assert_eq!(
-            plan.codepoint_to_glyph.get(&0x31_u32),
-            Some(GlyphId::new(4)).as_ref()
-        );
     }
 
     #[test]
