@@ -103,10 +103,7 @@ use raw::FontRef;
 pub use {error::DrawError, pen::OutlinePen};
 
 use self::glyf::{FreeTypeScaler, HarfBuzzScaler};
-use super::{
-    instance::{LocationRef, NormalizedCoord, Size},
-    GLYF_COMPOSITE_RECURSION_LIMIT,
-};
+use super::instance::{LocationRef, NormalizedCoord, Size};
 use core::fmt::Debug;
 use pen::PathStyle;
 use read_fonts::{types::GlyphId, TableProvider};

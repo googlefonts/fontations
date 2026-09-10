@@ -246,9 +246,7 @@ fn find_glyph_and_point_count(
     glyph_id: GlyphId,
     recurse_depth: usize,
 ) -> Result<(GlyphId, usize), ReadError> {
-    // Matches HB's nesting limit
-    const RECURSION_LIMIT: usize = 64;
-    if recurse_depth > RECURSION_LIMIT {
+    if recurse_depth > crate::limits::MAX_RECURSION_DEPTH {
         return Err(ReadError::MalformedData(
             "nesting too deep in composite glyph",
         ));

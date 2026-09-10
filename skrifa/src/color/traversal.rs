@@ -12,12 +12,16 @@ use super::{
 };
 
 use crate::decycler::{Decycler, DecyclerError};
+use read_fonts::limits::MAX_RECURSION_DEPTH;
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
 use core_maths::*;
 
-pub(crate) type PaintDecycler = Decycler<usize, MAX_TRAVERSAL_DEPTH>;
+// Bounds how deep a paint graph is followed, and detects cycles in it.
+// HarfBuzz bounds its own paint context the same way; see
+// <https://github.com/harfbuzz/harfbuzz/blob/724ef405f3a0a0b2792c7a575d1f3341b41ca950/src/OT/Color/COLR/COLR.hh#L74>.
+pub(crate) type PaintDecycler = Decycler<usize, MAX_RECURSION_DEPTH>;
 
 // Avoid heap allocations for any gradient with <= 32 color stops. This number
 // was chosen to keep stack size < 512 bytes.
@@ -40,16 +44,6 @@ impl From<DecyclerError> for PaintError {
         }
     }
 }
-
-/// Depth at which we will stop traversing and return an error.
-///
-/// Used to prevent stack overflows. Also allows us to avoid using a HashSet
-/// in no_std builds.
-///
-/// This limit matches the one used in HarfBuzz:
-/// HB_MAX_NESTING_LEVEL: <https://github.com/harfbuzz/harfbuzz/blob/c2f8f35a6cfce43b88552b3eb5c05062ac7007b2/src/hb-limits.hh#L53>
-/// hb_paint_context_t: <https://github.com/harfbuzz/harfbuzz/blob/c2f8f35a6cfce43b88552b3eb5c05062ac7007b2/src/OT/Color/COLR/COLR.hh#L74>
-const MAX_TRAVERSAL_DEPTH: usize = 64;
 
 /// Maximum number of nodes visited during a single traversal.
 ///
@@ -112,7 +106,7 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
     decycler: &mut PaintDecycler,
     recurse_depth: usize,
 ) -> Result<(), PaintError> {
-    if recurse_depth >= MAX_TRAVERSAL_DEPTH {
+    if recurse_depth >= MAX_RECURSION_DEPTH {
         return Err(PaintError::DepthLimitExceeded);
     }
     match paint {
