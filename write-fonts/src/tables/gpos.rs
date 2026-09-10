@@ -270,12 +270,33 @@ impl RemapVarStore<VariationIndex> for PositionLookup {
             PositionLookup::MarkToBase(lookup) => lookup.remap_variation_indices(key_map),
             PositionLookup::MarkToLig(lookup) => lookup.remap_variation_indices(key_map),
             PositionLookup::MarkToMark(lookup) => lookup.remap_variation_indices(key_map),
+            PositionLookup::Extension(lookup) => lookup.remap_variation_indices(key_map),
 
             // don't contain any metrics directly
-            PositionLookup::Contextual(_)
-            | PositionLookup::ChainContextual(_)
-            | PositionLookup::Extension(_) => (),
+            PositionLookup::Contextual(_) | PositionLookup::ChainContextual(_) => (),
         }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for ExtensionSubtable {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        match self {
+            ExtensionSubtable::Single(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::Pair(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::Cursive(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::MarkToBase(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::MarkToLig(table) => table.remap_variation_indices(key_map),
+            ExtensionSubtable::MarkToMark(table) => table.remap_variation_indices(key_map),
+
+            // don't contain any metrics directly
+            ExtensionSubtable::Contextual(_) | ExtensionSubtable::ChainContextual(_) => (),
+        }
+    }
+}
+
+impl<T: RemapVarStore<VariationIndex>> RemapVarStore<VariationIndex> for ExtensionPosFormat1<T> {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.extension.as_mut().remap_variation_indices(key_map)
     }
 }
 
