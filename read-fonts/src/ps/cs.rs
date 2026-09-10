@@ -10,7 +10,7 @@ use crate::{
         transform::{FontMatrix, Transform},
     },
     tables::cff::Cff,
-    types::{Fixed, Point},
+    types::{BoundingBox, Fixed, Point},
     Cursor, FontData, FontRead,
 };
 
@@ -162,6 +162,71 @@ impl CommandSink for NullSink {
         _y: Fixed,
     ) {
     }
+    fn close(&mut self) {}
+}
+
+/// Sink that measures the box a drawing stays within.
+///
+/// A curve counts through its control points rather than the path they
+/// describe, so one bulging inside its hull measures larger than it draws.
+/// That is a control box, which is what HarfBuzz reports for a charstring and
+/// what costs no arithmetic to find. Solving each curve would tighten the box
+/// and is not worth what it costs to a caller asking where a glyph roughly
+/// sits.
+///
+/// Nothing drawn leaves [`bounding_box`](Self::bounding_box) empty, which is
+/// the answer for a glyph with no ink rather than a box of no size at the
+/// origin. The pen that measures a drawn outline the same way is
+/// [`ControlBoundsPen`](crate::model::pen::ControlBoundsPen).
+#[derive(Clone, Default, Debug)]
+pub struct ControlBoundsSink {
+    bounds: Option<BoundingBox<Fixed>>,
+}
+
+impl ControlBoundsSink {
+    /// Creates a sink that has measured nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns the bounding box collected by this sink.
+    pub fn bounding_box(&self) -> Option<BoundingBox<Fixed>> {
+        self.bounds
+    }
+
+    fn update_bounds(&mut self, x: Fixed, y: Fixed) {
+        self.bounds = Some(match self.bounds {
+            Some(b) => BoundingBox {
+                x_min: b.x_min.min(x),
+                y_min: b.y_min.min(y),
+                x_max: b.x_max.max(x),
+                y_max: b.y_max.max(y),
+            },
+            None => BoundingBox {
+                x_min: x,
+                y_min: y,
+                x_max: x,
+                y_max: y,
+            },
+        });
+    }
+}
+
+impl CommandSink for ControlBoundsSink {
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.update_bounds(x, y);
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.update_bounds(x, y);
+    }
+
+    fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
+        self.update_bounds(cx0, cy0);
+        self.update_bounds(cx1, cy1);
+        self.update_bounds(x, y);
+    }
+
     fn close(&mut self) {}
 }
 

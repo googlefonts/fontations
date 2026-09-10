@@ -450,6 +450,74 @@ impl<'a> CffFontRef<'a> {
             .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
     }
 
+    /// Measures the box the glyph's drawing stays within, in design units.
+    ///
+    /// A control box: a curve counts through its control points rather than
+    /// the path they describe, so one bulging inside its hull measures larger
+    /// than it draws. HarfBuzz reports a charstring's extents the same way.
+    ///
+    /// The font matrix is applied and no size is, so the box is exact and in
+    /// the units the rest of the font is measured in.
+    /// [`extents`](Self::extents) applies a size as well and answers in what
+    /// a caller laying out text works in.
+    ///
+    /// Unlike [`evaluate_charstring`], the matrix is applied here rather than
+    /// left to a caller. That one withholds it so a hinter can be slotted in
+    /// before it; nothing hints a box, and a box cannot be brought through a
+    /// matrix afterwards anyway, because turning a box turns its corners and
+    /// a matrix that shears tilts the drawing inside a box that has to grow
+    /// to hold them.
+    ///
+    /// `None` where the glyph draws nothing.
+    ///
+    /// [`evaluate_charstring`]: Self::evaluate_charstring
+    pub fn evaluate_extents(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+    ) -> Result<Option<BoundingBox<Fixed>>, Error> {
+        let mut bounds = cs::ControlBoundsSink::new();
+        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let transform = self.transform(subfont, None);
+        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
+        Ok(bounds.bounding_box())
+    }
+
+    /// Returns the box the glyph's drawing stays within, with an optional
+    /// size in ppem.
+    ///
+    /// The box [`draw`](Self::draw) would stay within, measured as
+    /// [`evaluate_extents`](Self::evaluate_extents) measures it and scaled by
+    /// the size as well.
+    ///
+    /// A size can be applied to a finished box, being one scale in both
+    /// directions; it is applied here so the answer matches `draw` at that
+    /// size without a caller doing the arithmetic. The matrix cannot, which
+    /// is why neither of these leaves it out.
+    ///
+    /// `None` where the glyph draws nothing.
+    pub fn extents(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+        ppem: Option<f32>,
+    ) -> Result<Option<BoundingBox<f32>>, Error> {
+        let mut bounds = cs::ControlBoundsSink::new();
+        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let transform = self.transform(subfont, ppem);
+        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
+        Ok(bounds.bounding_box().map(|b| BoundingBox {
+            x_min: b.x_min.to_f32(),
+            y_min: b.y_min.to_f32(),
+            x_max: b.x_max.to_f32(),
+            y_max: b.y_max.to_f32(),
+        }))
+    }
+
     /// Draws the glyph with an optional size in ppem to the given pen.
     ///
     /// Returns the advance width of the glyph if the charstring provides
@@ -1389,5 +1457,162 @@ mod width_only_tests {
                 });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod extents_tests {
+    use super::*;
+    use crate::{model::pen::OutlinePen, FontRef, TableProvider};
+
+    /// Has a sheared top level matrix over a scaled one, so where the box is
+    /// measured is observable.
+    const SHEARED: &[u8] = font_test_data::MATERIAL_ICONS_SUBSET_MATRIX;
+
+    #[derive(Default)]
+    struct BoundsPen(Option<[f32; 4]>);
+
+    impl BoundsPen {
+        fn add(&mut self, x: f32, y: f32) {
+            self.0 = Some(match self.0 {
+                Some([a, b, c, d]) => [a.min(x), b.min(y), c.max(x), d.max(y)],
+                None => [x, y, x, y],
+            });
+        }
+    }
+
+    impl OutlinePen for BoundsPen {
+        fn move_to(&mut self, x: f32, y: f32) {
+            self.add(x, y);
+        }
+        fn line_to(&mut self, x: f32, y: f32) {
+            self.add(x, y);
+        }
+        fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
+            self.add(cx, cy);
+            self.add(x, y);
+        }
+        fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+            self.add(cx0, cy0);
+            self.add(cx1, cy1);
+            self.add(x, y);
+        }
+        fn close(&mut self) {}
+    }
+
+    fn corners(b: BoundingBox<f32>) -> [f32; 4] {
+        [b.x_min, b.y_min, b.x_max, b.y_max]
+    }
+
+    fn cff_of(data: &[u8]) -> CffFontRef<'_> {
+        let font = FontRef::new(data).unwrap();
+        CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap()
+    }
+
+    fn each_glyph(data: &[u8], mut f: impl FnMut(&CffFontRef, &Subfont, GlyphId)) {
+        let cff = cff_of(data);
+        for gid in (0..cff.num_glyphs()).map(GlyphId::new) {
+            let index = cff.subfont_index(gid).unwrap_or(0);
+            let subfont = cff.subfont(index, &[]).unwrap();
+            f(&cff, &subfont, gid);
+        }
+    }
+
+    #[test]
+    fn the_extents_are_the_box_drawing_stays_within() {
+        for data in [
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+            font_test_data::ift::CFF_FONT,
+            SHEARED,
+        ] {
+            for ppem in [None, Some(16.0)] {
+                let mut drew = 0;
+                each_glyph(data, |cff, subfont, gid| {
+                    let mut pen = BoundsPen::default();
+                    cff.draw(subfont, gid, &[], ppem, &mut pen).unwrap();
+                    let measured = cff.extents(subfont, gid, &[], ppem).unwrap();
+                    assert_eq!(measured.map(corners), pen.0, "glyph {gid} at {ppem:?}");
+                    drew += pen.0.is_some() as u32;
+                });
+                assert!(drew > 0, "nothing drew, so this proves nothing");
+            }
+        }
+    }
+
+    #[test]
+    fn a_sheared_matrix_measures_smaller_than_a_box_turned_afterwards() {
+        // Why the matrix is applied while measuring rather than to the
+        // finished box: a shear tilts the drawing inside a box that has to
+        // grow to hold the corners of a turned box.
+        let mut tighter = 0;
+        each_glyph(SHEARED, |cff, subfont, gid| {
+            // The box before the matrix. No method answers with one, since
+            // it cannot be brought through the matrix afterwards, which is
+            // what this test is about; the sink gives it.
+            let mut before = cs::ControlBoundsSink::new();
+            let mut filter = cs::NopFilterSink::new(&mut before);
+            cff.evaluate_charstring(subfont, gid, &[], &mut filter)
+                .unwrap();
+            let Some(plain) = before.bounding_box() else {
+                return;
+            };
+            let mut turned = cs::ControlBoundsSink::new();
+            let transform = cff.transform(subfont, None);
+            let mut sink = cs::TransformSink::new(&mut turned, transform);
+            for (x, y) in [
+                (plain.x_min, plain.y_min),
+                (plain.x_min, plain.y_max),
+                (plain.x_max, plain.y_min),
+                (plain.x_max, plain.y_max),
+            ] {
+                sink.move_to(x, y);
+            }
+            let turned = turned.bounding_box().unwrap();
+            let measured = cff.extents(subfont, gid, &[], None).unwrap().unwrap();
+            // Measuring during never reaches outside measuring after.
+            assert!(measured.x_min >= turned.x_min.to_f32());
+            assert!(measured.x_max <= turned.x_max.to_f32());
+            if measured.x_min > turned.x_min.to_f32() || measured.x_max < turned.x_max.to_f32() {
+                tighter += 1;
+            }
+        });
+        assert!(
+            tighter > 0,
+            "no glyph measured tighter, so the shear went unnoticed"
+        );
+    }
+
+    #[test]
+    fn a_location_moves_a_cff2_box_as_it_moves_the_drawing() {
+        // Coordinates reach the box the way they reach the drawing, through
+        // the blend the charstring runs with. Most glyphs here have no ink;
+        // the count guards against a subset leaving none that move.
+        let data = font_test_data::ift::CFF2_FONT;
+        let font = FontRef::new(data).unwrap();
+        let cff =
+            CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
+        let axes = font.fvar().unwrap().axis_count() as usize;
+        let mut at_default: Vec<Option<[f32; 4]>> = Vec::new();
+        let mut moved = 0;
+        for coord in [0.0f32, -1.0, 1.0] {
+            let coords: Vec<_> = (0..axes).map(|_| F2Dot14::from_f32(coord)).collect();
+            for (i, gid) in (0..cff.num_glyphs()).map(GlyphId::new).enumerate() {
+                let index = cff.subfont_index(gid).unwrap_or(0);
+                let subfont = cff.subfont(index, &coords).unwrap();
+                let measured = cff
+                    .extents(&subfont, gid, &coords, None)
+                    .unwrap()
+                    .map(corners);
+                let mut pen = BoundsPen::default();
+                cff.draw(&subfont, gid, &coords, None, &mut pen).unwrap();
+                assert_eq!(measured, pen.0, "glyph {gid} at {coord}");
+                if coord == 0.0 {
+                    at_default.push(measured);
+                } else if at_default[i] != measured {
+                    moved += 1;
+                }
+            }
+        }
+        assert!(moved > 0, "no box moved, so the location went unread");
     }
 }

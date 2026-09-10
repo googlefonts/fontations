@@ -332,6 +332,67 @@ impl Type1Font {
             .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
     }
 
+    /// Measures the box the glyph's drawing stays within, in design units.
+    ///
+    /// A control box: a curve counts through its control points rather than
+    /// the path they describe, so one bulging inside its hull measures larger
+    /// than it draws. HarfBuzz reports a charstring's extents the same way.
+    ///
+    /// The font matrix is applied and no size is, so the box is exact and in
+    /// the units the rest of the font is measured in.
+    /// [`extents`](Self::extents) applies a size as well and answers in what
+    /// a caller laying out text works in.
+    ///
+    /// Unlike [`evaluate_charstring`], the matrix is applied here rather than
+    /// left to a caller. That one withholds it so a hinter can be slotted in
+    /// before it; nothing hints a box, and a box cannot be brought through a
+    /// matrix afterwards anyway, because turning a box turns its corners and
+    /// a matrix that shears tilts the drawing inside a box that has to grow
+    /// to hold them.
+    ///
+    /// `None` where the glyph draws nothing.
+    ///
+    /// [`evaluate_charstring`]: Self::evaluate_charstring
+    pub fn evaluate_extents(&self, gid: GlyphId) -> Result<Option<BoundingBox<Fixed>>, Error> {
+        let mut bounds = cs::ControlBoundsSink::new();
+        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let transform = self.transform(None);
+        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        self.evaluate_charstring(gid, &mut transformer)?;
+        Ok(bounds.bounding_box())
+    }
+
+    /// Returns the box the glyph's drawing stays within, with an optional
+    /// size in ppem.
+    ///
+    /// The box [`draw`](Self::draw) would stay within, measured as
+    /// [`evaluate_extents`](Self::evaluate_extents) measures it and scaled by
+    /// the size as well.
+    ///
+    /// A size can be applied to a finished box, being one scale in both
+    /// directions; it is applied here so the answer matches `draw` at that
+    /// size without a caller doing the arithmetic. The matrix cannot, which
+    /// is why neither of these leaves it out.
+    ///
+    /// `None` where the glyph draws nothing.
+    pub fn extents(
+        &self,
+        gid: GlyphId,
+        ppem: Option<f32>,
+    ) -> Result<Option<BoundingBox<f32>>, Error> {
+        let mut bounds = cs::ControlBoundsSink::new();
+        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let transform = self.transform(ppem);
+        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        self.evaluate_charstring(gid, &mut transformer)?;
+        Ok(bounds.bounding_box().map(|b| BoundingBox {
+            x_min: b.x_min.to_f32(),
+            y_min: b.y_min.to_f32(),
+            x_max: b.x_max.to_f32(),
+            y_max: b.y_max.to_f32(),
+        }))
+    }
+
     /// Draws the glyph with an optional size in ppem to the given pen.
     ///
     /// Returns the advance width of the glyph if the charstring provides
@@ -2376,5 +2437,135 @@ mod width_only_tests {
         for gid in (0..font.num_glyphs()).map(GlyphId::new) {
             assert!(font.evaluate_width(gid).unwrap().is_some(), "glyph {gid}");
         }
+    }
+}
+
+#[cfg(test)]
+mod extents_tests {
+    use super::*;
+    use crate::model::pen::OutlinePen;
+
+    const FONTS: [&[u8]; 2] = [
+        font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
+        font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB,
+    ];
+
+    /// Collects the same box from the other side, through a pen.
+    #[derive(Default)]
+    struct BoundsPen(Option<[f32; 4]>);
+
+    impl BoundsPen {
+        fn add(&mut self, x: f32, y: f32) {
+            self.0 = Some(match self.0 {
+                Some([a, b, c, d]) => [a.min(x), b.min(y), c.max(x), d.max(y)],
+                None => [x, y, x, y],
+            });
+        }
+    }
+
+    impl OutlinePen for BoundsPen {
+        fn move_to(&mut self, x: f32, y: f32) {
+            self.add(x, y);
+        }
+        fn line_to(&mut self, x: f32, y: f32) {
+            self.add(x, y);
+        }
+        fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
+            self.add(cx, cy);
+            self.add(x, y);
+        }
+        fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+            self.add(cx0, cy0);
+            self.add(cx1, cy1);
+            self.add(x, y);
+        }
+        fn close(&mut self) {}
+    }
+
+    fn corners(b: BoundingBox<f32>) -> [f32; 4] {
+        [b.x_min, b.y_min, b.x_max, b.y_max]
+    }
+
+    #[test]
+    fn the_extents_are_the_box_drawing_stays_within() {
+        // The same pipeline either way, so the two agree exactly. A
+        // difference would mean the box was measured somewhere the drawing
+        // was not, which is what transforming a finished box would do.
+        for data in FONTS {
+            let font = Type1Font::new(data).unwrap();
+            for ppem in [None, Some(16.0), Some(72.0)] {
+                let mut drew = 0;
+                for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+                    let mut pen = BoundsPen::default();
+                    font.draw(gid, ppem, &mut pen).unwrap();
+                    let measured = font.extents(gid, ppem).unwrap();
+                    assert_eq!(measured.map(corners), pen.0, "glyph {gid} at {ppem:?}");
+                    drew += pen.0.is_some() as u32;
+                }
+                assert!(drew > 1, "almost nothing drew, so this proves little");
+            }
+        }
+    }
+
+    #[test]
+    fn the_exact_box_and_the_sized_one_agree_at_no_size() {
+        // Both apply the matrix; only the size and the number type differ.
+        let font = Type1Font::new(FONTS[0]).unwrap();
+        let mut checked = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let exact = font.evaluate_extents(gid).unwrap();
+            let sized = font.extents(gid, None).unwrap();
+            assert_eq!(
+                exact.map(|b| [
+                    b.x_min.to_f32(),
+                    b.y_min.to_f32(),
+                    b.x_max.to_f32(),
+                    b.y_max.to_f32()
+                ]),
+                sized.map(corners),
+                "glyph {gid}"
+            );
+            checked += exact.is_some() as u32;
+        }
+        assert!(checked > 1, "almost nothing drew, so this proves little");
+    }
+
+    #[test]
+    fn a_size_scales_the_box() {
+        // `evaluate_extents` measures before the matrix and any size;
+        // `extents` measures after both. This font's matrix maps its
+        // charstring space onto design units unchanged, so what separates
+        // the two here is the size. A matrix that does more than that is
+        // covered where one exists, on the CFF side.
+        let font = Type1Font::new(FONTS[0]).unwrap();
+        let mut checked = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let Some(unscaled) = font.extents(gid, None).unwrap() else {
+                continue;
+            };
+            let scaled = font.extents(gid, Some(16.0)).unwrap().unwrap();
+            let factor = 16.0 / font.upem() as f32;
+            for (a, b) in corners(scaled).iter().zip(corners(unscaled)) {
+                assert!(
+                    (a - b * factor).abs() < 0.05,
+                    "glyph {gid}: {a} against {}",
+                    b * factor
+                );
+            }
+            checked += 1;
+        }
+        assert!(checked > 1, "almost nothing drew, so this proves little");
+    }
+
+    #[test]
+    fn a_glyph_that_draws_nothing_has_no_extents() {
+        // A box of no size at the origin would say something different from
+        // drawing nothing at all.
+        let font = Type1Font::new(FONTS[0]).unwrap();
+        let empty = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .find(|gid| font.extents(*gid, None).unwrap().is_none());
+        let gid = empty.expect("this font has no empty glyph to check");
+        assert!(font.evaluate_extents(gid).unwrap().is_none());
     }
 }
