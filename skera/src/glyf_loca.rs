@@ -1,6 +1,5 @@
 //! impl subset() for glyf and loca
 use crate::{
-    estimate_subset_table_size,
     serialize::Serializer,
     Plan, Subset,
     SubsetError::{self, SubsetTableError},
@@ -36,8 +35,7 @@ impl Subset for Glyf<'_> {
         let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
         let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
 
-        let num_output_glyphs = plan.num_output_glyphs;
-        let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
+        let mut subset_glyphs = Vec::with_capacity(plan.new_to_old_gid_list.len());
         let mut max_offset: u32 = 0;
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
@@ -70,7 +68,7 @@ impl Subset for Glyf<'_> {
 
         //TODO: support force_long_loca in the plan
         let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
-        let loca_out = write_glyf_loca(font, plan, s, loca_format, &subset_glyphs)?;
+        let loca_out = write_glyf_loca(plan, s, loca_format, &subset_glyphs)?;
 
         let head_out = subset_head(&head, loca_format);
 
@@ -86,38 +84,33 @@ fn padded_size(len: usize) -> usize {
 
 // glyf data is written into the serializer, returning loca data to be added by FontBuilder
 fn write_glyf_loca(
-    font: &FontRef,
     plan: &Plan,
     s: &mut Serializer,
     loca_format: u8,
     subset_glyphs: &[SubsetGlyph<'_>],
 ) -> Result<Vec<u8>, SubsetError> {
-    let loca_cap = estimate_subset_table_size(font, Loca::TAG, plan);
-    let mut loca_out: Vec<u8> = Vec::with_capacity(loca_cap);
-
-    if loca_format == 0 {
-        loca_out.extend_from_slice(&0_u16.to_be_bytes());
-    } else {
-        loca_out.extend_from_slice(&0_u32.to_be_bytes());
-    }
+    let entry_size = if loca_format == 0 { 2 } else { 4 };
+    let total_len = (plan.num_output_glyphs + 1) * entry_size;
+    let mut loca_out = vec![0u8; total_len];
 
     let init_len = s.length();
-    let mut last: u32 = 0;
+    let mut last: usize = 0;
     if loca_format == 0 {
         let mut offset: u32 = 0;
         let mut value = 0_u16.to_be_bytes();
-        for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
-            let gid = new_gid.to_u32();
+        for ((new_gid, _), g) in plan.new_to_old_gid_list.iter().zip(subset_glyphs) {
+            let gid = new_gid.to_u32() as usize;
 
             while last < gid {
-                loca_out.extend_from_slice(&value);
+                let pos = (last + 1) * 2;
+                loca_out[pos..pos + 2].copy_from_slice(&value);
                 last += 1;
             }
-            let g = &subset_glyphs[i as usize];
             let padded_len = padded_size(g.len());
             offset += padded_len as u32;
             value = ((offset >> 1) as u16).to_be_bytes();
-            loca_out.extend_from_slice(&value);
+            let pos = (last + 1) * 2;
+            loca_out[pos..pos + 2].copy_from_slice(&value);
             g.write(s)?;
             if padded_len > g.len() {
                 s.embed_bytes(&[0])
@@ -127,32 +120,35 @@ fn write_glyf_loca(
             last += 1;
         }
 
-        while last < plan.num_output_glyphs as u32 {
-            loca_out.extend_from_slice(&value);
+        while last < plan.num_output_glyphs {
+            let pos = (last + 1) * 2;
+            loca_out[pos..pos + 2].copy_from_slice(&value);
             last += 1;
         }
     } else {
         let mut offset: u32 = 0;
         let mut value = 0_u32.to_be_bytes();
-        for ((new_gid, _), i) in plan.new_to_old_gid_list.iter().zip(0u16..) {
-            let gid = new_gid.to_u32();
+        for ((new_gid, _), g) in plan.new_to_old_gid_list.iter().zip(subset_glyphs) {
+            let gid = new_gid.to_u32() as usize;
 
             while last < gid {
-                loca_out.extend_from_slice(&value);
+                let pos = (last + 1) * 4;
+                loca_out[pos..pos + 4].copy_from_slice(&value);
                 last += 1;
             }
-            let g = &subset_glyphs[i as usize];
             offset += g.len() as u32;
             value = offset.to_be_bytes();
-            loca_out.extend_from_slice(&value);
+            let pos = (last + 1) * 4;
+            loca_out[pos..pos + 4].copy_from_slice(&value);
 
             g.write(s)?;
 
             last += 1;
         }
 
-        while last < plan.num_output_glyphs as u32 {
-            loca_out.extend_from_slice(&value);
+        while last < plan.num_output_glyphs {
+            let pos = (last + 1) * 4;
+            loca_out[pos..pos + 4].copy_from_slice(&value);
             last += 1;
         }
     }
@@ -223,14 +219,24 @@ impl<'a> SimpleSubsetGlyph<'a> {
 
         let glyph_bytes = g.offset_data().as_bytes();
         let header_len = 10 + 2 * g.end_pts_of_contours().len() + 2;
-        let header = glyph_bytes.get(..header_len)?;
         let drop_hinting = plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-        let instructions = if drop_hinting {
-            &[]
+        let set_overlaps_flag = plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG);
+
+        let (header, instructions, glyph_data) = if !drop_hinting && !set_overlaps_flag {
+            let total_len = header_len + g.instruction_length() as usize + glyph_data.len();
+            (&[][..], &[][..], glyph_bytes.get(..total_len)?)
         } else {
-            glyph_bytes.get(header_len..header_len + g.instruction_length() as usize)?
+            let header = glyph_bytes.get(..header_len)?;
+            let instructions = if drop_hinting {
+                &[]
+            } else {
+                glyph_bytes.get(header_len..header_len + g.instruction_length() as usize)?
+            };
+            (header, instructions, glyph_data)
         };
 
         Some(Self {
@@ -238,9 +244,7 @@ impl<'a> SimpleSubsetGlyph<'a> {
             instructions,
             glyph_data,
             drop_hinting,
-            set_overlaps_flag: plan
-                .subset_flags
-                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG),
+            set_overlaps_flag,
         })
     }
 
@@ -250,6 +254,10 @@ impl<'a> SimpleSubsetGlyph<'a> {
 
     fn write(&self, s: &mut Serializer) -> Result<(), SubsetError> {
         let map_err = |_| SubsetTableError(Glyf::TAG);
+        if !self.drop_hinting && !self.set_overlaps_flag {
+            return s.embed_bytes(self.glyph_data).map(|_| ()).map_err(map_err);
+        }
+
         if self.drop_hinting {
             s.embed_bytes(&self.header[..self.header.len() - 2])
                 .map_err(map_err)?;
@@ -413,6 +421,30 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
     out
 }
 
+const COORD_BYTES: [u8; 256] = {
+    let mut table = [0u8; 256];
+    let mut i = 0;
+    while i < 256 {
+        let x = if (i & 0x02) != 0 {
+            1
+        } else if (i & 0x10) == 0 {
+            2
+        } else {
+            0
+        };
+        let y = if (i & 0x04) != 0 {
+            1
+        } else if (i & 0x20) == 0 {
+            2
+        } else {
+            0
+        };
+        table[i] = x + y;
+        i += 1;
+    }
+    table
+};
+
 // trim padding bytes for simple glyphs, return trimmed length of the raw data for flags & x/y coordinates
 fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     let mut coord_bytes: usize = 0;
@@ -420,34 +452,21 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     let length = glyph_data.len();
     let mut i: usize = 0;
     while i < length {
-        let flag = SimpleGlyphFlags::from_bits_truncate(glyph_data[i]);
+        let flag_byte = glyph_data[i];
+        let flag = SimpleGlyphFlags::from_bits_truncate(flag_byte);
         i += 1;
 
-        let mut repeat: u8 = 1;
+        let mut repeat: u16 = 1;
         if flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
             if i >= length {
                 return 0;
             }
-            repeat = glyph_data[i] + 1;
+            repeat = glyph_data[i] as u16 + 1;
             i += 1;
         }
 
-        let mut x_bytes: u8 = 0;
-        let mut y_bytes: u8 = 0;
-        if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
-            x_bytes = 1;
-        } else if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
-            x_bytes = 2;
-        }
-
-        if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
-            y_bytes = 1;
-        } else if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
-            y_bytes = 2;
-        }
-
-        coord_bytes += ((x_bytes + y_bytes) * repeat) as usize;
-        coords_with_flags += repeat as u16;
+        coord_bytes += COORD_BYTES[flag_byte as usize] as usize * repeat as usize;
+        coords_with_flags += repeat;
         if coords_with_flags >= num_coords {
             break;
         }
