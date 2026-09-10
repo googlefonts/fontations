@@ -1,6 +1,7 @@
 //! Types for collecting the output when drawing a glyph outline.
 
 pub use read_fonts::model::pen::{ControlBoundsPen, NullPen, OutlinePen, PathElement, SvgPen};
+use read_fonts::tables::glyf::outline::PathContourStart;
 
 /// Style for path conversion.
 ///
@@ -22,4 +23,13 @@ pub enum PathStyle {
     ///
     /// Matches hb-draw's interpretation of a point stream.
     HarfBuzz,
+}
+
+impl From<PathStyle> for PathContourStart {
+    fn from(style: PathStyle) -> Self {
+        match style {
+            PathStyle::FreeType => Self::ScanBackward,
+            PathStyle::HarfBuzz => Self::ScanForward,
+        }
+    }
 }

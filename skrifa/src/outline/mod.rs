@@ -85,7 +85,6 @@ mod hint;
 mod hint_reliant;
 mod memory;
 mod metrics;
-mod path;
 mod unscaled;
 mod varc;
 

@@ -1,6 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
 pub mod bytecode;
+pub mod outline;
 
 use bytemuck::AnyBitPattern;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
