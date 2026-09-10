@@ -1,10 +1,6 @@
 //! TrueType outline types.
 
-use super::super::{
-    path::{to_path, ToPathError},
-    pen::PathStyle,
-    DrawError, Hinting, OutlinePen,
-};
+use super::super::{pen::PathStyle, DrawError, Hinting, OutlinePen};
 use crate::MAX_GLYF_POINTS;
 use raw::tables::glyf::PointCoord;
 use read_fonts::{
@@ -162,7 +158,15 @@ where
         &self,
         path_style: PathStyle,
         pen: &mut impl OutlinePen,
-    ) -> Result<(), ToPathError> {
-        to_path(self.points, self.flags, self.contours, path_style, pen)
+    ) -> Result<(), DrawError> {
+        read_fonts::tables::glyf::outline::outline_to_path(
+            self.points,
+            self.flags,
+            self.contours,
+            path_style.into(),
+            pen,
+        )
+        .then_some(())
+        .ok_or(DrawError::Malformed)
     }
 }

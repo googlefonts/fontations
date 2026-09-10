@@ -73,9 +73,8 @@ pub fn outline_to_path<C: PointCoord>(
 /// For outlines held in some shape other than parallel point and flag arrays —
 /// an autohinter's points, say, which carry more per point than these do.
 ///
-/// Returns `false` on the same terms as
-/// [`outline_to_path`], and leaves what it drew on
-/// the pen.
+/// Returns `false` on the same terms as [`outline_to_path`], and leaves what
+/// it drew on the pen.
 ///
 /// ```
 /// use read_fonts::{
@@ -314,6 +313,7 @@ impl<C: PointCoord> PendingState<C> {
 mod tests {
     use super::*;
     use crate::model::pen::SvgPen;
+    use crate::types::F26Dot6;
     use alloc::vec::Vec;
 
     /// Builds points and flags from `(x, y, kind)`, where kind is 'n' for an
@@ -341,6 +341,62 @@ mod tests {
         let mut pen = SvgPen::with_precision(1);
         outline_to_path(&points, &flags, contours, start, &mut pen)
             .then(|| pen.as_ref().to_string())
+    }
+
+    /// Draws one four point contour in 26.6, with the second point on-curve
+    /// unless `all_off_curve`.
+    fn draw_off_curve(expected: &str, start: PathContourStart, all_off_curve: bool) {
+        fn pt(x: i32, y: i32) -> Point<F26Dot6> {
+            Point::new(x, y).map(F26Dot6::from_bits)
+        }
+        let mut flags = [PointFlags::off_curve_quad(); 4];
+        if !all_off_curve {
+            flags[1] = PointFlags::on_curve();
+        }
+        let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
+        let mut pen = SvgPen::with_precision(1);
+        assert!(outline_to_path(&points, &flags, &[3], start, &mut pen));
+        assert_eq!(pen.as_ref(), expected);
+    }
+
+    // A contour of nothing but off-curve points starts at the midpoint
+    // between the first and last: [(640, 128) + (128, 128)] / 2 = (384, 128),
+    // which is (6.0, 2.0) once converted. Getting that first move wrong was a
+    // bug once.
+    #[test]
+    fn a_contour_of_off_curve_points_starts_between_its_ends_scanning_backward() {
+        draw_off_curve(
+            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Z",
+            PathContourStart::ScanBackward,
+            true,
+        );
+    }
+
+    #[test]
+    fn a_contour_of_off_curve_points_starts_between_its_ends_scanning_forward() {
+        draw_off_curve(
+            "M7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 7.0,1.5 Z",
+            PathContourStart::ScanForward,
+            true,
+        );
+    }
+
+    #[test]
+    fn a_contour_beginning_off_curve_scans_backward_to_an_on_curve_point() {
+        draw_off_curve(
+            "M6.0,2.0 Q10.0,2.0 4.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Z",
+            PathContourStart::ScanBackward,
+            false,
+        );
+    }
+
+    #[test]
+    fn a_contour_beginning_off_curve_scans_forward_to_an_on_curve_point() {
+        draw_off_curve(
+            "M4.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 4.0,1.0 Z",
+            PathContourStart::ScanForward,
+            false,
+        );
     }
 
     #[test]

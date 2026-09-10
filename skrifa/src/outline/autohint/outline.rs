@@ -2,7 +2,6 @@
 
 use super::{
     super::{
-        path,
         pen::PathStyle,
         unscaled::{UnscaledOutlineSink, UnscaledPoint},
         DrawError, LocationRef, OutlineGlyph, OutlinePen,
@@ -14,6 +13,7 @@ use crate::collections::SmallVec;
 use core::ops::Range;
 use raw::{
     tables::glyf::{PointFlags, PointMarker},
+    types::Point as Coord,
     types::{F26Dot6, F2Dot14, GlyphId},
 };
 
@@ -137,13 +137,13 @@ impl Point {
         self.prev_ix as usize
     }
 
+    /// The point as path conversion reads it, which is a position and a flag.
     #[inline(always)]
-    fn as_contour_point(&self) -> path::ContourPoint<F26Dot6> {
-        path::ContourPoint {
-            x: F26Dot6::from_bits(self.x),
-            y: F26Dot6::from_bits(self.y),
-            flags: self.flags,
-        }
+    fn as_contour_point(&self) -> (Coord<F26Dot6>, PointFlags) {
+        (
+            Coord::new(F26Dot6::from_bits(self.x), F26Dot6::from_bits(self.y)),
+            self.flags,
+        )
     }
 }
 
@@ -219,26 +219,18 @@ impl Outline {
         self.advance = 0;
     }
 
-    pub fn to_path(
-        &self,
-        style: PathStyle,
-        pen: &mut impl OutlinePen,
-    ) -> Result<(), path::ToPathError> {
+    pub fn to_path(&self, style: PathStyle, pen: &mut impl OutlinePen) -> Result<(), DrawError> {
         for contour in &self.contours {
             let Some(points) = self.points.get(contour.range()) else {
                 continue;
             };
-            if let (Some(first_point), Some(last_point)) = (
-                points.first().map(Point::as_contour_point),
-                points.last().map(Point::as_contour_point),
+            if !read_fonts::tables::glyf::outline::contour_to_path(
+                points,
+                Point::as_contour_point,
+                style.into(),
+                pen,
             ) {
-                path::contour_to_path(
-                    points.iter().map(Point::as_contour_point),
-                    first_point,
-                    last_point,
-                    style,
-                    pen,
-                )?;
+                return Err(DrawError::Malformed);
             }
         }
         Ok(())
