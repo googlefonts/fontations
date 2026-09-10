@@ -695,14 +695,13 @@ impl Graph {
             // for the roots, we set the edge count to the number of long
             // incoming offsets; if this differs from the total number of
             // incoming offsets it means we need to dupe the root as well.
-            let inbound_wide_offsets = self.nodes[root]
-                .parents
-                .iter()
-                .filter(|(_, len)| !matches!(len, OffsetLen::Offset16))
-                .inspect(|(parent_id, _)| {
+            let mut inbound_wide_offsets = 0;
+            for (parent_id, len) in &self.nodes[root].parents {
+                if !matches!(len, OffsetLen::Offset16) {
                     wide_parents.insert(*parent_id);
-                })
-                .count();
+                    inbound_wide_offsets += 1;
+                }
+            }
             subgraph.insert(*root, inbound_wide_offsets);
             self.find_subgraph_map_hb(*root, &mut subgraph);
         }
