@@ -18,15 +18,43 @@ fn metric(value: i32, deltas: Option<&MvarInstance>, tag: Tag) -> F48Dot16 {
             .unwrap_or_default()
 }
 
-/// Ascender, descender and line gap, as one table states them.
+/// The two ends of a line, in whatever unit a caller uses.
+///
+/// Separate from [`LineBox`] because the gap after a line is not part of
+/// where it begins and ends, and the metrics built on a line use only the
+/// two ends.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub struct LineBox {
+pub struct LineExtents<T> {
     /// Distance from the baseline to the top of the line.
-    pub ascender: F48Dot16,
+    pub ascender: T,
     /// Distance from the baseline to the bottom of the line. Usually negative.
-    pub descender: F48Dot16,
+    pub descender: T,
+}
+
+/// Ascender, descender and line gap, as one table states them.
+///
+/// In design units unless a caller names another unit.
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub struct LineBox<T = F48Dot16> {
+    /// Distance from the baseline to the top of the line.
+    pub ascender: T,
+    /// Distance from the baseline to the bottom of the line. Usually negative.
+    pub descender: T,
     /// Extra space between the bottom of one line and the top of the next.
-    pub line_gap: F48Dot16,
+    pub line_gap: T,
+}
+
+impl<T: Copy> LineBox<T> {
+    /// Returns where this line begins and ends, without the gap after it.
+    ///
+    /// Text stacks by the two ends; the gap separates one run of stacked
+    /// text from the next.
+    pub fn extents(&self) -> LineExtents<T> {
+        LineExtents {
+            ascender: self.ascender,
+            descender: self.descender,
+        }
+    }
 }
 
 impl LineBox {
@@ -46,8 +74,7 @@ impl LineBox {
 ///
 /// A font states its line metrics three times and the three disagree.
 /// [`hhea_line`](Self::hhea_line) is what macOS reads,
-/// [`win_ascent`](Self::win_ascent) and [`win_descent`](Self::win_descent)
-/// are what Windows reads, and [`typo_line`](Self::typo_line) is what the
+/// [`win_line`](Self::win_line) is what Windows reads, and [`typo_line`](Self::typo_line) is what the
 /// font asks for when [`use_typo_metrics`](Self::use_typo_metrics) is set.
 /// Choosing between them is left to the caller.
 ///
@@ -88,10 +115,12 @@ pub struct GlobalMetrics {
     /// Whether the font asks for [`typo_line`](Self::typo_line) to be used
     /// in preference to [`hhea_line`](Self::hhea_line).
     pub use_typo_metrics: bool,
-    /// Height above the baseline to leave clear, as a positive number.
-    pub win_ascent: Option<F48Dot16>,
-    /// Depth below the baseline to leave clear, as a positive number.
-    pub win_descent: Option<F48Dot16>,
+    /// The line outside which the font asks not to be clipped.
+    ///
+    /// `OS/2` gives the descent as a positive number below the baseline.
+    /// This negates it, so the pair describes a line like every other pair
+    /// here.
+    pub win_line: Option<LineExtents<F48Dot16>>,
     /// Height of a lowercase x.
     pub x_height: Option<F48Dot16>,
     /// Height of a capital letter.
@@ -154,8 +183,10 @@ impl GlobalMetrics {
                 descender: metric(os2.s_typo_descender() as i32, deltas, tags::HDSC),
                 line_gap: metric(os2.s_typo_line_gap() as i32, deltas, tags::HLGP),
             });
-            metrics.win_ascent = Some(metric(os2.us_win_ascent() as i32, deltas, tags::HCLA));
-            metrics.win_descent = Some(metric(os2.us_win_descent() as i32, deltas, tags::HCLD));
+            metrics.win_line = Some(LineExtents {
+                ascender: metric(os2.us_win_ascent() as i32, deltas, tags::HCLA),
+                descender: -metric(os2.us_win_descent() as i32, deltas, tags::HCLD),
+            });
             metrics.use_typo_metrics = os2
                 .fs_selection()
                 .contains(SelectionFlags::USE_TYPO_METRICS);
@@ -194,14 +225,14 @@ impl GlobalMetrics {
             (_, Some(typo)) if typo.has_nonzero_extent() => Some(typo),
             // The clipping line has no gap between one line and the next, so
             // there is none to report.
-            (hhea, _) => match (self.win_ascent, self.win_descent) {
-                (Some(ascent), Some(descent)) => Some(LineBox {
-                    ascender: ascent,
-                    descender: -descent,
+            (hhea, _) => self
+                .win_line
+                .map(|win| LineBox {
+                    ascender: win.ascender,
+                    descender: win.descender,
                     line_gap: F48Dot16::ZERO,
-                }),
-                _ => hhea,
-            },
+                })
+                .or(hhea),
         }
     }
 
@@ -286,8 +317,10 @@ mod tests {
         let metrics = GlobalMetrics {
             hhea_line: Some(line(0, 0)),
             typo_line: Some(line(0, 0)),
-            win_ascent: Some(F48Dot16::from_i32(905)),
-            win_descent: Some(F48Dot16::from_i32(212)),
+            win_line: Some(LineExtents {
+                ascender: F48Dot16::from_i32(905),
+                descender: F48Dot16::from_i32(-212),
+            }),
             use_typo_metrics: false,
             ..Default::default()
         };
@@ -333,8 +366,9 @@ mod tests {
         assert!(typo.ascender > F48Dot16::ZERO);
         assert!(typo.descender < F48Dot16::ZERO);
         // The Windows pair does not: both are stated as positive extents.
-        assert!(metrics.win_ascent.unwrap() > F48Dot16::ZERO);
-        assert!(metrics.win_descent.unwrap() > F48Dot16::ZERO);
+        let win = metrics.win_line.unwrap();
+        assert!(win.ascender > F48Dot16::ZERO);
+        assert!(win.descender < F48Dot16::ZERO);
     }
 
     #[test]
@@ -372,8 +406,7 @@ mod tests {
         let far = GlobalMetrics::from_sfnt(&font, &far());
         assert_ne!(default, far);
         // This font varies its clipping extents and both of its heights.
-        assert_ne!(default.win_ascent, far.win_ascent);
-        assert_ne!(default.win_descent, far.win_descent);
+        assert_ne!(default.win_line, far.win_line);
         assert_ne!(default.x_height, far.x_height);
         assert_ne!(default.cap_height, far.cap_height);
     }
@@ -405,8 +438,8 @@ mod tests {
         let moved = [
             far.hhea_line.unwrap().ascender,
             far.hhea_line.unwrap().descender,
-            far.win_ascent.unwrap(),
-            far.win_descent.unwrap(),
+            far.win_line.unwrap().ascender,
+            far.win_line.unwrap().descender,
             far.x_height.unwrap(),
             far.cap_height.unwrap(),
         ];
@@ -442,7 +475,7 @@ mod tests {
         // And what such a font cannot express stays unset.
         assert!(metrics.vhea_line.is_none());
         assert!(metrics.typo_line.is_none());
-        assert!(metrics.win_ascent.is_none());
+        assert!(metrics.win_line.is_none());
         assert!(metrics.cap_height.is_none());
     }
 

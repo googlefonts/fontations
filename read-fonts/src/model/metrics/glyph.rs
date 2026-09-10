@@ -1,12 +1,33 @@
 //! Per-glyph metrics.
 
 use crate::{
-    model::{metrics::GlobalMetrics, Font, FontKind},
+    model::{
+        metrics::{GlobalMetrics, LineExtents, Scale, ScaledGlyphMetrics},
+        Font, FontKind,
+    },
     ps::{cs::CommandSink, type1::Type1Font},
     tables::hmtx::LongMetric,
     TableProvider,
 };
 use types::{F2Dot14, F48Dot16, Fixed, GlyphId};
+
+/// Where a glyph's ink sits, relative to its origin.
+///
+/// A bearing and a size rather than two corners, which is the shape the
+/// metrics built on it use.
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub struct GlyphExtents<T> {
+    /// Distance from the origin to the left edge of the ink.
+    pub x_bearing: T,
+    /// Distance from the origin to the top edge of the ink.
+    pub y_bearing: T,
+    /// Width of the ink, rightward from `x_bearing`.
+    pub width: T,
+    /// Height of the ink, downward from `y_bearing`.
+    ///
+    /// Never negative. A caller whose own extents count upward negates it.
+    pub height: T,
+}
 
 /// Measurements of individual glyphs at one location.
 ///
@@ -33,6 +54,31 @@ impl<'a> GlyphMetrics<'a> {
             num_glyphs: global.num_glyphs,
             units_per_em: global.units_per_em,
         }
+    }
+
+    /// Returns these metrics in the units `scale` describes.
+    #[inline]
+    pub fn scaled<S: Scale>(self, scale: S) -> ScaledGlyphMetrics<'a, S> {
+        ScaledGlyphMetrics::new(self, scale)
+    }
+
+    /// Returns the line this font's glyphs stack by, where it provides one.
+    ///
+    /// The two ends rather than the height, so a caller working in another
+    /// unit scales each before subtracting, as one supplying its own line
+    /// already does.
+    #[inline]
+    pub(crate) fn line_extents(&self) -> Option<LineExtents<F48Dot16>> {
+        self.global.h_line().map(|line| line.extents())
+    }
+
+    /// Returns `true` where the font provides vertical metrics of its own.
+    ///
+    /// One that does not stacks its glyphs by the line, which is the only
+    /// part of a vertical advance a caller can supply.
+    #[inline]
+    pub(crate) fn states_vertical_advances(&self) -> bool {
+        !self.font.v_metrics().is_empty()
     }
 
     /// Returns the advance width of `glyph`, in design units.
