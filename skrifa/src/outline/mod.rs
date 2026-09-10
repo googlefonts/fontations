@@ -83,7 +83,6 @@ mod cff;
 mod glyf;
 mod hint;
 mod hint_reliant;
-mod memory;
 mod metrics;
 mod unscaled;
 mod varc;
@@ -765,7 +764,7 @@ pub(super) fn with_temporary_memory<R>(
         Some(buf) => f(buf),
         None => {
             let buf_size = outline.draw_memory_size(hinting);
-            memory::with_temporary_memory(buf_size, f)
+            read_fonts::mem::with_scratch(buf_size, f)
         }
     }
 }
