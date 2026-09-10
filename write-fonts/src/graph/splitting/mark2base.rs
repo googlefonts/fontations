@@ -296,8 +296,11 @@ mod tests {
 
     use crate::{
         tables::{
-            gpos::{AnchorTable, BaseArray, BaseRecord, MarkArray, MarkBasePosFormat1, MarkRecord},
-            layout::{DeviceOrVariationIndex, Lookup, LookupList, VariationIndex},
+            gpos::{
+                AnchorTable, BaseArray, BaseRecord, ExtensionPosFormat1, ExtensionSubtable,
+                MarkArray, MarkBasePosFormat1, MarkRecord, PositionLookup,
+            },
+            layout::{DeviceOrVariationIndex, Lookup, LookupList, LookupType, VariationIndex},
         },
         TableWriter,
     };
@@ -573,6 +576,54 @@ mod tests {
         assert!(
             matches!(mark_anchor.x_device().transpose().unwrap(), Some(rgpos::DeviceOrVariationIndex::VariationIndex(varidx)) if varidx.delta_set_outer_index() == mark_cov_idx_to_test as u16)
         );
+    }
+
+    #[test]
+    fn full_split_in_extension_lookup() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // the same table as above, but the lookup is already an extension
+        // lookup, so the packer has to split through the extension subtables
+        const MARK_CLASS_COUNT: u16 = 120;
+        const MARKS_PER_CLASS: u16 = 4;
+        const N_BASES: u16 = 500;
+        const N_MARKS: u16 = MARK_CLASS_COUNT * MARKS_PER_CLASS;
+        const FIRST_BASE_GLYPH: u16 = 2;
+        const FIRST_MARK_GLYPH: u16 = 2000;
+
+        let mark_coverage = (FIRST_MARK_GLYPH..FIRST_MARK_GLYPH + N_MARKS)
+            .map(GlyphId16::new)
+            .collect();
+        let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
+            .map(GlyphId16::new)
+            .collect();
+        let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS, true);
+        let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, true);
+
+        let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
+        let lookup = PositionLookup::Extension(Lookup::new(
+            LookupFlag::empty(),
+            vec![ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
+                LookupType::MARK_TO_BASE,
+                table,
+            ))],
+        ));
+        let lookup_list = LookupList::new(vec![lookup]);
+        let bytes = crate::dump_table(&lookup_list).unwrap();
+        let read_back = rgpos::PositionLookupList::read(bytes.as_slice().into()).unwrap();
+        let lookup = read_back.lookups().get(0).unwrap();
+        assert_eq!(lookup.lookup_type(), LookupType::GPOS_EXT_TYPE);
+
+        let subtables: Vec<_> = match lookup.subtables().unwrap() {
+            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            _ => panic!("wrong lookup type"),
+        };
+        // same split as the non-extension case
+        assert_eq!(subtables.len(), 7);
+        let n_marks: u32 = subtables
+            .iter()
+            .map(|sub| sub.mark_coverage().unwrap().iter().count() as u32)
+            .sum();
+        assert_eq!(n_marks, N_MARKS as u32);
     }
 
     #[test]
