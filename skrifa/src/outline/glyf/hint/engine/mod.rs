@@ -24,13 +24,13 @@ use super::{
     super::Outlines,
     cvt::Cvt,
     definition::DefinitionState,
-    error::{HintError, HintErrorKind},
     graphics::{GraphicsState, RetainedGraphicsState},
     math,
     program::ProgramState,
     storage::Storage,
     value_stack::ValueStack,
     zone::Zone,
+    {HintError, HintErrorKind},
 };
 
 /// Maximum number of instructions we will execute in `Engine::run()`. This

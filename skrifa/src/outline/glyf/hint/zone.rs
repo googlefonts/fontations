@@ -6,9 +6,8 @@ use read_fonts::{
 };
 
 use super::{
-    error::HintErrorKind,
     graphics::{CoordAxis, GraphicsState},
-    math,
+    math, HintErrorKind,
 };
 
 use HintErrorKind::{InvalidPointIndex, InvalidPointRange};
