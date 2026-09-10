@@ -111,7 +111,7 @@ fn write_glyf_loca(
             value = ((offset >> 1) as u16).to_be_bytes();
             let pos = (last + 1) * 2;
             loca_out[pos..pos + 2].copy_from_slice(&value);
-            g.write(s)?;
+            g.serialize(s, plan)?;
             if padded_len > g.len() {
                 s.embed_bytes(&[0])
                     .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?;
@@ -141,7 +141,7 @@ fn write_glyf_loca(
             let pos = (last + 1) * 4;
             loca_out[pos..pos + 4].copy_from_slice(&value);
 
-            g.write(s)?;
+            g.serialize(s, plan)?;
 
             last += 1;
         }
@@ -167,7 +167,7 @@ fn write_glyf_loca(
 enum SubsetGlyph<'a> {
     Empty,
     Simple(SimpleSubsetGlyph<'a>),
-    Composite(Vec<u8>),
+    Composite(&'a [u8]),
 }
 
 impl<'a> SubsetGlyph<'a> {
@@ -176,7 +176,9 @@ impl<'a> SubsetGlyph<'a> {
             Simple(glyph) => SimpleSubsetGlyph::new(glyph, plan)
                 .map(Self::Simple)
                 .unwrap_or(Self::Empty),
-            Composite(glyph) => Self::Composite(subset_composite_glyph(glyph, plan)),
+            Composite(glyph) => trim_composite_glyph(glyph, plan)
+                .map(Self::Composite)
+                .unwrap_or(Self::Empty),
         }
     }
 
@@ -188,14 +190,11 @@ impl<'a> SubsetGlyph<'a> {
         }
     }
 
-    fn write(&self, s: &mut Serializer) -> Result<(), SubsetError> {
+    fn serialize(&self, s: &mut Serializer, plan: &Plan) -> Result<(), SubsetError> {
         match self {
             Self::Empty => Ok(()),
-            Self::Simple(glyph) => glyph.write(s),
-            Self::Composite(bytes) => s
-                .embed_bytes(bytes)
-                .map(|_| ())
-                .map_err(|_| SubsetTableError(Glyf::TAG)),
+            Self::Simple(glyph) => glyph.serialize(s),
+            Self::Composite(bytes) => serialize_composite_glyph(s, bytes, plan),
         }
     }
 }
@@ -252,7 +251,7 @@ impl<'a> SimpleSubsetGlyph<'a> {
         self.header.len() + self.instructions.len() + self.glyph_data.len()
     }
 
-    fn write(&self, s: &mut Serializer) -> Result<(), SubsetError> {
+    fn serialize(&self, s: &mut Serializer) -> Result<(), SubsetError> {
         let map_err = |_| SubsetTableError(Glyf::TAG);
         if !self.drop_hinting && !self.set_overlaps_flag {
             return s.embed_bytes(self.glyph_data).map(|_| ()).map_err(map_err);
@@ -278,113 +277,34 @@ impl<'a> SimpleSubsetGlyph<'a> {
     }
 }
 
-#[cfg(test)]
-fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
-    //TODO: support set_overlaps_flag and drop_hints
-    match glyph {
-        Composite(comp_g) => subset_composite_glyph(comp_g, plan),
-        Simple(simple_g) => subset_simple_glyph(simple_g, plan),
-    }
-}
-
-// TODO: drop_hints and set_overlaps_flag
-#[cfg(test)]
-fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
-    let mut out = Vec::with_capacity(g.offset_data().len());
-
-    let Some(num_coords) = g.end_pts_of_contours().last() else {
-        return out;
-    };
-    let num_coords = num_coords.get() + 1;
-    let glyph_data = g.glyph_data();
-    let i = trim_simple_glyph_padding(glyph_data, num_coords);
-    if i == 0 {
-        return out;
-    }
-
+fn trim_composite_glyph<'a>(g: &CompositeGlyph<'a>, plan: &Plan) -> Option<&'a [u8]> {
     let glyph_bytes = g.offset_data().as_bytes();
-    let header_len = 10 + 2 * g.end_pts_of_contours().len() + 2;
-    let Some(header_slice) = glyph_bytes.get(0..header_len) else {
-        return out;
-    };
-    out.extend_from_slice(header_slice);
-
-    if plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
-    {
-        // drop hints: set instructionLength field to 0
-        out[header_len - 2] = 0;
-        out[header_len - 1] = 0;
-    } else {
-        let instruction_end = header_len + g.instruction_length() as usize;
-        let Some(instruction_slice) = glyph_bytes.get(header_len..instruction_end) else {
-            return Vec::new();
-        };
-        out.extend_from_slice(instruction_slice);
+    let len = glyph_bytes.len();
+    if len < 10 {
+        return None;
     }
-
-    let Some(trimmed_slice) = glyph_data.get(0..i) else {
-        return Vec::new();
-    };
-    let first_flag_index = out.len();
-    out.extend_from_slice(trimmed_slice);
-    if plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
-    {
-        out[first_flag_index] |= SimpleGlyphFlags::OVERLAP_SIMPLE.bits();
-    }
-    out
-}
-
-fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
-    let mut out = g.offset_data().as_bytes().to_owned();
 
     let mut more = true;
     let mut we_have_instructions = false;
     let mut i: usize = 10;
-    let len: usize = out.len();
 
     while more {
-        if i + 3 >= len {
-            return Vec::new();
+        if i + 4 > len {
+            return None;
         }
-        let flags = u16::from_be_bytes([out[i], out[i + 1]]);
-        let mut flags = CompositeGlyphFlags::from_bits_truncate(flags);
+        let flags = CompositeGlyphFlags::from_bits_truncate(u16::from_be_bytes([
+            glyph_bytes[i],
+            glyph_bytes[i + 1],
+        ]));
 
         if flags.contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS) {
             we_have_instructions = true;
-            if plan
-                .subset_flags
-                .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
-            {
-                flags.remove(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS);
-                out.get_mut(i..i + 2)
-                    .unwrap()
-                    .copy_from_slice(&flags.bits().to_be_bytes());
-            }
         }
 
-        // only set overlaps flag on the first component
-        if plan
-            .subset_flags
-            .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
-            && i == 10
-        {
-            flags.insert(CompositeGlyphFlags::OVERLAP_COMPOUND);
-            out.get_mut(i..i + 2)
-                .unwrap()
-                .copy_from_slice(&flags.bits().to_be_bytes());
+        let old_gid = GlyphId::from(u16::from_be_bytes([glyph_bytes[i + 2], glyph_bytes[i + 3]]));
+        if !plan.glyph_map.contains_key(&old_gid) {
+            return None;
         }
-
-        let old_gid = u16::from_be_bytes([out[i + 2], out[i + 3]]);
-        let Some(new_gid) = plan.glyph_map.get(&GlyphId::from(old_gid)) else {
-            return Vec::new();
-        };
-        let new_gid = new_gid.to_u32() as u16;
-        out[i + 2] = (new_gid >> 8) as u8;
-        out[i + 3] = (new_gid & 0xFF) as u8;
 
         i += 4;
 
@@ -410,15 +330,91 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
     {
-        if i + 1 >= len {
-            return Vec::new();
+        if i + 2 > len {
+            return None;
         }
-        let instruction_len = u16::from_be_bytes([out[i], out[i + 1]]);
-        i += 2 + instruction_len as usize;
+        let instruction_len = u16::from_be_bytes([glyph_bytes[i], glyph_bytes[i + 1]]) as usize;
+        i += 2 + instruction_len;
     }
 
-    out.truncate(i);
-    out
+    if i > len {
+        return None;
+    }
+
+    glyph_bytes.get(..i)
+}
+
+fn serialize_composite_glyph(
+    s: &mut Serializer,
+    bytes: &[u8],
+    plan: &Plan,
+) -> Result<(), SubsetError> {
+    let map_err = |_| SubsetTableError(Glyf::TAG);
+    let start = s.embed_bytes(bytes).map_err(map_err)?;
+    let out = s
+        .get_mut_data(start..start + bytes.len())
+        .ok_or(SubsetTableError(Glyf::TAG))?;
+
+    let drop_hinting = plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
+    let set_overlaps_flag = plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG);
+
+    let mut more = true;
+    let mut i: usize = 10;
+    let len = out.len();
+
+    while more {
+        if i + 4 > len {
+            return Err(SubsetTableError(Glyf::TAG));
+        }
+        let orig_flags = u16::from_be_bytes([out[i], out[i + 1]]);
+        let mut flags = orig_flags;
+
+        if drop_hinting {
+            flags &= !CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS.bits();
+        }
+
+        // only set overlaps flag on the first component
+        if set_overlaps_flag && i == 10 {
+            flags |= CompositeGlyphFlags::OVERLAP_COMPOUND.bits();
+        }
+
+        if flags != orig_flags {
+            out[i..i + 2].copy_from_slice(&flags.to_be_bytes());
+        }
+
+        let old_gid = GlyphId::from(u16::from_be_bytes([out[i + 2], out[i + 3]]));
+        let new_gid = plan
+            .glyph_map
+            .get(&old_gid)
+            .ok_or(SubsetTableError(Glyf::TAG))?
+            .to_u32() as u16;
+        out[i + 2..i + 4].copy_from_slice(&new_gid.to_be_bytes());
+
+        let comp_flags = CompositeGlyphFlags::from_bits_truncate(orig_flags);
+        i += 4;
+
+        if comp_flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS) {
+            i += 4;
+        } else {
+            i += 2;
+        }
+
+        if comp_flags.contains(CompositeGlyphFlags::WE_HAVE_A_SCALE) {
+            i += 2;
+        } else if comp_flags.contains(CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
+            i += 4;
+        } else if comp_flags.contains(CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO) {
+            i += 8;
+        }
+
+        more = comp_flags.contains(CompositeGlyphFlags::MORE_COMPONENTS);
+    }
+
+    Ok(())
 }
 
 const COORD_BYTES: [u8; 256] = {
@@ -502,10 +498,12 @@ mod test {
             .and_then(|g| g.into_glyph())
             .unwrap();
 
-        let subset_output = subset_glyph(&glyph, &plan);
-        assert_eq!(subset_output.len(), 23);
+        let subset_glyph = SubsetGlyph::new(&glyph, &plan);
+        assert_eq!(subset_glyph.len(), 23);
+        let mut s = Serializer::new(1024);
+        subset_glyph.serialize(&mut s, &plan).unwrap();
         assert_eq!(
-            subset_output,
+            s.copy_bytes(),
             [
                 0x0, 0x1, 0x0, 0xfa, 0x0, 0x32, 0x1, 0x77, 0x0, 0x64, 0x0, 0x3, 0x0, 0x0, 0x37,
                 0x33, 0x15, 0x23, 0xfa, 0x7d, 0x7d, 0x64, 0x32
@@ -527,13 +525,101 @@ mod test {
         plan.glyph_map
             .insert(GlyphId::from(1_u16), GlyphId::from(2_u16));
 
-        let subset_glyph = subset_glyph(&glyph, &plan);
+        let subset_glyph = SubsetGlyph::new(&glyph, &plan);
         assert_eq!(subset_glyph.len(), 20);
+        let mut s = Serializer::new(1024);
+        subset_glyph.serialize(&mut s, &plan).unwrap();
         assert_eq!(
-            subset_glyph,
+            s.copy_bytes(),
             [
                 0xff, 0xff, 0x2, 0x26, 0x0, 0x7d, 0x3, 0x20, 0x0, 0xc8, 0x0, 0x46, 0x0, 0x2, 0x32,
                 0x32, 0x7f, 0xff, 0x60, 0x0
+            ]
+        );
+    }
+
+    #[test]
+    fn test_subset_composite_glyph_set_overlaps_flag() {
+        let mut plan = Plan {
+            subset_flags: SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG,
+            ..Default::default()
+        };
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph = loca
+            .get(GlyphId::from(4_u16), &glyf)
+            .and_then(|g| g.into_glyph())
+            .unwrap();
+        plan.glyph_map
+            .insert(GlyphId::from(1_u16), GlyphId::from(2_u16));
+
+        let subset_glyph = SubsetGlyph::new(&glyph, &plan);
+        assert_eq!(subset_glyph.len(), 20);
+        let mut s = Serializer::new(1024);
+        subset_glyph.serialize(&mut s, &plan).unwrap();
+        // Flag at offset 10..12 is changed from 0x0046 to 0x0446 (OVERLAP_COMPOUND = 0x0400)
+        assert_eq!(
+            s.copy_bytes(),
+            [
+                0xff, 0xff, 0x2, 0x26, 0x0, 0x7d, 0x3, 0x20, 0x0, 0xc8, 0x4, 0x46, 0x0, 0x2, 0x32,
+                0x32, 0x7f, 0xff, 0x60, 0x0
+            ]
+        );
+    }
+
+    #[test]
+    fn test_subset_composite_glyph_drop_hints() {
+        use write_fonts::read::{FontData, FontRead};
+
+        // Composite glyph with WE_HAVE_INSTRUCTIONS (0x0100) and 2 bytes instructions:
+        let raw = [
+            0xff, 0xff, // numberOfContours = -1
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x64, // bbox (8 bytes)
+            0x01, 0x01, // flags = ARG_1_AND_2_ARE_WORDS | WE_HAVE_INSTRUCTIONS
+            0x00, 0x01, // component gid = 1
+            0x00, 0x00, 0x00, 0x00, // args (4 bytes)
+            0x00, 0x02, // num_instructions = 2
+            0xaa, 0xbb, // instructions (2 bytes)
+            0x00, 0x00, // padding (2 bytes)
+        ];
+
+        let comp = CompositeGlyph::read(FontData::new(&raw)).unwrap();
+        let glyph = Glyph::Composite(comp);
+
+        let mut plan = Plan::default();
+        plan.glyph_map
+            .insert(GlyphId::from(1_u16), GlyphId::from(5_u16));
+
+        // When hinting is retained, instructions are kept and padding is trimmed:
+        let subset_retained = SubsetGlyph::new(&glyph, &plan);
+        assert_eq!(subset_retained.len(), 22);
+        let mut s = Serializer::new(1024);
+        subset_retained.serialize(&mut s, &plan).unwrap();
+        assert_eq!(
+            s.copy_bytes(),
+            [
+                0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x64, 0x01,
+                0x01, // WE_HAVE_INSTRUCTIONS retained
+                0x00, 0x05, // remapped gid = 5
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xaa, 0xbb,
+            ]
+        );
+
+        // When SUBSET_FLAGS_NO_HINTING is set, instructions are dropped and flag cleared:
+        plan.subset_flags = SubsetFlags::SUBSET_FLAGS_NO_HINTING;
+        let subset_dropped = SubsetGlyph::new(&glyph, &plan);
+        assert_eq!(subset_dropped.len(), 18);
+        let mut s = Serializer::new(1024);
+        subset_dropped.serialize(&mut s, &plan).unwrap();
+        assert_eq!(
+            s.copy_bytes(),
+            [
+                0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x64, 0x00,
+                0x01, // WE_HAVE_INSTRUCTIONS cleared
+                0x00, 0x05, // remapped gid = 5
+                0x00, 0x00, 0x00, 0x00,
             ]
         );
     }
