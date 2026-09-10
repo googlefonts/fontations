@@ -139,7 +139,7 @@ impl GlyphStyleMap {
             // If we're processing lookups, allocate some temporary memory to
             // store the visited set
             let lookup_set_byte_size = lookup_count.div_ceil(8);
-            super::super::memory::with_temporary_memory(lookup_set_byte_size, |bytes| {
+            read_fonts::mem::with_scratch(lookup_set_byte_size, |bytes| {
                 Self::new_inner(glyph_count, shaper, VisitedLookupSet::new(bytes))
             })
         } else {
