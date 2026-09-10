@@ -687,16 +687,21 @@ impl Graph {
 
         // map of object id -> number of incoming edges
         let mut subgraph = BTreeMap::new();
+        // the parents of the roots that link to them via long offsets; if a
+        // root gets duplicated, these links must be moved to the duplicate
+        let mut wide_parents = HashSet::new();
 
         for root in roots.iter() {
             // for the roots, we set the edge count to the number of long
             // incoming offsets; if this differs from the total number of
             // incoming offsets it means we need to dupe the root as well.
-            let inbound_wide_offsets = self.nodes[root]
-                .parents
-                .iter()
-                .filter(|(_, len)| !matches!(len, OffsetLen::Offset16))
-                .count();
+            let mut inbound_wide_offsets = 0;
+            for (parent_id, len) in &self.nodes[root].parents {
+                if !matches!(len, OffsetLen::Offset16) {
+                    wide_parents.insert(*parent_id);
+                    inbound_wide_offsets += 1;
+                }
+            }
             subgraph.insert(*root, inbound_wide_offsets);
             self.find_subgraph_map_hb(*root, &mut subgraph);
         }
@@ -728,21 +733,17 @@ impl Graph {
             return false;
         }
 
-        // now everything but the links to the roots roots has been remapped;
-        // remap those, if needed
-        for root in roots.iter() {
-            let Some(new_id) = id_map.get(root) else {
-                continue;
-            };
-            self.parents_invalid = true;
-            self.positions_invalid = true;
-            for (parent_id, len) in &self.nodes[new_id].parents {
-                if !matches!(len, OffsetLen::Offset16) {
-                    for link in &mut self.objects.get_mut(parent_id).unwrap().offsets {
-                        if link.object == *root {
-                            link.object = *new_id;
-                        }
-                    }
+        // now everything but the long links into the subgraph has been
+        // remapped; move those to the duplicates, if any
+        for parent_id in &wide_parents {
+            for link in &mut self.objects.get_mut(parent_id).unwrap().offsets {
+                if matches!(link.len, OffsetLen::Offset16) {
+                    continue;
+                }
+                if let Some(new_id) = id_map.get(&link.object) {
+                    link.object = *new_id;
+                    self.parents_invalid = true;
+                    self.positions_invalid = true;
                 }
             }
         }
@@ -1623,6 +1624,59 @@ mod tests {
             .build();
         graph.assign_spaces_hb();
         assert_eq!(graph.nodes.len(), 4);
+    }
+
+    #[test]
+    fn duplicated_root_is_linked_from_its_wide_parent() {
+        // When a space root is linked from both 16 and 32-bit space it is
+        // duplicated, and the 32-bit links must be moved to the duplicate.
+        // Here the two roots (2, 3) share a child (4) that is also reachable
+        // from 16-bit space, so 4 is duplicated as well. If the wide link from
+        // 0 is not moved to 2', then 2' is orphaned while still linking to 4',
+        // and sort_shortest_distance panics because 4' has a parent that is
+        // never visited.
+        //
+        //  before           after
+        //      0               0
+        //     /║⑊           ┌─┘║⑊
+        //    1 ║ ⑊          1  ║ ⑊
+        //    │\║  ⑊         │\ 2' 3
+        //    │ 2   3        │ \  \│
+        //    │/    │        │ 2   4'
+        //    4─────┘        │/
+        //                   4
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let ids = make_ids::<5>();
+        let sizes = [10; 5];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[0], ids[3], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .add_link(ids[1], ids[4], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[4], OffsetLen::Offset16)
+            .build();
+
+        graph.assign_spaces_hb();
+        // this used to panic with "cycle or something?"
+        graph.sort_shortest_distance();
+
+        // 2 and 4 are duplicated
+        assert_eq!(graph.nodes.len(), 7);
+        // the wide link from the root now points at the duplicate of 2
+        let wide_targets = graph.objects[&ids[0]]
+            .offsets
+            .iter()
+            .filter(|link| link.len == OffsetLen::Offset32)
+            .map(|link| link.object)
+            .collect::<HashSet<_>>();
+        assert!(!wide_targets.contains(&ids[2]));
+        assert!(wide_targets.contains(&ids[3]));
+        // and nothing was orphaned
+        let reachable = graph.find_descendents(ids[0]);
+        assert_eq!(reachable.len(), graph.nodes.len());
     }
 
     #[test]
