@@ -5,7 +5,6 @@ mod cow_slice;
 mod cvt;
 mod definition;
 mod engine;
-mod error;
 mod graphics;
 mod instance;
 mod math;
@@ -23,8 +22,11 @@ use read_fonts::{
     types::{F26Dot6, F2Dot14, GlyphId, Point},
 };
 
-pub use error::HintError;
+// What can go wrong reading bytecode is the font format's, so read-fonts
+// states it; this interpreter reports it.
 pub use instance::HintInstance;
+pub use read_fonts::tables::glyf::bytecode::HintError;
+pub(crate) use read_fonts::tables::glyf::bytecode::HintErrorKind;
 
 /// Outline data that is passed to the hinter.
 pub struct HintOutline<'a> {

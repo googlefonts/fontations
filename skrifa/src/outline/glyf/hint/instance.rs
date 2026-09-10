@@ -5,12 +5,11 @@ use super::{
     cow_slice::CowSlice,
     definition::{Definition, DefinitionMap, DefinitionState},
     engine::Engine,
-    error::HintError,
     graphics::RetainedGraphicsState,
     program::{Program, ProgramState},
     value_stack::ValueStack,
     zone::Zone,
-    HintOutline, PointFlags, Target,
+    HintError, HintOutline, PointFlags, Target,
 };
 use alloc::vec::Vec;
 use raw::{
