@@ -285,8 +285,8 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         // value_formats
         let value_format1 = self.value_format1();
         let value_format2 = self.value_format2();
-        let record1_size = 2 * compute_record_len(value_format1);
-        let pair_record_size = 2 + record1_size + 2 * compute_record_len(value_format2);
+        let record1_size = compute_record_len(value_format1);
+        let pair_record_size = 2 + record1_size + compute_record_len(value_format2);
         let mut pair_set_info = PairSetInfo {
             coverage: &coverage,
             pair_sets: &pair_sets,
@@ -524,8 +524,8 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         let value_format2 = self.value_format2();
         let class2_count = self.class2_count() as usize;
         let records_offset = self.class2_count_byte_range().end;
-        let record1_size = 2 * compute_record_len(value_format1);
-        let record_size = record1_size + 2 * compute_record_len(value_format2);
+        let record1_size = compute_record_len(value_format1);
+        let record_size = record1_size + compute_record_len(value_format2);
         let font_data = self.offset_data();
         let class1_count = self.class1_count();
         let mut pairpos2_info = PairPosFormat2Info {
@@ -684,8 +684,8 @@ impl CollectVariationIndices for PairPosFormat1<'_> {
         let pair_sets = self.pair_sets();
         let pair_set_count = self.pair_set_count();
 
-        let record1_size = 2 * compute_record_len(value_format1);
-        let pair_record_size = 2 + record1_size + 2 * compute_record_len(value_format2);
+        let record1_size = compute_record_len(value_format1);
+        let pair_record_size = 2 + record1_size + compute_record_len(value_format2);
         let pair_set_info = PairSetInfo {
             coverage: &coverage,
             pair_sets: &pair_sets,
@@ -767,8 +767,8 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
 
         let class2_count = self.class2_count() as usize;
         let records_offset = self.class2_count_byte_range().end;
-        let record1_size = 2 * compute_record_len(value_format1);
-        let record_size = record1_size + 2 * compute_record_len(value_format2);
+        let record1_size = compute_record_len(value_format1);
+        let record_size = record1_size + compute_record_len(value_format2);
         let font_data = self.offset_data();
 
         for i in class1_set.iter() {
