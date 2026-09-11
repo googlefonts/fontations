@@ -506,8 +506,10 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(30_u32));
 
         // Map old varidx -> new varidx
-        plan.layout_varidx_delta_map.insert(0x00030004, (0x00070008, 0));
-        plan.layout_varidx_delta_map.insert(0x00050006, (0x0009000a, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x00030004, (0x00070008, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x00050006, (0x0009000a, 0));
 
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
@@ -542,7 +544,8 @@ mod test {
         };
         plan.glyph_map_gsub[20] = GlyphId::from(1_u32);
         plan.glyphset_gsub.insert(GlyphId::from(20_u32));
-        plan.layout_varidx_delta_map.insert(0x00030004, (0x00070008, 0));
+        plan.layout_varidx_delta_map
+            .insert(0x00030004, (0x00070008, 0));
 
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
