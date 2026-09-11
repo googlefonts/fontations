@@ -508,7 +508,18 @@ mod tests {
     #[test]
     fn full_split_including_variation_index_tables() {
         let _ = env_logger::builder().is_test(true).try_init();
+        full_split_including_variation_index_tables_impl(false)
+    }
 
+    #[test]
+    fn full_split_in_extension_lookup() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // same table, but the lookup is already an extension lookup, so the
+        // packer has to split through the extension subtables
+        full_split_including_variation_index_tables_impl(true)
+    }
+
+    fn full_split_including_variation_index_tables_impl(use_extension: bool) {
         const MARK_CLASS_COUNT: u16 = 120;
         const MARKS_PER_CLASS: u16 = 4;
         const N_BASES: u16 = 500;
@@ -526,28 +537,13 @@ mod tests {
         let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, true);
 
         let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
-        let lookup = Lookup::new(LookupFlag::empty(), vec![table]);
-        let lookup_list = LookupList::new(vec![lookup]);
-        let bytes = crate::dump_table(&lookup_list).unwrap();
-        let read_back = rgpos::PositionLookupList::read(bytes.as_slice().into()).unwrap();
-        assert_eq!(read_back.lookup_count(), 1);
-        let lookup = read_back.lookups().get(0).unwrap();
-
-        let subtables: Vec<_> = match lookup.subtables().unwrap() {
-            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
-            _ => panic!("wrong lookup type"),
-        };
-
-        assert_eq!(subtables.len(), 7);
 
         // now we want to check to see that one of our variation index tables is correct.
         // in the markarray, each mark has a varidx table, with both values equal
         // to that mark's original coverage index.
 
         let mark_cov_idx_to_test = 72;
-        let orig_anchor = &lookup_list.lookups[0].subtables[0].mark_array.mark_records
-            [mark_cov_idx_to_test]
-            .mark_anchor;
+        let orig_anchor = &table.mark_array.mark_records[mark_cov_idx_to_test].mark_anchor;
         // sanity check that our logic makes sense
         match orig_anchor.as_ref() {
             AnchorTable::Format3(anchor) => match anchor.x_device.as_ref() {
@@ -557,6 +553,38 @@ mod tests {
             },
             _ => panic!("very bad assumptions"),
         };
+
+        let lookup = if use_extension {
+            PositionLookup::Extension(Lookup::new(
+                LookupFlag::empty(),
+                vec![ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
+                    LookupType::MARK_TO_BASE,
+                    table,
+                ))],
+            ))
+        } else {
+            PositionLookup::MarkToBase(Lookup::new(LookupFlag::empty(), vec![table]))
+        };
+        let lookup_list = LookupList::new(vec![lookup]);
+        let bytes = crate::dump_table(&lookup_list).unwrap();
+        let read_back = rgpos::PositionLookupList::read(bytes.as_slice().into()).unwrap();
+        assert_eq!(read_back.lookup_count(), 1);
+        let lookup = read_back.lookups().get(0).unwrap();
+        if use_extension {
+            assert_eq!(lookup.lookup_type(), LookupType::GPOS_EXT_TYPE);
+        }
+
+        let subtables: Vec<_> = match lookup.subtables().unwrap() {
+            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            _ => panic!("wrong lookup type"),
+        };
+
+        assert_eq!(subtables.len(), 7);
+        let n_marks: u32 = subtables
+            .iter()
+            .map(|sub| sub.mark_coverage().unwrap().iter().count() as u32)
+            .sum();
+        assert_eq!(n_marks, N_MARKS as u32);
 
         let gid = GlyphId16::new(FIRST_MARK_GLYPH + mark_cov_idx_to_test as u16);
         let subtable = subtables
@@ -576,54 +604,6 @@ mod tests {
         assert!(
             matches!(mark_anchor.x_device().transpose().unwrap(), Some(rgpos::DeviceOrVariationIndex::VariationIndex(varidx)) if varidx.delta_set_outer_index() == mark_cov_idx_to_test as u16)
         );
-    }
-
-    #[test]
-    fn full_split_in_extension_lookup() {
-        let _ = env_logger::builder().is_test(true).try_init();
-        // the same table as above, but the lookup is already an extension
-        // lookup, so the packer has to split through the extension subtables
-        const MARK_CLASS_COUNT: u16 = 120;
-        const MARKS_PER_CLASS: u16 = 4;
-        const N_BASES: u16 = 500;
-        const N_MARKS: u16 = MARK_CLASS_COUNT * MARKS_PER_CLASS;
-        const FIRST_BASE_GLYPH: u16 = 2;
-        const FIRST_MARK_GLYPH: u16 = 2000;
-
-        let mark_coverage = (FIRST_MARK_GLYPH..FIRST_MARK_GLYPH + N_MARKS)
-            .map(GlyphId16::new)
-            .collect();
-        let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
-            .map(GlyphId16::new)
-            .collect();
-        let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS, true);
-        let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, true);
-
-        let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
-        let lookup = PositionLookup::Extension(Lookup::new(
-            LookupFlag::empty(),
-            vec![ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
-                LookupType::MARK_TO_BASE,
-                table,
-            ))],
-        ));
-        let lookup_list = LookupList::new(vec![lookup]);
-        let bytes = crate::dump_table(&lookup_list).unwrap();
-        let read_back = rgpos::PositionLookupList::read(bytes.as_slice().into()).unwrap();
-        let lookup = read_back.lookups().get(0).unwrap();
-        assert_eq!(lookup.lookup_type(), LookupType::GPOS_EXT_TYPE);
-
-        let subtables: Vec<_> = match lookup.subtables().unwrap() {
-            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
-            _ => panic!("wrong lookup type"),
-        };
-        // same split as the non-extension case
-        assert_eq!(subtables.len(), 7);
-        let n_marks: u32 = subtables
-            .iter()
-            .map(|sub| sub.mark_coverage().unwrap().iter().count() as u32)
-            .sum();
-        assert_eq!(n_marks, N_MARKS as u32);
     }
 
     #[test]
