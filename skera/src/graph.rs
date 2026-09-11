@@ -928,6 +928,7 @@ impl Graph {
         }
 
         visited.invert();
+        let mut visited_subgraph_nodes = IntSet::empty();
         loop {
             let Some(next) = roots.first() else {
                 break;
@@ -940,7 +941,7 @@ impl Graph {
                 &mut connected_roots,
             )?;
 
-            self.isolate_subgraph(&mut connected_roots)?;
+            self.isolate_subgraph(&mut connected_roots, &mut visited_subgraph_nodes)?;
             let next_space = self.next_space();
             if next_space >= MAX_SPACES {
                 return Err(RepackError::ErrorMaxOperationsExceeded);
@@ -1180,7 +1181,11 @@ impl Graph {
     // that originate from outside of the subgraph will be removed by duplicating the linked to
     // object
     // Indices stored in roots will be updated if any of the roots are duplicated to new indices.
-    fn isolate_subgraph(&mut self, roots: &mut IntSet<u32>) -> Result<bool, RepackError> {
+    fn isolate_subgraph(
+        &mut self,
+        roots: &mut IntSet<u32>,
+        visited: &mut IntSet<u32>,
+    ) -> Result<bool, RepackError> {
         self.update_parents()?;
 
         let mut parents = IntSet::empty();
@@ -1197,7 +1202,7 @@ impl Graph {
             assert!(obj_idx < len);
             // duplicate objects with incoming links from outside the subgraph.
             if *num_incoming_edges < self.vertices[obj_idx].incoming_edges() {
-                self.duplicate_subgraph(obj_idx, &mut index_map)?;
+                self.duplicate_subgraph(obj_idx, &mut index_map, visited)?;
             }
         }
 
@@ -1303,19 +1308,21 @@ impl Graph {
         &mut self,
         start_idx: ObjIdx,
         index_map: &mut FnvHashMap<usize, usize>,
+        visited: &mut IntSet<u32>,
     ) -> Result<(), RepackError> {
         if index_map.contains_key(&start_idx) {
             return Ok(());
         }
 
         let mut to_duplicate = Vec::new();
+        visited.clear();
 
         traverse_directed_bfs(
             &mut self.ordering_scratch,
             &self.vertices,
             start_idx,
             |_parent, _link, child, _depth| {
-                if index_map.contains_key(&child) {
+                if index_map.contains_key(&child) || !visited.insert(child as u32) {
                     return false;
                 }
                 to_duplicate.push(child);
@@ -1437,7 +1444,8 @@ impl Graph {
             }
         }
 
-        if !self.isolate_subgraph(&mut roots_to_isolate)? {
+        let mut visited_subgraph_nodes = IntSet::empty();
+        if !self.isolate_subgraph(&mut roots_to_isolate, &mut visited_subgraph_nodes)? {
             return Ok(false);
         }
         self.move_to_new_space(&roots_to_isolate, space)?;
@@ -2405,8 +2413,9 @@ pub(crate) mod test {
 
         // Test duplicate_subgraph
         let mut index_map = FnvHashMap::default();
+        let mut visited = IntSet::empty();
         assert!(graph
-            .duplicate_subgraph(graph.root_idx(), &mut index_map)
+            .duplicate_subgraph(graph.root_idx(), &mut index_map, &mut visited)
             .is_ok());
         assert_eq!(index_map.len(), 2001);
     }
