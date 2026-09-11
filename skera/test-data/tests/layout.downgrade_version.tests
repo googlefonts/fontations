@@ -1,0 +1,8 @@
+FONTS:
+OpenSansHybridTest-Light_subset.ttf
+
+PROFILES:
+layout-test.txt
+
+SUBSETS:
+*
