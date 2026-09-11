@@ -188,27 +188,32 @@ fn subset_gsub(
         )?;
     }
 
-    if let Some(feature_variations) = gsub
-        .feature_variations()
-        .transpose()
-        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
-    {
-        let snap = s.snapshot();
-        let feature_vars_offset_pos = s.embed(0_u32)?;
-        match Offset32::serialize_subset(
-            &feature_variations,
-            s,
-            plan,
-            &mut c,
-            feature_vars_offset_pos,
-        ) {
-            Ok(()) => (),
-            // downgrade table version if there are no FeatureVariations
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
-                s.revert_snapshot(snap);
-                s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
+    if gsub.version().major == 1 && gsub.version().minor >= 1 {
+        if let Some(feature_variations) = gsub
+            .feature_variations()
+            .transpose()
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+        {
+            let snap = s.snapshot();
+            let feature_vars_offset_pos = s.embed(0_u32)?;
+            match Offset32::serialize_subset(
+                &feature_variations,
+                s,
+                plan,
+                &mut c,
+                feature_vars_offset_pos,
+            ) {
+                Ok(()) => (),
+                // downgrade table version if there are no FeatureVariations
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
+                    s.revert_snapshot(snap);
+                    s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
+                }
+                Err(e) => return Err(e),
             }
-            Err(e) => return Err(e),
+        } else {
+            // downgrade table version if there are no FeatureVariations
+            s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
         }
     }
     Ok(())
@@ -368,5 +373,37 @@ mod test {
         let retained_features = gsub.prune_features(&lookup_indices, feature_indices);
         assert_eq!(retained_features.len(), 1);
         assert!(retained_features.contains(0));
+    }
+
+    #[test]
+    fn test_subset_gsub_v1_1_null_feature_variations() {
+        use write_fonts::read::FontData;
+
+        let font = FontRef::new(include_bytes!(
+            "../test-data/fonts/NotoSansOriya-subset.ttf"
+        ))
+        .unwrap();
+
+        let gsub_bytes = [
+            0x00, 0x01, 0x00, 0x01, // Version 1.1
+            0x00, 0x0e, // script_list_offset = 14
+            0x00, 0x10, // feature_list_offset = 16
+            0x00, 0x12, // lookup_list_offset = 18
+            0x00, 0x00, 0x00, 0x00, // feature_variations_offset = null (0)
+            0x00, 0x00, // ScriptList: script_count = 0
+            0x00, 0x00, // FeatureList: feature_count = 0
+            0x00, 0x00, // LookupList: lookup_count = 0
+        ];
+        let gsub = Gsub::read(FontData::new(&gsub_bytes)).unwrap();
+        let plan = Plan::default();
+        let state = SubsetState::default();
+        let mut s = Serializer::new(128);
+        s.start_serialize().unwrap();
+        subset_gsub(&gsub, &plan, &font, &state, &mut s).unwrap();
+        s.end_serialize();
+        let out = s.copy_bytes();
+        let out_gsub = Gsub::read(FontData::new(&out)).unwrap();
+        assert_eq!(out_gsub.version(), MajorMinor::VERSION_1_0);
+        assert!(out_gsub.feature_variations().is_none());
     }
 }

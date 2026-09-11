@@ -190,24 +190,29 @@ fn subset_gpos(
         )?;
     }
 
-    if let Some(feature_variations) = gpos
-        .feature_variations()
-        .transpose()
-        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
-    {
-        let snap = s.snapshot();
-        let feature_vars_offset_pos = s.embed(0_u32)?;
-        if Offset32::serialize_subset(
-            &feature_variations,
-            s,
-            plan,
-            &mut c,
-            feature_vars_offset_pos,
-        )
-        .is_empty()?
+    if gpos.version().major == 1 && gpos.version().minor >= 1 {
+        if let Some(feature_variations) = gpos
+            .feature_variations()
+            .transpose()
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
+            let snap = s.snapshot();
+            let feature_vars_offset_pos = s.embed(0_u32)?;
+            if Offset32::serialize_subset(
+                &feature_variations,
+                s,
+                plan,
+                &mut c,
+                feature_vars_offset_pos,
+            )
+            .is_empty()?
+            {
+                // downgrade table version if there are no FeatureVariations
+                s.revert_snapshot(snap);
+                s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
+            }
+        } else {
             // downgrade table version if there are no FeatureVariations
-            s.revert_snapshot(snap);
             s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
         }
     }
