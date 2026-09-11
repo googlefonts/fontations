@@ -1180,7 +1180,7 @@ impl Graph {
     // that originate from outside of the subgraph will be removed by duplicating the linked to
     // object
     // Indices stored in roots will be updated if any of the roots are duplicated to new indices.
-    fn isolate_subgraph(&mut self, roots: &mut IntSet<u32>) -> Result<(), RepackError> {
+    fn isolate_subgraph(&mut self, roots: &mut IntSet<u32>) -> Result<bool, RepackError> {
         self.update_parents()?;
 
         let mut parents = IntSet::empty();
@@ -1202,7 +1202,7 @@ impl Graph {
         }
 
         if index_map.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
 
         let new_subgraph = subgraph_map
@@ -1224,7 +1224,7 @@ impl Graph {
                 roots.insert(*new as u32);
             }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn remap_obj_indices(
@@ -1437,7 +1437,9 @@ impl Graph {
             }
         }
 
-        self.isolate_subgraph(&mut roots_to_isolate)?;
+        if !self.isolate_subgraph(&mut roots_to_isolate)? {
+            return Ok(false);
+        }
         self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
