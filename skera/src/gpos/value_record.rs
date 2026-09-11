@@ -44,7 +44,7 @@ fn popcount8(v: u8) -> u8 {
 // Harfbuzz ref: <https://github.com/harfbuzz/harfbuzz/blob/f279195ce7e0a04c16576214d524d2629ea0aa79/src/OT/Layout/GPOS/ValueFormat.hh#L66>
 pub(super) fn compute_record_len(value_format: ValueFormat) -> usize {
     let v = value_format.bits() as u8;
-    popcount8(v) as usize
+    popcount8(v) as usize * 2
 }
 
 pub(crate) fn compute_effective_format(

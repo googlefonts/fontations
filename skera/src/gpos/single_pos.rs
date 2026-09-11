@@ -175,7 +175,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
         let (state, font) = args;
         let value_format = self.value_format();
         let records_offset = self.value_count_byte_range().end;
-        let record_size = 2 * compute_record_len(value_format);
+        let record_size = compute_record_len(value_format);
         let font_data = self.offset_data();
         let mut singlepos_info = SinglePosInfo {
             value_format,
@@ -312,7 +312,7 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
         };
         let glyph_set = &plan.glyphset_gsub;
         let value_count = self.value_count();
-        let record_size = 2 * compute_record_len(value_format);
+        let record_size = compute_record_len(value_format);
         let records_offset = self.value_count_byte_range().end;
         let font_data = self.offset_data();
 
