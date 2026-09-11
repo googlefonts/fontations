@@ -262,7 +262,7 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
             singlepos_info.new_format,
         );
         //value format
-        s.embed(value_format)?;
+        s.embed(new_format)?;
 
         //value count
         let value_count = glyphs.len();
@@ -303,7 +303,7 @@ impl CollectVariationIndices for SinglePosFormat1<'_> {
 impl CollectVariationIndices for SinglePosFormat2<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         let value_format = self.value_format();
-        if value_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+        if !value_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
             return;
         }
 
@@ -312,7 +312,7 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
         };
         let glyph_set = &plan.glyphset_gsub;
         let value_count = self.value_count();
-        let record_size = compute_record_len(value_format);
+        let record_size = 2 * compute_record_len(value_format);
         let records_offset = self.value_count_byte_range().end;
         let font_data = self.offset_data();
 
@@ -449,5 +449,121 @@ mod test {
         ];
 
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_gpos_format2_with_variation_indices() {
+        use write_fonts::read::{FontData, FontRead};
+
+        // Construct a SinglePosFormat2 table with VariationIndex devices:
+        // - Coverage: 3 glyphs (10, 20, 30)
+        // - ValueFormat: X_ADVANCE | X_ADVANCE_DEVICE (0x0044)
+        // - 3 ValueRecords with distinct values and variation index pointers:
+        //   Record 0 (GID 10): x_advance = 100, varidx = (outer: 1, inner: 2) -> 0x00010002
+        //   Record 1 (GID 20): x_advance = 200, varidx = (outer: 3, inner: 4) -> 0x00030004
+        //   Record 2 (GID 30): x_advance = 300, varidx = (outer: 5, inner: 6) -> 0x00050006
+        #[rustfmt::skip]
+        let raw_table: [u8; 48] = [
+            0x00, 0x02, 0x00, 0x14, 0x00, 0x44, 0x00, 0x03,
+            0x00, 0x64, 0x00, 0x1e, 0x00, 0xc8, 0x00, 0x24,
+            0x01, 0x2c, 0x00, 0x2a, 0x00, 0x01, 0x00, 0x03,
+            0x00, 0x0a, 0x00, 0x14, 0x00, 0x1e, 0x00, 0x01,
+            0x00, 0x02, 0x80, 0x00, 0x00, 0x03, 0x00, 0x04,
+            0x80, 0x00, 0x00, 0x05, 0x00, 0x06, 0x80, 0x00,
+        ];
+
+        let singlepos = SinglePosFormat2::read(FontData::new(&raw_table)).unwrap();
+
+        // 1. Test CollectVariationIndices (branch 1: value_count > len * bit_storage)
+        let mut plan = Plan::default();
+        plan.glyphset_gsub.insert(GlyphId::from(20_u32));
+        let mut varidx_set = IntSet::empty();
+        singlepos.collect_variation_indices(&plan, &mut varidx_set);
+        assert_eq!(varidx_set.len(), 1);
+        assert!(varidx_set.contains(0x00030004));
+
+        // 2. Test CollectVariationIndices (branch 2: else branch)
+        plan.glyphset_gsub.insert(GlyphId::from(10_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(30_u32));
+        varidx_set.clear();
+        singlepos.collect_variation_indices(&plan, &mut varidx_set);
+        assert_eq!(varidx_set.len(), 3);
+        assert!(varidx_set.contains(0x00010002));
+        assert!(varidx_set.contains(0x00030004));
+        assert!(varidx_set.contains(0x00050006));
+
+        // 3. Test Subsetting: retaining glyphs 20 and 30 (output remains Format 2)
+        let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let subset_state = SubsetState::default();
+
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 35],
+            ..Default::default()
+        };
+        plan.glyph_map_gsub[20] = GlyphId::from(1_u32);
+        plan.glyph_map_gsub[30] = GlyphId::from(2_u32);
+        plan.glyphset_gsub.insert(GlyphId::from(20_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(30_u32));
+
+        // Map old varidx -> new varidx
+        plan.layout_varidx_delta_map.insert(0x00030004, (0x00070008, 0));
+        plan.layout_varidx_delta_map.insert(0x00050006, (0x0009000a, 0));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        singlepos
+            .subset(&plan, &mut s, (&subset_state, &font))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        #[rustfmt::skip]
+        let expected_format2: [u8; 36] = [
+            // pos_format=2, cov_offset=16, value_format=0x0044, count=2
+            0x00, 0x02, 0x00, 0x10, 0x00, 0x44, 0x00, 0x02,
+            // record 0: x_advance=200, dev_offset=30
+            0x00, 0xc8, 0x00, 0x1e,
+            // record 1: x_advance=300, dev_offset=24
+            0x01, 0x2c, 0x00, 0x18,
+            // coverage: format 1, count 2, glyphs 1, 2
+            0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x02,
+            // VariationIndex 1: remapped outer=9, inner=10, delta_format=0x8000 (offset 24)
+            0x00, 0x09, 0x00, 0x0a, 0x80, 0x00,
+            // VariationIndex 0: remapped outer=7, inner=8, delta_format=0x8000 (offset 30)
+            0x00, 0x07, 0x00, 0x08, 0x80, 0x00,
+        ];
+        assert_eq!(subsetted_data, expected_format2);
+
+        // 4. Test Subsetting: retaining only glyph 20 (output optimized to Format 1)
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 35],
+            ..Default::default()
+        };
+        plan.glyph_map_gsub[20] = GlyphId::from(1_u32);
+        plan.glyphset_gsub.insert(GlyphId::from(20_u32));
+        plan.layout_varidx_delta_map.insert(0x00030004, (0x00070008, 0));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        singlepos
+            .subset(&plan, &mut s, (&subset_state, &font))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        #[rustfmt::skip]
+        let expected_format1: [u8; 22] = [
+            // pos_format=1, cov_offset=10, value_format=0x0044
+            0x00, 0x01, 0x00, 0x0a, 0x00, 0x44,
+            // record: x_advance=200, dev_offset=16
+            0x00, 0xc8, 0x00, 0x10,
+            // coverage: format 1, count 1, glyph 1
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+            // VariationIndex: remapped outer=7, inner=8, delta_format=0x8000
+            0x00, 0x07, 0x00, 0x08, 0x80, 0x00,
+        ];
+        assert_eq!(subsetted_data, expected_format1);
     }
 }
