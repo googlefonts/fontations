@@ -54,6 +54,9 @@ impl TableType {
             self,
             TableType::GposLookup(LookupType::PAIR_POS)
                 | TableType::GposLookup(LookupType::MARK_TO_BASE)
+                // an extension lookup is splittable if the wrapped lookup is;
+                // that is checked in Graph::split_subtables_if_needed
+                | TableType::GposLookup(LookupType::GPOS_EXT_TYPE)
         )
     }
 
