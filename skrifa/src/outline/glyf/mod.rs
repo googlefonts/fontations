@@ -143,6 +143,13 @@ impl<'a> Outlines<'a> {
         self.glyph_count as usize
     }
 
+    pub(crate) fn variation_axis_count(&self) -> usize {
+        self.gvar
+            .as_ref()
+            .map(|gvar| gvar.axis_count() as usize)
+            .unwrap_or_default()
+    }
+
     pub fn prefer_interpreter(&self) -> bool {
         self.prefer_interpreter
     }
