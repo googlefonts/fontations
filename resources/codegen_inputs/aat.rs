@@ -2,6 +2,7 @@
 
 /// Lookup tables provide a way of looking up information about a glyph index.
 /// The different cmap subtable formats.
+#[read_inline]
 format u16 Lookup {
     Format0(Lookup0),
     Format2(Lookup2),

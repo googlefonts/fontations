@@ -24,6 +24,7 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
         });
 
     let format = &item.format;
+    let read_inline = item.attrs.read_inline.as_ref().map(|_| quote!(#[inline]));
     // if we have any fancy match statement we disable a clippy lint
     let mut has_any_match_stmt = false;
     let match_arms = item
@@ -103,6 +104,7 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
         }
 
         impl<'a> FontRead<'a> for #name<'a> {
+            #read_inline
             fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                 let format: #format = data.read_at(#format_offset)?;
                 #maybe_allow_lint
