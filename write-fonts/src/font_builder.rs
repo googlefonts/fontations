@@ -193,83 +193,84 @@ impl<'a> FontBuilder<'a> {
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
             + self.tables.len() * TABLE_RECORD_LEN;
+        let total_len = header_len
+            + self
+                .tables
+                .values()
+                .map(|data| round4(data.len()))
+                .sum::<usize>();
 
         // note this is the order of the tables themselves, not the records in the table directory
         // which are sorted by tag so they can be binary searched
         let table_order = self.ordered_tags();
-
-        let mut position = header_len as u32;
-        let mut checksums = Vec::with_capacity(self.tables.len() + 1);
         let head_tag = Tag::new(b"head");
 
+        // Each table is copied into its final position and checksummed immediately, so that
+        // the bytes are still in cache when they are summed; the table directory is written
+        // into the reserved prefix at the end, once every offset is known.
+        let mut data = Vec::with_capacity(total_len);
+        data.resize(header_len, 0);
+
+        let mut checksum = 0u32;
+        let mut head_offset = None;
         let mut table_records = Vec::with_capacity(self.tables.len());
-        for tag in table_order.iter() {
+        for tag in table_order {
             // safe to unwrap as ordered_tags() guarantees that all keys exist
-            let data = self.tables.get_mut(tag).unwrap();
-            let offset = position;
-            let length = data.len() as u32;
-            position += length;
-            if *tag == head_tag && data.len() >= HEAD_CHECKSUM_END {
-                // The head table checksum is computed with the checksum field set to 0.
-                // Equivalent to Python's `data[:HEAD_CHECKSUM_START] + b"\0\0\0\0" + data[HEAD_CHECKSUM_END:]`
-                //
-                // Only do this if there is enough data in the head table to write the bytes.
-                let head = data.to_mut();
-                head[HEAD_CHECKSUM_START..HEAD_CHECKSUM_END].copy_from_slice(&[0, 0, 0, 0]);
-            }
-            // The head table is mutated above, so any supplied checksum for it is stale.
-            let padding = round4(data.len()) - data.len();
-            let checksum = if *tag == head_tag {
-                read_fonts::tables::compute_checksum(data)
+            let table = self.tables.remove(&tag).unwrap();
+            let precomputed = self.checksums.remove(&tag);
+            let offset = data.len();
+            let length = table.len();
+            data.extend_from_slice(&table);
+            // tables are implicitly zero padded to a multiple of four bytes
+            data.resize(offset + round4(length), 0);
+
+            let table_checksum = if tag == head_tag {
+                if length >= HEAD_CHECKSUM_END {
+                    // The head table checksum is computed with the checksum field set to 0.
+                    // The real value is patched in below, once the font checksum is known.
+                    //
+                    // Only do this if there is enough data in the head table to write the bytes.
+                    head_offset = Some(offset);
+                    data[offset + HEAD_CHECKSUM_START..offset + HEAD_CHECKSUM_END].fill(0);
+                }
+                // The head table is mutated above, so any supplied checksum for it is stale.
+                read_fonts::tables::compute_checksum(&data[offset..])
             } else {
-                self.checksums
-                    .get(tag)
-                    .copied()
-                    .unwrap_or_else(|| read_fonts::tables::compute_checksum(data))
+                precomputed.unwrap_or_else(|| read_fonts::tables::compute_checksum(&data[offset..]))
             };
-            checksums.push(checksum);
-            position += padding as u32;
-            table_records.push(TableRecord::new(*tag, checksum, offset, length));
+            checksum = checksum.wrapping_add(table_checksum);
+            table_records.push(TableRecord::new(
+                tag,
+                table_checksum,
+                offset as u32,
+                length as u32,
+            ));
         }
+        debug_assert_eq!(total_len, data.len());
+
         table_records.sort_unstable_by_key(|record| record.tag);
 
         let directory = TableDirectory::from_table_records(table_records);
-
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
-        let mut data = writer.into_data().bytes;
-        data.reserve_exact((position as usize).saturating_sub(data.len()));
-        let expected_data_len = data.capacity();
-        checksums.push(read_fonts::tables::compute_checksum(&data));
+        let header = writer.into_data().bytes;
+        // the offsets written above assume a directory of exactly this size
+        assert_eq!(header.len(), header_len);
+        data[..header_len].copy_from_slice(&header);
 
         // Summing all the individual table checksums, including the table directory's,
         // gives the checksum for the entire font.
         // The checksum_adjustment is computed as 0xB1B0AFBA - checksum, modulo 2^32.
         // https://learn.microsoft.com/en-us/typography/opentype/spec/otff#calculating-checksums
-        let checksum = checksums.into_iter().fold(0u32, u32::wrapping_add);
+        checksum = checksum.wrapping_add(read_fonts::tables::compute_checksum(&header));
         let checksum_adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum);
 
-        for tag in table_order {
-            let table = self.tables.remove(&tag).unwrap();
-            self.checksums.remove(&tag);
-            if tag == head_tag && table.len() >= HEAD_CHECKSUM_END {
-                // store the checksum_adjustment in the head table
-                data.extend_from_slice(&table[..HEAD_CHECKSUM_START]);
-                data.extend_from_slice(&checksum_adjustment.to_be_bytes());
-                data.extend_from_slice(&table[HEAD_CHECKSUM_END..]);
-            } else {
-                data.extend_from_slice(&table);
-            }
-            let rem = round4(table.len()) - table.len();
-            let padding = [0u8; 4];
-            data.extend_from_slice(&padding[..rem]);
+        if let Some(head_offset) = head_offset {
+            // store the checksum_adjustment in the head table
+            data[head_offset + HEAD_CHECKSUM_START..head_offset + HEAD_CHECKSUM_END]
+                .copy_from_slice(&checksum_adjustment.to_be_bytes());
         }
-        if expected_data_len != data.len() {
-            log::warn!(
-                "suboptimal: allocated {expected_data_len} bytes but needed {actual_len}",
-                actual_len = data.len()
-            );
-        }
+
         data
     }
 }
