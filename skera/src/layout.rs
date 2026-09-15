@@ -194,8 +194,11 @@ impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
         let glyph_set = &plan.glyphset_gsub;
 
         let start = self.start_glyph_id().to_u32();
-        let end = start + self.glyph_count() as u32 - 1;
-        let end = glyph_set.last().unwrap().to_u32().min(end);
+        // Exclusive end, so that an empty ClassDef (glyph_count == 0) yields an
+        // empty range. Computing an inclusive `start + glyph_count - 1` would
+        // underflow when start is 0.
+        let end = (start + self.glyph_count() as u32)
+            .min(glyph_set.last().unwrap().to_u32().saturating_add(1));
 
         let class_values = self.class_value_array();
         let mut retained_classes = IntSet::empty();
@@ -203,7 +206,7 @@ impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
         let cap = (glyph_set.len() as usize).min(self.glyph_count() as usize);
         let mut new_gid_classes = Vec::with_capacity(cap);
 
-        for g in start..=end {
+        for g in start..end {
             let gid = GlyphId::from(g);
             let Some(new_gid) = map_gsub_glyph(glyph_map, gid) else {
                 continue;

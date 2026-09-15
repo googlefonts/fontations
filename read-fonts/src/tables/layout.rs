@@ -483,6 +483,15 @@ impl<'a> ClassDefFormat1<'a> {
 
         let start_glyph = self.start_glyph_id().to_u32();
         let glyph_count = self.glyph_count();
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: the `end_glyph` computation below underflows when
+        // `start_glyph` is 0 and glyph_count is 0.
+        if glyph_count == 0 {
+            if class == 0 {
+                out.extend(glyphs.iter());
+            }
+            return out;
+        }
         let end_glyph = start_glyph + glyph_count as u32 - 1;
         if class == 0 {
             let first = glyphs.first().unwrap();
@@ -518,7 +527,14 @@ impl<'a> ClassDefFormat1<'a> {
         }
 
         let start_glyph = self.start_glyph_id().to_u32();
-        let end_glyph = start_glyph + self.glyph_count() as u32 - 1;
+        let glyph_count = self.glyph_count();
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: the `end_glyph` computation below underflows when
+        // `start_glyph` is 0.
+        if glyph_count == 0 {
+            return class == 0;
+        }
+        let end_glyph = start_glyph + glyph_count as u32 - 1;
         if class == 0 {
             let first = glyphs.first().unwrap();
             if first.to_u32() < start_glyph {
@@ -698,6 +714,13 @@ impl<'a> ClassDefFormat2<'a> {
     fn intersects_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> bool {
         if glyphs.is_empty() {
             return false;
+        }
+
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: with no ranges the class 0 walk below starts from
+        // `first + 1` and so misses `first` itself.
+        if self.class_range_count() == 0 {
+            return class == 0;
         }
 
         let first = glyphs.first().unwrap().to_u32();
