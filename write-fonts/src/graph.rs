@@ -838,15 +838,6 @@ impl Graph {
     }
 
     fn actually_promote_subtables(&mut self, to_promote: &[ObjectId]) {
-        fn make_extension(type_: LookupType, subtable_id: ObjectId) -> TableData {
-            const EXT_FORMAT: u16 = 1;
-            let mut data = TableData::new(TableType::Named("ExtensionPosFormat1"));
-            data.write(EXT_FORMAT);
-            data.write(type_.to_raw());
-            data.add_offset(subtable_id, 4, 0);
-            data
-        }
-
         for id in to_promote {
             // 'id' is a lookup table.
             // we need to:
@@ -857,7 +848,7 @@ impl Graph {
             let mut lookup = self.objects.remove(id).unwrap();
             let lookup_type = lookup.type_.to_lookup_type().expect("validated before now");
             for subtable_ref in &mut lookup.offsets {
-                let ext_table = make_extension(lookup_type, subtable_ref.object);
+                let ext_table = Self::make_extension(lookup_type, subtable_ref.object);
                 let ext_id = self.add_object(ext_table);
                 subtable_ref.object = ext_id;
             }
@@ -867,6 +858,19 @@ impl Graph {
         }
         self.parents_invalid = true;
         self.positions_invalid = true;
+    }
+
+    /// Create an Extension subtable pointing at `subtable_id`, a subtable of
+    /// a lookup of type `type_`.
+    ///
+    /// The extension is not added to the graph; use [`add_object`][Self::add_object].
+    pub(super) fn make_extension(type_: LookupType, subtable_id: ObjectId) -> TableData {
+        const EXT_FORMAT: u16 = 1;
+        let mut data = TableData::new(TableType::Named("ExtensionPosFormat1"));
+        data.write(EXT_FORMAT);
+        data.write(type_.to_raw());
+        data.add_offset(subtable_id, 4, 0);
+        data
     }
 
     /// Manually add an object to the graph, after initial compilation.
@@ -1032,8 +1036,18 @@ impl Graph {
 
     fn split_subtables_if_needed(&mut self, lookup: ObjectId) {
         // So You Want to Split Subtables:
-        // - support PairPos and MarkBase.
-        let type_ = self.objects[&lookup].type_;
+        // - support PairPos and MarkBase, either directly or wrapped in an
+        //   Extension lookup (in which case we split the wrapped subtables and
+        //   wrap each of the pieces in a new Extension subtable)
+        let mut type_ = self.objects[&lookup].type_;
+        if type_ == TableType::GposLookup(LookupType::GPOS_EXT_TYPE) {
+            // all subtables of a lookup have the same type, so we only need to
+            // look at the first extension
+            type_ = match self.extension_subtable_type(lookup) {
+                Some(type_) => TableType::GposLookup(type_),
+                None => return,
+            };
+        }
         match type_ {
             TableType::GposLookup(LookupType::PAIR_POS) => splitting::split_pair_pos(self, lookup),
             TableType::GposLookup(LookupType::MARK_TO_BASE) => {
@@ -1041,6 +1055,17 @@ impl Graph {
             }
             _ => (),
         }
+    }
+
+    /// For an Extension lookup, the lookup type of the wrapped subtables.
+    ///
+    /// Returns `None` for an empty lookup.
+    fn extension_subtable_type(&self, lookup: ObjectId) -> Option<u16> {
+        let first_subtable = self.objects[&lookup].offsets.first()?.object;
+        let extension = self.objects[&first_subtable]
+            .reparse::<read_fonts::tables::gpos::ExtensionPosFormat1<()>>()
+            .ok()?;
+        Some(extension.extension_lookup_type())
     }
 
     /// the size only of children of this object, not the whole subgraph
