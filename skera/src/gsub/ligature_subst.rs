@@ -38,8 +38,12 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let glyph_set = &plan.glyphset_gsub;
-        let (cov_glyphs, lig_set_idxes) =
-            intersected_glyphs_and_indices(&coverage, glyph_set, &plan.glyph_map_gsub);
+        let (cov_glyphs, lig_set_idxes) = intersected_glyphs_and_indices(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            self.ligature_set_count(),
+        );
 
         if cov_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);

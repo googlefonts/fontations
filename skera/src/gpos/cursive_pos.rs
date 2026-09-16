@@ -46,8 +46,12 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
         let exit_records = self.entry_exit_record();
         let font_data = self.offset_data();
 
-        let (glyphs, exit_record_idxes) =
-            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
+        let (glyphs, exit_record_idxes) = intersected_glyphs_and_indices(
+            &coverage,
+            &plan.glyphset_gsub,
+            &plan.glyph_map_gsub,
+            exit_records.len() as u16,
+        );
         if glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
