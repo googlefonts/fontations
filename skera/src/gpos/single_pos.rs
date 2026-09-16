@@ -320,9 +320,18 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
         let records_offset = self.value_count_byte_range().end;
         let font_data = self.offset_data();
 
+        // As in subset(), coverage entries at or past valueCount have no
+        // ValueRecord and are skipped. Here the format is known to hold a
+        // device or variation index, so record_size is non zero and an out of
+        // range index would address bytes past the end of the record array and
+        // collect variation indices out of whatever follows it.
         let bit_storage = 16 - value_count.leading_zeros() as u64;
         if value_count as u64 > glyph_set.len() * bit_storage {
-            for idx in glyph_set.iter().filter_map(|g| coverage.get(g)) {
+            for idx in glyph_set
+                .iter()
+                .filter_map(|g| coverage.get(g))
+                .filter(|idx| *idx < value_count)
+            {
                 let offset = records_offset + idx as usize * record_size;
                 let value_record = ValueRecord::new(font_data, offset, value_format);
                 value_record.collect_variation_indices(plan, varidx_set);
@@ -330,6 +339,7 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
         } else {
             for i in coverage
                 .iter()
+                .take(value_count as usize)
                 .enumerate()
                 .filter_map(|(idx, g)| glyph_set.contains(GlyphId::from(g)).then_some(idx))
             {
@@ -700,5 +710,77 @@ mod test {
             0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
         ];
         assert_eq!(subsetted_data, expected);
+    }
+
+    /// A SinglePosFormat2 with a 6 glyph coverage but only 4 ValueRecords.
+    ///
+    /// The bytes immediately after the record array happen to read back as two
+    /// more well formed records, each pointing at a VariationIndex. Those are
+    /// what a coverage entry with no record of its own lands on, so collecting
+    /// from index 4 or 5 picks up a variation index the subtable does not
+    /// actually reference.
+    #[rustfmt::skip]
+    const COVERAGE_LONGER_THAN_VALUES: [u8; 84] = [
+        // pos_format=2, cov_offset=68, value_format=0x0044, value_count=4
+        0x00, 0x02, 0x00, 0x44, 0x00, 0x44, 0x00, 0x04,
+        // record 0: x_advance=100, device_offset=32
+        0x00, 0x64, 0x00, 0x20,
+        // record 1: x_advance=200, device_offset=38
+        0x00, 0xc8, 0x00, 0x26,
+        // record 2: x_advance=300, device_offset=44
+        0x01, 0x2c, 0x00, 0x2c,
+        // record 3: x_advance=400, device_offset=50
+        0x01, 0x90, 0x00, 0x32,
+        // past the end of the array: reads back as a record with device_offset=56
+        0x00, 0x01, 0x00, 0x38,
+        // past the end of the array: reads back as a record with device_offset=62
+        0x00, 0x02, 0x00, 0x3e,
+        // VariationIndex tables for records 0..3, at 32, 38, 44 and 50
+        0x00, 0x01, 0x00, 0x02, 0x80, 0x00,
+        0x00, 0x03, 0x00, 0x04, 0x80, 0x00,
+        0x00, 0x05, 0x00, 0x06, 0x80, 0x00,
+        0x00, 0x07, 0x00, 0x08, 0x80, 0x00,
+        // VariationIndex tables at 56 and 62, only reachable past the array end
+        0x00, 0x09, 0x00, 0x0a, 0x80, 0x00,
+        0x00, 0x0b, 0x00, 0x0c, 0x80, 0x00,
+        // coverage @68: format 1, count 6, glyphs 10, 20, 30, 40, 50, 60
+        0x00, 0x01, 0x00, 0x06,
+        0x00, 0x0a, 0x00, 0x14, 0x00, 0x1e, 0x00, 0x28, 0x00, 0x32, 0x00, 0x3c,
+    ];
+
+    fn collect_varidxes(raw_table: &[u8], glyphs: &[u32]) -> IntSet<u32> {
+        use write_fonts::read::{FontData, FontRead};
+
+        let singlepos = SinglePosFormat2::read(FontData::new(raw_table)).unwrap();
+        let mut plan = Plan::default();
+        for g in glyphs {
+            plan.glyphset_gsub.insert(GlyphId::from(*g));
+        }
+
+        let mut varidx_set = IntSet::empty();
+        singlepos.collect_variation_indices(&plan, &mut varidx_set);
+        varidx_set
+    }
+
+    /// Glyphs covered past the end of the ValueRecord array contribute no
+    /// variation indices.
+    #[test]
+    fn test_collect_variation_indices_coverage_longer_than_value_array() {
+        // Glyph 10 is at coverage index 0, glyph 60 at index 5. Two glyphs
+        // against valueCount 4 walks the coverage table.
+        let varidx_set = collect_varidxes(&COVERAGE_LONGER_THAN_VALUES, &[10, 60]);
+
+        // Only glyph 10's record. Glyph 60 would otherwise pull in 0x000b000c.
+        assert_eq!(varidx_set.iter().collect::<Vec<_>>(), vec![0x00010002]);
+    }
+
+    /// Same, but sparse enough that the collection walks the glyph set instead.
+    #[test]
+    fn test_collect_variation_indices_coverage_longer_than_value_array_sparse() {
+        // One glyph against valueCount 4 walks the glyph set. Glyph 60 is at
+        // coverage index 5, which has no record.
+        let varidx_set = collect_varidxes(&COVERAGE_LONGER_THAN_VALUES, &[60]);
+
+        assert!(varidx_set.is_empty());
     }
 }
