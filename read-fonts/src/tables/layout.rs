@@ -483,6 +483,15 @@ impl<'a> ClassDefFormat1<'a> {
 
         let start_glyph = self.start_glyph_id().to_u32();
         let glyph_count = self.glyph_count();
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: the `end_glyph` computation below underflows when
+        // `start_glyph` is 0 and glyph_count is 0.
+        if glyph_count == 0 {
+            if class == 0 {
+                out.extend(glyphs.iter());
+            }
+            return out;
+        }
         let end_glyph = start_glyph + glyph_count as u32 - 1;
         if class == 0 {
             let first = glyphs.first().unwrap();
@@ -518,7 +527,14 @@ impl<'a> ClassDefFormat1<'a> {
         }
 
         let start_glyph = self.start_glyph_id().to_u32();
-        let end_glyph = start_glyph + self.glyph_count() as u32 - 1;
+        let glyph_count = self.glyph_count();
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: the `end_glyph` computation below underflows when
+        // `start_glyph` is 0.
+        if glyph_count == 0 {
+            return class == 0;
+        }
+        let end_glyph = start_glyph + glyph_count as u32 - 1;
         if class == 0 {
             let first = glyphs.first().unwrap();
             if first.to_u32() < start_glyph {
@@ -698,6 +714,13 @@ impl<'a> ClassDefFormat2<'a> {
     fn intersects_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> bool {
         if glyphs.is_empty() {
             return false;
+        }
+
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: with no ranges the class 0 walk below starts from
+        // `first + 1` and so misses `first` itself.
+        if self.class_range_count() == 0 {
+            return class == 0;
         }
 
         let first = glyphs.first().unwrap().to_u32();
@@ -1046,6 +1069,133 @@ mod tests {
 
         let class_ones = classdef.intersected_class_glyphs(&glyphs, 1);
         assert!(class_ones.is_empty());
+    }
+
+    // An empty ClassDef assigns class 0 to every glyph.
+    #[test]
+    fn classdef_format1_empty() {
+        // start_glyph_id = 0, glyph_count = 0. The zero start glyph is what
+        // made `start_glyph + glyph_count - 1` underflow.
+        let classdef = ClassDefFormat1::read(FontData::new(&[0, 1, 0, 0, 0, 0])).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(48), GlyphId::new(49), GlyphId::new(50)]
+            .into_iter()
+            .collect();
+
+        assert!(classdef.intersects_class_glyphs(&glyphs, 0));
+        assert!(!classdef.intersects_class_glyphs(&glyphs, 1));
+
+        assert!(classdef
+            .intersected_class_glyphs(&glyphs, 0)
+            .iter()
+            .eq(glyphs.iter()));
+        assert!(classdef.intersected_class_glyphs(&glyphs, 1).is_empty());
+
+        assert_eq!(
+            classdef
+                .intersect_classes(&glyphs)
+                .iter()
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+
+        // a single glyph must still be reported as class 0
+        let one: IntSet<GlyphId> = [GlyphId::new(48)].into_iter().collect();
+        assert!(classdef.intersects_class_glyphs(&one, 0));
+
+        // and nothing intersects an empty glyph set
+        let none = IntSet::<GlyphId>::empty();
+        assert!(!classdef.intersects_class_glyphs(&none, 0));
+        assert!(classdef.intersected_class_glyphs(&none, 0).is_empty());
+    }
+
+    // Same as above but with a non-zero start_glyph_id, which did not overflow
+    // but must give the same answers.
+    #[test]
+    fn classdef_format1_empty_nonzero_start_glyph() {
+        let classdef = ClassDefFormat1::read(FontData::new(&[0, 1, 0, 60, 0, 0])).unwrap();
+
+        // glyphs before, after, and straddling the start glyph
+        for gids in [vec![48u16, 49], vec![70, 71], vec![48, 70]] {
+            let glyphs: IntSet<GlyphId> = gids.iter().map(|g| GlyphId::new(*g as u32)).collect();
+            assert!(classdef.intersects_class_glyphs(&glyphs, 0), "{gids:?}");
+            assert!(!classdef.intersects_class_glyphs(&glyphs, 1), "{gids:?}");
+            assert_eq!(
+                classdef
+                    .intersected_class_glyphs(&glyphs, 0)
+                    .iter()
+                    .collect::<Vec<_>>(),
+                glyphs.iter().collect::<Vec<_>>(),
+                "{gids:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn classdef_format2_empty() {
+        // class_range_count = 0
+        let classdef = ClassDefFormat2::read(FontData::new(&[0, 2, 0, 0])).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(48), GlyphId::new(49), GlyphId::new(50)]
+            .into_iter()
+            .collect();
+
+        assert!(classdef.intersects_class_glyphs(&glyphs, 0));
+        assert!(!classdef.intersects_class_glyphs(&glyphs, 1));
+
+        // regression: the class 0 walk used to start at `first + 1`, so a
+        // single glyph was missed and this returned false.
+        let one: IntSet<GlyphId> = [GlyphId::new(48)].into_iter().collect();
+        assert!(classdef.intersects_class_glyphs(&one, 0));
+
+        assert_eq!(
+            classdef
+                .intersected_class_glyphs(&glyphs, 0)
+                .iter()
+                .collect::<Vec<_>>(),
+            glyphs.iter().collect::<Vec<_>>()
+        );
+        assert!(classdef.intersected_class_glyphs(&glyphs, 1).is_empty());
+
+        assert_eq!(
+            classdef
+                .intersect_classes(&glyphs)
+                .iter()
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+    }
+
+    // Both spellings of an empty ClassDef must behave identically.
+    #[test]
+    fn classdef_empty_formats_agree() {
+        let f1 = ClassDef::read(FontData::new(&[0, 1, 0, 0, 0, 0])).unwrap();
+        let f2 = ClassDef::read(FontData::new(&[0, 2, 0, 0])).unwrap();
+        assert!(matches!(f1, ClassDef::Format1(..)));
+        assert!(matches!(f2, ClassDef::Format2(..)));
+
+        for gids in [vec![0u32], vec![48], vec![48, 49, 50]] {
+            let glyphs: IntSet<GlyphId> = gids.iter().copied().map(GlyphId::new).collect();
+            for class in [0u16, 1] {
+                assert_eq!(
+                    f1.intersects_class_glyphs(&glyphs, class),
+                    f2.intersects_class_glyphs(&glyphs, class),
+                    "{gids:?} class {class}"
+                );
+                assert_eq!(
+                    f1.intersected_class_glyphs(&glyphs, class)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    f2.intersected_class_glyphs(&glyphs, class)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    "{gids:?} class {class}"
+                );
+            }
+            assert_eq!(
+                f1.intersect_classes(&glyphs).iter().collect::<Vec<_>>(),
+                f2.intersect_classes(&glyphs).iter().collect::<Vec<_>>(),
+                "{gids:?}"
+            );
+        }
     }
 
     #[test]

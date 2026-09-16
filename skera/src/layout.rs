@@ -194,8 +194,11 @@ impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
         let glyph_set = &plan.glyphset_gsub;
 
         let start = self.start_glyph_id().to_u32();
-        let end = start + self.glyph_count() as u32 - 1;
-        let end = glyph_set.last().unwrap().to_u32().min(end);
+        // Exclusive end, so that an empty ClassDef (glyph_count == 0) yields an
+        // empty range. Computing an inclusive `start + glyph_count - 1` would
+        // underflow when start is 0.
+        let end = (start + self.glyph_count() as u32)
+            .min(glyph_set.last().unwrap().to_u32().saturating_add(1));
 
         let class_values = self.class_value_array();
         let mut retained_classes = IntSet::empty();
@@ -203,7 +206,7 @@ impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
         let cap = (glyph_set.len() as usize).min(self.glyph_count() as usize);
         let mut new_gid_classes = Vec::with_capacity(cap);
 
-        for g in start..=end {
+        for g in start..end {
             let gid = GlyphId::from(g);
             let Some(new_gid) = map_gsub_glyph(glyph_map, gid) else {
                 continue;
@@ -1910,6 +1913,68 @@ mod test {
         assert_eq!(ret_hashmap.get(&0), Some(&0));
         assert_eq!(ret_hashmap.get(&1), Some(&1));
         assert_eq!(ret_hashmap.get(&5), Some(&2));
+    }
+
+    // An empty ClassDefFormat1 assigns class 0 to every glyph. Subsetting one
+    // with start_glyph_id == 0 used to overflow computing the end glyph.
+    // <https://github.com/googlefonts/fontations/issues/2142>
+    #[test]
+    fn test_subset_empty_classdef1() {
+        use write_fonts::read::{tables::layout::ClassDefFormat1, FontData, FontRead};
+
+        let mut plan = Plan::default();
+        plan.glyphset_gsub.insert(GlyphId::NOTDEF);
+        plan.glyphset_gsub.insert(GlyphId::from(1_u32));
+        plan.glyph_map_gsub = vec![INVALID_GID; 2];
+        plan.glyph_map_gsub[0] = GlyphId::NOTDEF;
+        plan.glyph_map_gsub[1] = GlyphId::from(1_u32);
+
+        // format = 1, start_glyph_id, glyph_count = 0. A zero start glyph is
+        // the case that overflowed; a non-zero one must behave the same.
+        for start_glyph in [0u8, 60] {
+            let bytes: [u8; 6] = [0, 1, 0, start_glyph, 0, 0];
+            let class_def = ClassDefFormat1::read(FontData::new(&bytes)).unwrap();
+
+            let mut s = Serializer::new(1024);
+            assert_eq!(s.start_serialize(), Ok(()));
+            let ret = class_def.subset(
+                &plan,
+                &mut s,
+                &ClassDefSubsetStruct {
+                    remap_class: true,
+                    keep_empty_table: true,
+                    use_class_zero: true,
+                    glyph_filter: None,
+                },
+            );
+            assert!(ret.is_ok(), "start_glyph {start_glyph}");
+            assert!(!s.in_error(), "start_glyph {start_glyph}");
+            s.end_serialize();
+
+            // no glyph has a non-zero class, so the output is an empty ClassDef
+            let subsetted_data = s.copy_bytes();
+            let expected_bytes: [u8; 4] = [0x00, 0x02, 0x00, 0x00];
+            assert_eq!(subsetted_data, expected_bytes, "start_glyph {start_glyph}");
+
+            // and it is reported as empty when the caller doesn't want empties
+            let mut s = Serializer::new(1024);
+            assert_eq!(s.start_serialize(), Ok(()));
+            let ret = class_def.subset(
+                &plan,
+                &mut s,
+                &ClassDefSubsetStruct {
+                    remap_class: true,
+                    keep_empty_table: false,
+                    use_class_zero: true,
+                    glyph_filter: None,
+                },
+            );
+            assert_eq!(
+                ret.err(),
+                Some(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
+                "start_glyph {start_glyph}"
+            );
+        }
     }
 
     #[test]
