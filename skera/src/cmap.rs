@@ -952,8 +952,18 @@ fn copy_default_uvs(
         let mut end = INVALID_UNICODE_CHAR;
 
         for u in plan.unicodes.iter() {
+            // search range if a codepoint lies anywhere in [start, start + additional_count].
             if org_unicode_ranges
-                .binary_search_by(|r| r.start_unicode_value().to_u32().cmp(&u))
+                .binary_search_by(|r| {
+                    let start = r.start_unicode_value().to_u32();
+                    if u < start {
+                        core::cmp::Ordering::Greater
+                    } else if u > start + r.additional_count() as u32 {
+                        core::cmp::Ordering::Less
+                    } else {
+                        core::cmp::Ordering::Equal
+                    }
+                })
                 .is_err()
             {
                 continue;
@@ -979,11 +989,17 @@ fn copy_default_uvs(
         }
     } else {
         let mut last_code = INVALID_UNICODE_CHAR;
+        // `count` tracks the number of codepoints accumulated in the current run
+        // minus one, i.e. the run's `additionalCount`.
+        //
+        // A run is flushed once `count` reaches u8::MAX, since `additionalCount`
+        // is a u8 and a merged run can span more than 256 codepoints when
+        // adjacent source ranges join up. This matches the split that the other
+        // branch above already performs via `end - start == 255`.
         let mut count = 0_u8;
-
         for unicode_range in default_uvs.ranges() {
-            let mut cur_entry = unicode_range.start_unicode_value().to_u32() - 1;
-            let end = cur_entry + unicode_range.additional_count() as u32 + 2;
+            let mut cur_entry = unicode_range.start_unicode_value().to_u32().wrapping_sub(1);
+            let end = cur_entry.wrapping_add(unicode_range.additional_count() as u32 + 2);
 
             while let Some(entry) = plan.unicodes.iter_after(cur_entry).next() {
                 if entry >= end {
@@ -993,18 +1009,16 @@ fn copy_default_uvs(
                 cur_entry = entry;
                 if last_code == INVALID_UNICODE_CHAR {
                     last_code = entry;
-                    continue;
-                }
-
-                if last_code + count as u32 != entry {
+                    count = 0;
+                } else if count == u8::MAX || last_code + count as u32 + 1 != entry {
                     s.embed(Uint24::new(last_code))?;
                     s.embed(count)?;
 
                     last_code = entry;
                     count = 0;
-                    continue;
+                } else {
+                    count += 1;
                 }
-                count += 1;
             }
         }
 
