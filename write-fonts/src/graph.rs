@@ -1061,11 +1061,20 @@ impl Graph {
     ///
     /// Returns `None` for an empty lookup.
     fn extension_subtable_type(&self, lookup: ObjectId) -> Option<u16> {
-        let first_subtable = self.objects[&lookup].offsets.first()?.object;
-        let extension = self.objects[&first_subtable]
-            .reparse::<read_fonts::tables::gpos::ExtensionPosFormat1<()>>()
-            .ok()?;
-        Some(extension.extension_lookup_type())
+        let mut types = self.objects[&lookup].offsets.iter().map(|off| {
+            self.objects[&off.object]
+                .reparse::<read_fonts::tables::gpos::ExtensionPosFormat1<()>>()
+                .ok()
+                .map(|ext| ext.extension_lookup_type())
+        });
+        let first = types.next()??;
+        // the spec requires all extensions in a lookup to wrap the same type;
+        // we rely on that below, so make sure nobody hands us bad data
+        debug_assert!(
+            types.all(|type_| type_ == Some(first)),
+            "extension subtables in a lookup must all have the same lookup type"
+        );
+        Some(first)
     }
 
     /// the size only of children of this object, not the whole subgraph
