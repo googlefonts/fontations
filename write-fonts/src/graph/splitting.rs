@@ -19,7 +19,8 @@ use read_fonts::tables::{
 
 use super::Graph;
 use crate::{
-    object::ObjectId, tables::layout as wlayout, write::TableData, FontWrite, TableWriter,
+    object::ObjectId, table_type::TableType, tables::layout as wlayout, write::TableData,
+    FontWrite, TableWriter,
 };
 
 mod mark2base;
@@ -34,6 +35,11 @@ const MAX_TABLE_SIZE: usize = u16::MAX as usize;
 ///
 /// This is roughly equivalent to `actuate_subtable_split` in hb-repacker:
 /// <https://github.com/harfbuzz/harfbuzz/blob/d5cb1a315380e9bd78ff377a586b78bc42abafa6/src/graph/split-helpers.hh#L34>
+///
+/// If the lookup is an Extension lookup, `split_fn` is applied to the
+/// subtables wrapped by the extensions, and each new subtable is wrapped in a
+/// new extension, like `split_subtables_if_needed` in hb-repacker:
+/// <https://github.com/harfbuzz/harfbuzz/blob/f5efbbef3841bdcdc6427bde7c2971f62ac8c8f1/src/graph/gsubgpos-graph.hh#L127-L156>
 fn split_subtables(
     graph: &mut Graph,
     lookup: ObjectId,
@@ -45,11 +51,32 @@ fn split_subtables(
         "table splitting is only relevant for GPOS?"
     );
     log::debug!("trying to split subtables in '{}'", data.type_);
+    let is_extension = data.type_ == TableType::GposLookup(wlayout::LookupType::GPOS_EXT_TYPE);
 
     let mut new_subtables = HashMap::new();
     for (i, subtable) in data.offsets.iter().enumerate() {
-        if let Some(split_subtables) = split_fn(graph, subtable.object) {
+        // for an extension lookup, the subtable we split is the one the
+        // extension points to
+        let (target, ext_type) = if is_extension {
+            let ext = &graph.objects[&subtable.object];
+            let ext_type = ext
+                .reparse::<rgpos::ExtensionPosFormat1<()>>()
+                .unwrap()
+                .extension_lookup_type();
+            (
+                ext.offsets[0].object,
+                Some(wlayout::LookupType::Gpos(ext_type)),
+            )
+        } else {
+            (subtable.object, None)
+        };
+        if let Some(mut split_subtables) = split_fn(graph, target) {
             log::trace!("produced {} splits for subtable {i}", split_subtables.len());
+            if let Some(ext_type) = ext_type {
+                for id in split_subtables.iter_mut() {
+                    *id = graph.add_object(Graph::make_extension(ext_type, *id));
+                }
+            }
             new_subtables.insert(subtable.object, split_subtables);
         }
     }
