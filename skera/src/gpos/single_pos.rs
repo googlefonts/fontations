@@ -165,8 +165,12 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (retained_glyphs, retained_rec_idxes) =
-            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
+        let (retained_glyphs, retained_rec_idxes) = intersected_glyphs_and_indices(
+            &coverage,
+            &plan.glyphset_gsub,
+            &plan.glyph_map_gsub,
+            self.value_count(),
+        );
 
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -568,5 +572,133 @@ mod test {
             0x00, 0x07, 0x00, 0x08, 0x80, 0x00,
         ];
         assert_eq!(subsetted_data, expected_format1);
+    }
+
+    /// Builds a SinglePosFormat2 covering `cov_glyphs`, with one ValueRecord
+    /// per entry of `x_advances`.
+    ///
+    /// Passing fewer advances than coverage glyphs produces the shape these
+    /// tests are about: coverage entries that index past the end of the
+    /// ValueRecord array. An empty `x_advances` also gives an empty
+    /// ValueFormat, which is how Mukta-SemiBold.ttf spells it.
+    fn single_pos_format2(cov_glyphs: &[u16], x_advances: &[u16]) -> Vec<u8> {
+        let value_format: u16 = if x_advances.is_empty() { 0 } else { 0x0004 };
+        let cov_offset = 8 + 2 * x_advances.len();
+
+        let mut out = Vec::new();
+        out.extend_from_slice(&2_u16.to_be_bytes()); // posFormat
+        out.extend_from_slice(&(cov_offset as u16).to_be_bytes()); // coverageOffset
+        out.extend_from_slice(&value_format.to_be_bytes()); // valueFormat
+        out.extend_from_slice(&(x_advances.len() as u16).to_be_bytes()); // valueCount
+        for advance in x_advances {
+            out.extend_from_slice(&advance.to_be_bytes());
+        }
+        // CoverageFormat1
+        out.extend_from_slice(&1_u16.to_be_bytes());
+        out.extend_from_slice(&(cov_glyphs.len() as u16).to_be_bytes());
+        for g in cov_glyphs {
+            out.extend_from_slice(&g.to_be_bytes());
+        }
+        out
+    }
+
+    /// Retains `old_gids`, mapping them to new gids 1..n.
+    fn plan_retaining(old_gids: &[u16]) -> Plan {
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 256],
+            ..Default::default()
+        };
+        for (i, old_gid) in old_gids.iter().enumerate() {
+            plan.glyph_map_gsub[*old_gid as usize] = GlyphId::from(i as u32 + 1);
+            plan.glyphset_gsub.insert(GlyphId::from(*old_gid as u32));
+        }
+        plan
+    }
+
+    fn subset_single_pos_format2(
+        raw_table: &[u8],
+        plan: &Plan,
+    ) -> Result<Vec<u8>, SerializeErrorFlags> {
+        use write_fonts::read::{FontData, FontRead};
+
+        // Dummy font: this path only consults it for fvar.
+        let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        let subset_state = SubsetState::default();
+        let singlepos = SinglePosFormat2::read(FontData::new(raw_table)).unwrap();
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        singlepos.subset(plan, &mut s, (&subset_state, &font))?;
+        assert!(!s.in_error());
+        s.end_serialize();
+        Ok(s.copy_bytes())
+    }
+
+    /// A subtable whose every coverage entry indexes past the end of the
+    /// ValueRecord array carries no positioning at all, and is dropped.
+    ///
+    /// Regression test for a divergence from hb-subset on Mukta-SemiBold.ttf,
+    /// which has a SinglePos subtable with a 3 glyph coverage, an empty
+    /// ValueFormat and valueCount 0. Records are only ever addressed as
+    /// `records_offset + idx * record_size`, and an empty ValueFormat makes
+    /// record_size 0, so every index read back the same empty record instead of
+    /// going out of bounds. All three glyphs then held equal values, and the
+    /// subtable was emitted as a no-op SinglePosFormat1.
+    #[test]
+    fn test_subset_gpos_format2_empty_value_array() {
+        let raw_table = single_pos_format2(&[10, 20, 30], &[]);
+        let plan = plan_retaining(&[10, 20, 30]);
+
+        assert_eq!(
+            subset_single_pos_format2(&raw_table, &plan),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+        );
+    }
+
+    /// Coverage entries past the end of the ValueRecord array are dropped, the
+    /// ones before it are kept.
+    #[test]
+    fn test_subset_gpos_format2_coverage_longer_than_value_array() {
+        // 3 glyphs covered but only 1 record, so glyphs 20 and 30 are dropped.
+        let raw_table = single_pos_format2(&[10, 20, 30], &[100]);
+        let plan = plan_retaining(&[10, 30]);
+
+        let subsetted_data = subset_single_pos_format2(&raw_table, &plan).unwrap();
+        #[rustfmt::skip]
+        let expected: [u8; 14] = [
+            // pos_format=1, cov_offset=8, value_format=0x0004
+            0x00, 0x01, 0x00, 0x08, 0x00, 0x04,
+            // record: x_advance=100
+            0x00, 0x64,
+            // coverage: format 1, count 1, glyph 1
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+        ];
+        assert_eq!(subsetted_data, expected);
+    }
+
+    /// Same as above, but large enough that the intersection walks the glyph
+    /// set rather than the coverage table. Both branches have to apply the
+    /// bound.
+    #[test]
+    fn test_subset_gpos_format2_coverage_longer_than_value_array_sparse() {
+        // The branch is picked by `coverage_population > glyph_set_len *
+        // num_bits`; 64 covered glyphs against a 2 glyph subset takes the
+        // glyph set side.
+        let cov_glyphs: Vec<u16> = (10..74).collect();
+        let raw_table = single_pos_format2(&cov_glyphs, &[100, 200]);
+        // Coverage index 1 is in range, coverage index 20 is not.
+        let plan = plan_retaining(&[11, 30]);
+
+        let subsetted_data = subset_single_pos_format2(&raw_table, &plan).unwrap();
+        #[rustfmt::skip]
+        let expected: [u8; 14] = [
+            // pos_format=1, cov_offset=8, value_format=0x0004
+            0x00, 0x01, 0x00, 0x08, 0x00, 0x04,
+            // record: x_advance=200, the second record
+            0x00, 0xc8,
+            // coverage: format 1, count 1, glyph 1
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+        ];
+        assert_eq!(subsetted_data, expected);
     }
 }
