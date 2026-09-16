@@ -13,6 +13,7 @@ members = [
     "fuzz",
     "shared-brotli-patch-decoder",
     "incremental-font-transfer",
+    "hreinsa",
 ]
 
 [workspace.package]
@@ -60,6 +61,7 @@ write-fonts = { version = "0.53.0", path = "write-fonts", default-features = fal
 shared-brotli-patch-decoder = { version = "0.1.5", path = "shared-brotli-patch-decoder", default-features = false }
 incremental-font-transfer = { version = "0.8.0", path = "incremental-font-transfer" }
 skera = { version = "0.7.0", path = "skera" }
+hreinsa = { version = "0.1.0", path = "hreinsa" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]

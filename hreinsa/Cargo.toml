@@ -1,0 +1,20 @@
+[package]
+name = "hreinsa"
+version = "0.1.0"
+description = "OpenType font sanitizer (Rust port of OTS)"
+readme = "README.md"
+categories = ["text-processing"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+font-types = { workspace = true }
+read-fonts = { workspace = true, features = ["std"] }
+write-fonts = { workspace = true, features = ["read"] }
+thiserror = "2.0"
+
+[dev-dependencies]
+font-test-data = { workspace = true }
+pretty_assertions = { workspace = true }
