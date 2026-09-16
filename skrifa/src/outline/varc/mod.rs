@@ -110,6 +110,13 @@ impl<'a> BaseOutlines<'a> {
             Self::Cff(..) => 0,
         }
     }
+
+    fn variation_axis_count(&self) -> usize {
+        match self {
+            Self::Glyf(glyf) => glyf.variation_axis_count(),
+            Self::Cff(cff) => cff.variation_axis_count(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -152,7 +159,9 @@ impl<'a> Outlines<'a> {
     fn from_base(font: &FontRef<'a>, varc: Varc<'a>, base: BaseOutlines<'a>) -> Option<Self> {
         let glyph_metrics = GlyphHMetrics::new(font)?;
         let units_per_em = font.head().ok()?.units_per_em();
-        let axis_count = font.axes().len();
+        // A static VARC font may omit fvar and use the axes retained in gvar
+        // or the CFF2 VariationStore for component-internal coordinates.
+        let axis_count = font.axes().len().max(base.variation_axis_count());
         let coverage = varc.coverage().ok()?;
         let var_store = varc.multi_var_store().transpose().ok()?;
         let regions = var_store
@@ -970,6 +979,33 @@ mod tests {
 
         expand_coords(&mut out, 1, &[coord(0.25), coord(-0.5)]);
         assert_eq!(out.as_slice(), &[coord(0.25)]);
+    }
+
+    #[test]
+    fn draws_with_gvar_axes_without_fvar() {
+        let font = FontRef::new(font_test_data::varc::STATIC_GVAR).unwrap();
+        assert!(font.fvar().is_err());
+        assert_eq!(font.gvar().unwrap().axis_count(), 1);
+
+        let outlines = Outlines::new(&font).unwrap();
+        assert_eq!(outlines.axis_count, 1);
+        let outline = outlines.outline(GlyphId::new(1)).unwrap().unwrap();
+        let mut buf = vec![0; outline.required_buffer_size()];
+        let mut pen = Vec::<PathElement>::new();
+        outlines
+            .draw(
+                &outline,
+                &mut buf,
+                Size::unscaled(),
+                &[],
+                PathStyle::default(),
+                &mut pen,
+            )
+            .unwrap();
+        assert_eq!(
+            path_head_signature(&pen, 4),
+            ["M50.00,0.00", "L450.00,0.00", "L250.00,500.00", "Z"]
+        );
     }
 
     #[test]
