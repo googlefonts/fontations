@@ -9,10 +9,12 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::io::Read;
+use std::ops::RangeInclusive;
 
 use font_types::Fixed;
 use font_types::Int24;
 use font_types::Tag;
+use skrifa::charmap::Charmap;
 
 use read_fonts::{
     collections::{IntSet, RangeSet},
@@ -41,6 +43,120 @@ pub fn intersecting_patches(
     }
 
     Ok(result)
+}
+
+fn decode_patch_map_entries(font: &FontRef) -> Result<Vec<Vec<Entry>>, ReadError> {
+    IftTableTag::tables_in(font)?
+        .map(|(_tag, table)| decode_entries(&table))
+        .collect()
+}
+
+fn check_subset_support(
+    charmap: &Charmap,
+    table_entries: &[Vec<Entry>],
+    subset_definition: &SubsetDefinition,
+) -> bool {
+    if subset_definition.codepoints.is_inverted() {
+        return false;
+    }
+
+    for cp in subset_definition.codepoints.iter() {
+        if charmap.map(cp).is_none() {
+            return false;
+        }
+    }
+
+    for entries in table_entries {
+        let mut cache = EntryIntersectionCache::new(entries, subset_definition);
+        if entries
+            .iter()
+            .enumerate()
+            .any(|(order, e)| !e.ignored && !e.urls.is_empty() && cache.intersects(order))
+        {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Returns `true` if `font` (in its current state) supports rendering content covered by `subset_definition`.
+///
+/// Implements Section 4.6 of the IFT specification (<https://w3c.github.io/IFT/Overview.html#ift-font-coverage>):
+/// - Each code point in `subset_definition` must map to a glyph ID other than 0 in `font`'s `cmap` table.
+/// - After executing the "Extend an Incremental Font Subset" algorithm on `font` with `subset_definition`
+///   and stopping at step 6, the resulting entry list must be empty.
+pub fn supports_subset_def(
+    font: &FontRef,
+    subset_definition: &SubsetDefinition,
+) -> Result<bool, ReadError> {
+    let table_entries = decode_patch_map_entries(font)?;
+    let charmap = Charmap::new(font);
+    Ok(check_subset_support(
+        &charmap,
+        &table_entries,
+        subset_definition,
+    ))
+}
+
+/// Returns a list of inclusive index spans (`start..=end`) within `shaping_unit`
+/// that are supported by and can be safely rendered with `font`.
+///
+/// Implements the `supported_spans` algorithm from Section 4.6 of the IFT specification
+/// (<https://w3c.github.io/IFT/Overview.html#ift-font-coverage>).
+/// Each item in `shaping_unit` is a [`SubsetDefinition`] representing an element of the shaping unit
+/// (e.g. a single code point along with its active layout features and design space point).
+pub fn supported_spans(
+    font: &FontRef,
+    shaping_unit: &[SubsetDefinition],
+) -> Result<Vec<RangeInclusive<usize>>, ReadError> {
+    let table_entries = decode_patch_map_entries(font)?;
+    let charmap = Charmap::new(font);
+
+    let mut current_start: Option<usize> = None;
+    let mut current_end: Option<usize> = None;
+    let mut current_subset_def: Option<SubsetDefinition> = None;
+    let mut spans = Vec::new();
+
+    let mut i = 0;
+    while i < shaping_unit.len() {
+        if current_subset_def.is_none() {
+            current_subset_def = Some(SubsetDefinition::default());
+            current_start = Some(i);
+        }
+
+        current_end = Some(i);
+        current_subset_def.as_mut().unwrap().union(&shaping_unit[i]);
+
+        if check_subset_support(
+            &charmap,
+            &table_entries,
+            current_subset_def.as_ref().unwrap(),
+        ) {
+            i += 1;
+            continue;
+        }
+
+        let start = current_start.unwrap();
+        let end = current_end.unwrap();
+        if end > start {
+            spans.push(start..=(end - 1));
+            // i is not incremented so the current item can be checked on its own
+            // in the next iteration.
+        } else {
+            i += 1;
+        }
+
+        current_start = None;
+        current_end = None;
+        current_subset_def = None;
+    }
+
+    if let (Some(start), Some(end)) = (current_start, current_end) {
+        spans.push(start..=end);
+    }
+
+    Ok(spans)
 }
 
 #[derive(Clone, Default)]
@@ -594,17 +710,23 @@ impl IftTableTag {
             .map(IftPatchMap::read)
             .transpose()
             .and_then(Self::check_format)?
-            .map(|t| (IftTableTag::Ift(t.compatibility_id()), t))
-            .into_iter();
+            .map(|t| (IftTableTag::Ift(t.compatibility_id()), t));
         let iftx = font
             .data_for_tag(IFTX_TAG)
             .map(IftPatchMap::read)
             .transpose()
             .and_then(Self::check_format)?
-            .map(|t| (IftTableTag::Iftx(t.compatibility_id()), t))
-            .into_iter();
+            .map(|t| (IftTableTag::Iftx(t.compatibility_id()), t));
 
-        Ok(ift.chain(iftx))
+        if let (Some((IftTableTag::Ift(c1), _)), Some((IftTableTag::Iftx(c2), _))) = (&ift, &iftx) {
+            if c1 == c2 {
+                // The spec disallows two tables with same compat ids.
+                // See: https://w3c.github.io/IFT/Overview.html#extend-font-subset
+                return Err(ReadError::ValidationError);
+            }
+        }
+
+        Ok(ift.into_iter().chain(iftx))
     }
 
     fn check_format(table: Option<IftPatchMap>) -> Result<Option<IftPatchMap>, ReadError> {
@@ -2420,5 +2542,232 @@ mod tests {
         features.insert(foo);
 
         assert_eq!(features, FeatureSet::All);
+    }
+
+    fn create_ift_font_with_cmap(
+        cmap_mappings: Vec<(char, font_types::GlyphId)>,
+        ift: Option<&[u8]>,
+        iftx: Option<&[u8]>,
+    ) -> Vec<u8> {
+        let mut builder = FontBuilder::default();
+        let cmap = write_fonts::tables::cmap::Cmap::from_mappings(cmap_mappings).unwrap();
+        builder.add_table(&cmap).unwrap();
+        if let Some(bytes) = ift {
+            builder.add_raw(IFT_TAG, bytes);
+        }
+        if let Some(bytes) = iftx {
+            builder.add_raw(IFTX_TAG, bytes);
+        }
+        builder.copy_missing_tables(FontRef::new(test_data::ift::IFT_BASE).unwrap());
+        builder.build()
+    }
+
+    #[test]
+    fn supports_subset_def_cmap_and_patch_checks() {
+        use font_types::GlyphId;
+
+        // In codepoints_only():
+        // - 0x02 intersects entry 0
+        // - 0x07 intersects entry 0 and entry 2
+        // - 0x50 and 0x51 do NOT intersect any entry
+        let font_bytes = create_ift_font_with_cmap(
+            vec![
+                ('\u{0002}', GlyphId::new(1)),
+                ('\u{0007}', GlyphId::new(2)),
+                ('\u{0050}', GlyphId::new(3)),
+                ('\u{0051}', GlyphId::new(4)),
+                ('\u{0052}', GlyphId::new(0)), // mapped to .notdef (glyph 0)
+            ],
+            Some(&codepoints_only()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        // 1. Codepoints present in cmap (non-zero GID) with no intersecting patches -> supported
+        let s_supported = SubsetDefinition::codepoints([0x50, 0x51].into_iter().collect());
+        assert_eq!(supports_subset_def(&font, &s_supported), Ok(true));
+
+        // 2. Codepoint mapped to glyph 0 (.notdef) in cmap -> unsupported
+        let s_notdef = SubsetDefinition::codepoints([0x52].into_iter().collect());
+        assert_eq!(supports_subset_def(&font, &s_notdef), Ok(false));
+
+        // 3. Codepoint absent from cmap -> unsupported
+        let s_unmapped = SubsetDefinition::codepoints([0x53].into_iter().collect());
+        assert_eq!(supports_subset_def(&font, &s_unmapped), Ok(false));
+
+        // 4. Codepoint in cmap (non-zero GID) but intersects an unapplied patch -> unsupported
+        let s_pending = SubsetDefinition::codepoints([0x02].into_iter().collect());
+        assert_eq!(supports_subset_def(&font, &s_pending), Ok(false));
+
+        // 5. Inverted codepoint set (IntSet::all()) -> unsupported
+        assert_eq!(
+            supports_subset_def(&font, &SubsetDefinition::all()),
+            Ok(false)
+        );
+
+        // 6. When the intersecting patch entry has its application bit set (ignored = true) -> supported
+        let entry0_offset = codepoints_only().offset_for("entries[0]");
+        let mut applied_ift = codepoints_only().to_vec();
+        applied_ift[entry0_offset] |= 0b0100_0000; // IGNORED flag
+
+        let font_applied_bytes = create_ift_font_with_cmap(
+            vec![
+                ('\u{0002}', GlyphId::new(1)),
+                ('\u{0007}', GlyphId::new(2)),
+                ('\u{0050}', GlyphId::new(3)),
+            ],
+            Some(&applied_ift),
+            None,
+        );
+        let font_applied = FontRef::new(&font_applied_bytes).unwrap();
+        assert_eq!(supports_subset_def(&font_applied, &s_pending), Ok(true));
+
+        // 0x07 intersects both entry 0 (applied) and entry 2 (still unapplied) -> unsupported
+        let s_partial = SubsetDefinition::codepoints([0x07].into_iter().collect());
+        assert_eq!(supports_subset_def(&font_applied, &s_partial), Ok(false));
+    }
+
+    #[test]
+    fn supports_subset_def_non_ift_and_validation_error() {
+        use font_types::GlyphId;
+
+        // Non-IFT font (no IFT or IFTX table): check 2 passes automatically, only cmap determines support
+        let non_ift_bytes = create_ift_font_with_cmap(
+            vec![('\u{0050}', GlyphId::new(3)), ('\u{0052}', GlyphId::new(0))],
+            None,
+            None,
+        );
+        let non_ift_font = FontRef::new(&non_ift_bytes).unwrap();
+        assert_eq!(
+            supports_subset_def(
+                &non_ift_font,
+                &SubsetDefinition::codepoints([0x50].into_iter().collect())
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            supports_subset_def(
+                &non_ift_font,
+                &SubsetDefinition::codepoints([0x52].into_iter().collect())
+            ),
+            Ok(false)
+        );
+
+        // Invalid IFT font: IFT and IFTX share the same compatibility_id -> ReadError::ValidationError
+        let bad_font_bytes = create_ift_font_with_cmap(
+            vec![('\u{0050}', GlyphId::new(3))],
+            Some(&codepoints_only()),
+            Some(&codepoints_only()),
+        );
+        let bad_font = FontRef::new(&bad_font_bytes).unwrap();
+        assert_eq!(
+            supports_subset_def(
+                &bad_font,
+                &SubsetDefinition::codepoints([0x50].into_iter().collect())
+            ),
+            Err(ReadError::ValidationError)
+        );
+    }
+
+    #[test]
+    #[allow(clippy::single_range_in_vec_init)]
+    fn supported_spans_basic_and_alternating() {
+        use font_types::GlyphId;
+
+        // 0x50 ('P') and 0x51 ('Q') are supported;
+        // 0x02 has unapplied patch; 0x52 maps to glyph 0; 0x53 is not in cmap.
+        let font_bytes = create_ift_font_with_cmap(
+            vec![
+                ('\u{0002}', GlyphId::new(1)),
+                ('\u{0050}', GlyphId::new(3)),
+                ('\u{0051}', GlyphId::new(4)),
+                ('\u{0052}', GlyphId::new(0)),
+            ],
+            Some(&codepoints_only()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let cp = |c: u32| SubsetDefinition::codepoints([c].into_iter().collect());
+
+        // Empty shaping unit
+        assert_eq!(supported_spans(&font, &[]), Ok(vec![]));
+
+        // Entire shaping unit supported (verifies post-loop flush)
+        assert_eq!(
+            supported_spans(&font, &[cp(0x50), cp(0x51)]),
+            Ok(Vec::from([0..=1]))
+        );
+
+        // Entire shaping unit unsupported
+        assert_eq!(
+            supported_spans(&font, &[cp(0x02), cp(0x52), cp(0x53)]),
+            Ok(vec![])
+        );
+
+        // Prefix supported, suffix unsupported
+        assert_eq!(
+            supported_spans(&font, &[cp(0x50), cp(0x51), cp(0x02)]),
+            Ok(Vec::from([0..=1]))
+        );
+
+        // Prefix unsupported, suffix supported (verifies post-loop flush on trailing span)
+        assert_eq!(
+            supported_spans(&font, &[cp(0x02), cp(0x50), cp(0x51)]),
+            Ok(Vec::from([1..=2]))
+        );
+
+        // Alternating spans
+        let unit = [
+            cp(0x50),
+            cp(0x51),
+            cp(0x02),
+            cp(0x50),
+            cp(0x52),
+            cp(0x53),
+            cp(0x51),
+            cp(0x50),
+        ];
+        assert_eq!(
+            supported_spans(&font, &unit),
+            Ok(vec![0..=1, 3..=3, 6..=7])
+        );
+    }
+
+    #[test]
+    fn supported_spans_splits_on_cumulative_union() {
+        use font_types::GlyphId;
+
+        // In features_and_design_space():
+        // - Codepoint 0x02 alone (without 'rlig') does not intersect any patch entry.
+        // - Codepoint 0x50 with 'rlig' does not intersect any patch entry.
+        // - However, the union {0x02, 0x50} with 'rlig' intersects entry 1 (which requires 0x02 + 'rlig').
+        let font_bytes = create_ift_font_with_cmap(
+            vec![
+                ('\u{0002}', GlyphId::new(1)),
+                ('\u{0050}', GlyphId::new(2)),
+            ],
+            Some(&features_and_design_space()),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let item0 = SubsetDefinition::codepoints([0x02].into_iter().collect());
+        let item1 = SubsetDefinition::new(
+            [0x50].into_iter().collect(),
+            FeatureSet::from([Tag::new(b"rlig")]),
+            Default::default(),
+        );
+
+        // Individually, both item0 and item1 are supported:
+        assert_eq!(supports_subset_def(&font, &item0), Ok(true));
+        assert_eq!(supports_subset_def(&font, &item1), Ok(true));
+
+        // Combined in a single shaping unit, their union triggers the unapplied patch entry,
+        // so supported_spans must split them into two isolated spans [0..=0, 1..=1]:
+        assert_eq!(
+            supported_spans(&font, &[item0, item1]),
+            Ok(vec![0..=0, 1..=1])
+        );
     }
 }

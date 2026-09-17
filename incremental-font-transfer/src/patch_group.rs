@@ -99,11 +99,6 @@ impl PatchGroup<'_> {
 
         let ift_compat_id = ift_font.ift().ok().map(|t| t.compatibility_id());
         let iftx_compat_id = ift_font.iftx().ok().map(|t| t.compatibility_id());
-        if ift_compat_id == iftx_compat_id {
-            // The spec disallows two tables with same compat ids.
-            // See: https://w3c.github.io/IFT/Overview.html#extend-font-subset
-            return Err(ReadError::ValidationError);
-        }
 
         let (compat_group, preload_urls) = Self::select_next_patches_from_candidates(
             candidates,
