@@ -5,9 +5,8 @@ use crate::{model::pen::OutlinePen, types::Point};
 
 /// Where a contour starts when its first point is off-curve.
 ///
-/// A `glyf` point stream does not say where such a contour begins, and the
-/// major implementations disagree, so a caller matching one of them has to
-/// say which.
+/// A `glyf` point stream does not say where such a contour begins and the
+/// major implementations disagree, so the caller chooses.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub enum PathContourStart {
     /// Scan backward: the last point if it is on-curve, and the midpoint
@@ -28,11 +27,9 @@ pub enum PathContourStart {
 ///
 /// Points may have any coordinate type; the pen is always called with `f32`.
 ///
-/// Returns `false` where the points do not describe a path: a contour whose
-/// points run off the end, a quadratic or cubic missing the points it needs,
-/// or one flag per point missing. Whatever was drawn before that is already
-/// on the pen, so a caller that cannot use half a glyph discards its own
-/// work rather than asking for it back.
+/// Returns `false` if the points do not describe a path: a contour running
+/// past the end, a quadratic or cubic missing points, or fewer flags than
+/// points. Whatever was drawn first stays on the pen.
 ///
 /// Roughly [`FT_Outline_Decompose`](https://freetype.org/freetype2/docs/reference/ft2-outline_processing.html#ft_outline_decompose).
 /// See [`contour_to_path`] for one contour of points held in some other shape.
@@ -67,11 +64,11 @@ pub fn outline_to_path<C: PointCoord>(
     true
 }
 
-/// Converts one contour into path commands, taking its points from a slice of
-/// anything `to_point` can read them out of.
+/// Converts one contour into path commands, reading its points through
+/// `to_point`.
 ///
-/// For outlines held in some shape other than parallel point and flag arrays —
-/// an autohinter's points, say, which carry more per point than these do.
+/// For outlines held in some shape other than parallel point and flag arrays,
+/// such as an autohinter's points, which carry more per point than these.
 ///
 /// Returns `false` on the same terms as [`outline_to_path`], and leaves what
 /// it drew on the pen.
