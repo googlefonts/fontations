@@ -203,7 +203,7 @@ impl Outline<ScaleF32> {
 }
 
 impl Outline<Unscaled> {
-    /// Assembles `glyph` in font units.
+    /// Loads `glyph` in font units.
     ///
     /// There is no size to pass: variations apply and components are placed,
     /// but nothing is scaled. The location comes from `context`.
