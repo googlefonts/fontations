@@ -15,7 +15,7 @@ use std::{
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
-        intersecting_patches, IftTableTag, IntersectionInfo, PatchFormat, PatchMapEntry, PatchUrl,
+        IftTableTag, IntersectionInfo, PatchFormat, PatchMap, PatchMapEntry, PatchUrl,
         SubsetDefinition,
     },
 };
@@ -88,7 +88,7 @@ impl PatchGroup<'_> {
         patch_data: &HashMap<PatchUrl, UrlStatus>,
         subset_definition: &SubsetDefinition,
     ) -> Result<PatchGroup<'b>, ReadError> {
-        let candidates = intersecting_patches(&ift_font, subset_definition)?;
+        let candidates = PatchMap::new(&ift_font)?.intersecting_patches(subset_definition)?;
         if candidates.is_empty() {
             return Ok(PatchGroup {
                 font: ift_font,
@@ -326,7 +326,7 @@ impl PatchGroup<'_> {
             })
             .collect();
 
-        for (url, _) in filtered.iter() {
+        for url in filtered.keys() {
             previously_selected_urls.insert(url.1.clone());
         }
 

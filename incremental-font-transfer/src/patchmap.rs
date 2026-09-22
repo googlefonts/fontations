@@ -25,22 +25,88 @@ use crate::short_string::ShortString;
 use crate::url_templates;
 use crate::url_templates::UrlTemplateError;
 
-// TODO(garretrieger): implement support for building and compiling mapping tables.
+/// A decoded IFT patch mapping ("IFT" and/or "IFTX") for a single font.
+///
+/// ```
+/// # use incremental_font_transfer::patchmap::{PatchMap, SubsetDefinition};
+/// # use read_fonts::{FontRef, ReadError};
+/// # fn example(
+/// #     font: &FontRef,
+/// #     subset_definition: &SubsetDefinition,
+/// #     other_subset_definition: &SubsetDefinition,
+/// # ) -> Result<(), ReadError> {
+/// let patch_map = PatchMap::new(&font)?;
+/// let patches = patch_map.intersecting_patches(&subset_definition)?;
+/// let more_patches = patch_map.intersecting_patches(&other_subset_definition)?;
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct PatchMap {
+    tables: [Option<(IftTableTag, Vec<Entry>)>; 2],
+}
+
+impl PatchMap {
+    /// Decodes the IFT and IFTX patch mappings found in `font`.
+    pub fn new(font: &FontRef) -> Result<PatchMap, ReadError> {
+        fn decode(
+            font: &FontRef,
+            table_tag: Tag,
+            tag: fn(CompatibilityId) -> IftTableTag,
+        ) -> Result<Option<(IftTableTag, Vec<Entry>)>, ReadError> {
+            let Some(data) = font.data_for_tag(table_tag) else {
+                return Ok(None);
+            };
+            let map = IftPatchMap::read(data)?;
+            IftTableTag::check_format(&map)?;
+            let id = map.compatibility_id();
+            let entries = decode_entries(&map)?;
+            Ok(Some((tag(id), entries)))
+        }
+        Ok(PatchMap {
+            tables: [
+                decode(font, IFT_TAG, IftTableTag::Ift)?,
+                decode(font, IFTX_TAG, IftTableTag::Iftx)?,
+            ],
+        })
+    }
+
+    /// Find the set of patches which intersect the specified subset definition.
+    pub fn intersecting_patches(
+        &self,
+        subset_definition: &SubsetDefinition,
+    ) -> Result<Vec<PatchMapEntry>, ReadError> {
+        let mut result: Vec<PatchMapEntry> = vec![];
+
+        for (tag, entries) in self.tables() {
+            add_intersecting_patches(tag, entries, subset_definition, &mut result)?;
+        }
+
+        Ok(result)
+    }
+
+    /// Iterates over the mapping tables present in the font, "IFT" before "IFTX".
+    fn tables(&self) -> impl Iterator<Item = (&IftTableTag, &[Entry])> {
+        fn item_as_ref(
+            item: &Option<(IftTableTag, Vec<Entry>)>,
+        ) -> Option<(&IftTableTag, &[Entry])> {
+            let (tag, entries) = item.as_ref()?;
+            Some((tag, entries.as_slice()))
+        }
+        self.tables.iter().filter_map(item_as_ref)
+    }
+}
 
 /// Find the set of patches which intersect the specified subset definition.
+#[deprecated(
+    since = "0.9.0",
+    note = "Use PatchMap::new(font)?.intersecting_patches(subset_definition) instead."
+)]
 pub fn intersecting_patches(
     font: &FontRef,
     subset_definition: &SubsetDefinition,
 ) -> Result<Vec<PatchMapEntry>, ReadError> {
-    // TODO(garretrieger): move this function to a struct so we can optionally store
-    //  indexes or other data to accelerate intersection.
-    let mut result: Vec<PatchMapEntry> = vec![];
-
-    for (tag, table) in IftTableTag::tables_in(font)? {
-        add_intersecting_patches(&tag, &table, subset_definition, &mut result)?;
-    }
-
-    Ok(result)
+    PatchMap::new(font)?.intersecting_patches(subset_definition)
 }
 
 #[derive(Clone, Default)]
@@ -173,16 +239,17 @@ impl<'a> EntryIntersectionCache<'a> {
     }
 }
 
+/// # TODO
+///
+/// Optionally store indexes or other data to accelerate intersection.
 fn add_intersecting_patches(
     source_table: &IftTableTag,
-    map: &IftPatchMap,
+    entries: &[Entry],
     subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
-    let entries = decode_entries(map)?;
-
     // Caches the result of intersection check for an entry index.
-    let mut entry_intersection_cache = EntryIntersectionCache::new(&entries, subset_definition);
+    let mut entry_intersection_cache = EntryIntersectionCache::new(entries, subset_definition);
 
     let mut application_bit_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
     let new_patches_first_index = patches.len();
@@ -261,9 +328,8 @@ fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
     let entries_data = map.entries()?.entry_data();
     let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
 
-    let mut entry_count = map.entry_count().to_u32();
+    let entry_count = map.entry_count().to_u32();
     let mut entries_data = FontData::new(entries_data);
-    let mut entries: Vec<Entry> = vec![];
 
     let mut entry_start_byte = map.entries_offset().to_u32() as usize;
 
@@ -279,9 +345,11 @@ fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
         PatchId::String(vec![])
     };
 
-    while entry_count > 0 {
+    let mut entries = Vec::<Entry>::with_capacity(entry_count as usize);
+    for _ in 0..entry_count {
         let consumed_bytes;
-        // TODO(garretrieger): processing context type ovject to reduce argument passing to decode_entry(...)
+        // TODO(garretrieger): processing context type object to reduce argument passing to
+        // decode_entry(...)
         (entries_data, consumed_bytes) = decode_entry(
             entries_data,
             entry_start_byte,
@@ -292,7 +360,6 @@ fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
             &mut last_entry_id,
         )?;
         entry_start_byte += consumed_bytes;
-        entry_count -= 1;
     }
 
     Ok(entries)
@@ -586,37 +653,10 @@ pub(crate) enum IftTableTag {
 }
 
 impl IftTableTag {
-    pub(crate) fn tables_in<'a>(
-        font: &'a FontRef,
-    ) -> Result<impl Iterator<Item = (IftTableTag, IftPatchMap<'a>)>, ReadError> {
-        let ift = font
-            .data_for_tag(IFT_TAG)
-            .map(IftPatchMap::read)
-            .transpose()
-            .and_then(Self::check_format)?
-            .map(|t| (IftTableTag::Ift(t.compatibility_id()), t))
-            .into_iter();
-        let iftx = font
-            .data_for_tag(IFTX_TAG)
-            .map(IftPatchMap::read)
-            .transpose()
-            .and_then(Self::check_format)?
-            .map(|t| (IftTableTag::Iftx(t.compatibility_id()), t))
-            .into_iter();
-
-        Ok(ift.chain(iftx))
-    }
-
-    fn check_format(table: Option<IftPatchMap>) -> Result<Option<IftPatchMap>, ReadError> {
-        match table {
-            Some(table) => {
-                if table.format() == 2 {
-                    Ok(Some(table))
-                } else {
-                    Err(ReadError::InvalidFormat(table.format().into()))
-                }
-            }
-            None => Ok(table),
+    fn check_format(table: &IftPatchMap) -> Result<(), ReadError> {
+        match table.format() {
+            2 => Ok(()),
+            format => Err(ReadError::InvalidFormat(format.into())),
         }
     }
 
@@ -1230,11 +1270,14 @@ mod tests {
         design_space: DesignSpace,
         expected_entries: [ExpectedEntry; P],
     ) {
-        let patches = intersecting_patches(
-            font,
-            &SubsetDefinition::new(IntSet::from(codepoints), tags, design_space),
-        )
-        .unwrap();
+        let patches = PatchMap::new(font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
+                IntSet::from(codepoints),
+                tags,
+                design_space,
+            ))
+            .unwrap();
 
         let expected: Vec<_> = expected_entries
             .iter()
@@ -1278,15 +1321,14 @@ mod tests {
         url_template: &[u8],
         expected_entries: [ExpectedEntry; N],
     ) {
-        let patches = intersecting_patches(
-            font,
-            &SubsetDefinition::new(
+        let patches = PatchMap::new(font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
                 IntSet::<u32>::all(),
                 FeatureSet::from(tags),
                 Default::default(),
-            ),
-        )
-        .unwrap();
+            ))
+            .unwrap();
 
         let expected: Vec<_> = expected_entries
             .iter()
@@ -1381,11 +1423,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
         assert_eq!(
-            intersecting_patches(
-                &font,
-                &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-            )
-            .unwrap_err(),
+            PatchMap::new(&font).unwrap_err(),
             ReadError::InvalidFormat(3)
         );
     }
@@ -1653,15 +1691,14 @@ mod tests {
         let font = FontRef::new(&font_bytes).unwrap();
 
         // Case 1
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
+        let patches = PatchMap::new(&font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
                 IntSet::from([10, 15, 22]),
                 FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga")]),
                 Default::default(),
-            ),
-        )
-        .unwrap();
+            ))
+            .unwrap();
         assert_eq!(
             patches,
             vec![patch_with_intersection(
@@ -1672,9 +1709,9 @@ mod tests {
         );
 
         // Case 2
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
+        let patches = PatchMap::new(&font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
                 IntSet::from([10, 15, 22]),
                 FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga"), Tag::new(b"smcp")]),
                 DesignSpace::from([(
@@ -1683,9 +1720,8 @@ mod tests {
                         .into_iter()
                         .collect(),
                 )]),
-            ),
-        )
-        .unwrap();
+            ))
+            .unwrap();
         assert_eq!(
             patches,
             vec![
@@ -1721,11 +1757,7 @@ mod tests {
         let font = FontRef::new(&font_bytes).unwrap();
 
         assert_eq!(
-            intersecting_patches(
-                &font,
-                &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-            )
-            .unwrap_err(),
+            PatchMap::new(&font).unwrap_err(),
             ReadError::MalformedData("Child index must refer to only prior entries.")
         );
     }
@@ -1832,9 +1864,9 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
+        let patches = PatchMap::new(&font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
                 IntSet::from([6, 51, 22]),
                 FeatureSet::from([Tag::new(b"rlig"), Tag::new(b"liga")]),
                 DesignSpace::from([(
@@ -1843,9 +1875,8 @@ mod tests {
                         .into_iter()
                         .collect(),
                 )]),
-            ),
-        )
-        .unwrap();
+            ))
+            .unwrap();
 
         let e = patches
             .into_iter()
@@ -1928,11 +1959,14 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .unwrap();
+        let patches = PatchMap::new(&font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
+                IntSet::all(),
+                FeatureSet::from([]),
+                Default::default(),
+            ))
+            .unwrap();
 
         let encodings: Vec<PatchFormat> = patches.into_iter().map(|e| e.format).collect();
         assert_eq!(
@@ -1956,11 +1990,14 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .unwrap();
+        let patches = PatchMap::new(&font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
+                IntSet::all(),
+                FeatureSet::from([]),
+                Default::default(),
+            ))
+            .unwrap();
 
         let urls: Vec<PatchUrl> = patches.into_iter().map(|e| e.url).collect();
         let expected_urls: Vec<_> = ["", "abc", "defg", "defg", "hij", ""]
@@ -1980,11 +2017,14 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .unwrap();
+        let patches = PatchMap::new(&font)
+            .unwrap()
+            .intersecting_patches(&SubsetDefinition::new(
+                IntSet::all(),
+                FeatureSet::from([]),
+                Default::default(),
+            ))
+            .unwrap();
 
         let urls: Vec<Vec<PatchUrl>> = patches
             .into_iter()
@@ -2028,11 +2068,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_err());
+        assert!(PatchMap::new(&font).is_err());
     }
 
     #[test]
@@ -2047,11 +2083,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_err());
+        assert!(PatchMap::new(&font).is_err());
     }
 
     #[test]
@@ -2064,11 +2096,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_err());
+        assert!(PatchMap::new(&font).is_err());
     }
 
     #[test]
@@ -2083,11 +2111,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_err());
+        assert!(PatchMap::new(&font).is_err());
     }
 
     #[test]
@@ -2102,11 +2126,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_err());
+        assert!(PatchMap::new(&font).is_err());
     }
 
     #[test]
@@ -2144,11 +2164,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_ok());
+        assert!(PatchMap::new(&font).is_ok());
 
         // Check one more does overflow
         data.write_at("last delta", Int24::new(max_delta_without_overflow + 2));
@@ -2160,11 +2176,7 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::all(), FeatureSet::from([]), Default::default()),
-        )
-        .is_err());
+        assert!(PatchMap::new(&font).is_err());
     }
 
     #[test]
