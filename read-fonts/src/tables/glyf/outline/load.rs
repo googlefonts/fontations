@@ -478,9 +478,11 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
                 }
             }
         }
-        if have_deltas {
-            self.component_delta_count = delta_base;
-        }
+        // Unconditional: the reservation above happens whenever this glyph has
+        // variation data, but `have_deltas` is only set when reading it
+        // succeeded. Guarding the restore leaks the reservation on malformed
+        // data, and a later composite then starts from a higher base.
+        self.component_delta_count = delta_base;
         // The hook decides whether there is anything to do; a composite with
         // no instructions, or a draw with no hinter, costs nothing here.
         self.hint_glyph(
@@ -504,10 +506,140 @@ mod tests {
             outline::{Outline, OutlineTables, Scale26Dot6, Unscaled},
             PointFlags,
         },
-        types::F26Dot6,
-        FontRef,
+        tables::{glyf::Glyf, gvar::Gvar, loca::Loca},
+        types::{F26Dot6, Fixed},
+        FontData, FontRead, FontRef,
     };
-    use alloc::vec;
+    use alloc::{vec, vec::Vec};
+
+    /// A composite whose variation data will not parse must not leak the
+    /// delta stack reservation onto its siblings.
+    ///
+    /// `load_composite` reserves space on the composite delta stack whenever
+    /// the glyph has variation data, but only sets `have_deltas` when reading
+    /// that data succeeded. Restoring the stack pointer only in that case left
+    /// the reservation in place for a malformed glyph, so the next composite
+    /// at the same level started from a higher base and could run the buffer
+    /// out. The restore is unconditional now.
+    #[test]
+    fn a_malformed_composite_does_not_leak_the_delta_stack() {
+        // Two contours' worth of nothing, just to have a simple glyph.
+        fn empty_simple() -> Vec<u8> {
+            let mut out = vec![];
+            out.extend_from_slice(&0i16.to_be_bytes()); // numberOfContours
+            out.extend_from_slice(&[0u8; 8]); // bounding box
+            out.extend_from_slice(&0u16.to_be_bytes()); // instructionLength
+            out
+        }
+        fn composite(components: &[u16]) -> Vec<u8> {
+            let mut out = vec![];
+            out.extend_from_slice(&(-1i16).to_be_bytes()); // numberOfContours
+            out.extend_from_slice(&[0u8; 8]); // bounding box
+            for (i, gid) in components.iter().enumerate() {
+                let last = i == components.len() - 1;
+                // ARG_1_AND_2_ARE_WORDS | ARGS_ARE_XY_VALUES, MORE_COMPONENTS
+                let flags = 0x0001u16 | 0x0002 | if last { 0 } else { 0x0020 };
+                out.extend_from_slice(&flags.to_be_bytes());
+                out.extend_from_slice(&gid.to_be_bytes());
+                out.extend_from_slice(&0i16.to_be_bytes()); // dx
+                out.extend_from_slice(&0i16.to_be_bytes()); // dy
+            }
+            out
+        }
+        fn tables_from_glyphs(glyphs: &[Vec<u8>]) -> (Vec<u8>, Vec<u8>) {
+            let mut glyf = vec![];
+            let mut loca = vec![];
+            for glyph in glyphs {
+                loca.extend_from_slice(&(glyf.len() as u32).to_be_bytes());
+                glyf.extend_from_slice(glyph);
+            }
+            loca.extend_from_slice(&(glyf.len() as u32).to_be_bytes());
+            (glyf, loca)
+        }
+        // gid 0 references two composites, each of which references the simple
+        // glyph. Only gid 1 carries variation data, and it is malformed.
+        let (glyf, loca) = tables_from_glyphs(&[
+            composite(&[1, 2]),
+            composite(&[3]),
+            composite(&[3]),
+            empty_simple(),
+        ]);
+        let glyf = Glyf::read(FontData::new(&glyf)).unwrap();
+        let loca = Loca::read(FontData::new(&loca), true).unwrap();
+        let gvar_bytes = malformed_gvar_for_composites();
+        let gvar = Gvar::read(FontData::new(&gvar_bytes)).unwrap();
+        // Reading has to fail for each of them, or this proves nothing.
+        for gid in 0..3 {
+            assert!(
+                gvar.glyph_variation_data(GlyphId::new(gid))
+                    .unwrap()
+                    .unwrap()
+                    .composite_deltas(
+                        &[F2Dot14::from_f32(1.0)],
+                        &mut [Point::<Fixed>::default(); 8]
+                    )
+                    .is_err(),
+                "gid {gid} parsed when it should not"
+            );
+        }
+        let coords = [F2Dot14::from_f32(1.0)];
+        let context = OutlineTables {
+            glyf,
+            loca,
+            gvar: Some(gvar),
+            hmtx: None,
+            os2: None,
+            hvar: None,
+            units_per_em: 1000,
+            coords: &coords,
+            gvar_scalars: &[],
+        };
+        let mut outline = Outline::<Unscaled>::new();
+        // Before the fix this returned `InsufficientMemory`: gid 2 started
+        // from the base gid 1 failed to give back.
+        assert!(outline.load(&context, GlyphId::new(0)).is_ok());
+    }
+
+    /// A `gvar` giving gids 0, 1 and 2 a tuple whose packed deltas are
+    /// truncated, so reading any of them fails.
+    fn malformed_gvar_for_composites() -> Vec<u8> {
+        use font_test_data::bebuffer::BeBuffer;
+        // One glyph's worth of variation data: a single tuple that claims
+        // deltas for every point and then supplies none.
+        let mut g = BeBuffer::new();
+        g = g.push(1u16); // tupleVariationCount
+        g = g.push(10u16); // dataOffset
+        g = g.push(2u16); // variationDataSize
+        g = g.push(0xA000u16); // EMBEDDED_PEAK_TUPLE | PRIVATE_POINT_NUMBERS
+        g = g.push(0x4000u16); // peak of 1.0 on the only axis
+        g = g.push(0u8); // private point numbers: zero means every point
+        g = g.push(0x3Fu8); // a run of 64 byte deltas, with none following
+        let blob = g.to_vec();
+        let len = blob.len() as u32;
+
+        let mut buf = BeBuffer::new();
+        buf = buf.push(1u16).push(0u16); // version 1.0
+        buf = buf.push(1u16); // axisCount
+                              // A shared tuple count of zero still needs a non-null offset.
+        buf = buf.push(0u16).push(20u32);
+        buf = buf.push(4u16); // glyphCount
+        buf = buf.push(1u16); // flags: 32 bit offsets
+        buf = buf.push(0u32); // glyphVariationDataArrayOffset, patched below
+                              // Gids 0, 1 and 2 each get a copy; gid 3 is the simple glyph.
+        buf = buf
+            .push(0u32)
+            .push(len)
+            .push(len * 2)
+            .push(len * 3)
+            .push(len * 3);
+        let mut bytes = buf.to_vec();
+        let array_start = bytes.len() as u32;
+        bytes[16..20].copy_from_slice(&array_start.to_be_bytes());
+        for _ in 0..3 {
+            bytes.extend_from_slice(&blob);
+        }
+        bytes
+    }
 
     /// `Unscaled` does the same arithmetic `Scale26Dot6` does at no size,
     /// without the round trip through 26.6, so the two agree exactly.
