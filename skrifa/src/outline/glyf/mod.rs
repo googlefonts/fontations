@@ -1212,6 +1212,10 @@ impl Scaler for HarfBuzzScaler<'_> {
                 *point *= self.scale;
             }
         }
+        // Commit the scaled phantom points. Without this the left side bearing
+        // adjustment subtracts font units from scaled coordinates.
+        self.phantom
+            .copy_from_slice(&points[phantom_start..phantom_start + PHANTOM_POINT_COUNT]);
 
         if points_start != 0 {
             // If we're not the first component, shift our contour end points.
@@ -1321,13 +1325,16 @@ impl Scaler for HarfBuzzScaler<'_> {
                         x *= hypot(transform[0], transform[2]);
                         y *= hypot(transform[1], transform[3]);
                     }
-                    Point::new(x, y)
+                    // The component's points are already scaled, so the
+                    // offset has to be as well.
+                    (Point::new(x, y)
                         + self
                             .memory
                             .composite_deltas
                             .get(delta_base + i)
                             .copied()
-                            .unwrap_or_default()
+                            .unwrap_or_default())
+                        * scale
                 }
                 Anchor::Point { base, component } => {
                     let (base_offset, component_offset) = (base as usize, component as usize);
