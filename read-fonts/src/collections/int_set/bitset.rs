@@ -711,10 +711,26 @@ impl U32Set {
             .ok()
     }
 
+    pub(crate) fn reserve_pages(&mut self, additional: usize) {
+        self.pages.reserve(additional);
+        self.page_map.reserve(additional);
+    }
+
     /// Returns the index in `self.pages` for the page with the same major as `major_value`. Will create
     /// the page if it does not yet exist.
     #[inline(always)]
     fn ensure_page_index_for_major(&mut self, major_value: u32) -> usize {
+        if let Some(last) = self.page_map.last() {
+            if major_value > last.major_value {
+                return self.append_page_for_major(major_value);
+            }
+            if major_value == last.major_value {
+                return last.index as usize;
+            }
+        } else {
+            return self.append_page_for_major(major_value);
+        }
+
         match self
             .page_map
             .binary_search_by(|probe| probe.major_value.cmp(&major_value))
@@ -724,6 +740,17 @@ impl U32Set {
                 self.insert_page_for_major(map_index_to_insert, major_value)
             }
         }
+    }
+
+    #[inline(always)]
+    fn append_page_for_major(&mut self, major_value: u32) -> usize {
+        let page_index = self.pages.len();
+        self.pages.push(BitPage::new_zeroes());
+        self.page_map.push(PageInfo {
+            index: page_index as u32,
+            major_value,
+        });
+        page_index
     }
 
     /// The miss path of `ensure_page_index_for_major`: allocate and
@@ -797,13 +824,14 @@ impl Extend<u32> for U32Set {
 }
 
 /// This helper is used to construct [`U32Set`]'s from a stream of possibly sorted values.
-/// It remembers the last page index to reduce the amount of page lookups needed when inserting
-/// sorted data. If given unsorted values it will still work correctly, but may be slower then just
-/// repeatedly calling `insert()` on the bitset.
+/// It remembers the last page index and accumulates a 64-bit element mask to reduce page lookups
+/// and per-bit updates when inserting sorted data.
 pub(crate) struct U32SetBuilder<'a> {
     pub(crate) set: &'a mut U32Set,
     last_page_index: usize,
     last_major_value: u32,
+    current_elem_id: u32,
+    current_mask: u64,
 }
 
 impl<'a> U32SetBuilder<'a> {
@@ -812,26 +840,62 @@ impl<'a> U32SetBuilder<'a> {
             set,
             last_page_index: usize::MAX,
             last_major_value: u32::MAX,
+            current_elem_id: u32::MAX,
+            current_mask: 0,
         }
     }
 
+    #[inline(always)]
+    fn flush_current_elem(&mut self) {
+        if self.current_mask != 0 {
+            let major_value = self.current_elem_id >> 3;
+            if major_value != self.last_major_value {
+                self.last_page_index = self.set.ensure_page_index_for_major(major_value);
+                self.last_major_value = major_value;
+            }
+            let elem_idx = (self.current_elem_id & 7) as usize;
+            let added =
+                self.set.pages[self.last_page_index].insert_elem_mask(elem_idx, self.current_mask);
+            self.set.length += added as u64;
+            self.current_mask = 0;
+        }
+    }
+
+    #[inline(always)]
     pub(crate) fn insert(&mut self, val: u32) {
-        // TODO(garretrieger): additional optimization ideas:
-        // - Assuming data is sorted accumulate a single element mask and only commit it to the element
-        //   once the next value passes the end of the element.
-        let major_value = U32Set::get_major_value(val);
-        if major_value != self.last_major_value {
-            self.last_page_index = self.set.ensure_page_index_for_major(major_value);
-            self.last_major_value = major_value;
-        };
-        if let Some(page) = self.set.pages.get_mut(self.last_page_index) {
-            self.set.length += page.insert(val) as u64;
+        let elem_id = val >> 6;
+        if elem_id != self.current_elem_id {
+            self.flush_current_elem();
+            self.current_elem_id = elem_id;
+        }
+        self.current_mask |= 1u64 << (val & 63);
+    }
+
+    #[inline(always)]
+    pub(crate) fn insert_word_mask(&mut self, elem_id: u32, mask: u64) {
+        if elem_id != self.current_elem_id {
+            self.flush_current_elem();
+            self.current_elem_id = elem_id;
+        }
+        self.current_mask |= mask;
+    }
+
+    #[inline(always)]
+    pub(crate) fn insert_range(&mut self, start: u32, end: u32) {
+        let start_elem = start >> 6;
+        let end_elem = end >> 6;
+        if start_elem == end_elem {
+            let mask = (u64::MAX >> (63 - (end - start))) << (start & 63);
+            self.insert_word_mask(start_elem, mask);
+        } else {
+            self.flush_current_elem();
+            self.set.insert_range(start..=end);
         }
     }
 
-    pub(crate) fn finish(self) {
-        // we used to do some finalization and bookkeeping here, and we will
-        // want to again if we optimize the impl more.
+    #[inline(always)]
+    pub(crate) fn finish(mut self) {
+        self.flush_current_elem();
     }
 }
 

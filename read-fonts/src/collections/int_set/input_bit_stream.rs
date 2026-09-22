@@ -10,31 +10,32 @@ pub(crate) struct InputBitStream<'a, const BF: u8> {
 
 impl<const BF: u8> Iterator for InputBitStream<'_, BF> {
     type Item = u32;
+
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         match BF {
             2 | 4 => {
-                let mask = (1 << BF) - 1;
-                let byte = self.data.get(self.byte_index)?;
-                let val = (*byte as u32 & (mask << self.sub_index)) >> self.sub_index;
-                self.sub_index = (self.sub_index + BF as u32) % 8;
-                if self.sub_index == 0 {
-                    self.byte_index += 1;
-                }
+                let mask = (1u32 << BF) - 1;
+                let byte = *self.data.get(self.byte_index)? as u32;
+                let val = (byte >> self.sub_index) & mask;
+                let next_sub = self.sub_index + BF as u32;
+                self.byte_index += (next_sub >> 3) as usize;
+                self.sub_index = next_sub & 7;
                 Some(val)
             }
             8 => {
-                let r = self.data.get(self.byte_index).map(|v| *v as u32)?;
+                let r = *self.data.get(self.byte_index)? as u32;
                 self.byte_index += 1;
                 Some(r)
             }
-
             32 => {
-                let b1 = self.data.get(self.byte_index).map(|v| *v as u32)?;
-                let b2 = self.data.get(self.byte_index + 1).map(|v| *v as u32)?;
-                let b3 = self.data.get(self.byte_index + 2).map(|v| *v as u32)?;
-                let b4 = self.data.get(self.byte_index + 3).map(|v| *v as u32)?;
+                let bytes: [u8; 4] = self
+                    .data
+                    .get(self.byte_index..self.byte_index + 4)?
+                    .try_into()
+                    .ok()?;
                 self.byte_index += 4;
-                Some(b1 | (b2 << 8) | (b3 << 16) | (b4 << 24))
+                Some(u32::from_le_bytes(bytes))
             }
             _ => panic!("Unsupported branch factor."),
         }

@@ -134,6 +134,18 @@ impl BitPage {
         is_new
     }
 
+    /// Unions `mask` into the `elem_idx`-th `u64` element of this page and returns the number of newly added bits.
+    #[inline(always)]
+    pub(crate) fn insert_elem_mask(&mut self, elem_idx: usize, mask: u64) -> u32 {
+        let el = &mut self.storage[elem_idx];
+        let old = *el;
+        let new = old | mask;
+        *el = new;
+        let added = (new ^ old).count_ones();
+        self.length += added;
+        added
+    }
+
     /// Marks all values `[first, last]` as members of this set.
     pub(crate) fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
@@ -149,10 +161,11 @@ impl BitPage {
             let mask = u64::MAX << (elem_start + end_shift);
             let mask = mask >> end_shift;
 
-            self.storage[elem_idx as usize] |= mask;
+            let old = self.storage[elem_idx as usize];
+            let new = old | mask;
+            self.length += (new ^ old).count_ones();
+            self.storage[elem_idx as usize] = new;
         }
-
-        self.recompute_length();
     }
 
     /// Marks all values `[first, last]` as not members of this set.
@@ -170,10 +183,11 @@ impl BitPage {
             let mask = u64::MAX << (elem_start + end_shift);
             let mask = !(mask >> end_shift);
 
-            self.storage[elem_idx as usize] &= mask;
+            let old = self.storage[elem_idx as usize];
+            let new = old & mask;
+            self.length -= (old ^ new).count_ones();
+            self.storage[elem_idx as usize] = new;
         }
-
-        self.recompute_length();
     }
 
     pub(crate) fn clear(&mut self) {

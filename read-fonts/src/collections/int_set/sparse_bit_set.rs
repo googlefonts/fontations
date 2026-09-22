@@ -3,7 +3,7 @@
 //!
 //! <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
 
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::vec::Vec;
 use std::error::Error;
 use std::fmt;
 
@@ -119,93 +119,179 @@ impl IntSet<u32> {
 
         let mut builder = U32SetBuilder::start(&mut out);
         let mut bits = InputBitStream::<BF>::from(data);
-        // TODO(garretrieger): estimate initial capacity (maximum is a function of the number of nodes in the bit stream).
-        let mut queue = VecDeque::<NextNode>::new();
-        queue.push_back(NextNode { start: 0, depth: 1 });
+        let mut curr_level = Vec::<u32>::with_capacity(64);
+        let mut out_of_range_nodes: u32 = if bias <= max_value {
+            curr_level.push(bias);
+            0
+        } else {
+            1
+        };
+        let mut next_level = Vec::<u32>::new();
 
-        'outer: while let Some(next) = queue.pop_front() {
-            let mut bits = bits.next().ok_or(DecodingError)?;
-            if bits == 0 {
-                // all bits were zeroes which is a special command to completely fill in
-                // all integers covered by this node.
-                let exp = (height as u32) - next.depth + 1;
-                let node_size = (BF as u64).pow(exp);
+        let shift = BF.ilog2();
 
-                let Some(start) = u32::try_from(next.start)
-                    .ok()
-                    .and_then(|start| start.checked_add(bias))
-                    .filter(|start| *start <= max_value)
-                else {
-                    // start is outside the valid range of the set, so skip this range.
-                    continue;
-                };
+        for depth in 1..(height as u32) {
+            let exp = (height as u32) - depth;
+            let step_shift = exp * shift;
+            let next_node_size = 1u64 << step_shift;
+            let node_size = next_node_size << shift;
 
-                let end = u32::try_from(next.start + node_size - 1)
-                    .unwrap_or(u32::MAX)
-                    .saturating_add(bias)
-                    .min(max_value);
+            let max_remaining_nodes =
+                ((data.len().saturating_sub(bits.bytes_consumed()) * 8) / (BF as usize)) + 4;
+            next_level.reserve((curr_level.len() * 2).min(max_remaining_nodes));
 
-                let count = (end as u64) - (start as u64) + 1;
-                if builder.set.len().saturating_add(count) > max_set_size as u64 {
-                    return Err(DecodingError);
+            let split_idx = if node_size - 1 <= max_value as u64 {
+                let max_full_start = max_value - ((node_size - 1) as u32);
+                if curr_level
+                    .last()
+                    .is_some_and(|&last| last > max_full_start)
+                {
+                    curr_level.len() - 1
+                } else {
+                    curr_level.len()
                 }
+            } else {
+                0
+            };
 
-                // TODO(garretrieger): implement special insert_range on the builder as well.
-                builder.set.insert_range(start..=end);
-                continue;
-            }
+            let (in_bounds_nodes, boundary_nodes) = curr_level.split_at(split_idx);
+            let next_node_size_u32 = next_node_size as u32;
+            let node_size_u32 = node_size as u32;
 
-            let height = height as u32;
-
-            let exp = height - next.depth;
-            let next_node_size = (BF as u64).pow(exp);
-            loop {
-                let bit_index = bits.trailing_zeros();
-                if bit_index == 32 {
-                    break;
-                }
-
-                // TODO(garretrieger): possible optimization by having two versions of this loop
-                //                     as next.depth == height has the same value for each of the outer iterations.
-                if next.depth == height {
-                    // TODO(garretrieger): this has a few branches, is it faster to do all the math in u64
-                    //                     then check only once for > max_value? Will need to check with a benchmark.
-                    let Some(start) = u32::try_from(next.start)
-                        .ok()
-                        .and_then(|start| start.checked_add(bit_index))
-                        .and_then(|start| start.checked_add(bias))
-                        .filter(|start| *start <= max_value)
-                    else {
-                        // At the lowest depth values are encountered in order, so if this is out of range so will be
-                        // all future values. We can break early.
-                        break 'outer;
-                    };
-
-                    if builder.set.len() >= max_set_size as u64 {
+            for &biased_start in in_bounds_nodes {
+                let mut node_bits = bits.next().ok_or(DecodingError)?;
+                if node_bits == 0 {
+                    let end = biased_start + node_size_u32 - 1;
+                    builder.insert_range(biased_start, end);
+                    if builder.set.len() > max_set_size as u64 {
                         return Err(DecodingError);
                     }
-
-                    // TODO(garretrieger): further optimize by inserting entire nodes at once (as a bit field).
-                    builder.insert(start);
-                } else {
-                    let start_delta = bit_index as u64 * next_node_size;
-                    queue.push_back(NextNode {
-                        start: next.start + start_delta,
-                        depth: next.depth + 1,
-                    });
+                    continue;
                 }
 
-                bits &= !(1 << bit_index); // clear the bit that was just read.
+                if BF == 2 {
+                    if (node_bits & 1) != 0 {
+                        next_level.push(biased_start);
+                    }
+                    if (node_bits & 2) != 0 {
+                        next_level.push(biased_start + next_node_size_u32);
+                    }
+                } else {
+                    while node_bits != 0 {
+                        let bit_index = node_bits.trailing_zeros();
+                        next_level.push(biased_start + (bit_index << step_shift));
+                        node_bits &= node_bits - 1;
+                    }
+                }
+            }
+
+            let mut next_out_of_range_nodes = 0u32;
+            for &biased_start in boundary_nodes {
+                let mut node_bits = bits.next().ok_or(DecodingError)?;
+                if node_bits == 0 {
+                    let end = u32::try_from((biased_start as u64) + node_size - 1)
+                        .unwrap_or(u32::MAX)
+                        .min(max_value);
+                    builder.insert_range(biased_start, end);
+                    if builder.set.len() > max_set_size as u64 {
+                        return Err(DecodingError);
+                    }
+                    continue;
+                }
+
+                while node_bits != 0 {
+                    let bit_index = node_bits.trailing_zeros();
+                    let child_start =
+                        (biased_start as u64) + (bit_index as u64) * next_node_size;
+                    if child_start <= max_value as u64 {
+                        next_level.push(child_start as u32);
+                    } else {
+                        next_out_of_range_nodes += node_bits.count_ones();
+                        break;
+                    }
+                    node_bits &= node_bits - 1;
+                }
+            }
+
+            for _ in 0..out_of_range_nodes {
+                let node_bits = bits.next().ok_or(DecodingError)?;
+                if node_bits != 0 {
+                    next_out_of_range_nodes += node_bits.count_ones();
+                }
+            }
+
+            core::mem::swap(&mut curr_level, &mut next_level);
+            next_level.clear();
+            out_of_range_nodes = next_out_of_range_nodes;
+        }
+
+        // Leaf level (depth == height): each node in curr_level has base <= max_value and covers BF values.
+        if let Some(&last_start) = curr_level.last() {
+            let max_pages = ((last_start >> 9) as usize) + 1;
+            builder.set.reserve_pages(curr_level.len().min(max_pages));
+        }
+
+        let u32_mask: u32 = if BF == 32 {
+            u32::MAX
+        } else {
+            (1u32 << BF) - 1
+        };
+
+        let leaf_split_idx = if curr_level
+            .last()
+            .is_some_and(|&last| last > max_value.saturating_sub((BF as u32) - 1))
+        {
+            curr_level.len() - 1
+        } else {
+            curr_level.len()
+        };
+        let (full_leaves, tail_leaves) = curr_level.split_at(leaf_split_idx);
+
+        if (bias & ((BF as u32) - 1)) == 0 {
+            for &base in full_leaves {
+                let raw_bits = bits.next().ok_or(DecodingError)?;
+                let node_bits = if raw_bits == 0 { u32_mask } else { raw_bits };
+                builder.insert_word_mask(base >> 6, (node_bits as u64) << (base & 63));
+            }
+        } else {
+            for &base in full_leaves {
+                let raw_bits = bits.next().ok_or(DecodingError)?;
+                let node_bits = if raw_bits == 0 { u32_mask } else { raw_bits };
+                let bit_offset = base & 63;
+                let elem_id = base >> 6;
+                builder.insert_word_mask(elem_id, (node_bits as u64) << bit_offset);
+                if bit_offset + (BF as u32) > 64 {
+                    builder.insert_word_mask(elem_id + 1, (node_bits as u64) >> (64 - bit_offset));
+                }
+            }
+        }
+
+        for &base in tail_leaves {
+            let raw_bits = bits.next().ok_or(DecodingError)?;
+            let node_bits = if raw_bits == 0 { u32_mask } else { raw_bits };
+            let valid_bits_count = (max_value - base) + 1;
+            let valid_mask = (1u32 << valid_bits_count) - 1;
+            let masked_bits = node_bits & valid_mask;
+            if masked_bits != 0 {
+                let bit_offset = base & 63;
+                let elem_id = base >> 6;
+                builder.insert_word_mask(elem_id, (masked_bits as u64) << bit_offset);
+                if bit_offset + valid_bits_count > 64 {
+                    builder.insert_word_mask(
+                        elem_id + 1,
+                        (masked_bits as u64) >> (64 - bit_offset),
+                    );
+                }
             }
         }
 
         builder.finish();
 
-        // If the max value was reached the loop above may have terminated early leaving some unprocessed nodes
-        // in the queue. The loop can only break once we are at the lowest depth which means that each remaining queue node
-        // will consume only one node from the bit stream. Advance the bit stream by the remaining number of nodes to
-        // correctly count the number of bytes consumed.
-        if !bits.skip_nodes(queue.len() as u32) {
+        if out.len() > max_set_size as u64 {
+            return Err(DecodingError);
+        }
+
+        if !bits.skip_nodes(out_of_range_nodes) {
             // We ran out of bits to consume before decoding would have been finished.
             return Err(DecodingError);
         }
@@ -483,11 +569,6 @@ impl BranchFactor {
             BranchFactor::ThirtyTwo => 0b11111111_11111111_11111111_11111111,
         }
     }
-}
-
-struct NextNode {
-    start: u64,
-    depth: u32,
 }
 
 #[cfg(test)]
