@@ -205,7 +205,7 @@ impl Scale26Dot6 {
 
     /// Scales a point in font units that carries a delta, given in 26.6.
     ///
-    /// The scale factor has an i32 to 26.26 conversion built into it, so the
+    /// The scale factor has an i32 to 26.6 conversion built into it, so the
     /// product is shifted back down afterwards.
     fn mul_point_with_delta(
         &self,
@@ -892,6 +892,66 @@ mod tests {
                 assert_eq!(a.y.to_bits() >> 6, b.y as i32, "gid {gid}");
             }
         }
+    }
+
+    /// Every input to `component_offset` is bounded, so the arithmetic cannot
+    /// overflow whatever the font says.
+    ///
+    /// An anchor offset is an `i16`. `FixedTransform` widens an `F2Dot14` to
+    /// at most two, so `hypot_fixed` of a pair is at most 2.75. `to_i32` is a
+    /// shift by sixteen, so a delta contributes at most 2^15. The sum stays
+    /// near 2^17; the measured worst case is 122,880, which `i32` clears by a
+    /// factor of seventeen thousand. A debug build panics
+    /// on overflow, so running this is most of the check; the bound is
+    /// asserted so a later change that widens an input is caught here.
+    #[test]
+    fn component_offset_stays_far_inside_i32() {
+        const BOUND: i32 = 1 << 18;
+        let extremes = [i16::MIN, i16::MAX];
+        let mut worst = 0i32;
+        for x in extremes {
+            for y in extremes {
+                for basis in extremes {
+                    let transform = Transform {
+                        xx: F2Dot14::from_bits(basis),
+                        yx: F2Dot14::from_bits(basis),
+                        xy: F2Dot14::from_bits(basis),
+                        yy: F2Dot14::from_bits(basis),
+                    };
+                    let offset = Point::new(x as i32, y as i32);
+                    let delta = Point::new(Fixed::from_bits(i32::MAX), Fixed::from_bits(i32::MIN));
+                    for scale_offset in [false, true] {
+                        let raw = Unscaled.component_offset(
+                            offset,
+                            &transform,
+                            scale_offset,
+                            Some(delta),
+                            false,
+                        );
+                        worst = worst.max(raw.x.abs()).max(raw.y.abs());
+                        // The scaled modes run the same sum before scaling it.
+                        let fixed = Scale26Dot6::new(Some(2048.0), 16).component_offset(
+                            offset,
+                            &transform,
+                            scale_offset,
+                            Some(delta),
+                            true,
+                        );
+                        assert!(fixed.x.to_bits().abs() < i32::MAX / 2);
+                        assert!(fixed.y.to_bits().abs() < i32::MAX / 2);
+                        let float = ScaleF32::new(Some(2048.0), 16).component_offset(
+                            offset,
+                            &transform,
+                            scale_offset,
+                            Some(Point::new(f32::from(i16::MAX), f32::from(i16::MIN))),
+                            false,
+                        );
+                        assert!(float.x.is_finite() && float.y.is_finite());
+                    }
+                }
+            }
+        }
+        assert!(worst < BOUND, "worst offset was {worst}");
     }
 
     /// Whether a size was asked for decides whether [`OutlinePlan::load`](super::super::OutlinePlan::load)
