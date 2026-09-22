@@ -1,9 +1,9 @@
 use read_fonts::collections::{IntSet, U32Set};
 
-use rand::RngExt;
+use rand::{rngs::StdRng, RngExt, SeedableRng};
 
 pub fn random_set(size: u32, max_value: u32) -> IntSet<u32> {
-    let mut rng = rand::rng();
+    let mut rng = StdRng::seed_from_u64(42);
     let mut set = IntSet::<u32>::empty();
     for _ in 0..size {
         loop {
@@ -18,7 +18,7 @@ pub fn random_set(size: u32, max_value: u32) -> IntSet<u32> {
 
 #[allow(dead_code)]
 pub fn random_u32_set(size: u32, max_value: u32) -> U32Set {
-    let mut rng = rand::rng();
+    let mut rng = StdRng::seed_from_u64(42);
     let mut set = U32Set::empty();
     for _ in 0..size {
         loop {
