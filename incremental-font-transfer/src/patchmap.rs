@@ -263,8 +263,7 @@ fn add_intersecting_patches(
             continue;
         }
 
-        let mut it = e.urls.iter();
-        let Some(first_url) = it.next() else {
+        let [first_url, preload_urls @ ..] = e.urls.as_slice() else {
             continue;
         };
 
@@ -279,9 +278,8 @@ fn add_intersecting_patches(
             // non-invalidating entries still require information on entry order so just record that.
             IntersectionInfo::from_order(order)
         };
-        let preload_urls: Vec<PatchUrl> = it.cloned().collect();
         patches.push(first_url.clone().into_entry(
-            preload_urls,
+            preload_urls.to_vec(),
             source_table.clone(),
             e.format,
             intersection_info,
@@ -348,116 +346,126 @@ fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
     let mut entries = Vec::<Entry>::with_capacity(entry_count as usize);
     for _ in 0..entry_count {
         let consumed_bytes;
-        // TODO(garretrieger): processing context type object to reduce argument passing to
-        // decode_entry(...)
-        (entries_data, consumed_bytes) = decode_entry(
-            entries_data,
-            entry_start_byte,
+        (entries_data, consumed_bytes) = EntryDecoder {
+            data: entries_data,
+            data_start_index: entry_start_byte,
             url_template,
-            &default_encoding,
-            &mut id_string_data,
-            &mut entries,
-            &mut last_entry_id,
-        )?;
+            default_format: default_encoding,
+            id_string_data: &mut id_string_data,
+            last_entry_id: &mut last_entry_id,
+            entries: &mut entries,
+        }
+        .decode_next()?;
         entry_start_byte += consumed_bytes;
     }
 
     Ok(entries)
 }
 
-fn decode_entry<'a>(
+struct EntryDecoder<'a, 'b> {
     data: FontData<'a>,
     data_start_index: usize,
-    url_template: &[u8],
-    default_format: &PatchFormat,
-    id_string_data: &mut Option<Cursor<&[u8]>>,
-    entries: &mut Vec<Entry>,
-    last_entry_id: &mut PatchId,
-) -> Result<(FontData<'a>, usize), ReadError> {
-    let entry_data = EntryData::read(data)?;
+    url_template: &'a [u8],
+    default_format: PatchFormat,
+    id_string_data: &'b mut Option<Cursor<&'a [u8]>>,
+    last_entry_id: &'b mut PatchId,
+    entries: &'b mut Vec<Entry>,
+}
 
-    // Record the index of the bit which when set causes this entry to be ignored.
-    // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
-    let mut entry: Entry = Entry::base_entry(*default_format, (data_start_index as u32 * 8) + 6);
+impl<'a, 'b> EntryDecoder<'a, 'b> {
+    fn decode_next(self) -> Result<(FontData<'a>, usize), ReadError> {
+        let entry_data = EntryData::read(self.data)?;
 
-    // Features
-    if let Some(features) = entry_data.feature_tags() {
-        entry
-            .subset_definition
-            .feature_tags
-            .extend(features.iter().map(|t| t.get()));
-    }
+        // Record the index of the bit which when set causes this entry to be ignored.
+        // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
+        let mut entry: Entry =
+            Entry::base_entry(self.default_format, (self.data_start_index as u32 * 8) + 6);
 
-    // Copy indices
-    if let (Some(child_indices), Some(match_mode)) = (
-        entry_data.child_indices(),
-        entry_data.match_mode_and_count(),
-    ) {
-        let max_index = entries.len();
-        let it = child_indices.iter().map(|v| Into::<usize>::into(v.get()));
-        for i in it.clone() {
-            if i >= max_index {
-                return Err(ReadError::MalformedData(
-                    "Child index must refer to only prior entries.",
-                ));
-            }
-        }
-        entry.child_indices = it.collect();
-        entry.conjunctive_child_match = match_mode.conjunctive_match();
-    }
-
-    // Design space
-    if let Some(design_space_segments) = entry_data.design_space_segments() {
-        let mut ranges = HashMap::<Tag, RangeSet<Fixed>>::new();
-
-        for dss in design_space_segments {
-            if dss.start() > dss.end() {
-                return Err(ReadError::MalformedData(
-                    "Design space segment start > end.",
-                ));
-            }
-            ranges
-                .entry(dss.axis_tag())
-                .or_default()
-                .insert(dss.start()..=dss.end());
+        // Features
+        if let Some(features) = entry_data.feature_tags() {
+            entry
+                .subset_definition
+                .feature_tags
+                .extend(features.iter().map(|t| t.get()));
         }
 
-        entry.subset_definition.design_space = DesignSpace::Ranges(ranges);
+        // Copy indices
+        if let (Some(child_indices), Some(match_mode)) = (
+            entry_data.child_indices(),
+            entry_data.match_mode_and_count(),
+        ) {
+            let max_index = self.entries.len();
+            let it = child_indices.iter().map(|v| Into::<usize>::into(v.get()));
+            for i in it.clone() {
+                if i >= max_index {
+                    return Err(ReadError::MalformedData(
+                        "Child index must refer to only prior entries.",
+                    ));
+                }
+            }
+            entry.child_indices = it.collect();
+            entry.conjunctive_child_match = match_mode.conjunctive_match();
+        }
+
+        // Design space
+        if let Some(design_space_segments) = entry_data.design_space_segments() {
+            let mut ranges = HashMap::<Tag, RangeSet<Fixed>>::new();
+
+            for dss in design_space_segments {
+                if dss.start() > dss.end() {
+                    return Err(ReadError::MalformedData(
+                        "Design space segment start > end.",
+                    ));
+                }
+                ranges
+                    .entry(dss.axis_tag())
+                    .or_default()
+                    .insert(dss.start()..=dss.end());
+            }
+
+            entry.subset_definition.design_space = DesignSpace::Ranges(ranges);
+        }
+
+        // Entry ID
+        let (entry_deltas, trailing_data) = if self.id_string_data.is_some() {
+            decode_entry_deltas::<true>(entry_data.format_flags(), entry_data.trailing_data())?
+        } else {
+            decode_entry_deltas::<false>(entry_data.format_flags(), entry_data.trailing_data())?
+        };
+
+        // Encoding
+        let (patch_format, trailing_data) =
+            decode_patch_format(entry_data.format_flags(), trailing_data)?;
+        entry.format = patch_format.unwrap_or(self.default_format);
+
+        // We now have info information to generate the associated urls.
+        entry.populate_urls(
+            self.url_template,
+            entry_deltas,
+            self.last_entry_id,
+            self.id_string_data,
+        )?;
+
+        // Codepoints
+        let (codepoints, trailing_data) =
+            decode_codepoints(entry_data.format_flags(), trailing_data)?;
+        if entry.subset_definition.codepoints.is_empty() {
+            // as an optimization move the existing set instead of copying it in if possible.
+            entry.subset_definition.codepoints = codepoints;
+        } else {
+            entry.subset_definition.codepoints.union(&codepoints);
+        }
+
+        // Ignored
+        entry.ignored = entry_data
+            .format_flags()
+            .contains(EntryFormatFlags::IGNORED);
+
+        self.entries.push(entry);
+
+        let consumed_bytes = entry_data.trailing_data_byte_range().end - trailing_data.len();
+        Ok((FontData::new(trailing_data), consumed_bytes))
     }
-
-    // Entry ID
-    let (entry_deltas, trailing_data) = if id_string_data.is_some() {
-        decode_entry_deltas::<true>(entry_data.format_flags(), entry_data.trailing_data())?
-    } else {
-        decode_entry_deltas::<false>(entry_data.format_flags(), entry_data.trailing_data())?
-    };
-
-    // Encoding
-    let (patch_format, trailing_data) =
-        decode_patch_format(entry_data.format_flags(), trailing_data)?;
-    entry.format = patch_format.unwrap_or(*default_format);
-
-    // We now have info information to generate the associated urls.
-    entry.populate_urls(url_template, entry_deltas, last_entry_id, id_string_data)?;
-
-    // Codepoints
-    let (codepoints, trailing_data) = decode_codepoints(entry_data.format_flags(), trailing_data)?;
-    if entry.subset_definition.codepoints.is_empty() {
-        // as an optimization move the existing set instead of copying it in if possible.
-        entry.subset_definition.codepoints = codepoints;
-    } else {
-        entry.subset_definition.codepoints.union(&codepoints);
-    }
-
-    // Ignored
-    entry.ignored = entry_data
-        .format_flags()
-        .contains(EntryFormatFlags::IGNORED);
-
-    entries.push(entry);
-
-    let consumed_bytes = entry_data.trailing_data_byte_range().end - trailing_data.len();
-    Ok((FontData::new(trailing_data), consumed_bytes))
 }
 
 fn new_entry_id(
