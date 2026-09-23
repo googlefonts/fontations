@@ -307,10 +307,7 @@ impl<'a> BaseInstance<'a> {
         if self.coords.is_empty() {
             return None;
         }
-        self.var_store
-            .as_ref()?
-            .compute_delta(index, self.coords)
-            .ok()
+        self.var_store.as_ref()?.compute_delta(index, self.coords)
     }
 }
 

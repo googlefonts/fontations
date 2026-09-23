@@ -190,7 +190,6 @@ impl<'a> OutlineContext<'a> for OutlineTables<'a> {
         self.gvar
             .as_ref()?
             .phantom_point_deltas(&self.glyf, &self.loca, self.coords, glyph)
-            .ok()?
     }
 
     fn coords(&self) -> &[F2Dot14] {

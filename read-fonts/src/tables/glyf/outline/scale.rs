@@ -798,7 +798,7 @@ where
     match var_data {
         Some(var_data) => var_data
             .simple_deltas(coords, points, flags, contours, buffers)
-            .is_ok(),
+            .is_some(),
         None if varies => {
             for delta in buffers.deltas.iter_mut() {
                 *delta = Default::default();
