@@ -119,8 +119,8 @@ def generate():
         buf += "    }\n\n"
     buf += "}\n\n"
 
-    # Per table accessors for FontTables
-    buf += "impl FontTables {\n"
+    # Per table accessors for Tables
+    buf += "impl Tables {\n"
     for table in TABLES:
         tag = table[0]
         trimmed_tag = tag.removesuffix(" ");
@@ -145,4 +145,4 @@ def generate():
 
 if __name__ == "__main__":    
     data = generate()
-    Path(SCRIPT_DIR.joinpath("../data/generated/generated_tables.rs")).write_text(data, encoding="utf-8")
+    Path(SCRIPT_DIR.joinpath("../data/generated/generated_tables.rs")).write_text(data, encoding="utf-8", newline="\n")

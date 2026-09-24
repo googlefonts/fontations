@@ -3,7 +3,7 @@
 use crate::{
     model::{
         metrics::{GlobalMetrics, LineExtents, Scale, ScaledGlyphMetrics},
-        Font, FontKind,
+        Font, Kind,
     },
     ps::{cs::CommandSink, type1::Type1Font},
     tables::hmtx::LongMetric,
@@ -118,7 +118,7 @@ impl<'a> GlyphMetrics<'a> {
             // a table, so it reaches here and is measured another way. The
             // test sits inside this branch so that a font with `hmtx`, which
             // is nearly all of them, never makes it.
-            if let FontKind::Type1(font) = self.font.kind() {
+            if let Kind::Type1(font) = self.font.kind() {
                 return self.h_advance_batched_type1(font, convert, glyphs);
             }
             // Otherwise the font states no widths at all, and every glyph
@@ -451,7 +451,7 @@ pub(crate) fn empty() -> &'static RawGlyphMetrics<'static> {
 mod tests {
     use super::*;
     use crate::{
-        model::{pen::NullPen, FontBlob, NormalizedCoord},
+        model::{pen::NullPen, Blob, NormalizedCoord},
         FontRef,
     };
     use alloc::{sync::Arc, vec, vec::Vec};
@@ -862,15 +862,14 @@ mod tests {
         asked: Arc<Mutex<Vec<Tag>>>,
         hide: &'static [&[u8; 4]],
     ) -> Font {
-        let source: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync> =
-            Arc::new(move |tag: Tag| {
-                asked.lock().unwrap().push(tag);
-                if hide.iter().any(|hidden| Tag::new(hidden) == tag) {
-                    return None;
-                }
-                let font = FontRef::new(data).ok()?;
-                Some(FontBlob::from(font.table_data(tag)?.as_bytes().to_vec()))
-            });
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag: Tag| {
+            asked.lock().unwrap().push(tag);
+            if hide.iter().any(|hidden| Tag::new(hidden) == tag) {
+                return None;
+            }
+            let font = FontRef::new(data).ok()?;
+            Some(Blob::from(font.table_data(tag)?.as_bytes().to_vec()))
+        });
         Font::new(source, 0).unwrap()
     }
 

@@ -10,20 +10,20 @@
 //! directions all read, and for `gvar`, which is typically about half a
 //! variable font and must not be read to answer what another table can.
 
-use super::FontTables;
+use super::Tables;
 use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vvar::Vvar};
 use crate::TableProvider;
 use alloc::sync::Arc;
 use yoke::{Yoke, Yokeable};
 
 /// A parsed table held beside the tables it borrows.
-pub(crate) struct TableCache<Y: for<'a> Yokeable<'a>>(Yoke<Y, Arc<FontTables>>);
+pub(crate) struct TableCache<Y: for<'a> Yokeable<'a>>(Yoke<Y, Arc<Tables>>);
 
 impl<Y: for<'a> Yokeable<'a>> TableCache<Y> {
     /// Parses once, with `read`, and keeps the result.
-    pub(crate) fn read<F>(tables: Arc<FontTables>, read: F) -> Self
+    pub(crate) fn read<F>(tables: Arc<Tables>, read: F) -> Self
     where
-        F: for<'a> FnOnce(&'a FontTables) -> <Y as Yokeable<'a>>::Output,
+        F: for<'a> FnOnce(&'a Tables) -> <Y as Yokeable<'a>>::Output,
     {
         Self(Yoke::attach_to_cart(tables, read))
     }
