@@ -278,13 +278,13 @@ fn add_intersecting_patches(
             // non-invalidating entries still require information on entry order so just record that.
             IntersectionInfo::from_order(order)
         };
+
         patches.push(first_url.clone().into_entry(
             preload_urls.to_vec(),
             source_table.clone(),
             e.format,
             intersection_info,
         ));
-
         application_bit_indices
             .entry(first_url.clone())
             .or_default()
@@ -309,8 +309,15 @@ fn add_intersecting_patches(
 
     // Lastly copy the aggregated application bit indices back into
     // the individual patch map entries.
-    if patches.len() > new_patches_first_index {
-        for p in patches[new_patches_first_index..].iter_mut() {
+    let new_patches = &mut patches[new_patches_first_index..];
+    // We modify a application_bit_indices for each newly added patch. If the number of
+    // application_bit_indices is the same as the number of new patches, then the mapping from patch
+    // to application_bit_indices key is 1:1.
+    let has_unique_patch_urls = application_bit_indices.len() == new_patches.len();
+    for p in new_patches {
+        if has_unique_patch_urls {
+            p.application_bit_indices = application_bit_indices.remove(&p.url).unwrap_or_default();
+        } else {
             p.application_bit_indices = application_bit_indices
                 .get(&p.url)
                 .cloned()
@@ -1684,6 +1691,34 @@ mod tests {
 
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], [e1, e5]);
+    }
+
+    #[test]
+    fn patch_map_with_non_intersecting_duplicate_url() {
+        let mut buffer = codepoints_only();
+        buffer.write_at("entry_count", Uint24::new(5));
+        let buffer = buffer
+            .push(0b00100100u8) // DELTA | CODEPOINT 2
+            .push(Int24::new(-8)) // entry delta -4, reusing entry 1's URL
+            .push(30u16) // bias
+            .extend([0b00001101, 0b00000011, 0b00110001u8]); // {30..47}
+
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&buffer),
+            None,
+        );
+        let font = FontRef::new(&font_bytes).unwrap();
+
+        let mut e1 = f2(1, buffer.offset_for("entries[0]"), 0);
+        let mut e5 = f2(1, buffer.offset_for("entries[3]") + 7, 4);
+        e1.application_bit_index.union(&e5.application_bit_index);
+        e5.application_bit_index.union(&e1.application_bit_index);
+
+        // Only one entry intersects in each case, but both application bits
+        // must survive moving the aggregated set into the unique output patch.
+        test_intersection(&font, [2], [], [e1]);
+        test_intersection(&font, [32], [], [e5]);
     }
 
     #[test]
