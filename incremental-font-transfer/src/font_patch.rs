@@ -227,16 +227,13 @@ mod tests {
     use font_test_data::ift::{
         codepoints_only, glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed_patch,
     };
-    use read_fonts::{
-        collections::IntSet,
-        tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG},
-    };
+    use read_fonts::tables::ift::{CompatibilityId, IFTX_TAG, IFT_TAG};
     use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
 
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::tests::assemble_glyph_keyed_patch,
-        patchmap::{IftTableTag, PatchId, PatchUrl},
+        patchmap::{ApplicativeBitIndices, IftTableTag, PatchId, PatchUrl},
         testdata::test_font_for_patching_with_loca_mod,
     };
 
@@ -253,7 +250,7 @@ mod tests {
             )
             .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
-            application_flag_bit_indices: IntSet::<u32>::empty(),
+            application_flag_bit_indices: ApplicativeBitIndices::Empty,
         };
 
         let ift_table = codepoints_only();
@@ -287,7 +284,7 @@ mod tests {
             )
             .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([2, 2, 3, 4])),
-            application_flag_bit_indices: IntSet::<u32>::empty(),
+            application_flag_bit_indices: ApplicativeBitIndices::Empty,
         };
 
         let ift_table = codepoints_only();
@@ -314,7 +311,7 @@ mod tests {
             )
             .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([1, 2, 3, 4])),
-            application_flag_bit_indices: IntSet::<u32>::empty(),
+            application_flag_bit_indices: ApplicativeBitIndices::Empty,
         };
 
         let ift_table = codepoints_only();
@@ -344,7 +341,7 @@ mod tests {
             )
             .unwrap(),
             source_table: IftTableTag::Ift(CompatibilityId::from_u32s([6, 7, 9, 9])),
-            application_flag_bit_indices: IntSet::<u32>::empty(),
+            application_flag_bit_indices: ApplicativeBitIndices::Empty,
         };
 
         let mut ift_table = codepoints_only();

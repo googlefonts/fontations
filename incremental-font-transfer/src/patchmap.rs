@@ -4,6 +4,7 @@
 //! that can be applied to the font to add support for the corresponding subset definition.
 
 use std::cmp::Ordering;
+use std::collections::hash_map;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -251,7 +252,7 @@ fn add_intersecting_patches(
     // Caches the result of intersection check for an entry index.
     let mut entry_intersection_cache = EntryIntersectionCache::new(entries, subset_definition);
 
-    let mut application_bit_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
+    let mut application_bit_indices: HashMap<PatchUrl, ApplicativeBitIndices> = Default::default();
     let new_patches_first_index = patches.len();
 
     for (order, e) in entries.iter().enumerate() {
@@ -281,10 +282,15 @@ fn add_intersecting_patches(
             e.format,
             intersection_info,
         ));
-        application_bit_indices
-            .entry(e.url.clone())
-            .or_default()
-            .insert(e.application_flag_bit_index);
+
+        match application_bit_indices.entry(e.url.clone()) {
+            hash_map::Entry::Occupied(mut occupied) => {
+                occupied.get_mut().insert(e.application_flag_bit_index);
+            }
+            hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(ApplicativeBitIndices::one(e.application_flag_bit_index));
+            }
+        }
     }
 
     // In format 2 there may be non intersected entries that have urls
@@ -702,8 +708,50 @@ pub struct PatchMapEntry {
     pub(crate) preload_urls: Vec<PatchUrl>,
     pub(crate) format: PatchFormat,
     pub(crate) source_table: IftTableTag,
-    pub(crate) application_bit_indices: IntSet<u32>,
+    pub(crate) application_bit_indices: ApplicativeBitIndices,
     pub(crate) intersection_info: IntersectionInfo,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ApplicativeBitIndices {
+    #[default]
+    Empty,
+    One(u32),
+    Many(Box<IntSet<u32>>),
+}
+
+impl ApplicativeBitIndices {
+    /// Create an `ApplicativeBitIndices` will a single value.
+    pub const fn one(val: u32) -> Self {
+        Self::One(val)
+    }
+
+    /// Insert `index` onto self.
+    pub fn insert(&mut self, index: u32) {
+        match self {
+            Self::Empty => *self = Self::One(index),
+            Self::One(val) => {
+                if *val != index {
+                    *self = Self::Many(Box::new(IntSet::from_iter([*val, index])))
+                }
+            }
+            Self::Many(set) => {
+                set.insert(index);
+            }
+        }
+    }
+
+    /// Iterate over all (ordered) indices.
+    pub fn iter(&self) -> impl '_ + Iterator<Item = u32> {
+        let (single, set): (Option<u32>, Option<&IntSet<u32>>) = match self {
+            Self::Empty => (None, None),
+            Self::One(val) => (Some(*val), None),
+            Self::Many(set) => (None, Some(set)),
+        };
+        single
+            .into_iter()
+            .chain(set.into_iter().flat_map(|s| s.iter()))
+    }
 }
 
 impl PatchMapEntry {
@@ -756,7 +804,7 @@ impl PatchUrl {
             preload_urls,
             format,
             source_table,
-            application_bit_indices: IntSet::<u32>::empty(), // these are populated later on
+            application_bit_indices: ApplicativeBitIndices::Empty, // these are populated later on
             intersection_info,
         }
     }
@@ -1302,7 +1350,9 @@ mod tests {
                         PatchFormat::GlyphKeyed,
                         IntersectionInfo::from_order(*order),
                     );
-                    e.application_bit_indices.union(application_bit_index);
+                    for val in application_bit_index.iter() {
+                        e.application_bit_indices.insert(val);
+                    }
                     e
                 },
             )
@@ -1351,7 +1401,9 @@ mod tests {
                         PatchFormat::GlyphKeyed,
                         IntersectionInfo::from_order(*order),
                     );
-                    e.application_bit_indices.union(application_bit_index);
+                    for val in application_bit_index.iter() {
+                        e.application_bit_indices.insert(val);
+                    }
                     e
                 },
             )
@@ -2468,5 +2520,27 @@ mod tests {
         features.insert(foo);
 
         assert_eq!(features, FeatureSet::All);
+    }
+
+    #[test]
+    fn applicative_bit_indices_are_ordered() {
+        let ints = [50, 10, 30, 10, 50];
+        let int_subsets = (0..ints.len())
+            .flat_map(|start| (start..ints.len()).map(move |end| (start, end)))
+            .map(|(start, end)| &ints[start..end]);
+        for ints in int_subsets {
+            let expected: Vec<u32> = BTreeSet::from_iter(ints.iter().copied())
+                .into_iter()
+                .collect();
+            let mut indices = ApplicativeBitIndices::Empty;
+            for int in ints {
+                indices.insert(*int);
+            }
+            assert_eq!(
+                indices.iter().collect::<Vec<u32>>(),
+                expected,
+                "ApplicativeBitIndices did not produce sorted ints."
+            );
+        }
     }
 }
