@@ -351,6 +351,7 @@ impl<'a> MappingSelection<'a> {
         const ENCODING_MS_UNICODE_CS: u16 = 1;
         const ENCODING_APPLE_ID_UNICODE_32: u16 = 4;
         const ENCODING_APPLE_ID_VARIANT_SELECTOR: u16 = 5;
+        const ENCODING_UNICODE_FULL_REPERTOIRE: u16 = 6;
         const ENCODING_MS_ID_UCS_4: u16 = 10;
         let mut mapping_index = MappingIndex::default();
         let mut mapping_kind = MappingKind::None;
@@ -390,7 +391,8 @@ impl<'a> MappingSelection<'a> {
                     }
                 }
                 (PlatformId::Windows, ENCODING_MS_ID_UCS_4)
-                | (PlatformId::Unicode, ENCODING_APPLE_ID_UNICODE_32) => {
+                | (PlatformId::Unicode, ENCODING_APPLE_ID_UNICODE_32)
+                | (PlatformId::Unicode, ENCODING_UNICODE_FULL_REPERTOIRE) => {
                     // Unicode full repertoire
                     if let Some(subtable) = SupportedSubtable::from_cmap_record(cmap, record) {
                         maybe_choose_subtable(MappingKind::UnicodeFull, i, subtable);
@@ -440,6 +442,20 @@ mod tests {
             charmap.codepoint_subtable.unwrap().subtable,
             SupportedSubtable::Format13(..)
         ));
+    }
+
+    #[test]
+    fn choose_format_13_over_4_with_unicode_encoding_6() {
+        let font = FontRef::new(font_test_data::LAST_RESORT_HE).unwrap();
+        let charmap = font.charmap();
+
+        assert!(matches!(
+            charmap.codepoint_subtable.as_ref().unwrap().subtable,
+            SupportedSubtable::Format13(..)
+        ));
+        for ch in ['A', 'あ', '😀'] {
+            assert!(charmap.map(ch).is_some(), "no mapping for {ch:?}");
+        }
     }
 
     #[test]
