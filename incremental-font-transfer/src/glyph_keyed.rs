@@ -485,7 +485,7 @@ fn patch_offset_array<'a, T: GlyphDataOffsetArray>(
         max_glyph_id,
         replacement_data: &replacement_data,
         offset_array: &offset_array,
-        new_data_len: total_data_size as usize,
+        new_data_len: total_data_size,
         new_offsets_len: offsets_size,
     };
 
