@@ -11,6 +11,6 @@ mod font;
 
 #[cfg(feature = "experimental_font_api")]
 pub use font::{
-    interop as _font_interop, FeatureVariations, Font, FontBlob, FontFormat, FontKind, FontSource,
-    FontTableFunction, FontTables, InstanceBuilder, NormalizedCoord, Variation,
+    interop as _font_interop, Blob, FeatureVariations, Font, Format, InstanceBuilder, Kind,
+    NormalizedCoord, Source, TableFunction, Tables, Variation,
 };

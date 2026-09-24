@@ -1,6 +1,6 @@
 //! Table validation, caching and access.
 
-use super::{super::once::Once, FontBlob, FontSource};
+use super::{super::once::Once, Blob, Source};
 use crate::{tables, types::Tag, FontRead, ReadError, TableProvider, TopLevelTable};
 use alloc::{boxed::Box, sync::Arc};
 use core::sync::atomic::{AtomicU8, Ordering};
@@ -18,7 +18,7 @@ struct BlobTableEntry {
 
 /// Blob and associated metadata for all tables.
 struct BlobTables {
-    blob: FontBlob,
+    blob: Blob,
     tables: Box<PerTableData<BlobTableEntry>>,
 }
 
@@ -40,19 +40,19 @@ impl<'a> TableDataProvider<'a> for &'a BlobTables {
 }
 
 /// Entry for a single table provided by a callback.
-type TableFunctionEntry = Once<Option<(AtomicU8, FontBlob)>>;
+type TableFunctionEntry = Once<Option<(AtomicU8, Blob)>>;
 
 /// Lazy, per table font data provided by a function.
 #[derive(Clone)]
-pub struct FontTableFunction {
-    table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync>,
+pub struct TableFunction {
+    table_fn: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync>,
     tables: Arc<PerTableData<TableFunctionEntry>>,
 }
 
-impl FontTableFunction {
+impl TableFunction {
     /// Creates a new font table function with the given callback that should
     /// return a blob containing the table data for the requested tag.
-    pub fn new(table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync>) -> Self {
+    pub fn new(table_fn: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync>) -> Self {
         Self {
             table_fn,
             tables: Arc::new(PerTableData::default()),
@@ -60,7 +60,7 @@ impl FontTableFunction {
     }
 }
 
-impl<'a> TableDataProvider<'a> for &'a FontTableFunction {
+impl<'a> TableDataProvider<'a> for &'a TableFunction {
     type Entry = TableFunctionEntry;
 
     fn tables(&self) -> &'a PerTableData<Self::Entry> {
@@ -82,7 +82,7 @@ impl<'a> TableDataProvider<'a> for &'a FontTableFunction {
 enum TableSource {
     None,
     Blob(BlobTables),
-    Function(FontTableFunction),
+    Function(TableFunction),
 }
 
 /// Reference to the validation flag and data for a table.
@@ -120,14 +120,14 @@ impl<'a> TableState<'a> {
 }
 
 /// Individual font table access.
-pub struct FontTables(TableSource);
+pub struct Tables(TableSource);
 
-impl FontTables {
+impl Tables {
     /// Creates a new set of font tables for the given source.
-    pub fn new(source: impl Into<FontSource>, index: u32) -> Result<Self, ReadError> {
+    pub fn new(source: impl Into<Source>, index: u32) -> Result<Self, ReadError> {
         let source = source.into();
         match source {
-            FontSource::Blob(blob) => {
+            Source::Blob(blob) => {
                 let font_ref = crate::FontRef::from_index(&blob, index)?;
                 let mut tables = PerTableData::default();
                 let table_records = font_ref.table_directory().table_records();
@@ -157,12 +157,12 @@ impl FontTables {
                     tables: Box::new(tables),
                 })))
             }
-            FontSource::TableFunction(func) => Ok(Self(TableSource::Function(func))),
+            Source::TableFunction(func) => Ok(Self(TableSource::Function(func))),
         }
     }
 }
 
-impl FontTables {
+impl Tables {
     fn load_table<'a, T: TopLevelTable + FontRead<'a, Args = ()>>(
         &'a self,
         state: Option<TableState<'a>>,
@@ -195,9 +195,9 @@ impl FontTables {
     }
 }
 
-pub(super) static EMPTY_FONT_TABLES: FontTables = FontTables(TableSource::None);
+pub(super) static EMPTY_FONT_TABLES: Tables = Tables(TableSource::None);
 
-impl<'a> TableProvider<'a> for &'a FontTables {
+impl<'a> TableProvider<'a> for &'a Tables {
     fn data_for_tag(&self, _tag: Tag) -> Option<crate::FontData<'a>> {
         None
     }
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn missing_tables_are_missing() {
-        let tables = &FontTables::new(font_test_data::AHEM, 0).unwrap();
+        let tables = &Tables::new(font_test_data::AHEM, 0).unwrap();
         assert!(matches!(tables.cbdt(), Err(ReadError::TableIsMissing(_))));
         assert!(matches!(tables.cff(), Err(ReadError::TableIsMissing(_))));
         assert!(matches!(tables.dsig(), Err(ReadError::TableIsMissing(_))));
@@ -449,12 +449,12 @@ mod tests {
     fn table_function_matches_font_ref() {
         let font = FontRef::new(font_test_data::AHEM).unwrap();
         let font_copy = font.clone();
-        let table_fn = FontTableFunction::new(Arc::new(move |tag| {
+        let table_fn = TableFunction::new(Arc::new(move |tag| {
             font_copy
                 .data_for_tag(tag)
                 .map(|data| Vec::from(data.as_bytes()).into())
         }));
-        let tables = &FontTables::new(table_fn, 0).unwrap();
+        let tables = &Tables::new(table_fn, 0).unwrap();
         for (data, tag) in [
             (tables.gasp_data(), b"gasp"),
             (tables.glyf_data(), b"glyf"),

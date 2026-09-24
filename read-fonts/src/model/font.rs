@@ -6,10 +6,10 @@ mod format;
 mod source;
 mod tables;
 
-pub use blob::FontBlob;
-pub use format::FontFormat;
-pub use source::FontSource;
-pub use tables::{FontTableFunction, FontTables};
+pub use blob::Blob;
+pub use format::Format;
+pub use source::Source;
+pub use tables::{TableFunction, Tables};
 
 // Do our best to not expose this to users through docs or rust-analyzer.
 #[doc(hidden)]
@@ -70,7 +70,7 @@ impl Font {
     /// (ttc or otc) file. It is ignored if the data source is not a blob.
     ///
     /// Returns `None` if the source holds no font in a supported format.
-    pub fn new(source: impl Into<FontSource>, index: u32) -> Option<Self> {
+    pub fn new(source: impl Into<Source>, index: u32) -> Option<Self> {
         Some(Font(Repr::Default(SharedFont::new(source, index)?)))
     }
 
@@ -97,13 +97,13 @@ impl Font {
 
     /// Returns the underlying source of font data.
     #[inline]
-    pub fn source(&self) -> &FontSource {
+    pub fn source(&self) -> &Source {
         self.shared().source()
     }
 
     /// Returns the underlying kind of the font.
     #[inline]
-    pub fn kind(&self) -> FontKind<'_> {
+    pub fn kind(&self) -> Kind<'_> {
         self.shared().kind()
     }
 
@@ -127,7 +127,7 @@ impl Font {
     ///
     /// For non-SFNT fonts, this will return an empty set of tables.
     #[inline]
-    pub fn tables(&self) -> &FontTables {
+    pub fn tables(&self) -> &Tables {
         self.shared().tables()
     }
 
@@ -137,29 +137,6 @@ impl Font {
             Repr::Default(_) => &[],
             Repr::Varied(varied) => varied.coords.as_slice(),
         }
-    }
-
-    /// Returns the feature variations this instance selects.
-    ///
-    /// The default location selects none. A variable font is meant to keep
-    /// working for a client that knows nothing of variations, and such a
-    /// client reaches the default instance without ever consulting this
-    /// table. Selecting here would render that font one way for it and
-    /// another for everyone else.
-    pub fn feature_variations(&self) -> FeatureVariations {
-        match &self.0 {
-            Repr::Default(_) => FeatureVariations::default(),
-            Repr::Varied(varied) => varied
-                .feature_vars
-                .load(&varied.font, varied.coords.as_slice()),
-        }
-    }
-
-    /// Returns measurements of individual glyphs, at this instance's
-    /// location.
-    #[inline]
-    pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        GlyphMetrics::new(self, self.global_metrics(), self.normalized_coords())
     }
 
     /// Returns the metrics describing the font as a whole, at this
@@ -172,6 +149,23 @@ impl Font {
                 debug_assert!(!varied.coords.as_slice().is_empty());
                 GlobalMetrics::from_sfnt(&varied.font.tables(), varied.coords.as_slice())
             }),
+        }
+    }
+
+    /// Returns measurements of individual glyphs, at this instance's
+    /// location.
+    #[inline]
+    pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        GlyphMetrics::new(self, self.global_metrics(), self.normalized_coords())
+    }
+
+    /// Returns the layout feature variations this instance selects.
+    pub fn feature_variations(&self) -> FeatureVariations {
+        match &self.0 {
+            Repr::Default(_) => FeatureVariations::default(),
+            Repr::Varied(varied) => varied
+                .feature_vars
+                .load(&varied.font, varied.coords.as_slice()),
         }
     }
 }
@@ -708,15 +702,15 @@ impl SharedFont {
     /// (ttc or otc) file. It is ignored if the data source is not a blob.
     ///
     /// Returns `None` if the source holds no font in a supported format.
-    fn new(source: impl Into<FontSource>, index: u32) -> Option<Self> {
+    fn new(source: impl Into<Source>, index: u32) -> Option<Self> {
         let source = source.into();
-        let kind = if let Ok(tables) = FontTables::new(source.clone(), index) {
-            Some(FontKindRepr::Sfnt(Arc::new(tables), index))
-        } else if let FontSource::Blob(blob) = &source {
-            match FontFormat::new(blob) {
-                Some(FontFormat::Type1) => Type1Font::new(blob)
+        let kind = if let Ok(tables) = Tables::new(source.clone(), index) {
+            Some(KindRepr::Sfnt(Arc::new(tables), index))
+        } else if let Source::Blob(blob) = &source {
+            match Format::new(blob) {
+                Some(Format::Type1) => Type1Font::new(blob)
                     .ok()
-                    .map(|font| FontKindRepr::Type1(Box::new(font))),
+                    .map(|font| KindRepr::Type1(Box::new(font))),
                 // TODO: pure CFF fonts
                 _ => None,
             }
@@ -740,15 +734,15 @@ impl SharedFont {
     }
 
     /// Returns the underlying source of font data.
-    fn source(&self) -> &FontSource {
+    fn source(&self) -> &Source {
         &self.0.source
     }
 
     /// Returns the underlying kind of the font.
-    fn kind(&self) -> FontKind<'_> {
+    fn kind(&self) -> Kind<'_> {
         match &self.0.kind {
-            FontKindRepr::Sfnt(tables, index) => FontKind::Sfnt(tables, *index),
-            FontKindRepr::Type1(font) => FontKind::Type1(font),
+            KindRepr::Sfnt(tables, index) => Kind::Sfnt(tables, *index),
+            KindRepr::Type1(font) => Kind::Type1(font),
         }
     }
 
@@ -757,7 +751,7 @@ impl SharedFont {
     #[inline]
     fn global_metrics(&self) -> &GlobalMetrics {
         self.0.global_metrics.get_or_init(|| match self.kind() {
-            FontKind::Type1(font) => GlobalMetrics::from_type1(font),
+            Kind::Type1(font) => GlobalMetrics::from_type1(font),
             _ => GlobalMetrics::from_sfnt(&self.tables(), &[]),
         })
     }
@@ -779,9 +773,9 @@ impl SharedFont {
     }
 
     /// Returns the tables behind this font, for a cache that holds them.
-    fn tables_arc(&self) -> Option<&Arc<FontTables>> {
+    fn tables_arc(&self) -> Option<&Arc<Tables>> {
         match &self.0.kind {
-            FontKindRepr::Sfnt(tables, _) => Some(tables),
+            KindRepr::Sfnt(tables, _) => Some(tables),
             _ => None,
         }
     }
@@ -874,8 +868,8 @@ impl SharedFont {
     /// Returns an object that provides access to individual font tables.
     ///
     /// For non-SFNT fonts, this will return an empty set of tables.
-    fn tables(&self) -> &FontTables {
-        if let FontKindRepr::Sfnt(tables, _) = &self.0.kind {
+    fn tables(&self) -> &Tables {
+        if let KindRepr::Sfnt(tables, _) = &self.0.kind {
             tables
         } else {
             &tables::EMPTY_FONT_TABLES
@@ -884,8 +878,8 @@ impl SharedFont {
 }
 
 struct SharedFontRepr {
-    source: FontSource,
-    kind: FontKindRepr,
+    source: Source,
+    kind: KindRepr,
     // Storage cell for lazily loaded HarfRust shaping data.
     shaping_data: Once<Box<dyn Any + Send + Sync>>,
     // Metrics that describe the font as a whole, at the default location,
@@ -911,9 +905,9 @@ struct SharedFontRepr {
 
 /// The underlying type of a font.
 #[derive(Clone)]
-pub enum FontKind<'a> {
+pub enum Kind<'a> {
     /// An SFNT-based font represented by a set of tables and an index.
-    Sfnt(&'a FontTables, u32),
+    Sfnt(&'a Tables, u32),
     /// An Adobe Type1 font.
     Type1(&'a Type1Font),
     /// A CFF font with an associated index.
@@ -921,8 +915,8 @@ pub enum FontKind<'a> {
 }
 
 /// The underlying type of a font.
-enum FontKindRepr {
-    Sfnt(Arc<FontTables>, u32),
+enum KindRepr {
+    Sfnt(Arc<Tables>, u32),
     // Boxed: a `Type1Font` is an order of magnitude larger than the sfnt
     // variant, and inline it would be paid by every font that is not one.
     Type1(Box<Type1Font>),
@@ -1186,11 +1180,11 @@ mod tests {
         // instance must not read `MVAR` the way its whole-font metrics do.
         let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
         let logged = asked.clone();
-        let source: Arc<dyn Fn(Tag) -> Option<crate::model::FontBlob> + Send + Sync> =
+        let source: Arc<dyn Fn(Tag) -> Option<crate::model::Blob> + Send + Sync> =
             Arc::new(move |tag: Tag| {
                 logged.lock().unwrap().push(tag);
                 let font = crate::FontRef::new(MVAR_FONT).ok()?;
-                Some(crate::model::FontBlob::from(
+                Some(crate::model::Blob::from(
                     font.table_data(tag)?.as_bytes().to_vec(),
                 ))
             });
