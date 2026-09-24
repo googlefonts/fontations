@@ -19,14 +19,8 @@ pub mod interop;
 use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
 use super::once::Once;
 use crate::tables::{
-    avar::Avar,
-    fvar::Fvar,
-    glyf::Glyf,
-    gvar::Gvar,
-    hvar::Hvar,
-    layout::{self, Condition},
-    loca::Loca,
-    vvar::Vvar,
+    avar::Avar, fvar::Fvar, glyf::Glyf, gvar::Gvar, hvar::Hvar, layout::SelectedFeatureVariations,
+    loca::Loca, vvar::Vvar,
 };
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
@@ -160,9 +154,9 @@ impl Font {
     }
 
     /// Returns the layout feature variations this instance selects.
-    pub fn feature_variations(&self) -> FeatureVariations {
+    pub fn feature_variations(&self) -> SelectedFeatureVariations {
         match &self.0 {
-            Repr::Default(_) => FeatureVariations::default(),
+            Repr::Default(_) => SelectedFeatureVariations::default(),
             Repr::Varied(varied) => varied
                 .feature_vars
                 .load(&varied.font, varied.coords.as_slice()),
@@ -551,30 +545,10 @@ impl CoordStorage {
     }
 }
 
-/// Feature variation selections for the layout tables.
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub struct FeatureVariations {
-    gsub: Option<u32>,
-    gpos: Option<u32>,
-}
-
-impl FeatureVariations {
-    /// Returns the selected feature variation index for the GSUB table, if any.
-    pub fn gsub(&self) -> Option<u32> {
-        self.gsub
-    }
-
-    /// Returns the selected feature variation index for the GPOS table, if any.
-    pub fn gpos(&self) -> Option<u32> {
-        self.gpos
-    }
-}
-
 /// Lazy atomic storage for feature variation selections.
 ///
 /// We don't want to load the GSUB and GPOS tables unless explicitly requested.
 struct FeatureVarsStorage {
-    status: AtomicU32,
     gsub: AtomicU32,
     gpos: AtomicU32,
 }
@@ -586,106 +560,51 @@ impl Default for FeatureVarsStorage {
 }
 
 impl FeatureVarsStorage {
-    /// We haven't checked yet.
-    const UNCHECKED: u32 = 0;
-    /// We have a selected feature variation.
-    const PRESENT: u32 = 1;
-    /// We don't have a selected feature variation.
-    const ABSENT: u32 = 2;
-    /// Both GSUB and GPOS don't have a selected feature variation.
-    const BOTH_ABSENT: u32 = Self::ABSENT | (Self::ABSENT << Self::GPOS_SHIFT);
-    /// GPOS status is packed in the high 16 bits. GSUB status is packed in the
-    /// low 16 bits.
-    const GPOS_SHIFT: u32 = 16;
+    // Both sentinels sit where no record index reaches: a feature variation
+    // record is eight bytes, so indexing this high would take a font of tens
+    // of gigabytes.
+    /// Nothing has read the tables yet.
+    const UNCHECKED: u32 = u32::MAX;
+    /// The tables were read and selected nothing.
+    const ABSENT: u32 = u32::MAX - 1;
 
     fn new() -> Self {
         Self {
-            status: AtomicU32::new(Self::UNCHECKED),
-            gsub: AtomicU32::new(0),
-            gpos: AtomicU32::new(0),
+            gsub: AtomicU32::new(Self::UNCHECKED),
+            gpos: AtomicU32::new(Self::UNCHECKED),
         }
     }
 
-    fn load(&self, font: &SharedFont, coords: &[NormalizedCoord]) -> FeatureVariations {
-        let mut status = self.status.load(atomic::Ordering::Acquire);
-        if status == Self::UNCHECKED {
-            let tables = font.tables();
-            let feature_var_tables = [
-                tables
-                    .gsub()
-                    .ok()
-                    .and_then(|gsub| gsub.feature_variations().transpose().ok().flatten()),
-                tables
-                    .gpos()
-                    .ok()
-                    .and_then(|gpos| gpos.feature_variations().transpose().ok().flatten()),
-            ];
-            for (i, (table, state)) in feature_var_tables
-                .iter()
-                .zip([&self.gsub, &self.gpos])
-                .enumerate()
-            {
-                let mut table_status = Self::ABSENT;
-                if let Some(table) = table {
-                    if let Some(index) = feature_variation_index(table, coords) {
-                        state.store(index, atomic::Ordering::Release);
-                        table_status = Self::PRESENT;
-                    }
-                }
-                status |= table_status << (i * Self::GPOS_SHIFT as usize);
-            }
-            self.status.store(status, atomic::Ordering::Release);
+    fn load(&self, font: &SharedFont, coords: &[NormalizedCoord]) -> SelectedFeatureVariations {
+        let (gsub, gpos) = (
+            self.gsub.load(atomic::Ordering::Acquire),
+            self.gpos.load(atomic::Ordering::Acquire),
+        );
+        if gsub != Self::UNCHECKED && gpos != Self::UNCHECKED {
+            return SelectedFeatureVariations {
+                gsub: Self::decode(gsub),
+                gpos: Self::decode(gpos),
+            };
         }
-        if status != Self::BOTH_ABSENT {
-            let gsub_status = status & 0xFFFF;
-            let gpos_status = (status >> Self::GPOS_SHIFT) & 0xFFFF;
-            FeatureVariations {
-                gsub: (gsub_status == Self::PRESENT)
-                    .then(|| self.gsub.load(atomic::Ordering::Acquire)),
-                gpos: (gpos_status == Self::PRESENT)
-                    .then(|| self.gpos.load(atomic::Ordering::Acquire)),
-            }
-        } else {
-            FeatureVariations::default()
-        }
+        // Two threads that race here select the same indices, so the second
+        // store writes what the first did.
+        let selected = SelectedFeatureVariations::new(&font.tables(), coords);
+        self.gsub
+            .store(Self::encode(selected.gsub), atomic::Ordering::Release);
+        self.gpos
+            .store(Self::encode(selected.gpos), atomic::Ordering::Release);
+        selected
     }
-}
 
-fn feature_variation_index(
-    feature_vars: &layout::FeatureVariations,
-    coords: &[NormalizedCoord],
-) -> Option<u32> {
-    for (index, rec) in feature_vars.feature_variation_records().iter().enumerate() {
-        // If the ConditionSet offset is 0, this is treated as the
-        // universal condition: all contexts are matched.
-        if rec.condition_set_offset().is_null() {
-            return Some(index as u32);
-        }
-        let Some(Ok(condition_set)) = rec.condition_set(feature_vars.offset_data()) else {
-            continue;
-        };
-        // Otherwise, all conditions must be satisfied.
-        if condition_set
-            .conditions()
-            .iter()
-            // .. except we ignore errors
-            .filter_map(Result::ok)
-            .all(|cond| match cond {
-                Condition::Format1AxisRange(format1) => {
-                    let coord = coords
-                        .get(format1.axis_index() as usize)
-                        .copied()
-                        .unwrap_or_default();
-                    coord >= format1.filter_range_min_value()
-                        && coord <= format1.filter_range_max_value()
-                }
-                _ => false,
-            })
-        {
-            return Some(index as u32);
-        }
+    /// Returns the index a stored word holds, if it holds one.
+    fn decode(value: u32) -> Option<u32> {
+        (value < Self::ABSENT).then_some(value)
     }
-    None
+
+    /// Returns the word that stores a selection.
+    fn encode(index: Option<u32>) -> u32 {
+        index.unwrap_or(Self::ABSENT)
+    }
 }
 
 /// The state every instance of a font shares.
@@ -1026,7 +945,7 @@ mod tests {
         for (fill, [gsub, gpos]) in cases {
             let instance = font.instance_builder().variations([("FILL", fill)]).build();
             let feature_vars = instance.feature_variations();
-            let actual = [feature_vars.gsub(), feature_vars.gpos()];
+            let actual = [feature_vars.gsub, feature_vars.gpos];
             assert_eq!(actual, [gsub, gpos], "fill={fill}");
         }
     }
@@ -1035,11 +954,26 @@ mod tests {
     fn feature_variation_cache_marks_both_absent() {
         let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
         let instance = font.instance_builder().variations([("FILL", 0.5)]).build();
-        assert_eq!(instance.feature_vars().status.load(Ordering::Acquire), 0);
-        assert_eq!(instance.feature_variations(), FeatureVariations::default());
+        let storage = instance.feature_vars();
         assert_eq!(
-            instance.feature_vars().status.load(Ordering::Acquire),
-            FeatureVarsStorage::BOTH_ABSENT
+            storage.gsub.load(Ordering::Acquire),
+            FeatureVarsStorage::UNCHECKED
+        );
+        assert_eq!(
+            storage.gpos.load(Ordering::Acquire),
+            FeatureVarsStorage::UNCHECKED
+        );
+        assert_eq!(
+            instance.feature_variations(),
+            SelectedFeatureVariations::default()
+        );
+        assert_eq!(
+            storage.gsub.load(Ordering::Acquire),
+            FeatureVarsStorage::ABSENT
+        );
+        assert_eq!(
+            storage.gpos.load(Ordering::Acquire),
+            FeatureVarsStorage::ABSENT
         );
     }
 
@@ -1054,7 +988,7 @@ mod tests {
                         let vars = instance.feature_variations();
                         assert_eq!(
                             vars,
-                            FeatureVariations {
+                            SelectedFeatureVariations {
                                 gsub: Some(0),
                                 gpos: None
                             }
@@ -1063,13 +997,12 @@ mod tests {
                 });
             }
         });
-        let status = instance.feature_vars().status.load(Ordering::Acquire);
-        assert_eq!(status & 0xFFFF, FeatureVarsStorage::PRESENT);
+        let storage = instance.feature_vars();
+        assert_eq!(storage.gsub.load(Ordering::Acquire), 0);
         assert_eq!(
-            (status >> FeatureVarsStorage::GPOS_SHIFT) & 0xFFFF,
+            storage.gpos.load(Ordering::Acquire),
             FeatureVarsStorage::ABSENT
         );
-        assert_eq!(instance.feature_vars().gsub.load(Ordering::Acquire), 0);
     }
 
     #[test]
