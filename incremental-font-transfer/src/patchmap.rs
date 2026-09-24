@@ -263,10 +263,6 @@ fn add_intersecting_patches(
             continue;
         }
 
-        let [first_url, preload_urls @ ..] = e.urls.as_slice() else {
-            continue;
-        };
-
         // for invalidating keyed patches we need to record information about
         // intersection size to use later for patch selection. Only the first
         // url in an entry needs to be updated because only the first url is
@@ -279,14 +275,14 @@ fn add_intersecting_patches(
             IntersectionInfo::from_order(order)
         };
 
-        patches.push(first_url.clone().into_entry(
-            preload_urls.to_vec(),
+        patches.push(e.url.clone().into_entry(
+            e.preload_urls.to_vec(),
             source_table.clone(),
             e.format,
             intersection_info,
         ));
         application_bit_indices
-            .entry(first_url.clone())
+            .entry(e.url.clone())
             .or_default()
             .insert(e.application_flag_bit_index);
     }
@@ -298,11 +294,7 @@ fn add_intersecting_patches(
     // So reloop through all decoded entries and collect the indices for
     // any which match an intersected entry.
     for e in entries.iter().filter(|e| !e.ignored) {
-        let Some(first_url) = e.urls.first() else {
-            continue;
-        };
-
-        if let Some(indices) = application_bit_indices.get_mut(first_url) {
+        if let Some(indices) = application_bit_indices.get_mut(&e.url) {
             indices.insert(e.application_flag_bit_index);
         }
     }
@@ -544,7 +536,7 @@ fn decode_patch_format(
 
 fn decode_entry_deltas<const HAS_STRING_DATA: bool>(
     flags: EntryFormatFlags,
-    delta_data: &[u8],
+    mut delta_data: &[u8],
 ) -> Result<(Vec<i32>, &[u8]), ReadError> {
     if !flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) {
         return Ok((vec![], delta_data));
@@ -552,19 +544,17 @@ fn decode_entry_deltas<const HAS_STRING_DATA: bool>(
 
     let mut result: Vec<i32> = vec![];
     const WIDTH: usize = 3;
-    let mut index = 0usize;
     loop {
-        let (value, has_more) =
-            decode_entry_delta::<HAS_STRING_DATA>(&delta_data[index * WIDTH..])?;
+        let (value, has_more) = decode_entry_delta::<HAS_STRING_DATA>(delta_data)?;
         result.push(value);
-        index += 1;
+        delta_data = &delta_data[WIDTH..];
 
         if !has_more {
             break;
         }
     }
 
-    Ok((result, &delta_data[index * WIDTH..]))
+    Ok((result, delta_data))
 }
 
 fn decode_entry_delta<const HAS_STRING_DATA: bool>(
@@ -1048,7 +1038,8 @@ struct Entry {
     ignored: bool,
 
     // Value
-    urls: Vec<PatchUrl>,
+    url: PatchUrl,
+    preload_urls: Vec<PatchUrl>,
     format: PatchFormat,
     application_flag_bit_index: u32,
 }
@@ -1060,7 +1051,8 @@ impl Entry {
             child_indices: vec![],
             conjunctive_child_match: false,
             ignored: false,
-            urls: vec![],
+            url: PatchUrl::new(""),
+            preload_urls: vec![],
             format: default_format,
             application_flag_bit_index,
         }
@@ -1110,25 +1102,22 @@ impl Entry {
         last_id: &mut PatchId,
         id_string_data: &mut Option<Cursor<&[u8]>>,
     ) -> Result<(), ReadError> {
-        if deltas.is_empty() {
-            let next_id = new_entry_id(None, last_id, id_string_data)?;
-            self.urls.push(
-                PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
-                    ReadError::MalformedData("Failed to expand url template in format 2 table.")
-                })?,
-            );
-            *last_id = next_id;
-            return Ok(());
-        }
+        let (first_delta, preload_deltas): (Option<i32>, &[i32]) = match deltas.as_slice() {
+            [] => (None, &[]),
+            [first, rest @ ..] => (Some(*first), rest),
+        };
+        *last_id = new_entry_id(first_delta, last_id, id_string_data)?;
+        self.url = PatchUrl::expand_template(url_template, last_id).map_err(|_| {
+            ReadError::MalformedData("Failed to expand url template in format 2 table.")
+        })?;
 
-        for delta in deltas {
-            let next_id = new_entry_id(Some(delta), last_id, id_string_data)?;
-            self.urls.push(
-                PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
-                    ReadError::MalformedData("Failed to expand url template in format 2 table.")
-                })?,
-            );
-            *last_id = next_id;
+        self.preload_urls.reserve(preload_deltas.len());
+        for delta in preload_deltas {
+            *last_id = new_entry_id(Some(*delta), last_id, id_string_data)?;
+            let url = PatchUrl::expand_template(url_template, last_id).map_err(|_| {
+                ReadError::MalformedData("Failed to expand url template in format 2 table.")
+            })?;
+            self.preload_urls.push(url);
         }
 
         Ok(())
@@ -2307,7 +2296,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2317,7 +2307,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2422,7 +2413,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2433,7 +2425,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
