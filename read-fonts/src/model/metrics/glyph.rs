@@ -451,7 +451,7 @@ pub(crate) fn empty() -> &'static RawGlyphMetrics<'static> {
 mod tests {
     use super::*;
     use crate::{
-        model::{pen::NullPen, Font, FontBlob, FontInstance, NormalizedCoord},
+        model::{pen::NullPen, FontBlob, NormalizedCoord},
         FontRef,
     };
     use alloc::{sync::Arc, vec, vec::Vec};
@@ -849,8 +849,8 @@ mod tests {
         }
     }
 
-    fn at(font: &Font, coord: f32) -> FontInstance {
-        FontInstance::builder(font)
+    fn at(font: &Font, coord: f32) -> Font {
+        font.instance_builder()
             .normalized_coords([NormalizedCoord::from_f32(coord)])
             .build()
     }
