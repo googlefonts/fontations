@@ -3,9 +3,7 @@
 //! This provides methods for selecting a maximal group of patches that are compatible with each other and
 //! additionally methods for applying that group of patches.
 
-use read_fonts::{
-    collections::IntSet, tables::ift::CompatibilityId, FontRef, ReadError, TableProvider,
-};
+use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
 use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
 use std::{
     cmp::Ordering,
@@ -15,8 +13,8 @@ use std::{
 use crate::{
     font_patch::{IncrementalFontPatchBase, PatchingError},
     patchmap::{
-        IftTableTag, IntersectionInfo, PatchFormat, PatchMap, PatchMapEntry, PatchUrl,
-        SubsetDefinition,
+        ApplicativeBitIndices, IftTableTag, IntersectionInfo, PatchFormat, PatchMap, PatchMapEntry,
+        PatchUrl, SubsetDefinition,
     },
 };
 
@@ -499,7 +497,7 @@ pub enum UrlStatus {
 pub struct PatchInfo {
     pub(crate) url: PatchUrl,
     pub(crate) source_table: IftTableTag,
-    pub(crate) application_flag_bit_indices: IntSet<u32>,
+    pub(crate) application_flag_bit_indices: ApplicativeBitIndices,
 }
 
 impl From<PatchMapEntry> for PatchInfo {
@@ -844,8 +842,7 @@ mod tests {
     }
 
     fn patch_info_ift(url: &str) -> PatchInfo {
-        let mut application_flag_bit_indices = IntSet::<u32>::empty();
-        application_flag_bit_indices.insert(42);
+        let application_flag_bit_indices = ApplicativeBitIndices::one(42);
         PatchInfo {
             url: PatchUrl::new(url),
             application_flag_bit_indices,
@@ -854,8 +851,7 @@ mod tests {
     }
 
     fn patch_info_iftx(url: &str) -> PatchInfo {
-        let mut application_flag_bit_indices = IntSet::<u32>::empty();
-        application_flag_bit_indices.insert(42);
+        let application_flag_bit_indices = ApplicativeBitIndices::one(42);
         PatchInfo {
             url: PatchUrl::new(url),
             application_flag_bit_indices,
@@ -2292,8 +2288,7 @@ mod tests {
         let all = SubsetDefinition::all();
         let group = PatchGroup::select_next_patches(new_font, &Default::default(), &all).unwrap();
         let mut info = patch_info_iftx("foo/04");
-        info.application_flag_bit_indices.clear();
-        info.application_flag_bit_indices.insert(334);
+        info.application_flag_bit_indices = ApplicativeBitIndices::one(334);
         assert_eq!(
             group.patches.unwrap(),
             CompatibleGroup::Mixed {
