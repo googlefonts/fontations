@@ -36,8 +36,12 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let glyph_map = &plan.glyph_map_gsub;
-        let (cov_glyphs, seq_idxes) =
-            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, glyph_map);
+        let (cov_glyphs, seq_idxes) = intersected_glyphs_and_indices(
+            &coverage,
+            &plan.glyphset_gsub,
+            glyph_map,
+            self.sequence_count(),
+        );
 
         if cov_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);

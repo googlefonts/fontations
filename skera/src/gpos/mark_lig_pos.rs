@@ -120,8 +120,12 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
 
         // mark array offset
         let mark_array_offset_pos = s.embed(0_u16)?;
-        let (mark_glyphs, mark_record_idxes) =
-            intersected_glyphs_and_indices(&mark_coverage, glyph_set, glyph_map);
+        let (mark_glyphs, mark_record_idxes) = intersected_glyphs_and_indices(
+            &mark_coverage,
+            glyph_set,
+            glyph_map,
+            mark_array.mark_count(),
+        );
 
         Offset16::serialize_serialize::<CoverageTable>(s, &mark_glyphs, mark_cov_offset_pos)?;
         Offset16::serialize_subset(
@@ -142,8 +146,12 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
             .ligature_array()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (lig_glyphs, lig_attach_idxes) =
-            intersected_glyphs_and_indices(&lig_coverage, glyph_set, glyph_map);
+        let (lig_glyphs, lig_attach_idxes) = intersected_glyphs_and_indices(
+            &lig_coverage,
+            glyph_set,
+            glyph_map,
+            lig_array.ligature_count(),
+        );
         if lig_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
