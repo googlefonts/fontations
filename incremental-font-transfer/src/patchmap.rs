@@ -85,6 +85,16 @@ impl PatchMap {
         Ok(result)
     }
 
+    /// Returns true if any patch intersects the specified subset definition.
+    ///
+    /// Cheaper than calling `intersecting_patches()` and checking whether it
+    /// returns a non-empty result: the search stops at the first intersecting
+    /// entry and no patch details are collected.
+    pub fn has_intersecting_patches(&self, subset_definition: &SubsetDefinition) -> bool {
+        self.tables()
+            .any(|table| table.has_patch(subset_definition))
+    }
+
     /// Iterates over the mapping tables present in the font, "IFT" before "IFTX".
     fn tables(&self) -> impl Iterator<Item = &PatchMapTable> {
         self.tables.iter().filter_map(Option::as_ref)
@@ -253,12 +263,23 @@ impl PatchMapTable {
         })
     }
 
+    fn has_patch(&self, subset_definition: &SubsetDefinition) -> bool {
+        let mut entry_intersection_cache =
+            EntryIntersectionCache::new(&self.entries, subset_definition);
+        for (order, e) in self.entries.iter().enumerate() {
+            if !e.ignored && entry_intersection_cache.intersects(order) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn add_intersecting_patches(
         &self,
         subset_definition: &SubsetDefinition,
         patches: &mut Vec<PatchMapEntry>,
     ) -> Result<(), ReadError> {
-        // Caches the result of intersection check for an entry index.
         let mut entry_intersection_cache =
             EntryIntersectionCache::new(&self.entries, subset_definition);
 
@@ -1240,8 +1261,8 @@ mod tests {
     use font_test_data as test_data;
     use font_test_data::ift::{
         child_indices, codepoints_only, custom_ids, features_and_design_space, string_ids,
-        string_ids_with_preloads, table_keyed_with_preload_urls, ABSOLUTE_URL_TEMPLATE,
-        RELATIVE_URL_TEMPLATE,
+        string_ids_with_preloads, table_keyed, table_keyed_with_preload_urls,
+        ABSOLUTE_URL_TEMPLATE, RELATIVE_URL_TEMPLATE,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::types::Int24;
@@ -1365,14 +1386,11 @@ mod tests {
         design_space: DesignSpace,
         expected_entries: [ExpectedEntry; P],
     ) {
-        let patches = PatchMap::new(font)
-            .unwrap()
-            .intersecting_patches(&SubsetDefinition::new(
-                IntSet::from(codepoints),
-                tags,
-                design_space,
-            ))
-            .unwrap();
+        let subset_definition = SubsetDefinition::new(IntSet::from(codepoints), tags, design_space);
+        let map = PatchMap::new(font).unwrap();
+        let patches = map.intersecting_patches(&subset_definition).unwrap();
+
+        check_has_intersecting_consistency(&map, &subset_definition, &patches);
 
         let expected: Vec<_> = expected_entries
             .iter()
@@ -1418,14 +1436,15 @@ mod tests {
         url_template: &[u8],
         expected_entries: [ExpectedEntry; N],
     ) {
-        let patches = PatchMap::new(font)
-            .unwrap()
-            .intersecting_patches(&SubsetDefinition::new(
-                IntSet::<u32>::all(),
-                FeatureSet::from(tags),
-                Default::default(),
-            ))
-            .unwrap();
+        let subset_definition = SubsetDefinition::new(
+            IntSet::<u32>::all(),
+            FeatureSet::from(tags),
+            Default::default(),
+        );
+        let map = PatchMap::new(font).unwrap();
+        let patches = map.intersecting_patches(&subset_definition).unwrap();
+
+        check_has_intersecting_consistency(&map, &subset_definition, &patches);
 
         let expected: Vec<_> = expected_entries
             .iter()
@@ -1470,6 +1489,22 @@ mod tests {
                 .unwrap()
                 .as_ref(),
             expected,
+        );
+    }
+
+    /// Guards the contract that `has_intersecting_patches()` is true
+    /// iff `intersecting_patches()` returns at least one patch.
+    fn check_has_intersecting_consistency(
+        map: &PatchMap,
+        subset_definition: &SubsetDefinition,
+        patches: &[PatchMapEntry],
+    ) {
+        let has_intersecting_patches = map.has_intersecting_patches(subset_definition);
+        let patches_count = patches.len();
+        assert_eq!(
+            has_intersecting_patches,
+            patches_count > 0,
+            "has_intersecting_patches() = {has_intersecting_patches:?} must agree with intersecting_patches() (length = {patches_count})"
         );
     }
 
@@ -2023,6 +2058,54 @@ mod tests {
                 expected_info,
             ),
         );
+    }
+
+    #[test]
+    fn patch_map_has_intersecting_no_tables() {
+        let font_bytes =
+            create_ift_font(FontRef::new(test_data::ift::IFT_BASE).unwrap(), None, None);
+        let map = PatchMap::new(&FontRef::new(&font_bytes).unwrap()).unwrap();
+
+        assert!(!map.has_intersecting_patches(&SubsetDefinition::all()));
+        assert!(!PatchMap::default().has_intersecting_patches(&SubsetDefinition::all()));
+    }
+
+    #[test]
+    fn patch_map_has_intersecting_only_ignored_entry() {
+        // custom_ids() entries[2] is IGNORED and carries no codepoint set, so
+        // it intersects any subset definition. Every other entry covers only
+        // low codepoints, so a subset of {100} intersects the ignored entry
+        // and nothing else.
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&custom_ids()),
+            None,
+        );
+        let map = PatchMap::new(&FontRef::new(&font_bytes).unwrap()).unwrap();
+
+        let subset = SubsetDefinition::codepoints(IntSet::from([100]));
+        assert!(map.intersecting_patches(&subset).unwrap().is_empty());
+        assert!(!map.has_intersecting_patches(&subset));
+    }
+
+    #[test]
+    fn patch_map_has_intersecting_iftx_table() {
+        // The IFT table (table_keyed()) covers only low codepoints, while the
+        // IFTX table (codepoints_only()) also covers [80_005..80_022].
+        let font_bytes = create_ift_font(
+            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
+            Some(&table_keyed()),
+            Some(&codepoints_only()),
+        );
+        let map = PatchMap::new(&FontRef::new(&font_bytes).unwrap()).unwrap();
+
+        // Only the IFTX table has a matching entry, so both tables must be
+        // searched.
+        let iftx_only = SubsetDefinition::codepoints(IntSet::from([80_007]));
+        assert!(map.has_intersecting_patches(&iftx_only));
+
+        let neither_table = SubsetDefinition::codepoints(IntSet::from([100]));
+        assert!(!map.has_intersecting_patches(&neither_table));
     }
 
     #[test]
