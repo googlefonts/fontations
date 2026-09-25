@@ -44,30 +44,29 @@ use crate::url_templates::UrlTemplateError;
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct PatchMap {
-    tables: [Option<(IftTableTag, Vec<Entry>)>; 2],
+    tables: [Option<PatchMapTable>; 2],
+}
+
+/// # TODO
+///
+/// Optionally store indexes or other data to accelerate intersection.
+#[derive(Clone, Debug)]
+struct PatchMapTable {
+    tag: IftTableTag,
+    entries: Vec<Entry>,
 }
 
 impl PatchMap {
     /// Decodes the IFT and IFTX patch mappings found in `font`.
     pub fn new(font: &FontRef) -> Result<PatchMap, ReadError> {
-        fn decode(
-            font: &FontRef,
-            table_tag: Tag,
-            tag: fn(CompatibilityId) -> IftTableTag,
-        ) -> Result<Option<(IftTableTag, Vec<Entry>)>, ReadError> {
-            let Some(data) = font.data_for_tag(table_tag) else {
-                return Ok(None);
-            };
-            let map = IftPatchMap::read(data)?;
-            IftTableTag::check_format(&map)?;
-            let id = map.compatibility_id();
-            let entries = decode_entries(&map)?;
-            Ok(Some((tag(id), entries)))
-        }
         Ok(PatchMap {
             tables: [
-                decode(font, IFT_TAG, IftTableTag::Ift)?,
-                decode(font, IFTX_TAG, IftTableTag::Iftx)?,
+                font.data_for_tag(IFT_TAG)
+                    .map(|data| PatchMapTable::new(data, IftTableTag::Ift))
+                    .transpose()?,
+                font.data_for_tag(IFTX_TAG)
+                    .map(|data| PatchMapTable::new(data, IftTableTag::Iftx))
+                    .transpose()?,
             ],
         })
     }
@@ -79,22 +78,16 @@ impl PatchMap {
     ) -> Result<Vec<PatchMapEntry>, ReadError> {
         let mut result: Vec<PatchMapEntry> = vec![];
 
-        for (tag, entries) in self.tables() {
-            add_intersecting_patches(tag, entries, subset_definition, &mut result)?;
+        for table in self.tables() {
+            table.add_intersecting_patches(subset_definition, &mut result)?;
         }
 
         Ok(result)
     }
 
     /// Iterates over the mapping tables present in the font, "IFT" before "IFTX".
-    fn tables(&self) -> impl Iterator<Item = (&IftTableTag, &[Entry])> {
-        fn item_as_ref(
-            item: &Option<(IftTableTag, Vec<Entry>)>,
-        ) -> Option<(&IftTableTag, &[Entry])> {
-            let (tag, entries) = item.as_ref()?;
-            Some((tag, entries.as_slice()))
-        }
-        self.tables.iter().filter_map(item_as_ref)
+    fn tables(&self) -> impl Iterator<Item = &PatchMapTable> {
+        self.tables.iter().filter_map(Option::as_ref)
     }
 }
 
@@ -240,90 +233,105 @@ impl<'a> EntryIntersectionCache<'a> {
     }
 }
 
-/// # TODO
-///
-/// Optionally store indexes or other data to accelerate intersection.
-fn add_intersecting_patches(
-    source_table: &IftTableTag,
-    entries: &[Entry],
-    subset_definition: &SubsetDefinition,
-    patches: &mut Vec<PatchMapEntry>,
-) -> Result<(), ReadError> {
-    // Caches the result of intersection check for an entry index.
-    let mut entry_intersection_cache = EntryIntersectionCache::new(entries, subset_definition);
+impl PatchMapTable {
+    fn new(
+        table: FontData,
+        tag: fn(CompatibilityId) -> IftTableTag,
+    ) -> Result<PatchMapTable, ReadError> {
+        let map = IftPatchMap::read(table)?;
+        IftTableTag::check_format(&map)?;
+        let id = map.compatibility_id();
+        let entries = decode_entries(&map)?;
+        Ok(PatchMapTable {
+            tag: tag(id),
+            entries,
+        })
+    }
 
-    let mut application_bit_indices: HashMap<PatchUrl, ApplicativeBitIndices> = Default::default();
-    let new_patches_first_index = patches.len();
+    fn add_intersecting_patches(
+        &self,
+        subset_definition: &SubsetDefinition,
+        patches: &mut Vec<PatchMapEntry>,
+    ) -> Result<(), ReadError> {
+        // Caches the result of intersection check for an entry index.
+        let mut entry_intersection_cache =
+            EntryIntersectionCache::new(&self.entries, subset_definition);
 
-    for (order, e) in entries.iter().enumerate() {
-        if e.ignored {
-            continue;
-        }
+        let mut application_bit_indices: HashMap<PatchUrl, ApplicativeBitIndices> =
+            Default::default();
+        let new_patches_first_index = patches.len();
 
-        if !entry_intersection_cache.intersects(order) {
-            continue;
-        }
-
-        // for invalidating keyed patches we need to record information about
-        // intersection size to use later for patch selection. Only the first
-        // url in an entry needs to be updated because only the first url is
-        // used for selection.
-        let intersection_info = if e.format.is_invalidating() {
-            let subset = entry_intersection_cache.coverage_intersection(order)?;
-            IntersectionInfo::from_subset(subset, order)
-        } else {
-            // non-invalidating entries still require information on entry order so just record that.
-            IntersectionInfo::from_order(order)
-        };
-
-        patches.push(e.url.clone().into_entry(
-            e.preload_urls.to_vec(),
-            source_table.clone(),
-            e.format,
-            intersection_info,
-        ));
-
-        match application_bit_indices.entry(e.url.clone()) {
-            hash_map::Entry::Occupied(mut occupied) => {
-                occupied.get_mut().insert(e.application_flag_bit_index);
+        for (order, e) in self.entries.iter().enumerate() {
+            if e.ignored {
+                continue;
             }
-            hash_map::Entry::Vacant(vacant) => {
-                vacant.insert(ApplicativeBitIndices::one(e.application_flag_bit_index));
+
+            if !entry_intersection_cache.intersects(order) {
+                continue;
+            }
+
+            // for invalidating keyed patches we need to record information about
+            // intersection size to use later for patch selection. Only the first
+            // url in an entry needs to be updated because only the first url is
+            // used for selection.
+            let intersection_info = if e.format.is_invalidating() {
+                let subset = entry_intersection_cache.coverage_intersection(order)?;
+                IntersectionInfo::from_subset(subset, order)
+            } else {
+                // non-invalidating entries still require information on entry order so just record that.
+                IntersectionInfo::from_order(order)
+            };
+
+            patches.push(e.url.clone().into_entry(
+                e.preload_urls.to_vec(),
+                self.tag.clone(),
+                e.format,
+                intersection_info,
+            ));
+
+            match application_bit_indices.entry(e.url.clone()) {
+                hash_map::Entry::Occupied(mut occupied) => {
+                    occupied.get_mut().insert(e.application_flag_bit_index);
+                }
+                hash_map::Entry::Vacant(vacant) => {
+                    vacant.insert(ApplicativeBitIndices::one(e.application_flag_bit_index));
+                }
             }
         }
-    }
 
-    // In format 2 there may be non intersected entries that have urls
-    // that are the same as other intersected entries. We need to record
-    // the application bit indices for these
-    //
-    // So reloop through all decoded entries and collect the indices for
-    // any which match an intersected entry.
-    for e in entries.iter().filter(|e| !e.ignored) {
-        if let Some(indices) = application_bit_indices.get_mut(&e.url) {
-            indices.insert(e.application_flag_bit_index);
+        // In format 2 there may be non intersected entries that have urls
+        // that are the same as other intersected entries. We need to record
+        // the application bit indices for these
+        //
+        // So reloop through all decoded entries and collect the indices for
+        // any which match an intersected entry.
+        for e in self.entries.iter().filter(|e| !e.ignored) {
+            if let Some(indices) = application_bit_indices.get_mut(&e.url) {
+                indices.insert(e.application_flag_bit_index);
+            }
         }
-    }
 
-    // Lastly copy the aggregated application bit indices back into
-    // the individual patch map entries.
-    let new_patches = &mut patches[new_patches_first_index..];
-    // We modify a application_bit_indices for each newly added patch. If the number of
-    // application_bit_indices is the same as the number of new patches, then the mapping from patch
-    // to application_bit_indices key is 1:1.
-    let has_unique_patch_urls = application_bit_indices.len() == new_patches.len();
-    for p in new_patches {
-        if has_unique_patch_urls {
-            p.application_bit_indices = application_bit_indices.remove(&p.url).unwrap_or_default();
-        } else {
-            p.application_bit_indices = application_bit_indices
-                .get(&p.url)
-                .cloned()
-                .unwrap_or_default();
+        // Lastly copy the aggregated application bit indices back into
+        // the individual patch map entries.
+        let new_patches = &mut patches[new_patches_first_index..];
+        // We modify a application_bit_indices for each newly added patch. If the number of
+        // application_bit_indices is the same as the number of new patches, then the mapping from patch
+        // to application_bit_indices key is 1:1.
+        let has_unique_patch_urls = application_bit_indices.len() == new_patches.len();
+        for p in new_patches {
+            if has_unique_patch_urls {
+                p.application_bit_indices =
+                    application_bit_indices.remove(&p.url).unwrap_or_default();
+            } else {
+                p.application_bit_indices = application_bit_indices
+                    .get(&p.url)
+                    .cloned()
+                    .unwrap_or_default();
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
