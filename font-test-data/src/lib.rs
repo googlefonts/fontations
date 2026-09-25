@@ -135,6 +135,7 @@ pub mod morx {
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
+    pub static STATIC_GVAR: &[u8] = include_bytes!("../test_data/ttf/varc-static-gvar.ttf");
 }
 
 pub mod closure {
