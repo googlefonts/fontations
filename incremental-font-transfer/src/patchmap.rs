@@ -240,10 +240,15 @@ impl PatchMapTable {
     ) -> Result<PatchMapTable, ReadError> {
         let map = IftPatchMap::read(table)?;
         IftTableTag::check_format(&map)?;
-        let id = map.compatibility_id();
-        let entries = decode_entries(&map)?;
+        let entry_decoder = EntryDecoder::new(&map)?;
+        let mut entries = Vec::<Entry>::with_capacity(entry_decoder.size_hint().1.unwrap_or(0));
+        for entry_result in entry_decoder {
+            // We could use collect here, but it doesn't properly pre-allocate memory when collecting to
+            // `Result<Vec<_>, _>`.
+            entries.push(entry_result?);
+        }
         Ok(PatchMapTable {
-            tag: tag(id),
+            tag: tag(map.compatibility_id()),
             entries,
         })
     }
@@ -334,65 +339,97 @@ impl PatchMapTable {
     }
 }
 
-fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
-    let url_template = map.url_template();
-    let entries_data = map.entries()?.entry_data();
-    let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
+struct EntryDecoder<'a> {
+    /// Bytes starting at the next entry to decode.
+    data: FontData<'a>,
+    /// Byte offset of `data` within the patch map table.
+    data_start_byte_offset: usize,
+    /// Template used to build patch URLs.
+    url_template: &'a [u8],
+    /// Patch format used when an entry does not specify one.
+    default_format: PatchFormat,
+    /// String ID data, when the map uses string IDs.
+    id_string_data: Option<Cursor<&'a [u8]>>,
+    /// ID from which the next entry's ID is derived.
+    last_entry_id: PatchId,
+    /// Number of entries decoded successfully.
+    decoded_count: usize,
+    /// Entry index at which iteration stops; reduced on a decode error.
+    end_count: usize,
+}
 
-    let entry_count = map.entry_count().to_u32();
-    let mut entries_data = FontData::new(entries_data);
+impl<'a> Iterator for EntryDecoder<'a> {
+    type Item = Result<Entry, ReadError>;
 
-    let mut entry_start_byte = map.entries_offset().to_u32() as usize;
-
-    let mut id_string_data = map
-        .entry_id_string_data()
-        .transpose()?
-        .map(|table| table.id_data())
-        .map(Cursor::new);
-
-    let mut last_entry_id = if id_string_data.is_none() {
-        PatchId::Numeric(0)
-    } else {
-        PatchId::String(vec![])
-    };
-
-    let mut entries = Vec::<Entry>::with_capacity(entry_count as usize);
-    for _ in 0..entry_count {
-        let consumed_bytes;
-        (entries_data, consumed_bytes) = EntryDecoder {
-            data: entries_data,
-            data_start_index: entry_start_byte,
-            url_template,
-            default_format: default_encoding,
-            id_string_data: &mut id_string_data,
-            last_entry_id: &mut last_entry_id,
-            entries: &mut entries,
+    #[inline]
+    fn next(&mut self) -> Option<Result<Entry, ReadError>> {
+        if self.decoded_count < self.end_count {
+            Some(self.decode_next_assume_not_done())
+        } else {
+            None
         }
-        .decode_next()?;
-        entry_start_byte += consumed_bytes;
     }
 
-    Ok(entries)
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.end_count - self.decoded_count;
+        // Iteration is terminated on the first error so we may not necessarily decode all remaining
+        // items.
+        (usize::from(remaining > 0), Some(remaining))
+    }
 }
 
-struct EntryDecoder<'a, 'b> {
-    data: FontData<'a>,
-    data_start_index: usize,
-    url_template: &'a [u8],
-    default_format: PatchFormat,
-    id_string_data: &'b mut Option<Cursor<&'a [u8]>>,
-    last_entry_id: &'b mut PatchId,
-    entries: &'b mut Vec<Entry>,
-}
+impl<'a> EntryDecoder<'a> {
+    fn new(map: &IftPatchMap<'a>) -> Result<EntryDecoder<'a>, ReadError> {
+        let id_string_data = map
+            .entry_id_string_data()
+            .transpose()?
+            .map(|table| table.id_data())
+            .map(Cursor::new);
 
-impl<'a, 'b> EntryDecoder<'a, 'b> {
-    fn decode_next(self) -> Result<(FontData<'a>, usize), ReadError> {
+        let last_entry_id = if id_string_data.is_none() {
+            PatchId::Numeric(0)
+        } else {
+            PatchId::String(vec![])
+        };
+
+        Ok(EntryDecoder {
+            data: FontData::new(map.entries()?.entry_data()),
+            data_start_byte_offset: map.entries_offset().to_u32() as usize,
+            url_template: map.url_template(),
+            default_format: PatchFormat::from_format_number(map.default_patch_format())?,
+            id_string_data,
+            last_entry_id,
+            decoded_count: 0,
+            end_count: map.entry_count().to_u32() as usize,
+        })
+    }
+    /// Decode the next element.
+    ///
+    /// This assumes that `self.decoded_count` is less than `self.end_count`.
+    fn decode_next_assume_not_done(&mut self) -> Result<Entry, ReadError> {
+        match self.decode_next_impl() {
+            Ok((entry, data, consumed)) => {
+                self.data = data;
+                self.data_start_byte_offset += consumed;
+                self.decoded_count += 1;
+                Ok(entry)
+            }
+            Err(err) => {
+                self.end_count = self.decoded_count;
+                Err(err)
+            }
+        }
+    }
+
+    fn decode_next_impl(&mut self) -> Result<(Entry, FontData<'a>, usize), ReadError> {
         let entry_data = EntryData::read(self.data)?;
 
         // Record the index of the bit which when set causes this entry to be ignored.
         // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
-        let mut entry: Entry =
-            Entry::base_entry(self.default_format, (self.data_start_index as u32 * 8) + 6);
+        let mut entry: Entry = Entry::base_entry(
+            self.default_format,
+            (self.data_start_byte_offset as u32 * 8) + 6,
+        );
 
         // Features
         if let Some(features) = entry_data.feature_tags() {
@@ -407,7 +444,7 @@ impl<'a, 'b> EntryDecoder<'a, 'b> {
             entry_data.child_indices(),
             entry_data.match_mode_and_count(),
         ) {
-            let max_index = self.entries.len();
+            let max_index = self.decoded_count;
             let it = child_indices.iter().map(|v| Into::<usize>::into(v.get()));
             for i in it.clone() {
                 if i >= max_index {
@@ -455,8 +492,8 @@ impl<'a, 'b> EntryDecoder<'a, 'b> {
         entry.populate_urls(
             self.url_template,
             entry_deltas,
-            self.last_entry_id,
-            self.id_string_data,
+            &mut self.last_entry_id,
+            &mut self.id_string_data,
         )?;
 
         // Codepoints
@@ -474,10 +511,8 @@ impl<'a, 'b> EntryDecoder<'a, 'b> {
             .format_flags()
             .contains(EntryFormatFlags::IGNORED);
 
-        self.entries.push(entry);
-
         let consumed_bytes = entry_data.trailing_data_byte_range().end - trailing_data.len();
-        Ok((FontData::new(trailing_data), consumed_bytes))
+        Ok((entry, FontData::new(trailing_data), consumed_bytes))
     }
 }
 
