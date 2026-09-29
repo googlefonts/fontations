@@ -47,6 +47,14 @@ pub trait Scale {
     /// here.
     fn scale_y(&self, value: F48Dot16) -> Self::Value;
 
+    /// Whether varied glyf bounds are rounded to whole font units before
+    /// scaling. HarfBuzz and FreeType do this; a floating-point scale can
+    /// keep the fractional bounds instead. Other outline formats are
+    /// unaffected.
+    fn round_glyf_extents(&self) -> bool {
+        false
+    }
+
     /// Scales where a glyph's ink sits.
     ///
     /// One call rather than four, so that a scale running the other way up
@@ -124,6 +132,10 @@ impl Scale for Scale26Dot6 {
 
     fn scale_y(&self, value: F48Dot16) -> F26Dot6 {
         Self::scale(value, self.y)
+    }
+
+    fn round_glyf_extents(&self) -> bool {
+        true
     }
 
     fn scale_glyph_extents(&self, e: GlyphExtents<F48Dot16>) -> GlyphExtents<F26Dot6> {
@@ -369,6 +381,7 @@ pub struct ScaledGlyphMetrics<'a, S: Scale> {
     metrics: GlyphMetrics<'a>,
     scale: S,
     line: Option<LineExtents<S::Value>>,
+    extents: Option<&'a dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
 }
 
 impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
@@ -377,6 +390,7 @@ impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
             metrics,
             scale,
             line: None,
+            extents: None,
         }
     }
 
@@ -391,6 +405,27 @@ impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
     /// whatever it happens to have without first checking.
     pub fn with_line_extents(self, line: Option<LineExtents<S::Value>>) -> Self {
         Self { line, ..self }
+    }
+
+    /// Measures ink by a function the caller supplies rather than the font.
+    ///
+    /// A caller that measures glyphs elsewhere supplies that here, so the
+    /// metrics built on ink agree with the rest of what it reports. The
+    /// function answers in the same units as everything else this type
+    /// reports, so nothing is converted back into design units. `None` from
+    /// the function means extents are unavailable; return
+    /// `Some(GlyphExtents::default())` for a present glyph with no ink.
+    ///
+    /// `None` leaves the font's own measurement in place, so a caller can
+    /// pass whatever it happens to have without first checking.
+    ///
+    /// The function is borrowed for as long as the font data, so it outlives
+    /// any one measurement; a closure built for the call cannot be passed.
+    pub fn with_glyph_extents(
+        self,
+        extents: Option<&'a dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
+    ) -> Self {
+        Self { extents, ..self }
     }
 
     /// Returns the advance width of `glyph`.
@@ -444,6 +479,49 @@ impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
         }
         self.metrics
             .v_advance_batched(|value| convert(self.scale.scale_y(value)), glyphs);
+    }
+
+    /// Returns where `glyph`'s ink sits.
+    ///
+    /// An empty glyph has zero extents. `None` means the glyph is unavailable
+    /// or its extents could not be read. A supplied extents function may use
+    /// `None` for any glyph it does not measure.
+    #[inline]
+    pub fn extents(&self, glyph: GlyphId) -> Option<GlyphExtents<S::Value>> {
+        match self.extents {
+            Some(extents) => extents(glyph),
+            None => {
+                let mut extents = None;
+                self.metrics.extents_batched_with_glyf_rounding(
+                    |value| value.map(|extents| self.scale.scale_glyph_extents(extents)),
+                    core::iter::once((glyph, &mut extents)),
+                    self.scale.round_glyf_extents(),
+                );
+                extents
+            }
+        }
+    }
+
+    /// Writes where each glyph's ink sits to its slot, in order.
+    #[inline]
+    pub fn extents_batched<'o, V: 'o>(
+        &self,
+        convert: impl Fn(Option<GlyphExtents<S::Value>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        // Settled before the run, as the source to read is: a supplied
+        // function answers for every glyph, and the font is never read.
+        if let Some(extents) = self.extents {
+            for (glyph, out) in glyphs {
+                *out = convert(extents(glyph));
+            }
+            return;
+        }
+        self.metrics.extents_batched_with_glyf_rounding(
+            |extents| convert(extents.map(|extents| self.scale.scale_glyph_extents(extents))),
+            glyphs,
+            self.scale.round_glyf_extents(),
+        );
     }
 
     /// The height a glyph takes from the line, where it takes one.
@@ -869,6 +947,82 @@ mod tests {
                 assert_eq!(metrics.h_advance(*gid), h[i], "h, glyph {gid}");
                 assert_eq!(metrics.v_advance(*gid), v[i], "v, glyph {gid}");
             }
+        }
+    }
+
+    #[test]
+    fn a_scaled_box_is_the_font_box_through_the_scale() {
+        let (font, scale) = scaled(STATIC, 16.0);
+        let metrics = font.glyph_metrics();
+        let scaled = metrics.scaled(scale);
+        let mut measured = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let expected = metrics
+                .extents_exact(gid)
+                .map(|extents| scale.scale_glyph_extents(extents));
+            assert_eq!(scaled.extents(gid), expected, "glyph {gid}");
+            measured += expected.is_some() as u32;
+        }
+        assert!(measured > 0);
+    }
+
+    #[test]
+    fn a_supplied_measurement_replaces_the_font_one() {
+        // A caller measuring ink elsewhere answers for every glyph, including
+        // one it cannot measure where the font states a box.
+        let (font, scale) = scaled(STATIC, 16.0);
+        let ink = GlyphExtents {
+            x_bearing: 1.0,
+            y_bearing: 2.0,
+            width: 3.0,
+            height: 4.0,
+        };
+        let supplied = |glyph: GlyphId| (glyph.to_u32() % 2 == 0).then_some(ink);
+        let metrics = font.glyph_metrics().scaled(scale);
+        let overridden = metrics.with_glyph_extents(Some(&supplied));
+        let mut replaced = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            assert_eq!(overridden.extents(gid), supplied(gid), "glyph {gid}");
+            replaced += (metrics.extents(gid) != supplied(gid)) as u32;
+        }
+        assert!(replaced > 0, "the font already agreed everywhere");
+    }
+
+    #[test]
+    fn a_supplied_measurement_answers_a_whole_run() {
+        let (font, scale) = scaled(STATIC, 16.0);
+        let ink = GlyphExtents {
+            x_bearing: 5.0,
+            y_bearing: 6.0,
+            width: 7.0,
+            height: 8.0,
+        };
+        let supplied = |glyph: GlyphId| (glyph.to_u32() % 3 != 0).then_some(ink);
+        let metrics = font
+            .glyph_metrics()
+            .scaled(scale)
+            .with_glyph_extents(Some(&supplied));
+        let glyphs: Vec<_> = (0..font.num_glyphs()).map(GlyphId::new).collect();
+        let mut batched = vec![None; glyphs.len()];
+        metrics.extents_batched(
+            |extents| extents,
+            glyphs.iter().copied().zip(batched.iter_mut()),
+        );
+        for (gid, batched) in glyphs.iter().copied().zip(batched) {
+            assert_eq!(batched, supplied(gid), "glyph {gid}");
+        }
+    }
+
+    #[test]
+    fn no_supplied_measurement_leaves_the_font_in_place() {
+        let (font, scale) = scaled(STATIC, 16.0);
+        let metrics = font.glyph_metrics().scaled(scale);
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            assert_eq!(
+                metrics.with_glyph_extents(None).extents(gid),
+                metrics.extents(gid),
+                "glyph {gid}"
+            );
         }
     }
 }
