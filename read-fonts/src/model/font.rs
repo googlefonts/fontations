@@ -285,8 +285,8 @@ impl<'a> OutlineContext<'a> for &'a Font {
     }
 
     fn h_line_metrics(&self) -> (i32, i32) {
-        self.global_metrics().h_line().map_or((0, 0), |line| {
-            (line.ascender.to_i32(), line.descender.to_i32())
+        self.tables().os2().ok().map_or((0, 0), |os2| {
+            (os2.s_typo_ascender() as i32, os2.s_typo_descender() as i32)
         })
     }
 
@@ -1061,6 +1061,19 @@ mod tests {
             loaded.phantom_points()[2].y,
             glyph.y_max() as i32 + tsb as i32
         );
+    }
+
+    #[test]
+    fn outline_context_uses_unvaried_typo_line_metrics() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let far = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        let os2 = font.tables().os2().unwrap();
+        let expected = (os2.s_typo_ascender() as i32, os2.s_typo_descender() as i32);
+        assert_eq!((&font).h_line_metrics(), expected);
+        assert_eq!((&far).h_line_metrics(), expected);
     }
 
     #[test]
