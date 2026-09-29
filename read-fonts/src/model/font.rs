@@ -21,8 +21,8 @@ use super::once::Once;
 use crate::tables::{
     avar::Avar,
     fvar::Fvar,
-    glyf::Glyf,
-    gvar::Gvar,
+    glyf::{outline::OutlineContext, Glyf, Glyph, PHANTOM_POINT_COUNT},
+    gvar::{GlyphVariationData, Gvar},
     hvar::Hvar,
     layout::{self, Condition},
     loca::Loca,
@@ -30,16 +30,16 @@ use crate::tables::{
 };
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
-    TableProvider,
+    ReadError, TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use cache::{GlyfLoca, GvarTable, HvarTable, TableCache, VvarTable};
+use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VvarTable};
 use core::{
     any::Any,
     str::FromStr,
     sync::atomic::{self, AtomicU32},
 };
-use types::{Fixed, Tag};
+use types::{F2Dot14, Fixed, GlyphId, Point, Tag};
 
 /// A font at one location in its design space.
 ///
@@ -213,6 +213,78 @@ impl Font {
     #[inline]
     pub(crate) fn gvar(&self) -> Option<&Gvar<'_>> {
         self.shared().gvar()
+    }
+
+    /// Returns the charstring outlines.
+    #[inline]
+    pub(crate) fn cff(&self) -> Option<&CffFontRef<'_>> {
+        self.shared().cff()
+    }
+}
+
+impl<'a> OutlineContext<'a> for &'a Font {
+    fn glyph(&self, glyph: GlyphId) -> Result<Option<Glyph<'a>>, ReadError> {
+        let (glyf, loca) = self
+            .glyf_loca()
+            .ok_or(ReadError::MalformedData("glyf or loca missing"))?;
+        loca.get_glyf(glyph, glyf)
+    }
+
+    fn glyph_variation_data(&self, glyph: GlyphId) -> Option<GlyphVariationData<'a>> {
+        self.gvar()?.glyph_variation_data(glyph).ok()?
+    }
+
+    fn has_gvar(&self) -> bool {
+        self.gvar().is_some()
+    }
+
+    fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
+        let (glyf, loca) = self.glyf_loca()?;
+        self.gvar()?
+            .phantom_point_deltas(glyf, loca, self.normalized_coords(), glyph)
+    }
+
+    fn coords(&self) -> &[F2Dot14] {
+        self.normalized_coords()
+    }
+
+    fn units_per_em(&self) -> u16 {
+        Font::units_per_em(self)
+    }
+
+    fn h_metrics(&self, glyph: GlyphId) -> (i32, i32) {
+        let metrics = Font::h_metrics(self);
+        (
+            metrics
+                .stated_side_bearing(glyph)
+                .unwrap_or_default()
+                .to_i32(),
+            metrics.stored_advance(self.num_glyphs(), glyph).to_i32(),
+        )
+    }
+
+    fn v_metrics(&self, glyph: GlyphId) -> Option<(i32, i32)> {
+        let metrics = Font::v_metrics(self);
+        if metrics.is_empty() {
+            return None;
+        }
+        Some((
+            metrics
+                .stated_side_bearing(glyph)
+                .unwrap_or_default()
+                .to_i32(),
+            metrics.stored_advance(self.num_glyphs(), glyph).to_i32(),
+        ))
+    }
+
+    fn h_line_metrics(&self) -> (i32, i32) {
+        self.global_metrics().h_line().map_or((0, 0), |line| {
+            (line.ascender.to_i32(), line.descender.to_i32())
+        })
+    }
+
+    fn has_hvar(&self) -> bool {
+        self.hvar().is_some()
     }
 }
 
@@ -729,6 +801,7 @@ impl SharedFont {
             hvar: Once::new(),
             vvar: Once::new(),
             gvar: Once::new(),
+            cff: Once::new(),
         };
         Some(Self(Arc::new(repr)))
     }
@@ -865,6 +938,21 @@ impl SharedFont {
             .as_ref()
     }
 
+    /// Returns the charstring outlines, parsed once for the font.
+    ///
+    /// Reading one means running it, so nothing here is parsed per glyph
+    /// beyond what a charstring itself needs.
+    #[inline]
+    fn cff(&self) -> Option<&CffFontRef<'_>> {
+        let tables = self.tables_arc()?;
+        self.0
+            .cff
+            .get_or_init(|| TableCache::read(tables.clone(), |tables| CffFont::read(&tables)))
+            .get()
+            .0
+            .as_ref()
+    }
+
     /// Returns an object that provides access to individual font tables.
     ///
     /// For non-SFNT fonts, this will return an empty set of tables.
@@ -901,6 +989,9 @@ struct SharedFontRepr {
     hvar: Once<TableCache<HvarTable<'static>>>,
     vvar: Once<TableCache<VvarTable<'static>>>,
     gvar: Once<TableCache<GvarTable<'static>>>,
+    // The charstrings of a `CFF` or `CFF2` font, which neither metrics nor
+    // outlines read unless the font states them this way.
+    cff: Once<TableCache<CffFont<'static>>>,
 }
 
 /// The underlying type of a font.
@@ -925,7 +1016,30 @@ enum KindRepr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
+
+    #[test]
+    fn font_outline_context_uses_stated_vertical_metrics() {
+        let data = font_test_data::MPLUS1CODE_VERTICAL_SUBSET;
+        let font = Font::new(data, 0).unwrap();
+        let direct = crate::FontRef::new(data).unwrap();
+        let gid = GlyphId::new(1);
+        let glyph = direct
+            .loca(None)
+            .unwrap()
+            .get_glyf(gid, &direct.glyf().unwrap())
+            .unwrap()
+            .unwrap();
+        let tsb = direct.vmtx().unwrap().side_bearing(gid).unwrap();
+        let context = &font;
+        let mut outline = Outline::<Unscaled>::new();
+        let loaded = outline.load_with(&context, gid, &Unscaled, None).unwrap();
+        assert_eq!(
+            loaded.phantom_points()[2].y,
+            glyph.y_max() as i32 + tsb as i32
+        );
+    }
 
     #[test]
     fn named_instances() {

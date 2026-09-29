@@ -1,15 +1,27 @@
 //! Per-glyph metrics.
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::CoreFloat;
+
 use crate::{
+    mem::with_scratch,
     model::{
         metrics::{GlobalMetrics, LineExtents, Scale, ScaledGlyphMetrics},
         Font, Kind,
     },
-    ps::{cs::CommandSink, type1::Type1Font},
-    tables::hmtx::LongMetric,
+    ps::{
+        cff::{CffFontRef, Subfont},
+        cs::CommandSink,
+        type1::Type1Font,
+    },
+    tables::{
+        glyf::outline::{Buffers, OutlineContext, OutlinePlan, ScaleF32 as OutlineScaleF32},
+        hmtx::LongMetric,
+    },
     TableProvider,
 };
-use types::{F2Dot14, F48Dot16, Fixed, GlyphId};
+use types::{BigEndian, BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
 
 /// Where a glyph's ink sits, relative to its origin.
 ///
@@ -184,6 +196,180 @@ impl<'a> GlyphMetrics<'a> {
         self.v_advance_batched_varied(raw, coords, convert, glyphs)
     }
 
+    /// Returns where `glyph`'s ink sits, in design units.
+    ///
+    /// An empty glyph has zero extents. `None` means the glyph is unavailable
+    /// or its extents could not be read.
+    ///
+    /// See [`extents_exact`](Self::extents_exact) for the values before they
+    /// are narrowed to `f32`.
+    #[inline]
+    pub fn extents(&self, glyph: GlyphId) -> Option<GlyphExtents<f32>> {
+        self.extents_exact(glyph).map(|extents| GlyphExtents {
+            x_bearing: extents.x_bearing.to_f32(),
+            y_bearing: extents.y_bearing.to_f32(),
+            width: extents.width.to_f32(),
+            height: extents.height.to_f32(),
+        })
+    }
+
+    /// Returns the exact extents of `glyph` in design units.
+    ///
+    /// See [`extents_batched`](Self::extents_batched) to compute several
+    /// glyphs' extents with one choice of source for the batch.
+    #[inline]
+    pub fn extents_exact(&self, glyph: GlyphId) -> Option<GlyphExtents<F48Dot16>> {
+        let mut extents = None;
+        self.extents_batched(|value| value, core::iter::once((glyph, &mut extents)));
+        extents
+    }
+
+    /// Writes where each glyph's ink sits to its slot, in order.
+    ///
+    /// Each measurement passes through `convert`, so a caller working in
+    /// another number type writes into that type directly.
+    ///
+    /// The source is settled once for the batch, since which table answers
+    /// depends on the font rather than on any one glyph.
+    pub fn extents_batched<'o, V: 'o>(
+        &self,
+        convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        self.extents_batched_with_glyf_rounding(convert, glyphs, false);
+    }
+
+    /// Computes extents for a batch of glyphs, rounding glyf bounds as the
+    /// scale requests.
+    pub(crate) fn extents_batched_with_glyf_rounding<'o, V: 'o>(
+        &self,
+        convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+        round_glyf: bool,
+    ) {
+        if let Some((glyf, loca)) = self.font.glyf_loca() {
+            if self.coords.is_empty() {
+                // Every glyph states its own box, so nothing has to be
+                // loaded to find it.
+                for (glyph, out) in glyphs {
+                    if glyph.to_u32() >= self.num_glyphs {
+                        *out = convert(None);
+                        continue;
+                    }
+                    *out = convert(loca.get_glyf(glyph, glyf).ok().map(|outline| {
+                        let Some(outline) = outline else {
+                            return GlyphExtents::default();
+                        };
+                        if outline.number_of_contours() == 0 {
+                            return GlyphExtents::default();
+                        }
+                        let mut extents = extents_from_corners(
+                            F48Dot16::from_i32(outline.x_min() as i32),
+                            F48Dot16::from_i32(outline.y_min() as i32),
+                            F48Dot16::from_i32(outline.x_max() as i32),
+                            F48Dot16::from_i32(outline.y_max() as i32),
+                        );
+                        extents.x_bearing = self
+                            .h_metrics
+                            .stated_side_bearing(glyph)
+                            .unwrap_or(extents.x_bearing);
+                        extents
+                    }));
+                }
+                return;
+            }
+            if round_glyf {
+                return self.extents_batched_glyf_varied::<true, _>(convert, glyphs);
+            }
+            return self.extents_batched_glyf_varied::<false, _>(convert, glyphs);
+        }
+        if let Some(cff) = self.font.cff() {
+            return self.extents_batched_cff(cff, convert, glyphs);
+        }
+        if let Kind::Type1(font) = self.font.kind() {
+            return self.extents_batched_type1(font, convert, glyphs);
+        }
+        // A font stating its outlines in a way none of the above reads.
+        for (_, out) in glyphs {
+            *out = convert(None);
+        }
+    }
+
+    /// The varied half of [`extents_batched`](Self::extents_batched).
+    ///
+    /// A location moves the points, and the box a glyph states is the one it
+    /// has at the default location, so the answer comes from loading the
+    /// outline. Floating-point deltas are kept until the four bounds are
+    /// measured; a scale can then request HarfBuzz's whole-unit bounds.
+    /// `#[inline(never)]` because that pulls in the loader, whose size no
+    /// unvaried measurement should pay for.
+    #[inline(never)]
+    fn extents_batched_glyf_varied<'o, const ROUND: bool, V: 'o>(
+        &self,
+        convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        let context = self.font;
+        for (glyph, out) in glyphs {
+            *out = convert(
+                (glyph.to_u32() < self.num_glyphs)
+                    .then(|| varied_control_box::<ROUND>(&context, glyph))
+                    .flatten(),
+            );
+        }
+    }
+
+    /// The charstring half of [`extents_batched`](Self::extents_batched).
+    ///
+    /// A charstring states no box, so reading one means running it.
+    /// `#[inline(never)]` for the same reason as the varied arm.
+    #[inline(never)]
+    fn extents_batched_cff<'o, V: 'o>(
+        &self,
+        cff: &CffFontRef<'_>,
+        convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        // Nearly every font has one subfont, and a CID font groups its
+        // glyphs, so the last one read is usually the next one wanted.
+        let mut last: Option<(u16, Subfont)> = None;
+        for (glyph, out) in glyphs {
+            let subfont = cff.subfont_index(glyph).and_then(|index| match last {
+                Some((cached, subfont)) if cached == index => Some(subfont),
+                _ => {
+                    let subfont = cff.subfont(index, self.coords).ok()?;
+                    last = Some((index, subfont));
+                    Some(subfont)
+                }
+            });
+            *out = convert(subfont.and_then(|subfont| {
+                cff.evaluate_extents(&subfont, glyph, self.coords)
+                    .ok()
+                    .map(|bounds| bounds.map(extents_from_bounds).unwrap_or_default())
+            }));
+        }
+    }
+
+    /// The Type 1 half of [`extents_batched`](Self::extents_batched).
+    ///
+    /// `#[inline(never)]` for the same reason as
+    /// [`h_advance_batched_type1`](Self::h_advance_batched_type1).
+    #[inline(never)]
+    fn extents_batched_type1<'o, V: 'o>(
+        &self,
+        font: &Type1Font,
+        convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        for (glyph, out) in glyphs {
+            *out = convert(
+                font.evaluate_extents(glyph)
+                    .ok()
+                    .map(|bounds| bounds.map(extents_from_bounds).unwrap_or_default()),
+            );
+        }
+    }
+
     /// The height a glyph advances where the font has no `vmtx`.
     ///
     /// The extent of the line, without the gap after it, as HarfBuzz and
@@ -341,25 +527,37 @@ impl<'a> GlyphMetrics<'a> {
 #[derive(Clone, Default, yoke::Yokeable)]
 pub(crate) struct RawGlyphMetrics<'a> {
     metrics: &'a [LongMetric],
+    /// Bare side bearings after the last long metric.
+    bearings: &'a [BigEndian<i16>],
 }
 
 impl<'a> RawGlyphMetrics<'a> {
     /// Reads what `hmtx` states.
     pub(crate) fn from_hmtx(tables: &impl TableProvider<'a>) -> Self {
+        let hmtx = tables.hmtx().ok();
         Self {
-            metrics: tables
-                .hmtx()
+            metrics: hmtx
+                .as_ref()
                 .map(|hmtx| hmtx.h_metrics())
+                .unwrap_or_default(),
+            bearings: hmtx
+                .as_ref()
+                .map(|hmtx| hmtx.left_side_bearings())
                 .unwrap_or_default(),
         }
     }
 
     /// Reads what `vmtx` states.
     pub(crate) fn from_vmtx(tables: &impl TableProvider<'a>) -> Self {
+        let vmtx = tables.vmtx().ok();
         Self {
-            metrics: tables
-                .vmtx()
+            metrics: vmtx
+                .as_ref()
                 .map(|vmtx| vmtx.v_metrics())
+                .unwrap_or_default(),
+            bearings: vmtx
+                .as_ref()
+                .map(|vmtx| vmtx.top_side_bearings())
                 .unwrap_or_default(),
         }
     }
@@ -429,7 +627,7 @@ impl<'a> RawGlyphMetrics<'a> {
     /// `self.metrics` is never empty here: a caller settles that font before
     /// the run starts.
     #[inline]
-    fn stored_advance(&self, num_glyphs: u32, glyph: GlyphId) -> F48Dot16 {
+    pub(crate) fn stored_advance(&self, num_glyphs: u32, glyph: GlyphId) -> F48Dot16 {
         if glyph.to_u32() >= num_glyphs {
             return F48Dot16::ZERO;
         }
@@ -439,19 +637,127 @@ impl<'a> RawGlyphMetrics<'a> {
             None => F48Dot16::ZERO,
         }
     }
+
+    /// Returns the side bearing stated for `glyph`, including the bare
+    /// bearings following the last long metric.
+    pub(crate) fn stated_side_bearing(&self, glyph: GlyphId) -> Option<F48Dot16> {
+        let index = glyph.to_u32() as usize;
+        if let Some(metric) = self.metrics.get(index) {
+            return Some(F48Dot16::from_i32(metric.side_bearing() as i32));
+        }
+        let tail = index.checked_sub(self.metrics.len())?;
+        Some(F48Dot16::from_i32(self.bearings.get(tail)?.get() as i32))
+    }
 }
 
 /// Returns the metrics of a font that states none.
 pub(crate) fn empty() -> &'static RawGlyphMetrics<'static> {
-    static EMPTY: RawGlyphMetrics<'static> = RawGlyphMetrics { metrics: &[] };
+    static EMPTY: RawGlyphMetrics<'static> = RawGlyphMetrics {
+        metrics: &[],
+        bearings: &[],
+    };
     &EMPTY
+}
+
+/// Turns the corners of a box into a bearing and a size.
+///
+/// The corners are taken either way round, so a font stating a reversed box
+/// still measures a size rather than a negative one.
+fn extents_from_corners(
+    x_min: F48Dot16,
+    y_min: F48Dot16,
+    x_max: F48Dot16,
+    y_max: F48Dot16,
+) -> GlyphExtents<F48Dot16> {
+    let (left, right) = if x_min <= x_max {
+        (x_min, x_max)
+    } else {
+        (x_max, x_min)
+    };
+    let (bottom, top) = if y_min <= y_max {
+        (y_min, y_max)
+    } else {
+        (y_max, y_min)
+    };
+    GlyphExtents {
+        x_bearing: left,
+        y_bearing: top,
+        width: right - left,
+        height: top - bottom,
+    }
+}
+
+/// Turns a charstring's box into a bearing and a size.
+fn extents_from_bounds(bounds: BoundingBox<Fixed>) -> GlyphExtents<F48Dot16> {
+    extents_from_corners(
+        bounds.x_min.to_f48dot16(),
+        bounds.y_min.to_f48dot16(),
+        bounds.x_max.to_f48dot16(),
+        bounds.y_max.to_f48dot16(),
+    )
+}
+
+/// The box a loaded outline's points stay within.
+///
+/// The control points count, so this is what the glyph states as its own box
+/// rather than the tighter box its curves keep to. A scale can round the
+/// finished bounds after applying floating-point variation deltas.
+fn control_box<const ROUND: bool>(points: &[Point<f32>]) -> Option<GlyphExtents<F48Dot16>> {
+    let first = points.first()?;
+    let (mut x_min, mut y_min) = (first.x, first.y);
+    let (mut x_max, mut y_max) = (first.x, first.y);
+    for point in &points[1..] {
+        x_min = x_min.min(point.x);
+        y_min = y_min.min(point.y);
+        x_max = x_max.max(point.x);
+        y_max = y_max.max(point.y);
+    }
+    if ROUND && (x_min >= x_max || y_min >= y_max) {
+        return Some(GlyphExtents::default());
+    }
+    let as_fixed = |value: f32| {
+        if ROUND {
+            F48Dot16::from_i32(value.round() as i32)
+        } else {
+            F48Dot16::from_f64(value as f64)
+        }
+    };
+    Some(extents_from_corners(
+        as_fixed(x_min),
+        as_fixed(y_min),
+        as_fixed(x_max),
+        as_fixed(y_max),
+    ))
+}
+
+/// The box a glyph's points stay within, at the location `tables` states.
+///
+/// How much scratch space a glyph takes is known only once its plan is read,
+/// and it is finished with by the time this returns, so the space comes from
+/// [`with_scratch`] rather than an allocation per glyph.
+fn varied_control_box<'a, const ROUND: bool>(
+    context: &'a dyn OutlineContext<'a>,
+    glyph: GlyphId,
+) -> Option<GlyphExtents<F48Dot16>> {
+    let plan = OutlinePlan::new(context, glyph).ok()?;
+    let scale = OutlineScaleF32::new(None, context.units_per_em());
+    let lengths = plan.buffer_lengths::<OutlineScaleF32>();
+    with_scratch(lengths.packed_len::<OutlineScaleF32>(), |block| {
+        let buffers = Buffers::from_bytes(block, &lengths).ok()?;
+        let outline = plan.load(context, &scale, buffers, None).ok()?;
+        Some(control_box::<ROUND>(outline.points()).unwrap_or_default())
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        model::{pen::NullPen, Blob, NormalizedCoord},
+        model::{
+            pen::{ControlBoundsPen, NullPen},
+            Blob, NormalizedCoord,
+        },
+        tables::glyf::outline::{Outline, OutlineTables, PathContourStart},
         FontRef,
     };
     use alloc::{sync::Arc, vec, vec::Vec};
@@ -463,6 +769,9 @@ mod tests {
     const VAR: &[u8] = font_test_data::VAZIRMATN_VAR;
     /// Eleven glyphs but one long metric, so ten of them are in the tail.
     const TAIL: &[u8] = font_test_data::MATERIAL_SYMBOLS_SUBSET;
+    /// Charstring outlines, with no `glyf` to answer ahead of them.
+    const CFF: &[u8] = font_test_data::NOTO_SANS_JP_CFF;
+    const CFF2: &[u8] = font_test_data::ift::CFF2_FONT;
 
     #[test]
     fn a_width_is_what_hmtx_stores() {
@@ -847,6 +1156,301 @@ mod tests {
         for i in 0..2 {
             assert_eq!(floats[i], exact[i].to_f32());
         }
+    }
+
+    #[test]
+    fn a_box_is_the_one_the_glyph_states() {
+        // Nothing has to be loaded at the default location: the glyph header
+        // carries the box.
+        let font = Font::new(STATIC, 0).unwrap();
+        let metrics = font.glyph_metrics();
+        let direct = FontRef::new(STATIC).unwrap();
+        let (glyf, loca, hmtx) = (
+            direct.glyf().unwrap(),
+            direct.loca(None).unwrap(),
+            direct.hmtx().unwrap(),
+        );
+        let mut drawn = 0;
+        let mut empty = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            match loca.get_glyf(gid, &glyf).unwrap() {
+                Some(glyph) => {
+                    if glyph.number_of_contours() == 0 {
+                        assert_eq!(
+                            metrics.extents_exact(gid),
+                            Some(GlyphExtents::default()),
+                            "glyph {gid}"
+                        );
+                        empty += 1;
+                        continue;
+                    }
+                    let unit = |value: i16| F48Dot16::from_i32(value as i32);
+                    assert_eq!(
+                        metrics.extents_exact(gid),
+                        Some(GlyphExtents {
+                            x_bearing: hmtx
+                                .side_bearing(gid)
+                                .map(unit)
+                                .unwrap_or(unit(glyph.x_min())),
+                            y_bearing: unit(glyph.y_max()),
+                            width: unit(glyph.x_max()) - unit(glyph.x_min()),
+                            height: unit(glyph.y_max()) - unit(glyph.y_min()),
+                        }),
+                        "glyph {gid}"
+                    );
+                    drawn += 1;
+                }
+                // A valid empty glyph has a zero box.
+                None => {
+                    assert_eq!(
+                        metrics.extents_exact(gid),
+                        Some(GlyphExtents::default()),
+                        "glyph {gid}"
+                    );
+                    empty += 1;
+                }
+            }
+        }
+        assert!(drawn > 0 && empty > 0, "{drawn} drawn, {empty} empty");
+    }
+
+    #[test]
+    fn glyf_ink_starts_at_the_stated_left_side_bearing() {
+        let direct = FontRef::new(STATIC).unwrap();
+        let loca = direct.loca(None).unwrap();
+        let glyf = direct.glyf().unwrap();
+        let gid = (0..direct.hmtx().unwrap().h_metrics().len() as u32)
+            .map(GlyphId::new)
+            .find(|gid| loca.get_glyf(*gid, &glyf).ok().flatten().is_some())
+            .unwrap();
+        let outline = loca.get_glyf(gid, &glyf).unwrap().unwrap();
+        let bearing = outline.x_min() + 17;
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+            let font = FontRef::new(STATIC).ok()?;
+            let mut data = font.table_data(tag)?.as_bytes().to_vec();
+            if tag == Tag::new(b"hmtx") {
+                let offset = gid.to_u32() as usize * 4 + 2;
+                data[offset..offset + 2].copy_from_slice(&bearing.to_be_bytes());
+            }
+            Some(Blob::from(data))
+        });
+        let font = Font::new(source, 0).unwrap();
+        assert_eq!(
+            font.glyph_metrics().extents_exact(gid).unwrap().x_bearing,
+            F48Dot16::from_i32(bearing as i32)
+        );
+    }
+
+    #[test]
+    fn glyf_bearing_uses_hmtx_tail_then_falls_back_to_the_box() {
+        let direct = FontRef::new(TAIL).unwrap();
+        let loca = direct.loca(None).unwrap();
+        let glyf = direct.glyf().unwrap();
+        let hmtx = direct.hmtx().unwrap();
+        let long_count = hmtx.h_metrics().len();
+        let gid = (long_count as u32..direct.maxp().unwrap().num_glyphs() as u32)
+            .map(GlyphId::new)
+            .find(|gid| loca.get_glyf(*gid, &glyf).ok().flatten().is_some())
+            .unwrap();
+        let outline = loca.get_glyf(gid, &glyf).unwrap().unwrap();
+        let font = Font::new(TAIL, 0).unwrap();
+        assert_eq!(
+            font.glyph_metrics().extents_exact(gid).unwrap().x_bearing,
+            F48Dot16::from_i32(hmtx.side_bearing(gid).unwrap() as i32)
+        );
+
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+            let font = FontRef::new(TAIL).ok()?;
+            let mut data = font.table_data(tag)?.as_bytes().to_vec();
+            if tag == Tag::new(b"hmtx") {
+                data.truncate(long_count * 4);
+            }
+            Some(Blob::from(data))
+        });
+        let shortened = Font::new(source, 0).unwrap();
+        assert_eq!(
+            shortened
+                .glyph_metrics()
+                .extents_exact(gid)
+                .unwrap()
+                .x_bearing,
+            F48Dot16::from_i32(outline.x_min() as i32)
+        );
+    }
+
+    #[test]
+    fn a_varied_box_holds_the_outline_it_describes() {
+        // The stated box is the one the glyph has at the default location, so
+        // a location away from it is measured from the loaded points. Drawing
+        // those points reaches the same box by another route, which is what
+        // catches a phantom point counted as ink.
+        let font = Font::new(VAR, 0).unwrap();
+        let instance = at(&font, -1.0);
+        let metrics = instance.glyph_metrics();
+        let direct = FontRef::new(VAR).unwrap();
+        let tables = OutlineTables::new(&direct)
+            .unwrap()
+            .at(instance.normalized_coords(), &[]);
+        let mut outline = Outline::<OutlineScaleF32>::new();
+        let mut checked = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let Ok(loaded) = outline.load(&tables, gid, None) else {
+                continue;
+            };
+            let mut pen = ControlBoundsPen::new();
+            let _ = loaded.to_path(PathContourStart::ScanBackward, &mut pen);
+            let expected = pen
+                .bounding_box()
+                .map(|b| {
+                    extents_from_corners(
+                        F48Dot16::from_f64(b.x_min as f64),
+                        F48Dot16::from_f64(b.y_min as f64),
+                        F48Dot16::from_f64(b.x_max as f64),
+                        F48Dot16::from_f64(b.y_max as f64),
+                    )
+                })
+                .or(Some(GlyphExtents::default()));
+            assert_eq!(metrics.extents_exact(gid), expected, "glyph {gid}");
+            checked += expected.is_some() as u32;
+        }
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn a_location_moves_the_box() {
+        let font = Font::new(VAR, 0).unwrap();
+        let instance = at(&font, -1.0);
+        let (varied, plain) = (instance.glyph_metrics(), font.glyph_metrics());
+        let moved = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .filter(|gid| varied.extents_exact(*gid) != plain.extents_exact(*gid))
+            .count();
+        assert!(moved > 0, "no glyph ink moved at the end of the axis");
+    }
+
+    #[test]
+    fn a_charstring_box_is_the_box_it_draws_within() {
+        // A charstring states no box, so the two have to agree by running it
+        // the same way twice: once collecting bounds, once drawing.
+        for data in [CFF, CFF2] {
+            let font = Font::new(data, 0).unwrap();
+            let metrics = font.glyph_metrics();
+            let direct = FontRef::new(data).unwrap();
+            let cff = font.cff().expect("no charstrings");
+            assert!(direct.glyf().is_err(), "glyf would answer first");
+            let mut checked = 0;
+            for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+                let subfont = cff
+                    .subfont(cff.subfont_index(gid).unwrap(), &[])
+                    .expect("no subfont");
+                let mut pen = ControlBoundsPen::new();
+                cff.draw(&subfont, gid, &[], None, &mut pen).unwrap();
+                let expected = pen
+                    .bounding_box()
+                    .map(|b| GlyphExtents {
+                        x_bearing: F48Dot16::from_f64(b.x_min as f64),
+                        y_bearing: F48Dot16::from_f64(b.y_max as f64),
+                        width: F48Dot16::from_f64((b.x_max - b.x_min) as f64),
+                        height: F48Dot16::from_f64((b.y_max - b.y_min) as f64),
+                    })
+                    .or(Some(GlyphExtents::default()));
+                assert_eq!(metrics.extents_exact(gid), expected, "glyph {gid}");
+                checked += expected.is_some() as u32;
+            }
+            assert!(checked > 0);
+        }
+    }
+
+    #[test]
+    fn a_type1_box_is_the_box_it_draws_within() {
+        let data = font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA;
+        let font = Font::new(data, 0).unwrap();
+        let metrics = font.glyph_metrics();
+        let direct = crate::ps::type1::Type1Font::new(data).unwrap();
+        let mut checked = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let mut pen = ControlBoundsPen::new();
+            direct.draw(gid, None, &mut pen).unwrap();
+            let expected = pen
+                .bounding_box()
+                .map(|b| GlyphExtents {
+                    x_bearing: F48Dot16::from_f64(b.x_min as f64),
+                    y_bearing: F48Dot16::from_f64(b.y_max as f64),
+                    width: F48Dot16::from_f64((b.x_max - b.x_min) as f64),
+                    height: F48Dot16::from_f64((b.y_max - b.y_min) as f64),
+                })
+                .or(Some(GlyphExtents::default()));
+            assert_eq!(metrics.extents_exact(gid), expected, "glyph {gid}");
+            checked += expected.is_some() as u32;
+        }
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn every_source_measures_a_run_as_it_measures_one() {
+        // Each source keeps something across a run: buffers, a subfont, a
+        // table read once. None of it may change an answer.
+        for (data, coord) in [(STATIC, 0.0), (VAR, -1.0), (CFF, 0.0), (CFF2, 0.0)] {
+            let font = Font::new(data, 0).unwrap();
+            let instance = if coord == 0.0 {
+                font.clone()
+            } else {
+                at(&font, coord)
+            };
+            let metrics = instance.glyph_metrics();
+            let glyphs: Vec<_> = (0..font.num_glyphs()).map(GlyphId::new).collect();
+            let mut batched = vec![None; glyphs.len()];
+            metrics.extents_batched(
+                |extents| extents,
+                glyphs.iter().copied().zip(batched.iter_mut()),
+            );
+            for (gid, batched) in glyphs.iter().copied().zip(batched) {
+                assert_eq!(metrics.extents_exact(gid), batched, "glyph {gid}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_font_stating_no_outlines_measures_nothing() {
+        let font = Font::new(font_test_data::NAMES_ONLY, 0).unwrap();
+        let metrics = font.glyph_metrics();
+        for gid in (0..8).map(GlyphId::new) {
+            assert_eq!(metrics.extents_exact(gid), None);
+        }
+    }
+
+    #[test]
+    fn a_glyph_past_the_font_has_no_extents() {
+        for data in [
+            STATIC,
+            VAR,
+            CFF,
+            CFF2,
+            font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
+        ] {
+            let font = Font::new(data, 0).unwrap();
+            let past = GlyphId::new(font.num_glyphs());
+            assert_eq!(font.glyph_metrics().extents_exact(past), None);
+            if data == VAR {
+                assert_eq!(at(&font, -1.0).glyph_metrics().extents_exact(past), None);
+            }
+        }
+    }
+
+    #[test]
+    fn a_reversed_box_still_measures_a_size() {
+        // A size is never negative, whichever way round a font states its
+        // corners.
+        let unit = F48Dot16::from_i32;
+        assert_eq!(
+            extents_from_corners(unit(70), unit(50), unit(10), unit(-30)),
+            GlyphExtents {
+                x_bearing: unit(10),
+                y_bearing: unit(50),
+                width: unit(60),
+                height: unit(80),
+            }
+        );
     }
 
     fn at(font: &Font, coord: f32) -> Font {
