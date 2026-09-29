@@ -92,11 +92,15 @@ pub(crate) struct CffFont<'a>(pub(crate) Option<CffFontRef<'a>>);
 impl<'a> CffFont<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
         let upem = tables.head().ok().map(|head| head.units_per_em() as i32);
-        let data = tables
+        let cff2 = tables
             .cff2()
             .ok()
-            .map(|cff2| cff2.offset_data().as_bytes())
-            .or_else(|| tables.cff().ok().map(|cff| cff.offset_data().as_bytes()));
-        Self(data.and_then(|data| CffFontRef::new(data, 0, upem).ok()))
+            .and_then(|cff2| CffFontRef::new(cff2.offset_data().as_bytes(), 0, upem).ok());
+        Self(cff2.or_else(|| {
+            tables
+                .cff()
+                .ok()
+                .and_then(|cff| CffFontRef::new(cff.offset_data().as_bytes(), 0, upem).ok())
+        }))
     }
 }

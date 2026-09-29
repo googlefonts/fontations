@@ -272,7 +272,7 @@ impl<'a> GlyphMetrics<'a> {
                         extents.x_bearing = self
                             .h_metrics
                             .stated_side_bearing(glyph)
-                            .unwrap_or(extents.x_bearing);
+                            .unwrap_or_default();
                         extents
                     }));
                 }
@@ -1242,7 +1242,7 @@ mod tests {
     }
 
     #[test]
-    fn glyf_bearing_uses_hmtx_tail_then_falls_back_to_the_box() {
+    fn glyf_bearing_uses_hmtx_tail_then_falls_back_to_zero() {
         let direct = FontRef::new(TAIL).unwrap();
         let loca = direct.loca(None).unwrap();
         let glyf = direct.glyf().unwrap();
@@ -1252,7 +1252,6 @@ mod tests {
             .map(GlyphId::new)
             .find(|gid| loca.get_glyf(*gid, &glyf).ok().flatten().is_some())
             .unwrap();
-        let outline = loca.get_glyf(gid, &glyf).unwrap().unwrap();
         let font = Font::new(TAIL, 0).unwrap();
         assert_eq!(
             font.glyph_metrics().extents_exact(gid).unwrap().x_bearing,
@@ -1274,7 +1273,7 @@ mod tests {
                 .extents_exact(gid)
                 .unwrap()
                 .x_bearing,
-            F48Dot16::from_i32(outline.x_min() as i32)
+            F48Dot16::ZERO
         );
     }
 
@@ -1359,6 +1358,28 @@ mod tests {
             }
             assert!(checked > 0);
         }
+    }
+
+    #[test]
+    fn invalid_cff2_falls_back_to_cff() {
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(|tag| {
+            if tag == Tag::new(b"CFF2") {
+                // A readable CFF2 header whose CharStrings cannot be loaded.
+                return Some(Blob::from(vec![2, 0, 5, 0, 0, 0, 0, 0, 0, 0]));
+            }
+            let font = FontRef::new(CFF).ok()?;
+            Some(Blob::from(font.table_data(tag)?.as_bytes().to_vec()))
+        });
+        let font = Font::new(source, 0).unwrap();
+        assert!(font.tables().cff2().is_ok());
+        let glyph = GlyphId::new(1);
+        assert_eq!(
+            font.glyph_metrics().extents_exact(glyph),
+            Font::new(CFF, 0)
+                .unwrap()
+                .glyph_metrics()
+                .extents_exact(glyph)
+        );
     }
 
     #[test]
