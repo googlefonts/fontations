@@ -47,18 +47,11 @@ pub trait Scale {
     /// here.
     fn scale_y(&self, value: F48Dot16) -> Self::Value;
 
-    /// Whether varied glyf bounds are rounded to whole font units before
-    /// scaling. HarfBuzz and FreeType do this; a floating-point scale can
-    /// keep the fractional bounds instead. Other outline formats are
-    /// unaffected.
-    fn round_glyf_extents(&self) -> bool {
-        false
-    }
-
     /// Scales where a glyph's ink sits.
     ///
     /// One call rather than four, so that a scale running the other way up
-    /// settles in one place what that means for a bearing and a size.
+    /// settles in one place what that means for a bearing and a size. The
+    /// scale also decides whether to round the box's corners before scaling.
     fn scale_glyph_extents(&self, extents: GlyphExtents<F48Dot16>) -> GlyphExtents<Self::Value>;
 
     /// Scales a region given by its corners.
@@ -69,13 +62,14 @@ pub trait Scale {
     fn scale_rect(&self, bounds: BoundingBox<F48Dot16>) -> BoundingBox<Self::Value>;
 }
 
-/// Scales design units to 26.6 pixels, as FreeType does.
+/// Scales design-unit metrics to 26.6 pixels with FreeType-style arithmetic.
 ///
 /// Sums saturate and halves round toward negative infinity.
 ///
 /// FreeType scales whole design units, so a measurement carrying a fraction
 /// is rounded to a unit before it is scaled. [`ScaleF32`] keeps the
-/// fraction.
+/// fraction. Outline loading is chosen by the metrics implementation; this
+/// scale alone does not reproduce the bounds returned by `skrifa`.
 #[derive(Copy, Clone, Debug)]
 pub struct Scale26Dot6 {
     x: Fixed,
@@ -134,16 +128,24 @@ impl Scale for Scale26Dot6 {
         Self::scale(value, self.y)
     }
 
-    fn round_glyf_extents(&self) -> bool {
-        true
-    }
-
     fn scale_glyph_extents(&self, e: GlyphExtents<F48Dot16>) -> GlyphExtents<F26Dot6> {
+        if e.width <= F48Dot16::ZERO || e.height <= F48Dot16::ZERO {
+            return GlyphExtents::default();
+        }
+        // Match FreeType's FT_RoundFix: ties round away from zero.
+        let round = |value: F48Dot16| {
+            let bits = value.to_bits();
+            F48Dot16::from_bits(bits.wrapping_add(0x8000 - i64::from(bits < 0)) & !0xffff)
+        };
+        let left = round(e.x_bearing);
+        let top = round(e.y_bearing);
+        let right = round(e.x_bearing + e.width);
+        let bottom = round(e.y_bearing - e.height);
         GlyphExtents {
-            x_bearing: self.scale_x(e.x_bearing),
-            y_bearing: self.scale_y(e.y_bearing),
-            width: self.scale_x(e.width),
-            height: self.scale_y(e.height),
+            x_bearing: self.scale_x(left),
+            y_bearing: self.scale_y(top),
+            width: self.scale_x(right - left),
+            height: self.scale_y(top - bottom),
         }
     }
 
@@ -539,10 +541,9 @@ impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
             Some(extents) => extents(glyph),
             None => {
                 let mut extents = None;
-                self.metrics.extents_batched_with_glyf_rounding(
+                self.metrics.extents_batched(
                     |value| value.map(|extents| self.scale.scale_glyph_extents(extents)),
                     core::iter::once((glyph, &mut extents)),
-                    self.scale.round_glyf_extents(),
                 );
                 extents
             }
@@ -564,10 +565,9 @@ impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
             }
             return;
         }
-        self.metrics.extents_batched_with_glyf_rounding(
+        self.metrics.extents_batched(
             |extents| convert(extents.map(|extents| self.scale.scale_glyph_extents(extents))),
             glyphs,
-            self.scale.round_glyf_extents(),
         );
     }
 
@@ -942,6 +942,38 @@ mod tests {
         assert_eq!(
             ScaleF32::from_ppem(upem as f32, upem).scale_x(fraction),
             10.5
+        );
+    }
+
+    #[test]
+    fn a_rounding_scale_rounds_extents_corners_before_size() {
+        let extents = GlyphExtents {
+            x_bearing: F48Dot16::from_f64(10.6),
+            y_bearing: F48Dot16::from_f64(-0.5),
+            width: F48Dot16::from_f64(9.8),
+            height: F48Dot16::from_f64(20.0),
+        };
+        let scale = Scale26Dot6::from_ppem(1000.0, 1000);
+        assert_eq!(
+            scale.scale_glyph_extents(extents),
+            GlyphExtents {
+                x_bearing: F26Dot6::from_f64(11.0),
+                y_bearing: F26Dot6::from_f64(-1.0),
+                width: F26Dot6::from_f64(9.0),
+                height: F26Dot6::from_f64(20.0),
+            }
+        );
+
+        let below_half = F48Dot16::from_bits((100_000 << 16) + 0x7fff);
+        let extents = GlyphExtents {
+            x_bearing: below_half,
+            y_bearing: F48Dot16::from_i32(10),
+            width: F48Dot16::from_i32(2),
+            height: F48Dot16::from_i32(2),
+        };
+        assert_eq!(
+            scale.scale_glyph_extents(extents).x_bearing,
+            F26Dot6::from_i32(100_000)
         );
     }
 
