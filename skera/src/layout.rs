@@ -743,10 +743,18 @@ pub(crate) fn map_gsub_glyph(glyph_map: &[GlyphId], gid: GlyphId) -> Option<Glyp
 
 /// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
 /// returned glyphs are mapped into new glyph ids
+///
+/// A Coverage table is always paired with an array that it indexes into: the
+/// ValueRecord array of a SinglePosFormat2, the SequenceRuleSet array of a
+/// SequenceContextFormat1, and so on. `array_len` is the length of that array.
+/// Coverage entries at or past that index have no corresponding entry and are
+/// skipped, which mirrors harfbuzz's `hb_zip (this+coverage, array)`: zipping
+/// stops at the end of the shorter of the two sequences.
 pub(crate) fn intersected_glyphs_and_indices(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
     glyph_map: &[GlyphId],
+    array_len: u16,
 ) -> (Vec<GlyphId>, IntSet<u16>) {
     let count = match coverage {
         CoverageTable::Format1(t) => t.glyph_count(),
@@ -756,7 +764,9 @@ pub(crate) fn intersected_glyphs_and_indices(
 
     let coverage_population = coverage.population();
     let glyph_set_len = glyph_set.len();
-    let cap = coverage_population.min(glyph_set_len as usize);
+    let cap = coverage_population
+        .min(glyph_set_len as usize)
+        .min(array_len as usize);
     let mut glyphs = Vec::with_capacity(cap);
     let mut indices = IntSet::empty();
 
@@ -764,15 +774,21 @@ pub(crate) fn intersected_glyphs_and_indices(
         for (idx, g) in glyph_set
             .iter()
             .filter_map(|g| coverage.get(g).map(|idx| (idx, g)))
+            .filter(|(idx, _)| *idx < array_len)
             .filter_map(|(idx, g)| map_gsub_glyph(glyph_map, g).map(|new_g| (idx, new_g)))
         {
             glyphs.push(g);
             indices.insert(idx);
         }
     } else {
-        for (i, g) in coverage.iter().enumerate().filter_map(|(i, g)| {
-            map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
-        }) {
+        for (i, g) in coverage
+            .iter()
+            .take(array_len as usize)
+            .enumerate()
+            .filter_map(|(i, g)| {
+                map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
+            })
+        {
             glyphs.push(g);
             indices.insert(i as u16);
         }
