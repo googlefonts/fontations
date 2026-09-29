@@ -26,6 +26,7 @@ use crate::tables::{
     hvar::Hvar,
     layout::{self, Condition},
     loca::Loca,
+    vorg::Vorg,
     vvar::Vvar,
 };
 use crate::{
@@ -33,7 +34,7 @@ use crate::{
     ReadError, TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VvarTable};
+use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VorgTable, VvarTable};
 use core::{
     any::Any,
     str::FromStr,
@@ -219,6 +220,12 @@ impl Font {
     #[inline]
     pub(crate) fn cff(&self) -> Option<&CffFontRef<'_>> {
         self.shared().cff()
+    }
+
+    /// Returns `VORG`.
+    #[inline]
+    pub(crate) fn vorg(&self) -> Option<&Vorg<'_>> {
+        self.shared().vorg()
     }
 }
 
@@ -802,6 +809,7 @@ impl SharedFont {
             vvar: Once::new(),
             gvar: Once::new(),
             cff: Once::new(),
+            vorg: Once::new(),
         };
         Some(Self(Arc::new(repr)))
     }
@@ -938,6 +946,18 @@ impl SharedFont {
             .as_ref()
     }
 
+    /// Returns `VORG`, parsed once for the font.
+    #[inline]
+    fn vorg(&self) -> Option<&Vorg<'_>> {
+        let tables = self.tables_arc()?;
+        self.0
+            .vorg
+            .get_or_init(|| TableCache::read(tables.clone(), |tables| VorgTable::read(&tables)))
+            .get()
+            .0
+            .as_ref()
+    }
+
     /// Returns the charstring outlines, parsed once for the font.
     ///
     /// Reading one means running it, so nothing here is parsed per glyph
@@ -992,6 +1012,8 @@ struct SharedFontRepr {
     // The charstrings of a `CFF` or `CFF2` font, which neither metrics nor
     // outlines read unless the font states them this way.
     cff: Once<TableCache<CffFont<'static>>>,
+    // Where a glyph's vertical origin sits, read only by vertical text.
+    vorg: Once<TableCache<VorgTable<'static>>>,
 }
 
 /// The underlying type of a font.

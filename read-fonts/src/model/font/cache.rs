@@ -12,7 +12,7 @@
 
 use super::Tables;
 use crate::ps::cff::CffFontRef;
-use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vvar::Vvar};
+use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar};
 use crate::TableProvider;
 use alloc::sync::Arc;
 use yoke::{Yoke, Yokeable};
@@ -98,5 +98,18 @@ impl<'a> CffFont<'a> {
             .map(|cff2| cff2.offset_data().as_bytes())
             .or_else(|| tables.cff().ok().map(|cff| cff.offset_data().as_bytes()));
         Self(data.and_then(|data| CffFontRef::new(data, 0, upem).ok()))
+    }
+}
+
+/// The table stating where a glyph's vertical origin sits.
+///
+/// Read only by vertical text, and only ahead of everything else that could
+/// answer: a font stating this states it outright.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct VorgTable<'a>(pub(crate) Option<Vorg<'a>>);
+
+impl<'a> VorgTable<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.vorg().ok())
     }
 }
