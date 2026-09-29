@@ -1373,6 +1373,15 @@ pub(crate) fn scalar_for(
         if let Some((inter_start, inter_end)) = &intermediate {
             let start = inter_start.get(i).unwrap_or_default();
             let end = inter_end.get(i).unwrap_or_default();
+            // A region that does not enclose its own peak, or that straddles
+            // the default, is invalid and contributes a factor of one. This
+            // mirrors the OpenType algorithm and the sibling scalar
+            // computations (`compute_scalar_f32`, `VariationRegion::compute_scalar`);
+            // without it a malformed region interpolates where it should be
+            // skipped.
+            if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
+                continue;
+            }
             if coord <= start || coord >= end {
                 return None;
             }
@@ -1842,6 +1851,70 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(expected, &region_coords);
+    }
+
+    // A gvar/cvar intermediate region that does not enclose its own peak, or
+    // that straddles the default, must be ignored (contribute a factor of one)
+    // rather than interpolated. This matches the OpenType algorithm and the
+    // sibling `compute_scalar_f32` / `VariationRegion::compute_scalar`, which
+    // already apply the guard.
+    #[test]
+    fn scalar_for_ignores_invalid_intermediate_region() {
+        fn tuple(values: &[BigEndian<F2Dot14>]) -> Tuple<'_> {
+            Tuple { values }
+        }
+        let f = F2Dot14::from_f32;
+
+        // start > peak: the coord sits inside (start, end) but the region does
+        // not contain the peak, so the axis is skipped. Before the guard this
+        // interpolated to (end - coord) / (end - peak) = 0.2.
+        let peak: [BigEndian<F2Dot14>; 1] = [f(0.5).into()];
+        let start: [BigEndian<F2Dot14>; 1] = [f(0.8).into()];
+        let end: [BigEndian<F2Dot14>; 1] = [f(1.0).into()];
+        let coords = [f(0.9)];
+        assert_eq!(
+            scalar_for(&tuple(&peak), Some((tuple(&start), tuple(&end))), &coords),
+            Some(Fixed::ONE)
+        );
+
+        // peak > end.
+        let peak2: [BigEndian<F2Dot14>; 1] = [f(1.0).into()];
+        let start2: [BigEndian<F2Dot14>; 1] = [f(0.0).into()];
+        let end2: [BigEndian<F2Dot14>; 1] = [f(0.5).into()];
+        let coords2 = [f(0.25)];
+        assert_eq!(
+            scalar_for(
+                &tuple(&peak2),
+                Some((tuple(&start2), tuple(&end2))),
+                &coords2
+            ),
+            Some(Fixed::ONE)
+        );
+
+        // Region straddling the default (start < 0 < end).
+        let start3: [BigEndian<F2Dot14>; 1] = [f(-0.5).into()];
+        let end3: [BigEndian<F2Dot14>; 1] = [f(1.0).into()];
+        let coords3 = [f(0.25)];
+        assert_eq!(
+            scalar_for(
+                &tuple(&peak),
+                Some((tuple(&start3), tuple(&end3))),
+                &coords3
+            ),
+            Some(Fixed::ONE)
+        );
+
+        // A well-formed region (start <= peak <= end) still interpolates.
+        let start4: [BigEndian<F2Dot14>; 1] = [f(0.0).into()];
+        let end4: [BigEndian<F2Dot14>; 1] = [f(1.0).into()];
+        let coords4 = [f(0.25)];
+        let scalar = scalar_for(
+            &tuple(&peak),
+            Some((tuple(&start4), tuple(&end4))),
+            &coords4,
+        )
+        .unwrap();
+        assert!((scalar.to_f32() - 0.5).abs() < 1e-4);
     }
 
     // adapted from https://github.com/fonttools/fonttools/blob/f73220816264fc383b8a75f2146e8d69e455d398/Tests/ttLib/tables/TupleVariation_test.py#L492
