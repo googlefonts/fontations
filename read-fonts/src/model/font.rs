@@ -26,6 +26,7 @@ use crate::tables::{
     hvar::Hvar,
     layout::{self, Condition},
     loca::Loca,
+    vorg::Vorg,
     vvar::Vvar,
 };
 use crate::{
@@ -33,7 +34,7 @@ use crate::{
     ReadError, TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VvarTable};
+use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VorgTable, VvarTable};
 use core::{
     any::Any,
     str::FromStr,
@@ -220,6 +221,12 @@ impl Font {
     pub(crate) fn cff(&self) -> Option<&CffFontRef<'_>> {
         self.shared().cff()
     }
+
+    /// Returns `VORG`.
+    #[inline]
+    pub(crate) fn vorg(&self) -> Option<&Vorg<'_>> {
+        self.shared().vorg()
+    }
 }
 
 impl<'a> OutlineContext<'a> for &'a Font {
@@ -278,9 +285,12 @@ impl<'a> OutlineContext<'a> for &'a Font {
     }
 
     fn h_line_metrics(&self) -> (i32, i32) {
-        self.global_metrics().h_line().map_or((0, 0), |line| {
-            (line.ascender.to_i32(), line.descender.to_i32())
-        })
+        self.shared()
+            .global_metrics()
+            .h_line()
+            .map_or((0, 0), |line| {
+                (line.ascender.to_i32(), line.descender.to_i32())
+            })
     }
 
     fn has_hvar(&self) -> bool {
@@ -802,6 +812,7 @@ impl SharedFont {
             vvar: Once::new(),
             gvar: Once::new(),
             cff: Once::new(),
+            vorg: Once::new(),
         };
         Some(Self(Arc::new(repr)))
     }
@@ -938,6 +949,18 @@ impl SharedFont {
             .as_ref()
     }
 
+    /// Returns `VORG`, parsed once for the font.
+    #[inline]
+    fn vorg(&self) -> Option<&Vorg<'_>> {
+        let tables = self.tables_arc()?;
+        self.0
+            .vorg
+            .get_or_init(|| TableCache::read(tables.clone(), |tables| VorgTable::read(&tables)))
+            .get()
+            .0
+            .as_ref()
+    }
+
     /// Returns the charstring outlines, parsed once for the font.
     ///
     /// Reading one means running it, so nothing here is parsed per glyph
@@ -992,6 +1015,8 @@ struct SharedFontRepr {
     // The charstrings of a `CFF` or `CFF2` font, which neither metrics nor
     // outlines read unless the font states them this way.
     cff: Once<TableCache<CffFont<'static>>>,
+    // Where a glyph's vertical origin sits, read only by vertical text.
+    vorg: Once<TableCache<VorgTable<'static>>>,
 }
 
 /// The underlying type of a font.
@@ -1039,6 +1064,24 @@ mod tests {
             loaded.phantom_points()[2].y,
             glyph.y_max() as i32 + tsb as i32
         );
+    }
+
+    #[test]
+    fn outline_context_uses_unvaried_h_line_metrics() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let far = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        let line = font.shared().global_metrics().h_line().unwrap();
+        assert_ne!(Some(line), font.global_metrics().typo_line);
+        let expected = (line.ascender.to_i32(), line.descender.to_i32());
+        assert_ne!(
+            far.global_metrics().h_line(),
+            font.global_metrics().h_line()
+        );
+        assert_eq!((&font).h_line_metrics(), expected);
+        assert_eq!((&far).h_line_metrics(), expected);
     }
 
     #[test]
