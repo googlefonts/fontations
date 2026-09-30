@@ -17,6 +17,7 @@ pub use tables::{TableFunction, Tables};
 pub mod interop;
 
 use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
+use super::name::{self, GlyphName};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
 use crate::tables::{
@@ -159,6 +160,21 @@ impl Font {
     #[inline]
     pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
         GlyphMetrics::new(self, self.global_metrics(), self.normalized_coords())
+    }
+
+    /// Returns the name of a glyph, synthesizing `gidNNN` if none is stored.
+    ///
+    /// Returns `None` for a glyph outside the font.
+    pub fn glyph_name(&self, glyph: GlyphId) -> Option<GlyphName> {
+        name::glyph_name(self, glyph)
+    }
+
+    /// Returns the identifier and name of every glyph in the font.
+    ///
+    /// Names come from `post`, then `CFF`, or from Type 1 charstrings. A
+    /// missing name is synthesized as `gidNNN`.
+    pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + '_ {
+        name::glyph_names(self)
     }
 
     /// Returns the layout feature variations this instance selects.
