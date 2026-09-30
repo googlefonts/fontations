@@ -418,7 +418,11 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
             // and restore unless the component says to keep its own.
             let phantom = self.phantom;
             let start_point = self.point_count;
-            let component_glyph = self.context.glyph(component.glyph.into())?;
+            let component_glyph = self
+                .context
+                .glyph(component.glyph.into())
+                .ok_or(OutlineError::MissingGlyph)?
+                .into_glyph();
             self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component

@@ -18,10 +18,11 @@ pub mod interop;
 
 use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
 use super::once::Once;
+use crate::tables::loca::LocaGlyph;
 use crate::tables::{
     avar::Avar,
     fvar::Fvar,
-    glyf::{outline::OutlineContext, Glyf, Glyph, PHANTOM_POINT_COUNT},
+    glyf::{outline::OutlineContext, Glyf, PHANTOM_POINT_COUNT},
     gvar::{GlyphVariationData, Gvar},
     hvar::Hvar,
     layout::SelectedFeatureVariations,
@@ -31,7 +32,7 @@ use crate::tables::{
 };
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
-    ReadError, TableProvider,
+    TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VorgTable, VvarTable};
@@ -230,11 +231,9 @@ impl Font {
 }
 
 impl<'a> OutlineContext<'a> for &'a Font {
-    fn glyph(&self, glyph: GlyphId) -> Result<Option<Glyph<'a>>, ReadError> {
-        let (glyf, loca) = self
-            .glyf_loca()
-            .ok_or(ReadError::MalformedData("glyf or loca missing"))?;
-        loca.get_glyf(glyph, glyf)
+    fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>> {
+        let (glyf, loca) = self.glyf_loca()?;
+        loca.get(glyph, glyf)
     }
 
     fn glyph_variation_data(&self, glyph: GlyphId) -> Option<GlyphVariationData<'a>> {

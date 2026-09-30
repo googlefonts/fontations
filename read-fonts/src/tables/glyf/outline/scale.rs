@@ -814,6 +814,7 @@ mod tests {
     use super::super::testing::build;
     use super::super::{OutlineContext, OutlinePlan, OutlineTables};
     use super::*;
+    use crate::tables::loca::LocaGlyph;
     use crate::{tables::glyf::Glyph, types::GlyphId, FontRef};
     use alloc::{vec, vec::Vec};
 
@@ -835,8 +836,8 @@ mod tests {
         let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
         let context = OutlineTables::new(&font).unwrap();
         matches!(
-            context.glyph(GlyphId::new(gid)),
-            Ok(Some(Glyph::Composite(_)))
+            context.glyph(GlyphId::new(gid)).unwrap().into_glyph(),
+            Some(Glyph::Composite(_))
         )
     }
 
@@ -971,7 +972,7 @@ mod tests {
     fn unscaled_output_is_the_glyf_coordinates() {
         let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
         let context = OutlineTables::new(&font).unwrap();
-        let Ok(Some(Glyph::Simple(simple))) = context.glyph(GlyphId::new(1)) else {
+        let Some(LocaGlyph::Glyph(Glyph::Simple(simple))) = context.glyph(GlyphId::new(1)) else {
             panic!("glyph 1 is simple");
         };
         let raw: Vec<_> = simple.points().map(|point| (point.x, point.y)).collect();
