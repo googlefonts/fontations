@@ -16,6 +16,7 @@ use super::variations::DeltaSetIndex;
 
 #[cfg(feature = "std")]
 use crate::collections::IntSet;
+use crate::TableProvider;
 
 #[cfg(feature = "std")]
 pub(crate) use closure::{
@@ -126,6 +127,78 @@ impl<'a> FontRead<'a> for FeatureParams<'a> {
             // we don't know the tag?
             _ => Err(ReadError::InvalidFormat(0xdead)),
         }
+    }
+}
+
+impl FeatureVariations<'_> {
+    /// Returns the index of the first feature variation record that matches
+    /// the given coordinates.
+    pub fn index_for_coords(&self, coords: &[F2Dot14]) -> Option<u32> {
+        for (index, rec) in self.feature_variation_records().iter().enumerate() {
+            // If the ConditionSet offset is 0, this is treated as the
+            // universal condition: all contexts are matched.
+            if rec.condition_set_offset().is_null() {
+                return Some(index as u32);
+            }
+            let Some(Ok(condition_set)) = rec.condition_set(self.offset_data()) else {
+                continue;
+            };
+            // Otherwise, all conditions must be satisfied.
+            if condition_set
+                .conditions()
+                .iter()
+                // .. except we ignore errors
+                .filter_map(Result::ok)
+                .all(|cond| match cond {
+                    Condition::Format1AxisRange(format1) => {
+                        let coord = coords
+                            .get(format1.axis_index() as usize)
+                            .copied()
+                            .unwrap_or_default();
+                        coord >= format1.filter_range_min_value()
+                            && coord <= format1.filter_range_max_value()
+                    }
+                    _ => false,
+                })
+            {
+                return Some(index as u32);
+            }
+        }
+        None
+    }
+}
+
+/// Which features variation indices were selected for a given location.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct SelectedFeatureVariations {
+    /// Feature variation index for the GSUB table.
+    pub gsub: Option<u32>,
+    /// Feature variation index for the GPOS table.
+    pub gpos: Option<u32>,
+}
+
+impl SelectedFeatureVariations {
+    /// Selects the feature variation indices for the given font and
+    /// coordinates.
+    pub fn new<'a>(tables: &impl TableProvider<'a>, coords: &[F2Dot14]) -> Self {
+        let feature_var_tables = [
+            tables
+                .gsub()
+                .ok()
+                .and_then(|gsub| gsub.feature_variations()),
+            tables
+                .gpos()
+                .ok()
+                .and_then(|gpos| gpos.feature_variations()),
+        ];
+        let [gsub, gpos] = feature_var_tables.map(|feature_vars| {
+            feature_vars
+                .transpose()
+                .ok()
+                .flatten()
+                .and_then(|feature_vars| feature_vars.index_for_coords(coords))
+        });
+        Self { gsub, gpos }
     }
 }
 
@@ -974,6 +1047,8 @@ impl<T> std::ops::Deref for TaggedElement<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FontRef;
+    use types::Fixed;
 
     #[test]
     fn coverage_get_format1() {
@@ -1274,6 +1349,63 @@ mod tests {
     fn default_coverage() {
         let coverage = CoverageTable::default();
         assert_eq!(coverage.iter().count(), 0)
+    }
+
+    /// Normalized coordinates for the font at one value on one axis.
+    fn coords_at(font: &FontRef, tag: Tag, value: f32) -> Vec<F2Dot14> {
+        let fvar = font.fvar().unwrap();
+        let mut coords = vec![F2Dot14::ZERO; fvar.axis_count() as usize];
+        fvar.user_to_normalized(
+            font.avar().ok().as_ref(),
+            [(tag, Fixed::from_f64(value as f64))],
+            &mut coords,
+        );
+        coords
+    }
+
+    #[test]
+    fn index_for_coords_honors_the_condition_set() {
+        let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        let feature_vars = font.gsub().unwrap().feature_variations().unwrap().unwrap();
+        let fill = Tag::new(b"FILL");
+        assert_eq!(
+            feature_vars.index_for_coords(&coords_at(&font, fill, 1.0)),
+            Some(0)
+        );
+        assert_eq!(
+            feature_vars.index_for_coords(&coords_at(&font, fill, 0.5)),
+            None
+        );
+        // A short slice reads as the default location: an axis it omits
+        // takes its default value.
+        assert_eq!(feature_vars.index_for_coords(&[]), None);
+    }
+
+    #[test]
+    fn selected_feature_variations() {
+        let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        let cases = [
+            // (FILL value, [GSUB feature variation index, GPOS feature variation index])
+            (0.0, [None, None]),
+            (0.5, [None, None]),
+            (0.98, [None, None]),
+            (0.99, [Some(0), None]),
+            (1.0, [Some(0), None]),
+        ];
+        for (fill, expected) in cases {
+            let coords = coords_at(&font, Tag::new(b"FILL"), fill);
+            let selected = SelectedFeatureVariations::new(&font, &coords);
+            assert_eq!([selected.gsub, selected.gpos], expected, "fill={fill}");
+        }
+    }
+
+    #[test]
+    fn a_font_without_the_layout_tables_selects_nothing() {
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
+        assert_eq!(
+            SelectedFeatureVariations::new(&font, &[]),
+            SelectedFeatureVariations::default()
+        );
     }
 
     #[test]

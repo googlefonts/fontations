@@ -86,7 +86,10 @@ impl<'a> OutlinePlan<'a> {
             applies_variations: context.has_gvar() && !context.coords().is_empty(),
             ..Default::default()
         };
-        let glyph_data = context.glyph(glyph)?;
+        let glyph_data = context
+            .glyph(glyph)
+            .ok_or(OutlineError::MissingGlyph)?
+            .into_glyph();
         if let Some(data) = glyph_data.as_ref() {
             let mut components = 0;
             plan.walk(context, data, 0, 0, &mut components)?;
@@ -212,7 +215,11 @@ impl<'a> OutlinePlan<'a> {
                 let point_base = self.num_points;
                 for (component, flags) in composite.component_glyphs_and_flags() {
                     self.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
-                    let Some(component_glyph) = context.glyph(component.into())? else {
+                    let Some(component_glyph) = context
+                        .glyph(component.into())
+                        .ok_or(OutlineError::MissingGlyph)?
+                        .into_glyph()
+                    else {
                         continue;
                     };
                     *components += 1;

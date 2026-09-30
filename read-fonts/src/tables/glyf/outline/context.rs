@@ -2,11 +2,11 @@
 
 use crate::{
     tables::{
-        glyf::{Glyf, Glyph, PHANTOM_POINT_COUNT},
+        glyf::{Glyf, PHANTOM_POINT_COUNT},
         gvar::{GlyphVariationData, Gvar},
         hmtx::Hmtx,
         hvar::Hvar,
-        loca::Loca,
+        loca::{Loca, LocaGlyph},
         os2::Os2,
     },
     types::{F2Dot14, Fixed, GlyphId, Point},
@@ -23,7 +23,7 @@ use crate::{
 /// glyphs outlive any borrow of the implementor.
 pub trait OutlineContext<'a> {
     /// Returns the glyph with the given identifier, or `None` if it is empty.
-    fn glyph(&self, glyph: GlyphId) -> Result<Option<Glyph<'a>>, ReadError>;
+    fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>>;
 
     /// Variation data for a glyph, or `None` if the font does not vary or the
     /// glyph has none.
@@ -172,8 +172,8 @@ impl<'a> OutlineTables<'a> {
 }
 
 impl<'a> OutlineContext<'a> for OutlineTables<'a> {
-    fn glyph(&self, glyph: GlyphId) -> Result<Option<Glyph<'a>>, ReadError> {
-        self.loca.get_glyf(glyph, &self.glyf)
+    fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>> {
+        self.loca.get(glyph, &self.glyf)
     }
 
     fn glyph_variation_data(&self, glyph: GlyphId) -> Option<GlyphVariationData<'a>> {
@@ -249,8 +249,8 @@ mod tests {
     }
 
     impl<'a> OutlineContext<'a> for BorrowedContext<'a> {
-        fn glyph(&self, glyph: GlyphId) -> Result<Option<Glyph<'a>>, ReadError> {
-            self.loca.get_glyf(glyph, &self.glyf)
+        fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>> {
+            self.loca.get(glyph, &self.glyf)
         }
         fn glyph_variation_data(&self, _glyph: GlyphId) -> Option<GlyphVariationData<'a>> {
             None
@@ -313,8 +313,8 @@ mod tests {
         for gid in 0..font.maxp().unwrap().num_glyphs() {
             let gid = GlyphId::from(gid);
             assert_eq!(
-                borrowed.glyph(gid).unwrap().is_some(),
-                owned.glyph(gid).unwrap().is_some(),
+                borrowed.glyph(gid).unwrap().into_glyph().is_some(),
+                owned.glyph(gid).unwrap().into_glyph().is_some(),
                 "gid {gid}"
             );
         }

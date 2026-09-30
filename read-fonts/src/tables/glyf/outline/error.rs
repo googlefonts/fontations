@@ -10,6 +10,8 @@ use crate::ReadError;
 /// actionable.
 #[derive(Clone, PartialEq, Debug)]
 pub enum OutlineError {
+    /// A requested glyph was not found in the font.
+    MissingGlyph,
     /// A composite glyph nests more deeply than
     /// [`MAX_RECURSION_DEPTH`](crate::limits::MAX_RECURSION_DEPTH).
     RecursionLimitExceeded,
@@ -46,6 +48,7 @@ impl From<HintError> for OutlineError {
 impl core::fmt::Display for OutlineError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::MissingGlyph => f.write_str("requested glyph was not found in the font"),
             Self::RecursionLimitExceeded => {
                 f.write_str("glyph exceeded the composite recursion limit")
             }
