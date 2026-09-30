@@ -165,6 +165,36 @@ mod tests {
     }
 
     #[test]
+    fn brotli_decode_shared_dict_beyond_window() {
+        // Tests a case that triggered a bug in the rust brotli decompressor library,
+        // see: https://github.com/dropbox/rust-brotli-decompressor/issues/42 (fixed in 6.0.0)
+        //
+        // The dictionary is larger than the patch's 1008 byte window (lgwin 10) and the output runs
+        // past the window, so the patch copies dictionary data from further back than the window.
+        // Generated with the reference encoder: brotli -q 11 -w 10 -D dict -c target
+        const PATCH: [u8; 19] = [
+            0xa1, 0x38, 0x38, 0xc0, 0x3f, 0x01, 0x10, 0x85, 0xe5, 0x37, 0xe7, 0xac, 0x23, 0x21,
+            0x57, 0x02, 0x45, 0xc2, 0x60,
+        ];
+
+        // xorshift32 output, so the only matches available to the encoder are in the dictionary.
+        let mut x = 0x1234_5678u32;
+        let dict: Vec<u8> = (0..2000)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 17;
+                x ^= x << 5;
+                x as u8
+            })
+            .collect();
+        let target = [&dict[..600], &dict[1400..], &dict[100..700]].concat();
+
+        let decompressed = BuiltInBrotliDecoder.decode(&PATCH, Some(&dict), target.len());
+
+        assert_eq!(decompressed, Ok(target));
+    }
+
+    #[test]
     fn brotli_decode_without_shared_dict() {
         assert_eq!(
             Ok(TARGET.to_vec()),

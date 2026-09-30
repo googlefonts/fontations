@@ -149,6 +149,10 @@ jobs:
       - name: cargo test shared-brotli-patch-decoder
         run: cargo test -p shared-brotli-patch-decoder --all-targets --all-features
 
+      # --all-features selects the c-brotli backend, so test the rust-brotli backend on its own.
+      - name: cargo test shared-brotli-patch-decoder (rust-brotli)
+        run: cargo test -p shared-brotli-patch-decoder --all-targets --no-default-features --features rust-brotli
+
 
   verify-licenses:
     name: Verify licenses

@@ -371,6 +371,13 @@ impl<'a> GlyphMetrics<'a> {
 }
 
 impl GlyphMetrics<'_> {
+    pub(crate) fn glyf_y_min(&self, glyph_id: GlyphId) -> Option<i16> {
+        let (loca, glyf) = self.loca_glyf.as_ref()?;
+        let entry = loca.get(glyph_id, glyf)?;
+        let glyph = entry.glyph()?;
+        (glyph.number_of_contours() != 0).then(|| glyph.y_min())
+    }
+
     fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> Option<[i32; 2]> {
         let (loca, glyf) = self.loca_glyf.as_ref()?;
         let mut deltas =

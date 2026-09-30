@@ -1098,7 +1098,6 @@ pub(crate) mod tests {
 
     use brotlic::CompressorWriter;
     use read_fonts::{
-        collections::IntSet,
         tables::{
             cff2::Cff2,
             glyf::Glyf,
@@ -1127,7 +1126,7 @@ pub(crate) mod tests {
     use crate::{
         font_patch::PatchingError,
         glyph_keyed::{apply_glyph_keyed_patches, CffFourInfo, ShortDivByTwoInfo},
-        patchmap::{PatchId, PatchUrl},
+        patchmap::{ApplicativeBitIndices, PatchId, PatchUrl},
         testdata::{test_font_for_patching, test_font_for_patching_with_loca_mod},
     };
 
@@ -1181,7 +1180,7 @@ pub(crate) mod tests {
         let mut info = PatchInfo {
             url: PatchUrl::expand_template(&[], &PatchId::Numeric(0)).unwrap(),
             source_table: source,
-            application_flag_bit_indices: IntSet::<u32>::empty(),
+            application_flag_bit_indices: ApplicativeBitIndices::Empty,
         };
         info.application_flag_bit_indices.insert(bit_index as u32);
         info

@@ -4,6 +4,7 @@
 //! that can be applied to the font to add support for the corresponding subset definition.
 
 use std::cmp::Ordering;
+use std::collections::hash_map;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -251,7 +252,7 @@ fn add_intersecting_patches(
     // Caches the result of intersection check for an entry index.
     let mut entry_intersection_cache = EntryIntersectionCache::new(entries, subset_definition);
 
-    let mut application_bit_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
+    let mut application_bit_indices: HashMap<PatchUrl, ApplicativeBitIndices> = Default::default();
     let new_patches_first_index = patches.len();
 
     for (order, e) in entries.iter().enumerate() {
@@ -262,10 +263,6 @@ fn add_intersecting_patches(
         if !entry_intersection_cache.intersects(order) {
             continue;
         }
-
-        let [first_url, preload_urls @ ..] = e.urls.as_slice() else {
-            continue;
-        };
 
         // for invalidating keyed patches we need to record information about
         // intersection size to use later for patch selection. Only the first
@@ -279,16 +276,21 @@ fn add_intersecting_patches(
             IntersectionInfo::from_order(order)
         };
 
-        patches.push(first_url.clone().into_entry(
-            preload_urls.to_vec(),
+        patches.push(e.url.clone().into_entry(
+            e.preload_urls.to_vec(),
             source_table.clone(),
             e.format,
             intersection_info,
         ));
-        application_bit_indices
-            .entry(first_url.clone())
-            .or_default()
-            .insert(e.application_flag_bit_index);
+
+        match application_bit_indices.entry(e.url.clone()) {
+            hash_map::Entry::Occupied(mut occupied) => {
+                occupied.get_mut().insert(e.application_flag_bit_index);
+            }
+            hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(ApplicativeBitIndices::one(e.application_flag_bit_index));
+            }
+        }
     }
 
     // In format 2 there may be non intersected entries that have urls
@@ -298,11 +300,7 @@ fn add_intersecting_patches(
     // So reloop through all decoded entries and collect the indices for
     // any which match an intersected entry.
     for e in entries.iter().filter(|e| !e.ignored) {
-        let Some(first_url) = e.urls.first() else {
-            continue;
-        };
-
-        if let Some(indices) = application_bit_indices.get_mut(first_url) {
+        if let Some(indices) = application_bit_indices.get_mut(&e.url) {
             indices.insert(e.application_flag_bit_index);
         }
     }
@@ -544,7 +542,7 @@ fn decode_patch_format(
 
 fn decode_entry_deltas<const HAS_STRING_DATA: bool>(
     flags: EntryFormatFlags,
-    delta_data: &[u8],
+    mut delta_data: &[u8],
 ) -> Result<(Vec<i32>, &[u8]), ReadError> {
     if !flags.contains(EntryFormatFlags::ENTRY_ID_DELTA) {
         return Ok((vec![], delta_data));
@@ -552,19 +550,17 @@ fn decode_entry_deltas<const HAS_STRING_DATA: bool>(
 
     let mut result: Vec<i32> = vec![];
     const WIDTH: usize = 3;
-    let mut index = 0usize;
     loop {
-        let (value, has_more) =
-            decode_entry_delta::<HAS_STRING_DATA>(&delta_data[index * WIDTH..])?;
+        let (value, has_more) = decode_entry_delta::<HAS_STRING_DATA>(delta_data)?;
         result.push(value);
-        index += 1;
+        delta_data = &delta_data[WIDTH..];
 
         if !has_more {
             break;
         }
     }
 
-    Ok((result, &delta_data[index * WIDTH..]))
+    Ok((result, delta_data))
 }
 
 fn decode_entry_delta<const HAS_STRING_DATA: bool>(
@@ -712,8 +708,50 @@ pub struct PatchMapEntry {
     pub(crate) preload_urls: Vec<PatchUrl>,
     pub(crate) format: PatchFormat,
     pub(crate) source_table: IftTableTag,
-    pub(crate) application_bit_indices: IntSet<u32>,
+    pub(crate) application_bit_indices: ApplicativeBitIndices,
     pub(crate) intersection_info: IntersectionInfo,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ApplicativeBitIndices {
+    #[default]
+    Empty,
+    One(u32),
+    Many(Box<IntSet<u32>>),
+}
+
+impl ApplicativeBitIndices {
+    /// Create an `ApplicativeBitIndices` will a single value.
+    pub const fn one(val: u32) -> Self {
+        Self::One(val)
+    }
+
+    /// Insert `index` onto self.
+    pub fn insert(&mut self, index: u32) {
+        match self {
+            Self::Empty => *self = Self::One(index),
+            Self::One(val) => {
+                if *val != index {
+                    *self = Self::Many(Box::new(IntSet::from_iter([*val, index])))
+                }
+            }
+            Self::Many(set) => {
+                set.insert(index);
+            }
+        }
+    }
+
+    /// Iterate over all (ordered) indices.
+    pub fn iter(&self) -> impl '_ + Iterator<Item = u32> {
+        let (single, set): (Option<u32>, Option<&IntSet<u32>>) = match self {
+            Self::Empty => (None, None),
+            Self::One(val) => (Some(*val), None),
+            Self::Many(set) => (None, Some(set)),
+        };
+        single
+            .into_iter()
+            .chain(set.into_iter().flat_map(|s| s.iter()))
+    }
 }
 
 impl PatchMapEntry {
@@ -766,7 +804,7 @@ impl PatchUrl {
             preload_urls,
             format,
             source_table,
-            application_bit_indices: IntSet::<u32>::empty(), // these are populated later on
+            application_bit_indices: ApplicativeBitIndices::Empty, // these are populated later on
             intersection_info,
         }
     }
@@ -1048,7 +1086,8 @@ struct Entry {
     ignored: bool,
 
     // Value
-    urls: Vec<PatchUrl>,
+    url: PatchUrl,
+    preload_urls: Vec<PatchUrl>,
     format: PatchFormat,
     application_flag_bit_index: u32,
 }
@@ -1060,7 +1099,8 @@ impl Entry {
             child_indices: vec![],
             conjunctive_child_match: false,
             ignored: false,
-            urls: vec![],
+            url: PatchUrl::new(""),
+            preload_urls: vec![],
             format: default_format,
             application_flag_bit_index,
         }
@@ -1110,25 +1150,22 @@ impl Entry {
         last_id: &mut PatchId,
         id_string_data: &mut Option<Cursor<&[u8]>>,
     ) -> Result<(), ReadError> {
-        if deltas.is_empty() {
-            let next_id = new_entry_id(None, last_id, id_string_data)?;
-            self.urls.push(
-                PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
-                    ReadError::MalformedData("Failed to expand url template in format 2 table.")
-                })?,
-            );
-            *last_id = next_id;
-            return Ok(());
-        }
+        let (first_delta, preload_deltas): (Option<i32>, &[i32]) = match deltas.as_slice() {
+            [] => (None, &[]),
+            [first, rest @ ..] => (Some(*first), rest),
+        };
+        *last_id = new_entry_id(first_delta, last_id, id_string_data)?;
+        self.url = PatchUrl::expand_template(url_template, last_id).map_err(|_| {
+            ReadError::MalformedData("Failed to expand url template in format 2 table.")
+        })?;
 
-        for delta in deltas {
-            let next_id = new_entry_id(Some(delta), last_id, id_string_data)?;
-            self.urls.push(
-                PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
-                    ReadError::MalformedData("Failed to expand url template in format 2 table.")
-                })?,
-            );
-            *last_id = next_id;
+        self.preload_urls.reserve(preload_deltas.len());
+        for delta in preload_deltas {
+            *last_id = new_entry_id(Some(*delta), last_id, id_string_data)?;
+            let url = PatchUrl::expand_template(url_template, last_id).map_err(|_| {
+                ReadError::MalformedData("Failed to expand url template in format 2 table.")
+            })?;
+            self.preload_urls.push(url);
         }
 
         Ok(())
@@ -1313,7 +1350,9 @@ mod tests {
                         PatchFormat::GlyphKeyed,
                         IntersectionInfo::from_order(*order),
                     );
-                    e.application_bit_indices.union(application_bit_index);
+                    for val in application_bit_index.iter() {
+                        e.application_bit_indices.insert(val);
+                    }
                     e
                 },
             )
@@ -1362,7 +1401,9 @@ mod tests {
                         PatchFormat::GlyphKeyed,
                         IntersectionInfo::from_order(*order),
                     );
-                    e.application_bit_indices.union(application_bit_index);
+                    for val in application_bit_index.iter() {
+                        e.application_bit_indices.insert(val);
+                    }
                     e
                 },
             )
@@ -2307,7 +2348,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2317,7 +2359,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2422,7 +2465,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2433,7 +2477,8 @@ mod tests {
             conjunctive_child_match: Default::default(),
             ignored: false,
 
-            urls: vec![url.clone()],
+            url: url.clone(),
+            preload_urls: vec![],
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
@@ -2475,5 +2520,27 @@ mod tests {
         features.insert(foo);
 
         assert_eq!(features, FeatureSet::All);
+    }
+
+    #[test]
+    fn applicative_bit_indices_are_ordered() {
+        let ints = [50, 10, 30, 10, 50];
+        let int_subsets = (0..ints.len())
+            .flat_map(|start| (start..ints.len()).map(move |end| (start, end)))
+            .map(|(start, end)| &ints[start..end]);
+        for ints in int_subsets {
+            let expected: Vec<u32> = BTreeSet::from_iter(ints.iter().copied())
+                .into_iter()
+                .collect();
+            let mut indices = ApplicativeBitIndices::Empty;
+            for int in ints {
+                indices.insert(*int);
+            }
+            assert_eq!(
+                indices.iter().collect::<Vec<u32>>(),
+                expected,
+                "ApplicativeBitIndices did not produce sorted ints."
+            );
+        }
     }
 }

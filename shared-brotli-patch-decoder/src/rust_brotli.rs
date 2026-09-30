@@ -17,12 +17,12 @@ pub fn shared_brotli_decode_rust(
     let alloc_u32 = StandardAlloc::default();
     let alloc_hc = StandardAlloc::default();
 
-    let mut state = if let Some(dict) = shared_dictionary {
-        let custom_dict = dict.to_vec().into();
-        BrotliState::new_with_custom_dictionary(alloc_u8, alloc_u32, alloc_hc, custom_dict)
-    } else {
-        BrotliState::new(alloc_u8, alloc_u32, alloc_hc)
-    };
+    let mut state = BrotliState::new(alloc_u8, alloc_u32, alloc_hc);
+    if let Some(dict) = shared_dictionary {
+        if !state.attach_dictionary(dict.to_vec().into()) {
+            return Err(DecodeError::InvalidDictionary);
+        }
+    }
 
     let mut sink = vec![0u8; max_uncompressed_length];
     let mut available_in = encoded.len();

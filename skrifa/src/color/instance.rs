@@ -73,10 +73,11 @@ impl<'a> ColrInstance<'a> {
         } else {
             for (i, delta) in deltas.iter_mut().enumerate().take(actual_count) {
                 let var_index = var_index_base + i as u32;
-                // If we don't have a var index map, use our index as the inner
-                // component and set the outer to 0.
+                // If we don't have a var index map, the mapping is implicit:
+                // the index is a delta-set index with the outer component in
+                // the high word and the inner component in the low word.
                 let delta_ix = DeltaSetIndex {
-                    outer: 0,
+                    outer: (var_index >> 16) as u16,
                     inner: var_index as u16,
                 };
                 *delta = var_store
@@ -1034,5 +1035,53 @@ mod tests {
         let instance = ColrInstance::new(font.colr().unwrap(), coords);
         // Just don't panic with overflow
         let _: [F48Dot16; 4] = instance.var_deltas(0xFFFFFFFE);
+    }
+
+    /// Without a `VarIndexMap`, a variation index is a delta-set index with
+    /// the outer index in the high word and the inner index in the low word.
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-table-and-opentype-font-variations>
+    #[test]
+    fn var_deltas_implicit_mapping_uses_outer_index() {
+        use font_test_data::bebuffer::BeBuffer;
+        use raw::FontRead;
+
+        let buf = BeBuffer::new()
+            // COLR v1 header with only an item variation store
+            .push(1u16) // version
+            .push(0u16) // numBaseGlyphRecords
+            .push(0u32) // baseGlyphRecordsOffset
+            .push(0u32) // layerRecordsOffset
+            .push(0u16) // numLayerRecords
+            .push(0u32) // baseGlyphListOffset
+            .push(0u32) // layerListOffset
+            .push(0u32) // clipListOffset
+            .push(0u32) // varIndexMapOffset (NULL)
+            .push(34u32) // itemVariationStoreOffset
+            // ItemVariationStore
+            .push(1u16) // format
+            .push(16u32) // variationRegionListOffset
+            .push(2u16) // itemVariationDataCount
+            .extend([26u32, 36]) // itemVariationDataOffsets
+            // VariationRegionList: one axis, one region
+            .extend([1u16, 1])
+            .extend([F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE])
+            // ItemVariationData 0: a single item with a delta of 100
+            .extend([1u16, 1, 1, 0])
+            .push(100i16)
+            // ItemVariationData 1: a single item with a delta of 200
+            .extend([1u16, 1, 1, 0])
+            .push(200i16);
+        let colr = Colr::read(buf.data().into()).unwrap();
+        let coords = &[F2Dot14::ONE];
+        let instance = ColrInstance::new(colr, coords);
+        assert!(instance.index_map.is_none());
+        assert_eq!(
+            instance.var_deltas::<1>(0x0000_0000),
+            [F48Dot16::from_i32(100)]
+        );
+        assert_eq!(
+            instance.var_deltas::<1>(0x0001_0000),
+            [F48Dot16::from_i32(200)]
+        );
     }
 }
