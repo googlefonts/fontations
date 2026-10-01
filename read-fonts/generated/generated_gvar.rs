@@ -73,19 +73,6 @@ impl<'a> Gvar<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    /// Offset from the start of this table to the shared tuple records.
-    pub fn shared_tuples_offset(&self) -> Offset32 {
-        let range = self.shared_tuples_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Attempt to resolve [`shared_tuples_offset`][Self::shared_tuples_offset].
-    pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
-        let data = self.data;
-        let args = (self.shared_tuple_count(), self.axis_count());
-        self.shared_tuples_offset().resolve_with_args(data, args)
-    }
-
     /// The number of glyphs in this font. This must match the number
     /// of glyphs stored elsewhere in the font.
     pub fn glyph_count(&self) -> u16 {
