@@ -7,6 +7,9 @@ pub mod pen;
 mod once;
 
 #[cfg(feature = "experimental_font_api")]
+pub mod charmap;
+
+#[cfg(feature = "experimental_font_api")]
 mod font;
 
 #[cfg(feature = "experimental_font_api")]

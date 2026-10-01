@@ -16,6 +16,7 @@ pub use tables::{TableFunction, Tables};
 #[rust_analyzer::completions(hidden_from_completion)]
 pub mod interop;
 
+use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
@@ -161,6 +162,11 @@ impl Font {
         GlyphMetrics::new(self, self.global_metrics(), self.normalized_coords())
     }
 
+    /// Returns the font's character mappings.
+    pub fn charmap(&self) -> Charmap<'_> {
+        Charmap::new(self)
+    }
+
     /// Returns the layout feature variations this instance selects.
     pub fn feature_variations(&self) -> SelectedFeatureVariations {
         match &self.0 {
@@ -173,6 +179,14 @@ impl Font {
 }
 
 impl Font {
+    pub(crate) fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
+        self.shared().unicode_charmap()
+    }
+
+    pub(crate) fn encoding_tables(&self) -> Option<&EncodingTables<'_>> {
+        self.shared().encodings()
+    }
+
     /// The state every instance of this font shares.
     fn shared(&self) -> &SharedFont {
         match &self.0 {
@@ -737,6 +751,8 @@ impl SharedFont {
             gvar: Once::new(),
             cff: Once::new(),
             vorg: Once::new(),
+            charmap: Once::new(),
+            encodings: Once::new(),
         };
         Some(Self(Arc::new(repr)))
     }
@@ -786,6 +802,34 @@ impl SharedFont {
             KindRepr::Sfnt(tables, _) => Some(tables),
             _ => None,
         }
+    }
+
+    /// Returns the selected character maps, parsed once for the font.
+    fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
+        let tables = self.tables_arc()?;
+        Some(
+            self.0
+                .charmap
+                .get_or_init(|| {
+                    TableCache::read(tables.clone(), |tables| UnicodeCharmap::read(&tables))
+                })
+                .get(),
+        )
+    }
+
+    /// Returns all selectable cmap subtables, parsed on first use.
+    fn encodings(&self) -> Option<&EncodingTables<'_>> {
+        let tables = self.tables_arc()?;
+        Some(
+            self.0
+                .encodings
+                .get_or_init(|| {
+                    Box::new(TableCache::read(tables.clone(), |tables| {
+                        EncodingTables::read(&tables)
+                    }))
+                })
+                .get(),
+        )
     }
 
     /// Returns what `hmtx` states, parsed once for the font.
@@ -941,6 +985,10 @@ struct SharedFontRepr {
     cff: Once<TableCache<CffFont<'static>>>,
     // Where a glyph's vertical origin sits, read only by vertical text.
     vorg: Once<TableCache<VorgTable<'static>>>,
+    // Selected Unicode cmap subtables and their encoding metadata.
+    charmap: Once<TableCache<UnicodeCharmap<'static>>>,
+    // Only clients selecting a charmap pay for the dense record array.
+    encodings: Once<Box<TableCache<EncodingTables<'static>>>>,
 }
 
 /// The underlying type of a font.
