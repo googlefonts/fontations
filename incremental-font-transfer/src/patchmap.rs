@@ -73,6 +73,9 @@ impl PatchMap {
     }
 
     /// Find the set of patches which intersect the specified subset definition.
+    ///
+    /// If you only need to check if there are any patches, use
+    /// [`PatchMap::has_intersecting_patches`] for better performance.
     pub fn intersecting_patches(
         &self,
         subset_definition: &SubsetDefinition,
@@ -84,6 +87,26 @@ impl PatchMap {
         }
 
         Ok(result)
+    }
+
+    /// Returns true if [`PatchMap::intersecting_patches`] will return any patches.
+    ///
+    /// ```
+    /// # use incremental_font_transfer::patchmap::{PatchMap, SubsetDefinition};
+    /// # use read_fonts::{FontRef, ReadError};
+    /// # fn example(font: &FontRef, subset_definition: &SubsetDefinition) -> Result<(), ReadError> {
+    /// let patch_map = PatchMap::new(&font)?;
+    /// let patches = patch_map.intersecting_patches(&subset_definition)?;
+    /// assert_eq!(
+    ///     patch_map.has_intersecting_patches(&subset_definition),
+    ///     !patches.is_empty()
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn has_intersecting_patches(&self, subset_definition: &SubsetDefinition) -> bool {
+        self.tables()
+            .any(|(_, entries)| has_intersecting_patches(entries, subset_definition))
     }
 
     /// Iterates over the mapping tables present in the font, "IFT" before "IFTX".
@@ -243,13 +266,24 @@ impl<'a> EntryIntersectionCache<'a> {
 /// # TODO
 ///
 /// Optionally store indexes or other data to accelerate intersection.
+fn has_intersecting_patches(entries: &[Entry], subset_definition: &SubsetDefinition) -> bool {
+    let mut entry_intersection_cache = EntryIntersectionCache::new(entries, subset_definition);
+    entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| !entry.ignored)
+        .any(|(order, _)| entry_intersection_cache.intersects(order))
+}
+
+/// # TODO
+///
+/// Optionally store indexes or other data to accelerate intersection.
 fn add_intersecting_patches(
     source_table: &IftTableTag,
     entries: &[Entry],
     subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
-    // Caches the result of intersection check for an entry index.
     let mut entry_intersection_cache = EntryIntersectionCache::new(entries, subset_definition);
 
     let mut application_bit_indices: HashMap<PatchUrl, ApplicativeBitIndices> = Default::default();
@@ -1322,14 +1356,14 @@ mod tests {
         design_space: DesignSpace,
         expected_entries: [ExpectedEntry; P],
     ) {
-        let patches = PatchMap::new(font)
-            .unwrap()
-            .intersecting_patches(&SubsetDefinition::new(
-                IntSet::from(codepoints),
-                tags,
-                design_space,
-            ))
-            .unwrap();
+        let patch_map = PatchMap::new(font).unwrap();
+        let subset = SubsetDefinition::new(IntSet::from(codepoints), tags, design_space);
+        let patches = patch_map.intersecting_patches(&subset).unwrap();
+        assert_eq!(
+            patch_map.has_intersecting_patches(&subset),
+            !patches.is_empty(),
+            "has_intersecting_patches disagrees with intersecting_patches for {subset:?}"
+        );
 
         let expected: Vec<_> = expected_entries
             .iter()
@@ -1375,14 +1409,18 @@ mod tests {
         url_template: &[u8],
         expected_entries: [ExpectedEntry; N],
     ) {
-        let patches = PatchMap::new(font)
-            .unwrap()
-            .intersecting_patches(&SubsetDefinition::new(
-                IntSet::<u32>::all(),
-                FeatureSet::from(tags),
-                Default::default(),
-            ))
-            .unwrap();
+        let patch_map = PatchMap::new(font).unwrap();
+        let subset = SubsetDefinition::new(
+            IntSet::<u32>::all(),
+            FeatureSet::from(tags),
+            Default::default(),
+        );
+        let patches = patch_map.intersecting_patches(&subset).unwrap();
+        assert_eq!(
+            patch_map.has_intersecting_patches(&subset),
+            !patches.is_empty(),
+            "has_intersecting_patches disagrees with intersecting_patches for {subset:?}"
+        );
 
         let expected: Vec<_> = expected_entries
             .iter()
