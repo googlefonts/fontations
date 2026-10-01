@@ -7,7 +7,7 @@ use core_maths::CoreFloat;
 use crate::{
     mem::with_scratch,
     model::{
-        metrics::{GlobalMetrics, LineExtents, Scale, ScaledGlyphMetrics},
+        metrics::{LineExtents, Metrics, Scale, ScaledGlyphMetrics},
         Font, Kind,
     },
     ps::{
@@ -48,7 +48,7 @@ pub struct GlyphExtents<T> {
 pub struct GlyphMetrics<'a> {
     h_metrics: &'a RawGlyphMetrics<'a>,
     font: &'a Font,
-    global: &'a GlobalMetrics,
+    global: &'a Metrics,
     coords: &'a [F2Dot14],
     num_glyphs: u32,
     units_per_em: u16,
@@ -57,7 +57,7 @@ pub struct GlyphMetrics<'a> {
 impl<'a> GlyphMetrics<'a> {
     /// Binds a font to the location its glyphs are measured at.
     #[inline]
-    pub(crate) fn new(font: &'a Font, global: &'a GlobalMetrics, coords: &'a [F2Dot14]) -> Self {
+    pub(crate) fn new(font: &'a Font, global: &'a Metrics, coords: &'a [F2Dot14]) -> Self {
         Self {
             h_metrics: font.h_metrics(),
             font,
@@ -1066,7 +1066,7 @@ mod tests {
         // vertical metrics is easier to predict than a per-glyph heuristic,
         // and HarfBuzz has no opinion because it does not read Type 1.
         let font = Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap();
-        let line = font.global_metrics().h_line().unwrap();
+        let line = font.metrics().h_line().unwrap();
         let height = line.ascender - line.descender;
         assert!(height > F48Dot16::ZERO);
         let metrics = font.glyph_metrics();
@@ -1135,7 +1135,7 @@ mod tests {
         // A horizontal font stacks by the line it lays text on, so every
         // glyph gets the same height whatever its width.
         let font = Font::new(STATIC, 0).unwrap();
-        let line = font.global_metrics().h_line().unwrap();
+        let line = font.metrics().h_line().unwrap();
         let expected = line.ascender - line.descender;
         assert!(expected > F48Dot16::ZERO);
         let metrics = font.glyph_metrics();

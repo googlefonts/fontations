@@ -1,13 +1,16 @@
 //! Metrics in a caller's own units.
 
-use super::{GlobalMetrics, GlyphExtents, GlyphMetrics, LineBox, LineExtents};
+use super::{
+    Decoration, GlyphExtents, GlyphMetrics, LineBox, LineExtents, Metrics, ScriptMetrics,
+    StyleMetrics,
+};
 use types::{BoundingBox, F26Dot6, F48Dot16, Fixed, GlyphId};
 
 /// Converts a measurement in design units into a caller's own units.
 ///
 /// Written by whatever owns scaling in a text stack: a shaper, or the bridge
 /// between one and this crate. Callers that want design units read them from
-/// [`GlyphMetrics`] and [`GlobalMetrics`] and never implement this.
+/// [`GlyphMetrics`], [`Metrics`] and [`StyleMetrics`] and never implement this.
 ///
 /// Scaling is more than a multiplication, which is why it is a trait rather
 /// than a factor this crate would apply. HarfBuzz scales each axis by its own
@@ -233,13 +236,13 @@ impl Scale for ScaleF32 {
 /// does not compute the rest. What carries no unit, such as the glyph count,
 /// is reported unchanged.
 #[derive(Clone, Copy)]
-pub struct ScaledGlobalMetrics<'a, S: Scale> {
-    metrics: &'a GlobalMetrics,
+pub struct ScaledMetrics<'a, S: Scale> {
+    metrics: &'a Metrics,
     scale: S,
 }
 
-impl<'a, S: Scale> ScaledGlobalMetrics<'a, S> {
-    pub(crate) fn new(metrics: &'a GlobalMetrics, scale: S) -> Self {
+impl<'a, S: Scale> ScaledMetrics<'a, S> {
+    pub(crate) fn new(metrics: &'a Metrics, scale: S) -> Self {
         Self { metrics, scale }
     }
 
@@ -263,7 +266,7 @@ impl<'a, S: Scale> ScaledGlobalMetrics<'a, S> {
 
     /// Returns the ascender, descender and gap for horizontal text.
     ///
-    /// Resolved as [`GlobalMetrics::h_line`] resolves it, with each end
+    /// Resolved as [`Metrics::h_line`] resolves it, with each end
     /// scaled on its own so that a caller subtracting them gets the height
     /// the glyph metrics report for a font that stacks by this line.
     #[inline]
@@ -365,11 +368,88 @@ impl<'a, S: Scale> ScaledGlobalMetrics<'a, S> {
     }
 }
 
-impl GlobalMetrics {
+impl Metrics {
     /// Returns these metrics in the units `scale` describes.
     #[inline]
-    pub fn scaled<S: Scale>(&self, scale: S) -> ScaledGlobalMetrics<'_, S> {
-        ScaledGlobalMetrics::new(self, scale)
+    pub fn scaled<S: Scale>(&self, scale: S) -> ScaledMetrics<'_, S> {
+        ScaledMetrics::new(self, scale)
+    }
+}
+
+/// Style measurements in a caller's own units.
+///
+/// Scaling is done when a measurement is requested. The italic angle and
+/// fixed-pitch flag have no length to scale and are returned unchanged.
+#[derive(Clone, Copy)]
+pub struct ScaledStyleMetrics<'a, S: Scale> {
+    metrics: &'a StyleMetrics,
+    scale: S,
+}
+
+impl<'a, S: Scale> ScaledStyleMetrics<'a, S> {
+    pub(crate) fn new(metrics: &'a StyleMetrics, scale: S) -> Self {
+        Self { metrics, scale }
+    }
+
+    /// Returns the suggested subscript em box and placement.
+    pub fn subscript(&self) -> Option<ScriptMetrics<S::Value>> {
+        self.metrics
+            .subscript
+            .map(|script| self.scale_script(script))
+    }
+
+    /// Returns the suggested superscript em box and placement.
+    pub fn superscript(&self) -> Option<ScriptMetrics<S::Value>> {
+        self.metrics
+            .superscript
+            .map(|script| self.scale_script(script))
+    }
+
+    /// Returns the suggested underline position and thickness.
+    pub fn underline(&self) -> Option<Decoration<S::Value>> {
+        self.metrics
+            .underline
+            .map(|decoration| self.scale_decoration(decoration))
+    }
+
+    /// Returns the suggested strikeout position and thickness.
+    pub fn strikethrough(&self) -> Option<Decoration<S::Value>> {
+        self.metrics
+            .strikethrough
+            .map(|decoration| self.scale_decoration(decoration))
+    }
+
+    /// Returns the italic angle in degrees, unaffected by scaling.
+    pub fn italic_angle(&self) -> Option<Fixed> {
+        self.metrics.italic_angle
+    }
+
+    /// Returns whether the font reports a fixed pitch.
+    pub fn is_fixed_pitch(&self) -> Option<bool> {
+        self.metrics.is_fixed_pitch
+    }
+
+    fn scale_script(&self, script: ScriptMetrics) -> ScriptMetrics<S::Value> {
+        ScriptMetrics {
+            x_size: self.scale.scale_x(script.x_size),
+            y_size: self.scale.scale_y(script.y_size),
+            x_offset: self.scale.scale_x(script.x_offset),
+            y_offset: self.scale.scale_y(script.y_offset),
+        }
+    }
+
+    fn scale_decoration(&self, decoration: Decoration) -> Decoration<S::Value> {
+        Decoration {
+            position: self.scale.scale_y(decoration.position),
+            thickness: self.scale.scale_y(decoration.thickness),
+        }
+    }
+}
+
+impl StyleMetrics {
+    /// Returns these style measurements in the units `scale` describes.
+    pub fn scaled<S: Scale>(&self, scale: S) -> ScaledStyleMetrics<'_, S> {
+        ScaledStyleMetrics::new(self, scale)
     }
 }
 
@@ -697,7 +777,7 @@ mod tests {
 
     fn scaled(data: &[u8], ppem: f32) -> (Font, Ppem) {
         let font = Font::new(data.to_vec(), 0).unwrap();
-        let upem = font.global_metrics().units_per_em;
+        let upem = font.metrics().units_per_em;
         (font, Ppem { ppem, upem })
     }
 
@@ -756,8 +836,8 @@ mod tests {
         // answer differently depending on whether one was supplied. It shows
         // up only where the scale rounds, and then by a whole unit.
         let font = Font::new(STATIC.to_vec(), 0).unwrap();
-        let upem = font.global_metrics().units_per_em;
-        let from_font = font.global_metrics().h_line().unwrap().extents();
+        let upem = font.metrics().units_per_em;
+        let from_font = font.metrics().h_line().unwrap().extents();
         let mut rounded_apart = 0;
         for ppem in [11.0f32, 12.0, 13.0, 14.0, 16.0, 19.0, 24.0] {
             let scale = Rounding(ppem, upem);
@@ -798,10 +878,10 @@ mod tests {
         // the glyph metrics give a font that stacks by that line, or the two
         // disagree about the same font at the same size.
         let font = Font::new(STATIC.to_vec(), 0).unwrap();
-        let upem = font.global_metrics().units_per_em;
+        let upem = font.metrics().units_per_em;
         for ppem in [11.0f32, 12.0, 13.0, 16.0, 19.0, 24.0] {
             let scale = Rounding(ppem, upem);
-            let line = font.global_metrics().scaled(scale).h_line().unwrap();
+            let line = font.metrics().scaled(scale).h_line().unwrap();
             let height = Rounding::sub(line.ascender, line.descender);
             let glyphs = font.glyph_metrics().scaled(scale);
             for gid in (0..font.num_glyphs()).map(GlyphId::new) {
@@ -812,10 +892,10 @@ mod tests {
 
     #[test]
     fn every_measurement_is_the_unscaled_one_through_the_scale() {
-        // One case per field of `GlobalMetrics`, so that a field added there
+        // One case per field of `Metrics`, so that a field added there
         // without one here is a gap someone has to notice.
         let font = Font::new(STATIC.to_vec(), 0).unwrap();
-        let global = font.global_metrics();
+        let global = font.metrics();
         let scale = Ppem {
             ppem: 16.0,
             upem: global.units_per_em,
@@ -873,7 +953,7 @@ mod tests {
         // `OS/2` gives the descent as a positive number below the baseline.
         // Reporting it as a position keeps the pair readable as a line.
         let font = Font::new(STATIC.to_vec(), 0).unwrap();
-        let global = font.global_metrics();
+        let global = font.metrics();
         let win = global
             .win_line
             .expect("this font provides clipping metrics");
@@ -894,7 +974,7 @@ mod tests {
         // what each can represent, so the coarser rounds the finer rather
         // than disagreeing with it.
         let font = Font::new(STATIC.to_vec(), 0).unwrap();
-        let upem = font.global_metrics().units_per_em;
+        let upem = font.metrics().units_per_em;
         let coarse = font
             .glyph_metrics()
             .scaled(Scale26Dot6::from_ppem(16.0, upem));
@@ -911,7 +991,7 @@ mod tests {
         // The axes are apart because HarfBuzz keeps them apart, so a scale
         // built from two factors has to use the right one in each direction.
         let font = Font::new(VERT.to_vec(), 0).unwrap();
-        let upem = font.global_metrics().units_per_em;
+        let upem = font.metrics().units_per_em;
         let em = upem as f32;
         let wide = ScaleF32::new(em * 2.0, em, upem);
         let tall = ScaleF32::new(em, em * 2.0, upem);
