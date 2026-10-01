@@ -179,7 +179,7 @@ struct NameIter<'a> {
     count: u32,
 }
 
-pub(crate) fn glyph_names(font: &Font) -> impl Iterator<Item = (GlyphId, GlyphName)> + '_ {
+pub(crate) fn glyph_names(font: &Font) -> impl ExactSizeIterator<Item = (GlyphId, GlyphName)> + '_ {
     let source = match source(font) {
         NameSource::Post(post) => NameIterSource::Post(post.glyph_names()),
         NameSource::Cff(cff, charset) => NameIterSource::Cff(cff, charset.iter()),
@@ -195,6 +195,11 @@ pub(crate) fn glyph_names(font: &Font) -> impl Iterator<Item = (GlyphId, GlyphNa
 
 impl Iterator for NameIter<'_> {
     type Item = (GlyphId, GlyphName);
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.count - self.next) as usize;
+        (remaining, Some(remaining))
+    }
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.next >= self.count {
@@ -221,6 +226,8 @@ impl Iterator for NameIter<'_> {
     }
 }
 
+impl ExactSizeIterator for NameIter<'_> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,6 +238,12 @@ mod tests {
     #[test]
     fn post_names_agree_between_lookup_and_iteration() {
         let font = Font::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP, 0).unwrap();
+        let mut iter = font.glyph_names();
+        let count = font.num_glyphs() as usize;
+        assert_eq!(iter.size_hint(), (count, Some(count)));
+        assert!(iter.next().is_some());
+        assert_eq!(iter.by_ref().count(), count - 1);
+
         let names: Vec<_> = font.glyph_names().collect();
         assert_eq!(names.len(), font.num_glyphs() as usize);
         assert_eq!(names[0].1, ".notdef");
