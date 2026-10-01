@@ -145,4 +145,8 @@ fi
 echo
 
 cd "$manifest_dir"
-cargo check --manifest-path "$harness/Cargo.toml"
+# fontconfig uses this custom cfg for optional WOFF2 support. Its manifest
+# denies warnings, so register the name with rustc's cfg checker while leaving
+# the condition disabled for this compatibility check.
+RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--check-cfg=cfg(have_woff2)" \
+    cargo check --manifest-path "$harness/Cargo.toml"
