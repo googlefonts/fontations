@@ -18,6 +18,7 @@ pub mod interop;
 
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
+use super::name::{self, GlyphName};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
 use crate::tables::{
@@ -134,6 +135,11 @@ impl Font {
         self.shared().tables()
     }
 
+    /// Returns the font's character mappings.
+    pub fn charmap(&self) -> Charmap<'_> {
+        Charmap::new(self)
+    }
+
     /// Returns the normalized variation coordinates for this font instance.
     pub fn normalized_coords(&self) -> &[NormalizedCoord] {
         match &self.0 {
@@ -162,9 +168,19 @@ impl Font {
         GlyphMetrics::new(self, self.global_metrics(), self.normalized_coords())
     }
 
-    /// Returns the font's character mappings.
-    pub fn charmap(&self) -> Charmap<'_> {
-        Charmap::new(self)
+    /// Returns the name of a glyph, synthesizing `gidNNN` if none is stored.
+    ///
+    /// Returns `None` for a glyph outside the font.
+    pub fn glyph_name(&self, glyph: GlyphId) -> Option<GlyphName> {
+        name::glyph_name(self, glyph)
+    }
+
+    /// Returns the identifier and name of every glyph in the font.
+    ///
+    /// Names come from `post`, then `CFF`, or from Type 1 charstrings. A
+    /// missing name is synthesized as `gidNNN`.
+    pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + '_ {
+        name::glyph_names(self)
     }
 
     /// Returns the layout feature variations this instance selects.
