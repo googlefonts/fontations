@@ -100,6 +100,16 @@ table VarLenHaver {
 }
 
 #[skip_constructor]
+table OffsetAfterArray {
+    count: u16,
+    #[count($count)]
+    values: [u16],
+    item_offset: Offset32<Dummy>,
+    short_offset: Offset16<Dummy>,
+    medium_offset: Offset24<Dummy>,
+}
+
+#[skip_constructor]
 table Dummy {
     value: u16,
     /// Set to 0.

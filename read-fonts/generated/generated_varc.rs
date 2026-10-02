@@ -303,10 +303,10 @@ pub struct SparseVariationRegionList<'a> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SparseVariationRegionList<'a> {
-    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn region_count(&self) -> u16 {
+    pub fn region_count(&self) -> u32 {
         let range = self.region_count_byte_range();
         self.data.read_at(range.start).ok().unwrap()
     }
@@ -325,7 +325,7 @@ impl<'a> SparseVariationRegionList<'a> {
 
     pub fn region_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start + u32::RAW_BYTE_LEN;
         start..end
     }
 
@@ -352,7 +352,7 @@ impl Default for SparseVariationRegionList<'_> {
 
 impl<'a> MinByteRange<'a> for SparseVariationRegion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.region_axes_byte_range().end
+        0..self.axis_coordinate_offsets_byte_range().end
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
@@ -389,9 +389,18 @@ impl<'a> SparseVariationRegion<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    pub fn region_axes(&self) -> &'a [SparseRegionAxisCoordinates] {
-        let range = self.region_axes_byte_range();
+    pub fn axis_coordinate_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.axis_coordinate_offsets_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`axis_coordinate_offsets`][Self::axis_coordinate_offsets].
+    pub fn axis_coordinates(
+        &self,
+    ) -> ArrayOfOffsets<'a, SparseRegionAxisCoordinates<'a>, Offset32> {
+        let data = self.data;
+        let offsets = self.axis_coordinate_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn region_axis_count_byte_range(&self) -> Range<usize> {
@@ -400,12 +409,11 @@ impl<'a> SparseVariationRegion<'a> {
         start..end
     }
 
-    pub fn region_axes_byte_range(&self) -> Range<usize> {
+    pub fn axis_coordinate_offsets_byte_range(&self) -> Range<usize> {
         let region_axis_count = self.region_axis_count();
         let start = self.region_axis_count_byte_range().end;
         let end = start
-            + (transforms::to_usize(region_axis_count))
-                .saturating_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN);
+            + (transforms::to_usize(region_axis_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -422,37 +430,96 @@ impl Default for SparseVariationRegion<'_> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
-#[repr(C)]
-#[repr(packed)]
-pub struct SparseRegionAxisCoordinates {
-    pub axis_index: BigEndian<u16>,
-    pub start: BigEndian<F2Dot14>,
-    pub peak: BigEndian<F2Dot14>,
-    pub end: BigEndian<F2Dot14>,
+impl<'a> MinByteRange<'a> for SparseRegionAxisCoordinates<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.end_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
 }
 
-impl SparseRegionAxisCoordinates {
+impl ReadArgs for SparseRegionAxisCoordinates<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SparseRegionAxisCoordinates<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct SparseRegionAxisCoordinates<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SparseRegionAxisCoordinates<'a> {
+    pub const MIN_SIZE: usize =
+        (u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
     pub fn axis_index(&self) -> u16 {
-        self.axis_index.get()
+        let range = self.axis_index_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn start(&self) -> F2Dot14 {
-        self.start.get()
+        let range = self.start_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn peak(&self) -> F2Dot14 {
-        self.peak.get()
+        let range = self.peak_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn end(&self) -> F2Dot14 {
-        self.end.get()
+        let range = self.end_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn axis_index_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn start_byte_range(&self) -> Range<usize> {
+        let start = self.axis_index_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn peak_byte_range(&self) -> Range<usize> {
+        let start = self.start_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn end_byte_range(&self) -> Range<usize> {
+        let start = self.peak_byte_range().end;
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
-impl FixedSize for SparseRegionAxisCoordinates {
-    const RAW_BYTE_LEN: usize =
-        u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+const _: () = assert!(FontData::default_data_long_enough(
+    SparseRegionAxisCoordinates::MIN_SIZE
+));
+
+impl Default for SparseRegionAxisCoordinates<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
 }
 
 impl Format<u8> for MultiItemVariationData<'_> {
@@ -461,7 +528,7 @@ impl Format<u8> for MultiItemVariationData<'_> {
 
 impl<'a> MinByteRange<'a> for MultiItemVariationData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.raw_delta_sets_byte_range().end
+        0..self.delta_sets_offset_byte_range().end
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
@@ -490,7 +557,7 @@ pub struct MultiItemVariationData<'a> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultiItemVariationData<'a> {
-    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> u8 {
@@ -508,9 +575,18 @@ impl<'a> MultiItemVariationData<'a> {
         self.data.read_array(range).ok().unwrap_or_default()
     }
 
-    pub fn raw_delta_sets(&self) -> &'a [u8] {
-        let range = self.raw_delta_sets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+    pub fn delta_sets_offset(&self) -> Offset32 {
+        let range = self.delta_sets_offset_byte_range();
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
+    }
+
+    /// Attempt to resolve [`delta_sets_offset`][Self::delta_sets_offset].
+    pub fn delta_sets(&self) -> Result<Index2<'a>, ReadError> {
+        let data = self.data;
+        self.delta_sets_offset().resolve(data)
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -533,10 +609,9 @@ impl<'a> MultiItemVariationData<'a> {
         start..end
     }
 
-    pub fn raw_delta_sets_byte_range(&self) -> Range<usize> {
+    pub fn delta_sets_offset_byte_range(&self) -> Range<usize> {
         let start = self.region_indices_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start + Offset32::RAW_BYTE_LEN;
         start..end
     }
 }

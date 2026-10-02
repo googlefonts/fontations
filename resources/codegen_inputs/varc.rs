@@ -34,7 +34,7 @@ table MultiItemVariationStore {
 }
 
 table SparseVariationRegionList {
-  region_count: u16,
+  region_count: u32,
   #[count($region_count)]
   region_offsets: [Offset32<SparseVariationRegion>],
 }
@@ -42,10 +42,10 @@ table SparseVariationRegionList {
 table SparseVariationRegion {
     region_axis_count: u16,
     #[count($region_axis_count)]
-    region_axes: [SparseRegionAxisCoordinates],
+    axis_coordinate_offsets: [Offset32<SparseRegionAxisCoordinates>],
 }
 
-record SparseRegionAxisCoordinates
+table SparseRegionAxisCoordinates
 {
   axis_index: u16,
   start: F2Dot14,
@@ -59,8 +59,7 @@ table MultiItemVariationData {
     region_index_count: u16,
     #[count($region_index_count)]
     region_indices: [u16],
-    #[count(..)]
-    raw_delta_sets: [u8],    
+    delta_sets_offset: Offset32<Index2>,
 }
 
 table ConditionList {

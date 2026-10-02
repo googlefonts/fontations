@@ -194,13 +194,13 @@ impl<'a> FontRead<'a> for MultiItemVariationStore {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SparseVariationRegionList {
-    pub region_count: u16,
+    pub region_count: u32,
     pub regions: Vec<OffsetMarker<SparseVariationRegion, WIDTH_32>>,
 }
 
 impl SparseVariationRegionList {
     /// Construct a new `SparseVariationRegionList`
-    pub fn new(region_count: u16, regions: Vec<SparseVariationRegion>) -> Self {
+    pub fn new(region_count: u32, regions: Vec<SparseVariationRegion>) -> Self {
         Self {
             region_count,
             regions: regions.into_iter().map(Into::into).collect(),
@@ -222,7 +222,7 @@ impl Validate for SparseVariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegionList", |ctx| {
             ctx.in_field("regions", |ctx| {
-                if self.regions.len() > to_usize(u16::MAX) {
+                if self.regions.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.regions.validate_impl(ctx);
@@ -266,15 +266,15 @@ impl<'a> FontRead<'a> for SparseVariationRegionList {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SparseVariationRegion {
     pub region_axis_count: u16,
-    pub region_axes: Vec<SparseRegionAxisCoordinates>,
+    pub axis_coordinates: Vec<OffsetMarker<SparseRegionAxisCoordinates, WIDTH_32>>,
 }
 
 impl SparseVariationRegion {
     /// Construct a new `SparseVariationRegion`
-    pub fn new(region_axis_count: u16, region_axes: Vec<SparseRegionAxisCoordinates>) -> Self {
+    pub fn new(region_axis_count: u16, axis_coordinates: Vec<SparseRegionAxisCoordinates>) -> Self {
         Self {
             region_axis_count,
-            region_axes,
+            axis_coordinates: axis_coordinates.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -282,7 +282,7 @@ impl SparseVariationRegion {
 impl FontWrite for SparseVariationRegion {
     fn write_into(&self, writer: &mut TableWriter) {
         self.region_axis_count.write_into(writer);
-        self.region_axes.write_into(writer);
+        self.axis_coordinates.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SparseVariationRegion")
@@ -292,11 +292,11 @@ impl FontWrite for SparseVariationRegion {
 impl Validate for SparseVariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegion", |ctx| {
-            ctx.in_field("region_axes", |ctx| {
-                if self.region_axes.len() > to_usize(u16::MAX) {
+            ctx.in_field("axis_coordinates", |ctx| {
+                if self.axis_coordinates.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
-                self.region_axes.validate_impl(ctx);
+                self.axis_coordinates.validate_impl(ctx);
             });
         })
     }
@@ -307,10 +307,9 @@ impl<'a> FromObjRef<read_fonts::tables::varc::SparseVariationRegion<'a>> for Spa
         obj: &read_fonts::tables::varc::SparseVariationRegion<'a>,
         _: FontData,
     ) -> Self {
-        let offset_data = obj.offset_data();
         SparseVariationRegion {
             region_axis_count: obj.region_axis_count(),
-            region_axes: obj.region_axes().to_owned_obj(offset_data),
+            axis_coordinates: obj.axis_coordinates().to_owned_table(),
         }
     }
 }
@@ -369,11 +368,11 @@ impl Validate for SparseRegionAxisCoordinates {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::tables::varc::SparseRegionAxisCoordinates>
+impl<'a> FromObjRef<read_fonts::tables::varc::SparseRegionAxisCoordinates<'a>>
     for SparseRegionAxisCoordinates
 {
     fn from_obj_ref(
-        obj: &read_fonts::tables::varc::SparseRegionAxisCoordinates,
+        obj: &read_fonts::tables::varc::SparseRegionAxisCoordinates<'a>,
         _: FontData,
     ) -> Self {
         SparseRegionAxisCoordinates {
@@ -385,21 +384,38 @@ impl FromObjRef<read_fonts::tables::varc::SparseRegionAxisCoordinates>
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::varc::SparseRegionAxisCoordinates<'a>>
+    for SparseRegionAxisCoordinates
+{
+}
+
+impl ReadArgs for SparseRegionAxisCoordinates {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SparseRegionAxisCoordinates {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::varc::SparseRegionAxisCoordinates as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiItemVariationData {
     pub region_index_count: u16,
     pub region_indices: Vec<u16>,
-    pub raw_delta_sets: Vec<u8>,
+    pub delta_sets: OffsetMarker<Index2, WIDTH_32>,
 }
 
 impl MultiItemVariationData {
     /// Construct a new `MultiItemVariationData`
-    pub fn new(region_index_count: u16, region_indices: Vec<u16>, raw_delta_sets: Vec<u8>) -> Self {
+    pub fn new(region_index_count: u16, region_indices: Vec<u16>, delta_sets: Index2) -> Self {
         Self {
             region_index_count,
             region_indices,
-            raw_delta_sets,
+            delta_sets: delta_sets.into(),
         }
     }
 }
@@ -410,7 +426,7 @@ impl FontWrite for MultiItemVariationData {
         (1 as u8).write_into(writer);
         self.region_index_count.write_into(writer);
         self.region_indices.write_into(writer);
-        self.raw_delta_sets.write_into(writer);
+        self.delta_sets.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("MultiItemVariationData")
@@ -424,6 +440,9 @@ impl Validate for MultiItemVariationData {
                 if self.region_indices.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
+            });
+            ctx.in_field("delta_sets", |ctx| {
+                self.delta_sets.validate_impl(ctx);
             });
         })
     }
@@ -440,7 +459,7 @@ impl<'a> FromObjRef<read_fonts::tables::varc::MultiItemVariationData<'a>>
         MultiItemVariationData {
             region_index_count: obj.region_index_count(),
             region_indices: obj.region_indices().to_owned_obj(offset_data),
-            raw_delta_sets: obj.raw_delta_sets().to_owned_obj(offset_data),
+            delta_sets: obj.delta_sets().to_owned_table(),
         }
     }
 }
