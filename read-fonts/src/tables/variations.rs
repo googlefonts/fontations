@@ -1782,6 +1782,9 @@ pub(crate) fn advance_delta_with_scalars(
     let gid = glyph_id.to_u32();
     let ix = match dsim {
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
+        // Implicit mappings use outer index zero; an oversized glyph ID
+        // cannot address an inner row and must not wrap to a different glyph.
+        _ if gid > u16::MAX as u32 => return Some(F48Dot16::ZERO),
         _ => DeltaSetIndex {
             outer: 0,
             inner: gid as _,
@@ -1818,6 +1821,64 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    #[test]
+    fn implicit_advance_indices_do_not_truncate_glyph_ids() {
+        let bytes = BeBuffer::new()
+            .push(1u16) // ItemVariationStore format
+            .push(12u32) // region list offset
+            .push(1u16) // variation data count
+            .push(22u32) // variation data offset
+            .push(1u16) // axis count
+            .push(1u16) // region count
+            .extend([F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE])
+            .push(2u16) // item count
+            .push(1u16) // word delta count
+            .push(1u16) // region index count
+            .push(0u16) // region index
+            .extend([10i16, 100i16]);
+        let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
+        let mapping = DeltaSetIndexMap::read(FontData::new(&[0, 0, 0, 1, 0])).unwrap();
+        let coords = [F2Dot14::from_f32(0.75)];
+        let mut scalars = [Fixed::ZERO; 32];
+        let scalar_count = store.compute_scalars(&coords, &mut scalars);
+        for scalars in [&[][..], &scalars[..scalar_count]] {
+            let delta = advance_delta_with_scalars(
+                None,
+                Ok(store.clone()),
+                GlyphId::new(1),
+                &coords,
+                scalars,
+            );
+            assert!(delta.is_some_and(|delta| delta != F48Dot16::ZERO));
+            for gid in [0xFFFF, 0x10000, 0x10001, 0xFFFF0001] {
+                assert_eq!(
+                    advance_delta_with_scalars(
+                        None,
+                        Ok(store.clone()),
+                        GlyphId::new(gid),
+                        &coords,
+                        scalars,
+                    ),
+                    Some(F48Dot16::ZERO),
+                    "implicit advance mapping wrapped glyph ID {gid}"
+                );
+            }
+            // Explicit mappings keep their last-entry repetition for high IDs.
+            for gid in [0x10000, 0x10001] {
+                assert_eq!(
+                    advance_delta_with_scalars(
+                        Some(Ok(mapping.clone())),
+                        Ok(store.clone()),
+                        GlyphId::new(gid),
+                        &coords,
+                        scalars,
+                    ),
+                    Some(F48Dot16::from_f64(7.5))
+                );
+            }
+        }
+    }
 
     #[test]
     fn ivs_regions() {
