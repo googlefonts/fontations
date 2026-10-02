@@ -1,7 +1,7 @@
 //! Parsing and evaluation of charstrings.
 
 use crate::{
-    model::pen::OutlinePen,
+    model::glyph::outline::OutlinePen,
     ps::{
         cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
         error::Error,

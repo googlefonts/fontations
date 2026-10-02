@@ -12,23 +12,14 @@ fn metric(value: i32, deltas: Option<&MvarInstance>, tag: Tag) -> F48Dot16 {
 }
 
 mod global;
+mod glyph;
+mod scaled;
 mod style;
 
 pub use global::{LineBox, LineExtents, Metrics};
-pub use style::{Decoration, ScriptMetrics, StyleMetrics};
-
-// The per-glyph metrics are reached only through a font, so they exist only
-// where it does.
-#[cfg(feature = "experimental_font_api")]
-mod glyph;
-#[cfg(feature = "experimental_font_api")]
-mod scaled;
-
-#[cfg(feature = "experimental_font_api")]
 pub(crate) use glyph::{empty as empty_glyph_metrics, RawGlyphMetrics};
-#[cfg(feature = "experimental_font_api")]
 pub use glyph::{GlyphExtents, GlyphMetrics};
-#[cfg(feature = "experimental_font_api")]
 pub use scaled::{
     Scale, Scale26Dot6, ScaleF32, ScaledGlyphMetrics, ScaledMetrics, ScaledStyleMetrics,
 };
+pub use style::{Decoration, ScriptMetrics, StyleMetrics};

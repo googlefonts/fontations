@@ -1,7 +1,7 @@
 //! Unified access to CFF/CFF2 fonts.
 
 use crate::{
-    model::pen::OutlinePen,
+    model::glyph::outline::OutlinePen,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
@@ -1388,7 +1388,7 @@ mod tests {
 #[cfg(test)]
 mod width_only_tests {
     use super::*;
-    use crate::{model::pen::NullPen, FontRef, TableProvider};
+    use crate::{model::glyph::outline::NullPen, FontRef, TableProvider};
 
     const FONTS: [&[u8]; 3] = [
         font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
@@ -1463,7 +1463,7 @@ mod width_only_tests {
 #[cfg(test)]
 mod extents_tests {
     use super::*;
-    use crate::{model::pen::OutlinePen, FontRef, TableProvider};
+    use crate::{model::glyph::outline::OutlinePen, FontRef, TableProvider};
 
     /// Has a sheared top level matrix over a scaled one, so where the box is
     /// measured is observable.

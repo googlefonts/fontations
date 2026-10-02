@@ -459,14 +459,14 @@ impl StyleMetrics {
 /// scales and can be taken per query. It remembers nothing between calls: a
 /// caller wanting measurements kept holds them itself.
 #[derive(Clone, Copy)]
-pub struct ScaledGlyphMetrics<'a, S: Scale> {
+pub struct ScaledGlyphMetrics<'a, 'extents, S: Scale> {
     metrics: GlyphMetrics<'a>,
     scale: S,
     line: Option<LineExtents<S::Value>>,
-    extents: Option<&'a dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
+    extents: Option<&'extents dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
 }
 
-impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
+impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
     pub(crate) fn new(metrics: GlyphMetrics<'a>, scale: S) -> Self {
         Self {
             metrics,
@@ -501,13 +501,17 @@ impl<'a, S: Scale> ScaledGlyphMetrics<'a, S> {
     /// `None` leaves the font's own measurement in place, so a caller can
     /// pass whatever it happens to have without first checking.
     ///
-    /// The function is borrowed for as long as the font data, so it outlives
-    /// any one measurement; a closure built for the call cannot be passed.
-    pub fn with_glyph_extents(
+    /// The function is borrowed only for the lifetime of the returned view.
+    pub fn with_glyph_extents<'new>(
         self,
-        extents: Option<&'a dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
-    ) -> Self {
-        Self { extents, ..self }
+        extents: Option<&'new dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
+    ) -> ScaledGlyphMetrics<'a, 'new, S> {
+        ScaledGlyphMetrics {
+            metrics: self.metrics,
+            scale: self.scale,
+            line: self.line,
+            extents,
+        }
     }
 
     /// Returns the advance width of `glyph`.
@@ -1219,6 +1223,26 @@ mod tests {
                 "glyph {gid}"
             );
         }
+    }
+
+    #[test]
+    fn a_supplied_measurement_can_borrow_for_one_query() {
+        let (font, scale) = scaled(STATIC, 16.0);
+        let metrics = font.glyph_metrics().scaled(scale);
+        let glyph = GlyphId::new(1);
+        let original = metrics.extents(glyph);
+        let supplied = {
+            let ink = GlyphExtents {
+                x_bearing: 1.0,
+                y_bearing: 2.0,
+                width: 3.0,
+                height: 4.0,
+            };
+            let callback = |_: GlyphId| Some(ink);
+            metrics.with_glyph_extents(Some(&callback)).extents(glyph)
+        };
+        assert_ne!(supplied, original);
+        assert_eq!(metrics.extents(glyph), original);
     }
 
     #[test]

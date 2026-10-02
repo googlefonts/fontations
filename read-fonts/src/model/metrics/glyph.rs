@@ -70,7 +70,7 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns these metrics in the units `scale` describes.
     #[inline]
-    pub fn scaled<S: Scale>(self, scale: S) -> ScaledGlyphMetrics<'a, S> {
+    pub fn scaled<S: Scale>(self, scale: S) -> ScaledGlyphMetrics<'a, 'static, S> {
         ScaledGlyphMetrics::new(self, scale)
     }
 
@@ -898,7 +898,7 @@ mod tests {
     use super::*;
     use crate::{
         model::{
-            pen::{ControlBoundsPen, NullPen},
+            glyph::outline::{ControlBoundsPen, NullPen},
             Blob, NormalizedCoord,
         },
         tables::glyf::outline::{Outline, OutlineTables, PathContourStart, Unscaled},

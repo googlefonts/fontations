@@ -5,7 +5,7 @@ use super::{
     PathContourStart, Scale, Scale26Dot6, ScaleF32, Unscaled,
 };
 use crate::{
-    model::pen::OutlinePen,
+    model::glyph::outline::OutlinePen,
     tables::glyf::{PointFlags, PHANTOM_POINT_COUNT},
     types::{F26Dot6, GlyphId, Point},
 };

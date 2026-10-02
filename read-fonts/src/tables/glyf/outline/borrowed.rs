@@ -2,7 +2,7 @@
 
 use super::{outline_to_path, PathContourStart};
 use crate::{
-    model::pen::OutlinePen,
+    model::glyph::outline::OutlinePen,
     tables::glyf::{PointCoord, PointFlags, PHANTOM_POINT_COUNT},
     types::Point,
 };
