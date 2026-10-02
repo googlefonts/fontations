@@ -1,22 +1,13 @@
 //! Font-wide metrics.
 
+use super::metric;
+
 use crate::{
     ps::type1::Type1Font,
-    tables::{
-        mvar::{tags, MvarInstance},
-        os2::SelectionFlags,
-    },
+    tables::{mvar::tags, os2::SelectionFlags},
     TableProvider,
 };
-use types::{BoundingBox, F2Dot14, F48Dot16, Tag};
-
-/// Returns `value` in design units with the location's delta applied.
-fn metric(value: i32, deltas: Option<&MvarInstance>, tag: Tag) -> F48Dot16 {
-    F48Dot16::from_i32(value)
-        + deltas
-            .and_then(|deltas| deltas.get(tag))
-            .unwrap_or_default()
-}
+use types::{BoundingBox, F2Dot14, F48Dot16};
 
 /// The two ends of a line, in whatever unit a caller uses.
 ///
@@ -95,7 +86,7 @@ impl LineBox {
 /// measured across the vertical baseline rather than along it, so it scales
 /// on x where the horizontal sets scale on y.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
-pub struct GlobalMetrics {
+pub struct Metrics {
     /// Design units per em.
     pub units_per_em: u16,
     /// Number of glyphs in the font.
@@ -129,7 +120,7 @@ pub struct GlobalMetrics {
     pub average_char_width: Option<F48Dot16>,
 }
 
-impl GlobalMetrics {
+impl Metrics {
     /// Reads the metrics from `tables` at the given location.
     ///
     /// A missing or unreadable table leaves the metrics that come from it
@@ -279,7 +270,7 @@ mod tests {
 
     #[test]
     fn the_typographic_line_is_read_when_the_font_asks() {
-        let metrics = GlobalMetrics {
+        let metrics = Metrics {
             hhea_line: Some(line(800, -200)),
             typo_line: Some(line(750, -250)),
             use_typo_metrics: true,
@@ -290,7 +281,7 @@ mod tests {
 
     #[test]
     fn hhea_is_read_when_it_does_not() {
-        let metrics = GlobalMetrics {
+        let metrics = Metrics {
             hhea_line: Some(line(800, -200)),
             typo_line: Some(line(750, -250)),
             use_typo_metrics: false,
@@ -301,7 +292,7 @@ mod tests {
 
     #[test]
     fn a_silent_hhea_gives_way_to_the_typographic_line() {
-        let metrics = GlobalMetrics {
+        let metrics = Metrics {
             hhea_line: Some(line(0, 0)),
             typo_line: Some(line(750, -250)),
             use_typo_metrics: false,
@@ -314,7 +305,7 @@ mod tests {
     fn a_font_silent_twice_over_falls_back_to_the_clipping_line() {
         // Arial Narrow Bold is the case: zeroed typographic metrics beside
         // usable clipping ones, where its siblings state all three.
-        let metrics = GlobalMetrics {
+        let metrics = Metrics {
             hhea_line: Some(line(0, 0)),
             typo_line: Some(line(0, 0)),
             win_line: Some(LineExtents {
@@ -331,7 +322,7 @@ mod tests {
 
     #[test]
     fn a_font_stating_no_line_reports_none() {
-        assert_eq!(GlobalMetrics::default().h_line(), None);
+        assert_eq!(Metrics::default().h_line(), None);
     }
 
     /// A horizontal font with `OS/2` and `post`, but no `vhea`.
@@ -356,7 +347,7 @@ mod tests {
 
     #[test]
     fn the_three_sets_of_line_metrics_are_kept_apart() {
-        let metrics = GlobalMetrics::from_sfnt(&horizontal(), &[]);
+        let metrics = Metrics::from_sfnt(&horizontal(), &[]);
         assert_eq!(metrics.units_per_em, 2048);
         let hhea = metrics.hhea_line.unwrap();
         assert!(hhea.ascender > F48Dot16::ZERO);
@@ -374,27 +365,26 @@ mod tests {
     #[test]
     fn a_font_without_a_table_leaves_its_measurements_unset() {
         // A font with no `vhea`, which most horizontal fonts are.
-        let metrics = GlobalMetrics::from_sfnt(&horizontal(), &[]);
+        let metrics = Metrics::from_sfnt(&horizontal(), &[]);
         assert!(metrics.vhea_line.is_none());
         assert!(metrics.max_advance_height.is_none());
         // And one that has it.
-        let metrics = GlobalMetrics::from_sfnt(&vertical(), &[]);
+        let metrics = Metrics::from_sfnt(&vertical(), &[]);
         assert!(metrics.vhea_line.is_some());
         assert!(metrics.max_advance_height.unwrap() > F48Dot16::ZERO);
     }
 
     #[test]
     fn a_font_with_nothing_to_read_gives_up_rather_than_failing() {
-        let metrics =
-            GlobalMetrics::from_sfnt(&FontRef::new(font_test_data::NAMES_ONLY).unwrap(), &[]);
-        assert_eq!(metrics, GlobalMetrics::default());
+        let metrics = Metrics::from_sfnt(&FontRef::new(font_test_data::NAMES_ONLY).unwrap(), &[]);
+        assert_eq!(metrics, Metrics::default());
     }
 
     #[test]
     fn a_default_location_leaves_every_measurement_on_a_whole_unit() {
         // Nothing has moved them off one, so each is exactly what its table
         // states.
-        let metrics = GlobalMetrics::from_sfnt(&horizontal(), &[]);
+        let metrics = Metrics::from_sfnt(&horizontal(), &[]);
         let ascender = metrics.hhea_line.unwrap().ascender;
         assert_eq!(ascender, F48Dot16::from_i32(ascender.to_i32()));
     }
@@ -402,8 +392,8 @@ mod tests {
     #[test]
     fn a_location_moves_what_mvar_varies() {
         let font = variable();
-        let default = GlobalMetrics::from_sfnt(&font, &[]);
-        let far = GlobalMetrics::from_sfnt(&font, &far());
+        let default = Metrics::from_sfnt(&font, &[]);
+        let far = Metrics::from_sfnt(&font, &far());
         assert_ne!(default, far);
         // This font varies its clipping extents and both of its heights.
         assert_ne!(default.win_line, far.win_line);
@@ -416,8 +406,8 @@ mod tests {
         // `MVAR` names one horizontal ascender between `hhea` and the
         // typographic set, so a location moves both by the same amount.
         let font = variable();
-        let default = GlobalMetrics::from_sfnt(&font, &[]);
-        let far = GlobalMetrics::from_sfnt(&font, &far());
+        let default = Metrics::from_sfnt(&font, &[]);
+        let far = Metrics::from_sfnt(&font, &far());
         let shift = far.hhea_line.unwrap().ascender - default.hhea_line.unwrap().ascender;
         assert_ne!(shift, F48Dot16::ZERO);
         assert_eq!(
@@ -434,7 +424,7 @@ mod tests {
         // Part way along the axes, where the region scalars are fractions;
         // at the far end of every one they are exactly one and the deltas
         // land on whole units by luck rather than by design.
-        let far = GlobalMetrics::from_sfnt(&variable(), &[F2Dot14::from_f32(0.4); 12]);
+        let far = Metrics::from_sfnt(&variable(), &[F2Dot14::from_f32(0.4); 12]);
         let moved = [
             far.hhea_line.unwrap().ascender,
             far.hhea_line.unwrap().descender,
@@ -451,8 +441,8 @@ mod tests {
     #[test]
     fn what_mvar_cannot_say_does_not_move() {
         let font = variable();
-        let default = GlobalMetrics::from_sfnt(&font, &[]);
-        let far = GlobalMetrics::from_sfnt(&font, &far());
+        let default = Metrics::from_sfnt(&font, &[]);
+        let far = Metrics::from_sfnt(&font, &far());
         assert_eq!(default.units_per_em, far.units_per_em);
         assert_eq!(default.num_glyphs, far.num_glyphs);
         assert_eq!(default.bounds, far.bounds);
@@ -465,7 +455,7 @@ mod tests {
         let font =
             crate::ps::type1::Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA)
                 .unwrap();
-        let metrics = GlobalMetrics::from_type1(&font);
+        let metrics = Metrics::from_type1(&font);
         assert_eq!(metrics.units_per_em, 1000);
         assert!(metrics.num_glyphs > 0);
         assert!(metrics.bounds.y_max > F48Dot16::ZERO);
@@ -484,8 +474,8 @@ mod tests {
         // Coordinates a font has no way to use change nothing about it.
         let font = horizontal();
         assert_eq!(
-            GlobalMetrics::from_sfnt(&font, &[]),
-            GlobalMetrics::from_sfnt(&font, &far())
+            Metrics::from_sfnt(&font, &[]),
+            Metrics::from_sfnt(&font, &far())
         );
     }
 }

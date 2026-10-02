@@ -17,7 +17,7 @@ pub use tables::{TableFunction, Tables};
 pub mod interop;
 
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
-use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
+use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, RawGlyphMetrics, StyleMetrics};
 use super::name::{self, GlyphName};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
@@ -63,7 +63,8 @@ struct VariedInstance {
     /// Never empty: an all-default location is [`Repr::Default`].
     coords: CoordStorage,
     feature_vars: FeatureVarsStorage,
-    global_metrics: Once<GlobalMetrics>,
+    metrics: Once<Metrics>,
+    style_metrics: Once<Box<StyleMetrics>>,
 }
 
 impl Font {
@@ -94,7 +95,8 @@ impl Font {
                 font: self.shared().clone(),
                 coords: CoordStorage::default(),
                 feature_vars: FeatureVarsStorage::new(),
-                global_metrics: Once::new(),
+                metrics: Once::new(),
+                style_metrics: Once::new(),
             },
         }
     }
@@ -150,14 +152,32 @@ impl Font {
 
     /// Returns the metrics describing the font as a whole, at this
     /// instance's location.
-    pub fn global_metrics(&self) -> &GlobalMetrics {
+    pub fn metrics(&self) -> &Metrics {
         match &self.0 {
             // Nothing varies there, so the font already holds the answer.
-            Repr::Default(font) => font.global_metrics(),
-            Repr::Varied(varied) => varied.global_metrics.get_or_init(|| {
+            Repr::Default(font) => font.metrics(),
+            Repr::Varied(varied) => varied.metrics.get_or_init(|| {
                 debug_assert!(!varied.coords.as_slice().is_empty());
-                GlobalMetrics::from_sfnt(&varied.font.tables(), varied.coords.as_slice())
+                Metrics::from_sfnt(&varied.font.tables(), varied.coords.as_slice())
             }),
+        }
+    }
+
+    /// Returns the font's style measurements at this instance's location.
+    ///
+    /// This reads `post` when requested; [`metrics`](Self::metrics) does not.
+    pub fn style_metrics(&self) -> &StyleMetrics {
+        match &self.0 {
+            Repr::Default(font) => font.style_metrics(),
+            Repr::Varied(varied) => varied
+                .style_metrics
+                .get_or_init(|| {
+                    Box::new(StyleMetrics::from_sfnt(
+                        &varied.font.tables(),
+                        varied.coords.as_slice(),
+                    ))
+                })
+                .as_ref(),
         }
     }
 
@@ -165,7 +185,7 @@ impl Font {
     /// location.
     #[inline]
     pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        GlyphMetrics::new(self, self.global_metrics(), self.normalized_coords())
+        GlyphMetrics::new(self, self.metrics(), self.normalized_coords())
     }
 
     /// Returns the name of a glyph, synthesizing `gidNNN` if none is stored.
@@ -314,12 +334,9 @@ impl<'a> OutlineContext<'a> for &'a Font {
     }
 
     fn h_line_metrics(&self) -> (i32, i32) {
-        self.shared()
-            .global_metrics()
-            .h_line()
-            .map_or((0, 0), |line| {
-                (line.ascender.to_i32(), line.descender.to_i32())
-            })
+        self.shared().metrics().h_line().map_or((0, 0), |line| {
+            (line.ascender.to_i32(), line.descender.to_i32())
+        })
     }
 
     fn has_hvar(&self) -> bool {
@@ -758,7 +775,8 @@ impl SharedFont {
             source,
             kind,
             shaping_data: Once::new(),
-            global_metrics: Once::new(),
+            metrics: Once::new(),
+            style_metrics: Once::new(),
             h_metrics: Once::new(),
             v_metrics: Once::new(),
             glyf_loca: Once::new(),
@@ -789,11 +807,24 @@ impl SharedFont {
     /// Returns the metrics describing the font as a whole, at its default
     /// location.
     #[inline]
-    fn global_metrics(&self) -> &GlobalMetrics {
-        self.0.global_metrics.get_or_init(|| match self.kind() {
-            Kind::Type1(font) => GlobalMetrics::from_type1(font),
-            _ => GlobalMetrics::from_sfnt(&self.tables(), &[]),
+    fn metrics(&self) -> &Metrics {
+        self.0.metrics.get_or_init(|| match self.kind() {
+            Kind::Type1(font) => Metrics::from_type1(font),
+            _ => Metrics::from_sfnt(&self.tables(), &[]),
         })
+    }
+
+    /// Returns the style measurements at the font's default location.
+    fn style_metrics(&self) -> &StyleMetrics {
+        self.0
+            .style_metrics
+            .get_or_init(|| {
+                Box::new(match self.kind() {
+                    Kind::Type1(font) => StyleMetrics::from_type1(font),
+                    _ => StyleMetrics::from_sfnt(&self.tables(), &[]),
+                })
+            })
+            .as_ref()
     }
 
     /// Returns the number of glyphs in the font.
@@ -801,7 +832,7 @@ impl SharedFont {
     /// Fixed for the font: no location varies it.
     #[inline]
     fn num_glyphs(&self) -> u32 {
-        self.global_metrics().num_glyphs
+        self.metrics().num_glyphs
     }
 
     /// Returns the size of the em square, in design units.
@@ -809,7 +840,7 @@ impl SharedFont {
     /// Fixed for the font: no location varies it.
     #[inline]
     fn units_per_em(&self) -> u16 {
-        self.global_metrics().units_per_em
+        self.metrics().units_per_em
     }
 
     /// Returns the tables behind this font, for a cache that holds them.
@@ -980,7 +1011,8 @@ struct SharedFontRepr {
     // Metrics that describe the font as a whole, at the default location,
     // read once rather than per query. Kept apart from `shaping_data`, which
     // holds one thing for one owner.
-    global_metrics: Once<GlobalMetrics>,
+    metrics: Once<Metrics>,
+    style_metrics: Once<Box<StyleMetrics>>,
     // What `hmtx` states, parsed once for the font. Held beside the tables
     // it borrows, which is what lets it live here at all.
     h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
@@ -1061,13 +1093,10 @@ mod tests {
             .instance_builder()
             .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
             .build();
-        let line = font.shared().global_metrics().h_line().unwrap();
-        assert_ne!(Some(line), font.global_metrics().typo_line);
+        let line = font.shared().metrics().h_line().unwrap();
+        assert_ne!(Some(line), font.metrics().typo_line);
         let expected = (line.ascender.to_i32(), line.descender.to_i32());
-        assert_ne!(
-            far.global_metrics().h_line(),
-            font.global_metrics().h_line()
-        );
+        assert_ne!(far.metrics().h_line(), font.metrics().h_line());
         assert_eq!((&font).h_line_metrics(), expected);
         assert_eq!((&far).h_line_metrics(), expected);
     }
@@ -1300,14 +1329,50 @@ mod tests {
     const MVAR_FONT: &[u8] = font_test_data::AMSTELVAR_AVAR2_A;
 
     #[test]
-    fn an_instance_varies_its_global_metrics() {
+    fn ordinary_metrics_do_not_read_post() {
+        let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let logged = asked.clone();
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+            logged.lock().unwrap().push(tag);
+            let font = crate::FontRef::new(font_test_data::TINOS_SUBSET).ok()?;
+            font.table_data(tag)
+                .map(|data| Blob::from(data.as_bytes().to_vec()))
+        });
+        let font = Font::new(source, 0).unwrap();
+        asked.lock().unwrap().clear();
+        let _ = font.metrics();
+        assert!(!asked.lock().unwrap().contains(&Tag::new(b"post")));
+        let _ = font.style_metrics();
+        assert!(asked.lock().unwrap().contains(&Tag::new(b"post")));
+        assert!(core::ptr::eq(font.style_metrics(), font.style_metrics()));
+    }
+
+    #[test]
+    fn an_instance_varies_its_metrics() {
         let font = Font::new(MVAR_FONT, 0).unwrap();
         let far = font
             .instance_builder()
             .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
             .build();
         assert!(!far.normalized_coords().is_empty());
-        assert_ne!(far.global_metrics(), font.global_metrics());
+        assert_ne!(far.metrics(), font.metrics());
+    }
+
+    #[test]
+    fn an_instance_varies_and_shares_its_style_metrics() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let far = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        assert_ne!(
+            far.style_metrics().strikethrough,
+            font.style_metrics().strikethrough
+        );
+        assert!(core::ptr::eq(
+            far.style_metrics(),
+            far.clone().style_metrics()
+        ));
     }
 
     #[test]
@@ -1315,10 +1380,7 @@ mod tests {
         // Nothing varies there, so there is no second copy to compute.
         let font = Font::new(MVAR_FONT, 0).unwrap();
         let default = font.instance_builder().build();
-        assert!(core::ptr::eq(
-            default.global_metrics(),
-            font.global_metrics()
-        ));
+        assert!(core::ptr::eq(default.metrics(), font.metrics()));
     }
 
     #[test]
@@ -1330,7 +1392,7 @@ mod tests {
             .build();
         let shared = far.clone();
         // The location is resolved once, not once per holder.
-        assert!(core::ptr::eq(far.global_metrics(), shared.global_metrics()));
+        assert!(core::ptr::eq(far.metrics(), shared.metrics()));
     }
 
     #[test]
@@ -1362,7 +1424,7 @@ mod tests {
         );
 
         // And the varied metrics still do.
-        let _ = far.global_metrics();
+        let _ = far.metrics();
         assert!(asked.lock().unwrap().contains(&Tag::new(b"MVAR")));
     }
 
@@ -1382,10 +1444,7 @@ mod tests {
         ] {
             assert!(matches!(instance.0, Repr::Default(_)));
             assert!(instance.normalized_coords().is_empty());
-            assert!(core::ptr::eq(
-                instance.global_metrics(),
-                font.global_metrics()
-            ));
+            assert!(core::ptr::eq(instance.metrics(), font.metrics()));
         }
     }
 

@@ -198,7 +198,7 @@ impl Type1Font {
         self.is_fixed_pitch
     }
 
-    /// Returns the position of the top of an underline decoration.
+    /// Returns the position of the center of an underline decoration.
     pub fn underline_position(&self) -> i32 {
         self.underline_position
     }
