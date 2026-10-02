@@ -177,7 +177,7 @@ impl CommandSink for NullSink {
 /// Nothing drawn leaves [`bounding_box`](Self::bounding_box) empty, which is
 /// the answer for a glyph with no ink rather than a box of no size at the
 /// origin. The pen that measures a drawn outline the same way is
-/// [`ControlBoundsPen`](crate::model::pen::ControlBoundsPen).
+/// [`ControlBoundsPen`](crate::model::glyph::outline::ControlBoundsPen).
 #[derive(Clone, Default, Debug)]
 pub struct ControlBoundsSink {
     bounds: Option<BoundingBox<Fixed>>,
