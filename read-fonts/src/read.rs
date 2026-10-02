@@ -145,7 +145,6 @@ pub enum ReadError {
     ValidationError,
     NullOffset,
     TableIsMissing(Tag),
-    MetricIsMissing(Tag),
     MalformedData(&'static str),
 }
 
@@ -165,7 +164,6 @@ impl std::fmt::Display for ReadError {
             ReadError::ValidationError => write!(f, "A validation error occurred"),
             ReadError::NullOffset => write!(f, "An offset was unexpectedly null"),
             ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
-            ReadError::MetricIsMissing(tag) => write!(f, "the {tag} metric is missing"),
             ReadError::MalformedData(msg) => write!(f, "Malformed data: '{msg}'"),
         }
     }

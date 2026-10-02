@@ -1,13 +1,14 @@
 # Compiles Chromium's own Rust font code against this branch.
 #
 # Runs like the rest of CI. Chromium is enormous, but a treeless sparse clone
-# of the two directories that read fonts is about 90 MB and twenty seconds,
+# of the directories that read fonts is about 90 MB and twenty seconds,
 # and the compile needs no C++ toolchain.
 #
-# Only Chromium's own code — a format check in Blink and a name-table lookup
-# in the browser process. The other consumers that link read-fonts from a
-# Chromium checkout are DEPS submodules whose sources are not in its git tree,
-# and Skia and fontconfig are checked against their own repositories here.
+# Only Chromium's own code — a format check and incremental font transfer in
+# Blink, and a name-table lookup in the browser process. The other consumers
+# that link read-fonts from a Chromium checkout are DEPS submodules whose
+# sources are not in its git tree, and Skia and fontconfig are checked against
+# their own repositories here.
 #
 # It follows Chromium's main rather than a pinned commit, so it can go red
 # without anything changing here; the dispatch trigger takes a ref when a run
@@ -44,7 +45,7 @@ jobs:
           persist-credentials: false
           path: fontations
 
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: stable
 
@@ -61,6 +62,7 @@ jobs:
             chromium
           git -C chromium sparse-checkout set \
             third_party/blink/renderer/platform/fonts/opentype \
+            third_party/blink/renderer/platform/fonts/ift \
             content/browser/font_unique_name_lookup
 
       - name: report what is being compared

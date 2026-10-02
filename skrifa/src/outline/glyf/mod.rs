@@ -579,7 +579,7 @@ impl Scaler for FreeTypeScaler<'_> {
         let scale = self.scale;
         let mut unscaled = self.phantom.map(|point| point.map(|x| x.to_bits()));
         if self.outlines.gvar.is_some() && !self.coords.is_empty() {
-            if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+            if let Some(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
                 self.coords,
@@ -694,7 +694,7 @@ impl Scaler for FreeTypeScaler<'_> {
                     contours,
                     &mut buffers,
                 )
-                .is_ok()
+                .is_some()
             {
                 have_deltas = true;
             }
@@ -838,7 +838,7 @@ impl Scaler for FreeTypeScaler<'_> {
                 .ok_or(InsufficientMemory)?;
             if gvar
                 .composite_deltas(glyph_id, self.coords, &mut deltas[..])
-                .is_ok()
+                .is_some()
             {
                 // Apply deltas to phantom points.
                 for (phantom, delta) in self
@@ -1122,7 +1122,7 @@ impl Scaler for HarfBuzzScaler<'_> {
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
-            if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+            if let Some(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
                 self.coords,
@@ -1206,7 +1206,7 @@ impl Scaler for HarfBuzzScaler<'_> {
                     contours,
                     &mut buffers,
                 )
-                .is_ok()
+                .is_some()
             {
                 for (point, delta) in points.iter_mut().zip(buffers.deltas.iter()) {
                     *point += *delta;
@@ -1219,6 +1219,10 @@ impl Scaler for HarfBuzzScaler<'_> {
                 *point *= self.scale;
             }
         }
+        // Commit the scaled phantom points. Without this the left side bearing
+        // adjustment subtracts font units from scaled coordinates.
+        self.phantom
+            .copy_from_slice(&points[phantom_start..phantom_start + PHANTOM_POINT_COUNT]);
 
         if points_start != 0 {
             // If we're not the first component, shift our contour end points.
@@ -1253,7 +1257,7 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .ok_or(InsufficientMemory)?;
             if gvar
                 .composite_deltas(glyph_id, self.coords, &mut deltas[..])
-                .is_ok()
+                .is_some()
             {
                 // Apply deltas to phantom points.
                 for (phantom, delta) in self
@@ -1328,13 +1332,16 @@ impl Scaler for HarfBuzzScaler<'_> {
                         x *= hypot(transform[0], transform[2]);
                         y *= hypot(transform[1], transform[3]);
                     }
-                    Point::new(x, y)
+                    // The component's points are already scaled, so the
+                    // offset has to be as well.
+                    (Point::new(x, y)
                         + self
                             .memory
                             .composite_deltas
                             .get(delta_base + i)
                             .copied()
-                            .unwrap_or_default()
+                            .unwrap_or_default())
+                        * scale
                 }
                 Anchor::Point { base, component } => {
                     let (base_offset, component_offset) = (base as usize, component as usize);

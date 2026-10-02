@@ -137,15 +137,13 @@ impl MvarInstance<'_> {
             .binary_search_by(|record| record.value_tag().cmp(&tag))
             .ok()?;
         let record = &self.records[index];
-        self.ivs
-            .compute_delta(
-                DeltaSetIndex {
-                    outer: record.delta_set_outer_index(),
-                    inner: record.delta_set_inner_index(),
-                },
-                self.coords,
-            )
-            .ok()
+        self.ivs.compute_delta(
+            DeltaSetIndex {
+                outer: record.delta_set_outer_index(),
+                inner: record.delta_set_inner_index(),
+            },
+            self.coords,
+        )
     }
 }
 
@@ -153,7 +151,10 @@ impl Mvar<'_> {
     /// Returns the metric delta for the specified tag and normalized
     /// variation coordinates. Possible tags are found in the [tags]
     /// module.
-    pub fn metric_delta(&self, tag: Tag, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    ///
+    /// `None` for a metric the font does not vary, and for one it states
+    /// unreadably.
+    pub fn metric_delta(&self, tag: Tag, coords: &[F2Dot14]) -> Option<Fixed> {
         use std::cmp::Ordering;
         let records = self.value_records();
         let mut lo = 0;
@@ -169,8 +170,8 @@ impl Mvar<'_> {
                     lo = i + 1;
                 }
                 Ordering::Equal => {
-                    let ivs = self.item_variation_store().ok_or(ReadError::NullOffset)??;
-                    return Ok(Fixed::from_i32(
+                    let ivs = self.item_variation_store()?.ok()?;
+                    return Some(Fixed::from_i32(
                         ivs.compute_delta(
                             DeltaSetIndex {
                                 outer: record.delta_set_outer_index(),
@@ -183,7 +184,7 @@ impl Mvar<'_> {
                 }
             }
         }
-        Err(ReadError::MetricIsMissing(tag))
+        None
     }
 }
 

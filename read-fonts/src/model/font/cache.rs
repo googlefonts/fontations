@@ -10,20 +10,21 @@
 //! directions all read, and for `gvar`, which is typically about half a
 //! variable font and must not be read to answer what another table can.
 
-use super::FontTables;
-use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vvar::Vvar};
+use super::Tables;
+use crate::ps::cff::CffFontRef;
+use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar};
 use crate::TableProvider;
 use alloc::sync::Arc;
 use yoke::{Yoke, Yokeable};
 
 /// A parsed table held beside the tables it borrows.
-pub(crate) struct TableCache<Y: for<'a> Yokeable<'a>>(Yoke<Y, Arc<FontTables>>);
+pub(crate) struct TableCache<Y: for<'a> Yokeable<'a>>(Yoke<Y, Arc<Tables>>);
 
 impl<Y: for<'a> Yokeable<'a>> TableCache<Y> {
     /// Parses once, with `read`, and keeps the result.
-    pub(crate) fn read<F>(tables: Arc<FontTables>, read: F) -> Self
+    pub(crate) fn read<F>(tables: Arc<Tables>, read: F) -> Self
     where
-        F: for<'a> FnOnce(&'a FontTables) -> <Y as Yokeable<'a>>::Output,
+        F: for<'a> FnOnce(&'a Tables) -> <Y as Yokeable<'a>>::Output,
     {
         Self(Yoke::attach_to_cart(tables, read))
     }
@@ -78,5 +79,37 @@ pub(crate) struct GvarTable<'a>(pub(crate) Option<Gvar<'a>>);
 impl<'a> GvarTable<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
         Self(tables.gvar().ok())
+    }
+}
+
+/// The outlines of a font that states them as charstrings.
+///
+/// `CFF2` first, as HarfBuzz reads them: a font carrying both states its
+/// variable outlines there.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct CffFont<'a>(pub(crate) Option<CffFontRef<'a>>);
+
+impl<'a> CffFont<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        let upem = tables.head().ok().map(|head| head.units_per_em() as i32);
+        let data = tables
+            .cff2()
+            .ok()
+            .map(|cff2| cff2.offset_data().as_bytes())
+            .or_else(|| tables.cff().ok().map(|cff| cff.offset_data().as_bytes()));
+        Self(data.and_then(|data| CffFontRef::new(data, 0, upem).ok()))
+    }
+}
+
+/// The table stating where a glyph's vertical origin sits.
+///
+/// Read only by vertical text, and only ahead of everything else that could
+/// answer: a font stating this states it outright.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct VorgTable<'a>(pub(crate) Option<Vorg<'a>>);
+
+impl<'a> VorgTable<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.vorg().ok())
     }
 }

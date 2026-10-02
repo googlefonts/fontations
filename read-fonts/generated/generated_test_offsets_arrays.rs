@@ -608,6 +608,139 @@ impl Default for VarLenHaver<'_> {
     }
 }
 
+impl<'a> MinByteRange<'a> for OffsetAfterArray<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.medium_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for OffsetAfterArray<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for OffsetAfterArray<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct OffsetAfterArray<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> OffsetAfterArray<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + Offset24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn count(&self) -> u16 {
+        let range = self.count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn values(&self) -> &'a [BigEndian<u16>] {
+        let range = self.values_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn item_offset(&self) -> Offset32 {
+        let range = self.item_offset_byte_range();
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
+    }
+
+    /// Attempt to resolve [`item_offset`][Self::item_offset].
+    pub fn item(&self) -> Result<Dummy<'a>, ReadError> {
+        let data = self.data;
+        self.item_offset().resolve(data)
+    }
+
+    pub fn short_offset(&self) -> Offset16 {
+        let range = self.short_offset_byte_range();
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
+    }
+
+    /// Attempt to resolve [`short_offset`][Self::short_offset].
+    pub fn short(&self) -> Result<Dummy<'a>, ReadError> {
+        let data = self.data;
+        self.short_offset().resolve(data)
+    }
+
+    pub fn medium_offset(&self) -> Offset24 {
+        let range = self.medium_offset_byte_range();
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
+    }
+
+    /// Attempt to resolve [`medium_offset`][Self::medium_offset].
+    pub fn medium(&self) -> Result<Dummy<'a>, ReadError> {
+        let data = self.data;
+        self.medium_offset().resolve(data)
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn values_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let start = self.count_byte_range().end;
+        let end = start + (transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn item_offset_byte_range(&self) -> Range<usize> {
+        let start = self.values_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn short_offset_byte_range(&self) -> Range<usize> {
+        let start = self.item_offset_byte_range().end;
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn medium_offset_byte_range(&self) -> Range<usize> {
+        let start = self.short_offset_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    OffsetAfterArray::MIN_SIZE
+));
+
+impl Default for OffsetAfterArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 impl<'a> MinByteRange<'a> for Dummy<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self._reserved_byte_range().end

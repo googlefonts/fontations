@@ -498,6 +498,16 @@ pub mod offsets_arrays {
     }
 
     #[test]
+    fn offset_after_array_truncated() {
+        let builder = BeBuffer::new().push(5u16).extend([0u8; 9]);
+        let table = OffsetAfterArray::read(builder.data().into()).unwrap();
+        assert!(table.item_offset().is_null());
+        assert!(matches!(table.item(), Err(ReadError::NullOffset)));
+        assert!(table.short_offset().is_null());
+        assert!(table.medium_offset().is_null());
+    }
+
+    #[test]
     fn var_len_array_empty() {
         let builder = BeBuffer::new().push(0u16).push(0xdeadbeef_u32);
 

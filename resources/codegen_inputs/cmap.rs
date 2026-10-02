@@ -288,13 +288,16 @@ record ConstantMapGroup {
 }
 
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
+#[skip_font_write]
 table Cmap14 {
     /// Subtable format. Set to 14.
     #[format = 14]
     format: u16,
     /// Byte length of this subtable (including this header)
+    #[compile(self.compute_length())]
     length: u32,
     /// Number of variation Selector Records
+    #[compile(array_len($var_selector))]
     num_var_selector_records: u32,
     /// Array of VariationSelector records.
     #[count($num_var_selector_records)]

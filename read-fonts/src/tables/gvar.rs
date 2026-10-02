@@ -11,8 +11,8 @@ use super::{
     glyf::{CompositeGlyphFlags, Glyf, Glyph, PointCoord},
     loca::{Loca, LocaGlyph},
     variations::{
-        PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
-        TupleVariationHeader,
+        scalar_for, PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
+        TupleVariationHeader, NOT_COMPUTED,
     },
 };
 
@@ -63,6 +63,26 @@ impl<'a> GlyphVariationDataHeader<'a> {
 }
 
 impl<'a> Gvar<'a> {
+    /// Offset from the start of this table to the shared tuple records.
+    pub fn shared_tuples_offset(&self) -> Offset32 {
+        self.data
+            .read_at(self.shared_tuples_offset_byte_range().start)
+            .ok()
+            .unwrap()
+    }
+
+    /// Returns the shared tuples, including an empty array when both the
+    /// count and offset are zero.
+    pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
+        let count = self.shared_tuple_count();
+        let axis_count = self.axis_count();
+        let offset = self.shared_tuples_offset();
+        if count == 0 && offset.is_null() {
+            return SharedTuples::read(self.data, 0, axis_count);
+        }
+        offset.resolve_with_args(self.data, (count, axis_count))
+    }
+
     /// Return the raw data for this gid.
     ///
     /// If there is no variation data for the glyph, returns `Ok(None)`.
@@ -128,13 +148,65 @@ impl<'a> Gvar<'a> {
     ///
     /// The resulting array will contain four deltas:
     /// `[left, right, top, bottom]`.
+    /// Computes the scalar for each shared tuple at `coords`, in table order,
+    /// and returns how many were written.
+    ///
+    /// A tuple that does not apply at `coords` is written as zero, which is
+    /// the value it contributes. Only the peak is used: a glyph naming a
+    /// shared tuple may state its own range alongside it, and that range is
+    /// not shared.
+    ///
+    /// `out` may be shorter than the table has shared tuples, and an
+    /// unreadable table writes nothing. A reader computes whatever is
+    /// missing.
+    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+        let Ok(shared) = self.shared_tuples() else {
+            out.fill(NOT_COMPUTED);
+            return 0;
+        };
+        let shared = shared.tuples();
+        let axis_count = self.axis_count() as usize;
+        let count = out.len().min(self.shared_tuple_count() as usize);
+        for (i, out) in out[..count].iter_mut().enumerate() {
+            // An unreadable tuple ends the run. Entries already written
+            // stay valid; the caller computes the rest.
+            let Ok(tuple) = shared.get(i) else {
+                return i;
+            };
+            *out = (tuple.len() == axis_count)
+                .then(|| scalar_for(&tuple, None, coords))
+                .flatten()
+                .unwrap_or(Fixed::ZERO);
+        }
+        // Mark the tail so a slice longer than the table is safe to read.
+        out[count..].fill(NOT_COMPUTED);
+        count
+    }
+
     pub fn phantom_point_deltas(
         &self,
         glyf: &Glyf,
         loca: &Loca,
         coords: &[F2Dot14],
         glyph_id: GlyphId,
-    ) -> Result<Option<[Point<Fixed>; 4]>, ReadError> {
+    ) -> Option<[Point<Fixed>; 4]> {
+        self.phantom_point_deltas_with_scalars(glyf, loca, coords, &[], glyph_id)
+    }
+
+    /// Returns the phantom point deltas for `glyph_id` at `coords`, reusing
+    /// `scalars`.
+    ///
+    /// `scalars` holds one entry per shared tuple, from
+    /// [`compute_scalars`](Self::compute_scalars). It may be empty or cover
+    /// only some of them; the rest are computed here.
+    pub fn phantom_point_deltas_with_scalars(
+        &self,
+        glyf: &Glyf,
+        loca: &Loca,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+        glyph_id: GlyphId,
+    ) -> Option<[Point<Fixed>; 4]> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
         // the glyph itself. For composite glyphs, it is the last component
@@ -145,15 +217,15 @@ impl<'a> Gvar<'a> {
         // returns the point count (for composites, this is the component
         // count), so that we know where the deltas for phantom points start
         // in the variation data.
-        let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
+        let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0).ok()?;
         let mut phantom_deltas = [Point::default(); 4];
         let phantom_range = point_count..point_count + 4;
-        let Some(var_data) = self.glyph_variation_data(glyph_id)? else {
-            return Ok(None);
+        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+            return None;
         };
         // Note that phantom points can never belong to a contour so we don't have
         // to handle the IUP case here.
-        for (tuple, scalar) in var_data.active_tuples_at(coords) {
+        for (tuple, scalar) in var_data.active_tuples_at_with_scalars(coords, scalars) {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if phantom_range.contains(&ix) {
@@ -161,7 +233,7 @@ impl<'a> Gvar<'a> {
                 }
             }
         }
-        Ok(Some(phantom_deltas))
+        Some(phantom_deltas)
     }
 }
 
@@ -297,6 +369,52 @@ mod tests {
     use super::*;
     use crate::{FontRef, TableProvider};
 
+    /// A cached shared tuple scalar has to give the same deltas as computing
+    /// one.
+    ///
+    /// Unlike a variation store's regions, shared tuples are named by index
+    /// and a slice can carry gaps, so an entry marked [`NOT_COMPUTED`] has to
+    /// be recomputed rather than believed.
+    #[test]
+    fn a_cached_scalar_changes_nothing() {
+        use crate::tables::variations::NOT_COMPUTED;
+
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        let coords = [F2Dot14::from_f32(-0.75)];
+
+        let mut buf = [Fixed::ZERO; 32];
+        let written = gvar.compute_scalars(&coords, &mut buf);
+        // Past the shared tuples every entry is marked, so a slice longer
+        // than the table is still safe to hand back.
+        assert!(buf[written..].iter().all(|s| *s == NOT_COMPUTED));
+
+        // A gap in the middle has to be recomputed, not read as a scalar.
+        let mut gapped = buf;
+        if written > 0 {
+            gapped[0] = NOT_COMPUTED;
+        }
+
+        for gid in (0..font.maxp().unwrap().num_glyphs()).map(GlyphId::from) {
+            let plain = gvar.phantom_point_deltas(&glyf, &loca, &coords, gid);
+            for (name, scalars) in [
+                ("full", &buf[..written]),
+                ("padded", &buf[..]),
+                ("gapped", &gapped[..]),
+                ("partial", &buf[..written / 2]),
+                ("empty", &[][..]),
+            ] {
+                assert_eq!(
+                    gvar.phantom_point_deltas_with_scalars(&glyf, &loca, &coords, scalars, gid),
+                    plain,
+                    "{name} cache disagreed at {gid}"
+                );
+            }
+        }
+    }
+
     // Shared tuples in the 'gvar' table of the Skia font, as printed
     // in Apple's TrueType specification.
     // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6gvar.html
@@ -361,6 +479,50 @@ mod tests {
             .collect();
 
         assert_eq!(tuple_vec, EXPECTED);
+    }
+
+    #[test]
+    fn embedded_peak_with_null_shared_tuples_offset() {
+        // One glyph with a private point list and an embedded peak at 1.0.
+        // There are no shared tuples, so their offset is null.
+        let glyph_data = [
+            0x00, 0x01, // one tuple
+            0x00, 0x0A, // serialized data starts after the tuple header
+            0x00, 0x04, // four bytes of serialized data
+            0xA0, 0x00, // embedded peak and private point numbers
+            0x40, 0x00, // peak at 1.0
+            0x00, // all points
+            0x00, 0x0A, // one x delta of 10
+            0x80, // one zero y delta
+        ];
+        let mut buf = BeBuffer::new();
+        buf = buf.push(1u16).push(0u16); // version
+        buf = buf.push(1u16); // axis count
+        buf = buf.push(0u16).push(0u32); // no shared tuples, null offset
+        buf = buf.push(1u16).push(1u16); // one glyph, long offsets
+        buf = buf.push(28u32); // glyph data starts after the offset array
+        buf = buf.push(0u32).push(glyph_data.len() as u32);
+        let mut bytes = buf.to_vec();
+        bytes.extend_from_slice(&glyph_data);
+
+        let gvar = Gvar::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(gvar.shared_tuples().unwrap().tuples().iter().count(), 0);
+        let data = gvar.glyph_variation_data(GlyphId::new(0)).unwrap().unwrap();
+        let (tuple, scalar) = data.active_tuples_at(&[F2Dot14::ONE]).next().unwrap();
+        assert_eq!(scalar, Fixed::ONE);
+        assert_eq!(
+            tuple.deltas().collect::<Vec<_>>(),
+            [GlyphDelta {
+                position: 0,
+                x_delta: 10,
+                y_delta: 0,
+            }]
+        );
+
+        // A nonzero shared tuple count still requires a valid offset.
+        bytes[6..8].copy_from_slice(&1u16.to_be_bytes());
+        let gvar = Gvar::read(FontData::new(&bytes)).unwrap();
+        assert!(matches!(gvar.shared_tuples(), Err(ReadError::NullOffset)));
     }
 
     // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6gvar.html
@@ -548,7 +710,6 @@ mod tests {
             .map(|coord| F2Dot14::from_f32(*coord))
             .collect::<Vec<_>>();
         gvar.phantom_point_deltas(&glyf, &loca, &coords, glyph_id)
-            .unwrap()
             .unwrap()
             .map(|delta| delta.map(Fixed::to_f32))
             .map(|p| (p.x, p.y))

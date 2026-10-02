@@ -1,4 +1,4 @@
-//! Types for collecting the output when drawing a glyph outline.
+//! Scalable glyph outlines.
 
 use alloc::{string::String, vec::Vec};
 use core::fmt::{self, Write};

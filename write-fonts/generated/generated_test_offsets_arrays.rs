@@ -443,6 +443,85 @@ impl<'a> FontRead<'a> for VarLenHaver {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OffsetAfterArray {
+    pub count: u16,
+    pub values: Vec<u16>,
+    pub item: OffsetMarker<Dummy, WIDTH_32>,
+    pub short: OffsetMarker<Dummy>,
+    pub medium: OffsetMarker<Dummy, WIDTH_24>,
+}
+
+impl FontWrite for OffsetAfterArray {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.count.write_into(writer);
+        self.values.write_into(writer);
+        self.item.write_into(writer);
+        self.short.write_into(writer);
+        self.medium.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("OffsetAfterArray")
+    }
+}
+
+impl Validate for OffsetAfterArray {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("OffsetAfterArray", |ctx| {
+            ctx.in_field("values", |ctx| {
+                if self.values.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("item", |ctx| {
+                self.item.validate_impl(ctx);
+            });
+            ctx.in_field("short", |ctx| {
+                self.short.validate_impl(ctx);
+            });
+            ctx.in_field("medium", |ctx| {
+                self.medium.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::OffsetAfterArray<'a>>
+    for OffsetAfterArray
+{
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::offsets_arrays::OffsetAfterArray<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        OffsetAfterArray {
+            count: obj.count(),
+            values: obj.values().to_owned_obj(offset_data),
+            item: obj.item().to_owned_table(),
+            short: obj.short().to_owned_table(),
+            medium: obj.medium().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::OffsetAfterArray<'a>>
+    for OffsetAfterArray
+{
+}
+
+impl ReadArgs for OffsetAfterArray {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for OffsetAfterArray {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::offsets_arrays::OffsetAfterArray as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dummy {
     pub value: u16,
 }

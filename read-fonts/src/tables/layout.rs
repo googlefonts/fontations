@@ -16,6 +16,7 @@ use super::variations::DeltaSetIndex;
 
 #[cfg(feature = "std")]
 use crate::collections::IntSet;
+use crate::TableProvider;
 
 #[cfg(feature = "std")]
 pub(crate) use closure::{
@@ -126,6 +127,78 @@ impl<'a> FontRead<'a> for FeatureParams<'a> {
             // we don't know the tag?
             _ => Err(ReadError::InvalidFormat(0xdead)),
         }
+    }
+}
+
+impl FeatureVariations<'_> {
+    /// Returns the index of the first feature variation record that matches
+    /// the given coordinates.
+    pub fn index_for_coords(&self, coords: &[F2Dot14]) -> Option<u32> {
+        for (index, rec) in self.feature_variation_records().iter().enumerate() {
+            // If the ConditionSet offset is 0, this is treated as the
+            // universal condition: all contexts are matched.
+            if rec.condition_set_offset().is_null() {
+                return Some(index as u32);
+            }
+            let Some(Ok(condition_set)) = rec.condition_set(self.offset_data()) else {
+                continue;
+            };
+            // Otherwise, all conditions must be satisfied.
+            if condition_set
+                .conditions()
+                .iter()
+                // .. except we ignore errors
+                .filter_map(Result::ok)
+                .all(|cond| match cond {
+                    Condition::Format1AxisRange(format1) => {
+                        let coord = coords
+                            .get(format1.axis_index() as usize)
+                            .copied()
+                            .unwrap_or_default();
+                        coord >= format1.filter_range_min_value()
+                            && coord <= format1.filter_range_max_value()
+                    }
+                    _ => false,
+                })
+            {
+                return Some(index as u32);
+            }
+        }
+        None
+    }
+}
+
+/// Which features variation indices were selected for a given location.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct SelectedFeatureVariations {
+    /// Feature variation index for the GSUB table.
+    pub gsub: Option<u32>,
+    /// Feature variation index for the GPOS table.
+    pub gpos: Option<u32>,
+}
+
+impl SelectedFeatureVariations {
+    /// Selects the feature variation indices for the given font and
+    /// coordinates.
+    pub fn new<'a>(tables: &impl TableProvider<'a>, coords: &[F2Dot14]) -> Self {
+        let feature_var_tables = [
+            tables
+                .gsub()
+                .ok()
+                .and_then(|gsub| gsub.feature_variations()),
+            tables
+                .gpos()
+                .ok()
+                .and_then(|gpos| gpos.feature_variations()),
+        ];
+        let [gsub, gpos] = feature_var_tables.map(|feature_vars| {
+            feature_vars
+                .transpose()
+                .ok()
+                .flatten()
+                .and_then(|feature_vars| feature_vars.index_for_coords(coords))
+        });
+        Self { gsub, gpos }
     }
 }
 
@@ -483,6 +556,15 @@ impl<'a> ClassDefFormat1<'a> {
 
         let start_glyph = self.start_glyph_id().to_u32();
         let glyph_count = self.glyph_count();
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: the `end_glyph` computation below underflows when
+        // `start_glyph` is 0 and glyph_count is 0.
+        if glyph_count == 0 {
+            if class == 0 {
+                out.extend(glyphs.iter());
+            }
+            return out;
+        }
         let end_glyph = start_glyph + glyph_count as u32 - 1;
         if class == 0 {
             let first = glyphs.first().unwrap();
@@ -518,7 +600,14 @@ impl<'a> ClassDefFormat1<'a> {
         }
 
         let start_glyph = self.start_glyph_id().to_u32();
-        let end_glyph = start_glyph + self.glyph_count() as u32 - 1;
+        let glyph_count = self.glyph_count();
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: the `end_glyph` computation below underflows when
+        // `start_glyph` is 0.
+        if glyph_count == 0 {
+            return class == 0;
+        }
+        let end_glyph = start_glyph + glyph_count as u32 - 1;
         if class == 0 {
             let first = glyphs.first().unwrap();
             if first.to_u32() < start_glyph {
@@ -698,6 +787,13 @@ impl<'a> ClassDefFormat2<'a> {
     fn intersects_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> bool {
         if glyphs.is_empty() {
             return false;
+        }
+
+        // An empty ClassDef assigns class 0 to every glyph. This needs to be
+        // handled up front: with no ranges the class 0 walk below starts from
+        // `first + 1` and so misses `first` itself.
+        if self.class_range_count() == 0 {
+            return class == 0;
         }
 
         let first = glyphs.first().unwrap().to_u32();
@@ -951,6 +1047,8 @@ impl<T> std::ops::Deref for TaggedElement<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FontRef;
+    use types::Fixed;
 
     #[test]
     fn coverage_get_format1() {
@@ -1048,6 +1146,133 @@ mod tests {
         assert!(class_ones.is_empty());
     }
 
+    // An empty ClassDef assigns class 0 to every glyph.
+    #[test]
+    fn classdef_format1_empty() {
+        // start_glyph_id = 0, glyph_count = 0. The zero start glyph is what
+        // made `start_glyph + glyph_count - 1` underflow.
+        let classdef = ClassDefFormat1::read(FontData::new(&[0, 1, 0, 0, 0, 0])).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(48), GlyphId::new(49), GlyphId::new(50)]
+            .into_iter()
+            .collect();
+
+        assert!(classdef.intersects_class_glyphs(&glyphs, 0));
+        assert!(!classdef.intersects_class_glyphs(&glyphs, 1));
+
+        assert!(classdef
+            .intersected_class_glyphs(&glyphs, 0)
+            .iter()
+            .eq(glyphs.iter()));
+        assert!(classdef.intersected_class_glyphs(&glyphs, 1).is_empty());
+
+        assert_eq!(
+            classdef
+                .intersect_classes(&glyphs)
+                .iter()
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+
+        // a single glyph must still be reported as class 0
+        let one: IntSet<GlyphId> = [GlyphId::new(48)].into_iter().collect();
+        assert!(classdef.intersects_class_glyphs(&one, 0));
+
+        // and nothing intersects an empty glyph set
+        let none = IntSet::<GlyphId>::empty();
+        assert!(!classdef.intersects_class_glyphs(&none, 0));
+        assert!(classdef.intersected_class_glyphs(&none, 0).is_empty());
+    }
+
+    // Same as above but with a non-zero start_glyph_id, which did not overflow
+    // but must give the same answers.
+    #[test]
+    fn classdef_format1_empty_nonzero_start_glyph() {
+        let classdef = ClassDefFormat1::read(FontData::new(&[0, 1, 0, 60, 0, 0])).unwrap();
+
+        // glyphs before, after, and straddling the start glyph
+        for gids in [vec![48u16, 49], vec![70, 71], vec![48, 70]] {
+            let glyphs: IntSet<GlyphId> = gids.iter().map(|g| GlyphId::new(*g as u32)).collect();
+            assert!(classdef.intersects_class_glyphs(&glyphs, 0), "{gids:?}");
+            assert!(!classdef.intersects_class_glyphs(&glyphs, 1), "{gids:?}");
+            assert_eq!(
+                classdef
+                    .intersected_class_glyphs(&glyphs, 0)
+                    .iter()
+                    .collect::<Vec<_>>(),
+                glyphs.iter().collect::<Vec<_>>(),
+                "{gids:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn classdef_format2_empty() {
+        // class_range_count = 0
+        let classdef = ClassDefFormat2::read(FontData::new(&[0, 2, 0, 0])).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(48), GlyphId::new(49), GlyphId::new(50)]
+            .into_iter()
+            .collect();
+
+        assert!(classdef.intersects_class_glyphs(&glyphs, 0));
+        assert!(!classdef.intersects_class_glyphs(&glyphs, 1));
+
+        // regression: the class 0 walk used to start at `first + 1`, so a
+        // single glyph was missed and this returned false.
+        let one: IntSet<GlyphId> = [GlyphId::new(48)].into_iter().collect();
+        assert!(classdef.intersects_class_glyphs(&one, 0));
+
+        assert_eq!(
+            classdef
+                .intersected_class_glyphs(&glyphs, 0)
+                .iter()
+                .collect::<Vec<_>>(),
+            glyphs.iter().collect::<Vec<_>>()
+        );
+        assert!(classdef.intersected_class_glyphs(&glyphs, 1).is_empty());
+
+        assert_eq!(
+            classdef
+                .intersect_classes(&glyphs)
+                .iter()
+                .collect::<Vec<_>>(),
+            vec![0]
+        );
+    }
+
+    // Both spellings of an empty ClassDef must behave identically.
+    #[test]
+    fn classdef_empty_formats_agree() {
+        let f1 = ClassDef::read(FontData::new(&[0, 1, 0, 0, 0, 0])).unwrap();
+        let f2 = ClassDef::read(FontData::new(&[0, 2, 0, 0])).unwrap();
+        assert!(matches!(f1, ClassDef::Format1(..)));
+        assert!(matches!(f2, ClassDef::Format2(..)));
+
+        for gids in [vec![0u32], vec![48], vec![48, 49, 50]] {
+            let glyphs: IntSet<GlyphId> = gids.iter().copied().map(GlyphId::new).collect();
+            for class in [0u16, 1] {
+                assert_eq!(
+                    f1.intersects_class_glyphs(&glyphs, class),
+                    f2.intersects_class_glyphs(&glyphs, class),
+                    "{gids:?} class {class}"
+                );
+                assert_eq!(
+                    f1.intersected_class_glyphs(&glyphs, class)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    f2.intersected_class_glyphs(&glyphs, class)
+                        .iter()
+                        .collect::<Vec<_>>(),
+                    "{gids:?} class {class}"
+                );
+            }
+            assert_eq!(
+                f1.intersect_classes(&glyphs).iter().collect::<Vec<_>>(),
+                f2.intersect_classes(&glyphs).iter().collect::<Vec<_>>(),
+                "{gids:?}"
+            );
+        }
+    }
+
     #[test]
     fn delta_decode() {
         // these examples come from the spec
@@ -1124,6 +1349,63 @@ mod tests {
     fn default_coverage() {
         let coverage = CoverageTable::default();
         assert_eq!(coverage.iter().count(), 0)
+    }
+
+    /// Normalized coordinates for the font at one value on one axis.
+    fn coords_at(font: &FontRef, tag: Tag, value: f32) -> Vec<F2Dot14> {
+        let fvar = font.fvar().unwrap();
+        let mut coords = vec![F2Dot14::ZERO; fvar.axis_count() as usize];
+        fvar.user_to_normalized(
+            font.avar().ok().as_ref(),
+            [(tag, Fixed::from_f64(value as f64))],
+            &mut coords,
+        );
+        coords
+    }
+
+    #[test]
+    fn index_for_coords_honors_the_condition_set() {
+        let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        let feature_vars = font.gsub().unwrap().feature_variations().unwrap().unwrap();
+        let fill = Tag::new(b"FILL");
+        assert_eq!(
+            feature_vars.index_for_coords(&coords_at(&font, fill, 1.0)),
+            Some(0)
+        );
+        assert_eq!(
+            feature_vars.index_for_coords(&coords_at(&font, fill, 0.5)),
+            None
+        );
+        // A short slice reads as the default location: an axis it omits
+        // takes its default value.
+        assert_eq!(feature_vars.index_for_coords(&[]), None);
+    }
+
+    #[test]
+    fn selected_feature_variations() {
+        let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        let cases = [
+            // (FILL value, [GSUB feature variation index, GPOS feature variation index])
+            (0.0, [None, None]),
+            (0.5, [None, None]),
+            (0.98, [None, None]),
+            (0.99, [Some(0), None]),
+            (1.0, [Some(0), None]),
+        ];
+        for (fill, expected) in cases {
+            let coords = coords_at(&font, Tag::new(b"FILL"), fill);
+            let selected = SelectedFeatureVariations::new(&font, &coords);
+            assert_eq!([selected.gsub, selected.gpos], expected, "fill={fill}");
+        }
+    }
+
+    #[test]
+    fn a_font_without_the_layout_tables_selects_nothing() {
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
+        assert_eq!(
+            SelectedFeatureVariations::new(&font, &[]),
+            SelectedFeatureVariations::default()
+        );
     }
 
     #[test]

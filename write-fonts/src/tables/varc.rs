@@ -366,6 +366,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sparse_region_count_uint32() {
+        let region = SparseVariationRegion::new(0, vec![]);
+        let list = SparseVariationRegionList::new(0x10000, vec![region; 0x10000]);
+        let bytes = dump_table(&list).unwrap();
+        assert_eq!(&bytes[..4], &[0, 1, 0, 0]);
+        let read = read_fonts::tables::varc::SparseVariationRegionList::read(FontData::new(&bytes))
+            .unwrap();
+        assert_eq!(read.region_count(), 0x10000);
+        assert_eq!(read.regions().get(0xFFFF).unwrap().region_axis_count(), 0);
+    }
+
+    #[test]
+    fn empty_delta_set_index_offset() {
+        let data = MultiItemVariationData::new(0, vec![], Index2::from_items(vec![]));
+        let bytes = dump_table(&data).unwrap();
+        assert_eq!(&bytes[..11], &[1, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0]);
+        let read =
+            read_fonts::tables::varc::MultiItemVariationData::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.delta_sets().unwrap().count(), 0);
+    }
+
+    #[test]
     fn test_write_uint32var() {
         let mut writer = TableWriter::default();
         Uint32Var(0x7F).write_into(&mut writer);

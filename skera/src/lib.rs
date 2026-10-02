@@ -974,13 +974,16 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
     ret.max(maxp.num_glyphs() as usize)
 }
 
-pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + From<u16>>(
+pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + TryFrom<usize>>(
     indices: IntSet<T>,
 ) -> FnvHashMap<T, T> {
     indices
         .iter()
         .enumerate()
-        .map(|x| (x.1, T::from(x.0 as u16)))
+        // Note: new indices that don't fit in `T` are dropped rather than
+        // silently truncated; downstream lookups will then miss and surface a
+        // serialization error instead of emitting a wrong index.
+        .filter_map(|(new_idx, old_idx)| Some((old_idx, T::try_from(new_idx).ok()?)))
         .collect()
 }
 

@@ -406,7 +406,7 @@ trait TableDataProvider<'a> where Self: 'a {
 
 }
 
-impl FontTables {
+impl Tables {
     /// Anchor point table data.
     ///
     /// See the [ankr](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) specification.

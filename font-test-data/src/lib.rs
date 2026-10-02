@@ -21,6 +21,8 @@ pub static CMAP10: &[u8] = include_bytes!("../test_data/ttf/cmap10.ttf");
 
 pub static TOFU: &[u8] = include_bytes!("../test_data/ttf/tofu.ttf");
 
+pub static LAST_RESORT_HE: &[u8] = include_bytes!("../test_data/ttf/LastResortHE-Regular.ttf");
+
 pub static COLR_GRADIENT_RECT: &[u8] =
     include_bytes!("../test_data/ttf/linear_gradient_rect_colr_1.ttf");
 
@@ -134,6 +136,7 @@ pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
     pub static STATIC_GVAR: &[u8] = include_bytes!("../test_data/ttf/varc-static-gvar.ttf");
+    pub static DELTA_PRECISION: &[u8] = include_bytes!("../test_data/ttf/varc-delta-precision.ttf");
 }
 
 pub mod closure {

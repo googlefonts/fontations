@@ -2,9 +2,10 @@
 #
 # Compile Chromium's own Rust font code against this working tree.
 #
-# Chromium reads fonts from Rust in two places of its own — a format check in
-# Blink and a name-table lookup in the browser process — and builds them with
-# GN, so there is no cargo build to borrow. This generates one.
+# Chromium reads fonts from Rust in three places of its own — a format check and
+# incremental font transfer in Blink, and a name-table lookup in the browser
+# process — and builds them with GN, so there is no cargo build to borrow. This
+# generates one.
 #
 # Only Chromium's own code. The other consumers that link read-fonts from a
 # Chromium checkout — Skia, HarfBuzz, fontconfig, pdfium — are DEPS submodules
@@ -52,7 +53,7 @@ mapfile -t sources < <(
         -not -path '*/third_party/harfbuzz/*' \
         -not -path '*/third_party/fontconfig/*' \
         -not -path '*/third_party/pdfium/*' \
-        -exec grep -lE 'read_fonts|skrifa' {} + 2> /dev/null | sort
+        -exec grep -lE 'read_fonts|skrifa|incremental_font_transfer' {} + 2> /dev/null | sort
 )
 
 if [ ${#sources[@]} -eq 0 ]; then
@@ -76,6 +77,8 @@ publish = false
 read-fonts = { path = "$fontations_dir/read-fonts" }
 font-types = { path = "$fontations_dir/font-types" }
 skrifa = { path = "$fontations_dir/skrifa" }
+incremental-font-transfer = { path = "$fontations_dir/incremental-font-transfer" }
+log = "0.4"
 cxx = "1.0"
 
 [workspace]

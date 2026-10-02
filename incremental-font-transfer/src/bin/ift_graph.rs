@@ -12,7 +12,7 @@ use font_types::Tag;
 use incremental_font_transfer::{
     font_patch::IncrementalFontPatchBase,
     patch_group::PatchInfo,
-    patchmap::{intersecting_patches, PatchFormat, PatchMapEntry, SubsetDefinition},
+    patchmap::{PatchFormat, PatchMap, PatchMapEntry, SubsetDefinition},
 };
 use read_fonts::{ReadError, TableProvider};
 use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
@@ -212,8 +212,10 @@ fn to_graph(
     font: FontRef<'_>,
     mut graph: BTreeMap<NodeName, BTreeSet<Edge>>,
 ) -> BTreeMap<NodeName, BTreeSet<Edge>> {
-    let patches =
-        intersecting_patches(&font, &SubsetDefinition::all()).expect("patch map parsing failed");
+    let patches = PatchMap::new(&font)
+        .expect("patch map parsing failed")
+        .intersecting_patches(&SubsetDefinition::all())
+        .expect("failed to compute intersecting patches");
 
     let node_name = NodeName(get_node_name(&font).unwrap());
     graph.entry(node_name.clone()).or_default();

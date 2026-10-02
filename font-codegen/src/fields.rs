@@ -597,8 +597,14 @@ impl Field {
         // it's possible we don't have enough bytes and reading could fail.
         // When these are non-optional, we use unwrap_or_default so that we
         // are always returning a value.
-        let maybe_unwrap_or_def =
-            (maybe_unwrap.is_none() && !is_conditional).then(|| quote!( .unwrap_or_default() ));
+        let maybe_unwrap_or_def = (maybe_unwrap.is_none() && !is_conditional).then(|| {
+            if let FieldType::Offset { typ, .. } = &self.typ {
+                if !self.is_nullable() {
+                    return quote!( .unwrap_or(#typ::new(Default::default())) );
+                }
+            }
+            quote!( .unwrap_or_default() )
+        });
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if self.is_computed_array() {
@@ -845,7 +851,7 @@ impl Field {
         if self.attrs.skip_getter.is_none() {
             return true;
         }
-        self.is_computed() || self.is_count()
+        self.is_computed() || self.is_count() || self.attrs.compile_with.is_some()
     }
 
     pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {

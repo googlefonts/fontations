@@ -21,6 +21,7 @@ table Gvar {
     #[compile(array_len($shared_tuples_offset))]
     shared_tuple_count: u16,
     /// Offset from the start of this table to the shared tuple records.
+    #[skip_getter]
     #[read_offset_with($shared_tuple_count, $axis_count)]
     #[compile_with(compute_shared_tuples_offset)]
     shared_tuples_offset: Offset32<SharedTuples>,

@@ -238,12 +238,8 @@ impl CmapSubtable {
     }
 
     /// Construct a new `Cmap14` subtable
-    pub fn format_14(
-        length: u32,
-        num_var_selector_records: u32,
-        var_selector: Vec<VariationSelector>,
-    ) -> Self {
-        Self::Format14(Cmap14::new(length, num_var_selector_records, var_selector))
+    pub fn format_14(var_selector: Vec<VariationSelector>) -> Self {
+        Self::Format14(Cmap14::new(var_selector))
     }
 }
 
@@ -1170,39 +1166,14 @@ impl FromObjRef<read_fonts::tables::cmap::ConstantMapGroup> for ConstantMapGroup
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cmap14 {
-    /// Byte length of this subtable (including this header)
-    pub length: u32,
-    /// Number of variation Selector Records
-    pub num_var_selector_records: u32,
     /// Array of VariationSelector records.
     pub var_selector: Vec<VariationSelector>,
 }
 
 impl Cmap14 {
     /// Construct a new `Cmap14`
-    pub fn new(
-        length: u32,
-        num_var_selector_records: u32,
-        var_selector: Vec<VariationSelector>,
-    ) -> Self {
-        Self {
-            length,
-            num_var_selector_records,
-            var_selector,
-        }
-    }
-}
-
-impl FontWrite for Cmap14 {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        (14 as u16).write_into(writer);
-        self.length.write_into(writer);
-        self.num_var_selector_records.write_into(writer);
-        self.var_selector.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("Cmap14")
+    pub fn new(var_selector: Vec<VariationSelector>) -> Self {
+        Self { var_selector }
     }
 }
 
@@ -1223,8 +1194,6 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap14<'a>> for Cmap14 {
     fn from_obj_ref(obj: &read_fonts::tables::cmap::Cmap14<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Cmap14 {
-            length: obj.length(),
-            num_var_selector_records: obj.num_var_selector_records(),
             var_selector: obj.var_selector().to_owned_obj(offset_data),
         }
     }

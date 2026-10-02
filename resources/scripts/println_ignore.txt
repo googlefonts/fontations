@@ -5,3 +5,5 @@ read-fonts/build.rs
 shared-brotli-patch-decoder/build.rs
 skera/src/main.rs
 skera/src/repack.rs
+skrifa/tests/glyf_parity.rs
+skrifa/tests/glyf_path_parity.rs

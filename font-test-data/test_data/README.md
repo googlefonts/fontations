@@ -160,6 +160,13 @@ Describes the provenance, usage and generation procedures for font data used for
   * usage: testing cmap format 13
   * subset: manually subset to ASCII to reduce ttx size
 
+* _LastResortHE-Regular_
+  * font: Last Resort High-Efficiency 18.000
+  * source: https://github.com/unicode-org/last-resort-font/releases/tag/18.000
+  * license: [Open Font License][OFL]
+  * usage: testing selection of a Unicode encoding 6 format 13 cmap over an
+    empty Windows encoding 1 format 4 cmap
+
 * _noto_color_emoji_flags_
   * font: Noto Color Emoji
   * source: https://fonts.google.com/noto/specimen/Noto+Color+Emoji

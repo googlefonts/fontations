@@ -119,6 +119,14 @@ pub(crate) fn serialize_index_maps(
 #[derive(Default)]
 pub(crate) struct IndexMapSubsetPlan {
     map_count: u16,
+    /// Number of entries a map covering every output glyph would have,
+    /// i.e. (largest new glyph id) + 1.
+    full_map_count: u32,
+    /// Whether this map is allowed to be dropped in favor of implicit
+    /// glyph-id indexing. Only the advance mapping qualifies, and only when
+    /// the source table was map-less too (for the other maps a null offset
+    /// means "no deltas", so dropping would change the meaning).
+    can_drop_to_implicit: bool,
     max_inners: Vec<u16>,
     outer_bit_count: u8,
     inner_bit_count: u8,
@@ -133,7 +141,18 @@ impl IndexMapSubsetPlan {
         outer_map: &mut IncBiMap,
         inner_sets: &mut [IntSet<u16>],
     ) -> Result<Self, ReadError> {
-        let mut this = IndexMapSubsetPlan::default();
+        let mut this = IndexMapSubsetPlan {
+            full_map_count: plan
+                .new_to_old_gid_list
+                .last()
+                .map(|(new_gid, _)| new_gid.to_u32() + 1)
+                .unwrap_or(0),
+            // Only the advance mapping may be dropped in favor of implicit
+            // glyph-id indexing, and only when the source was map-less too.
+            can_drop_to_implicit: !bypass_empty && index_map.is_none(),
+            ..Default::default()
+        };
+
         if bypass_empty && index_map.is_none() {
             return Ok(this);
         }
@@ -249,7 +268,17 @@ impl IndexMapSubsetPlan {
     }
 
     fn is_identity(&self) -> bool {
-        self.output_map.is_empty()
+        if self.output_map.is_empty() {
+            return true;
+        }
+        // An advance map whose entries are the identity over every output
+        // glyph is equivalent to implicit glyph-id indexing; drop it. A
+        // truncated map doesn't qualify: glyphs past its end share its last
+        // value, not their own ids.
+        if !self.can_drop_to_implicit || self.map_count as u32 != self.full_map_count {
+            return false;
+        }
+        (0..self.full_map_count).all(|i| self.output_map.get(&i).copied().unwrap_or(0) == i)
     }
 
     fn to_serialize_plan(&self) -> DeltaSetIndexMapSerializePlan<'_> {

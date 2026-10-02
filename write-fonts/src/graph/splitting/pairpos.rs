@@ -500,11 +500,12 @@ mod tests {
     use crate::{
         tables::{
             gpos::{
-                Class1Record, Class2Record, PairPos, PairSet, PairValueRecord, PositionLookup,
-                ValueRecord,
+                Class1Record, Class2Record, ExtensionPosFormat1, ExtensionSubtable, PairPos,
+                PairSet, PairValueRecord, PositionLookup, ValueRecord,
             },
             layout::{
-                builders::CoverageTableBuilder, Device, DeviceOrVariationIndex, VariationIndex,
+                builders::CoverageTableBuilder, Device, DeviceOrVariationIndex, LookupType,
+                VariationIndex,
             },
         },
         FontWrite, TableWriter,
@@ -681,6 +682,54 @@ mod tests {
         assert!(crate::dump_table(&lookuplist).is_ok());
     }
 
+    /// Wrap each subtable of a pair lookup in an Extension subtable, like a
+    /// `useExtension` lookup arriving from fea-rs.
+    fn wrap_in_extension(lookup: wlayout::Lookup<PairPos>) -> PositionLookup {
+        let subtables = lookup
+            .subtables
+            .into_iter()
+            .map(|sub| {
+                ExtensionSubtable::Pair(ExtensionPosFormat1::new(
+                    LookupType::PAIR_POS,
+                    sub.into_inner(),
+                ))
+            })
+            .collect();
+        let mut ext = wlayout::Lookup::new(lookup.lookup_flag, subtables);
+        ext.mark_filtering_set = lookup.mark_filtering_set;
+        PositionLookup::Extension(ext)
+    }
+
+    #[test]
+    fn fully_pack_pairpos1_in_extension_lookup() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // same table as above, but the lookup is already an extension lookup,
+        // so the packer cannot promote it and has to split through the extension
+        const G1_COUNT: u16 = 28;
+        const G2_COUNT: u16 = 100;
+
+        let table = make_pairpos_f1_with_device_tables(G1_COUNT, G2_COUNT);
+        let lookup = wrap_in_extension(wlayout::Lookup::new(LookupFlag::empty(), vec![table]));
+        let lookuplist = wlayout::LookupList::new(vec![lookup]);
+        let bytes = crate::dump_table(&lookuplist).unwrap();
+
+        let rlookuplist = rgpos::PositionLookupList::read(FontData::new(&bytes)).unwrap();
+        let rlookup = rlookuplist.lookups().get(0).unwrap();
+        assert_eq!(rlookup.lookup_type(), LookupType::GPOS_EXT_TYPE);
+        let PositionSubtables::Pair(subs) = rlookup.subtables().unwrap() else {
+            panic!("wrong lookup type");
+        };
+        let n_pair_sets: u16 = subs
+            .iter()
+            .map(|sub| match sub.unwrap() {
+                rgpos::PairPos::Format1(sub) => sub.pair_set_count(),
+                rgpos::PairPos::Format2(_) => panic!("wrong subtable format"),
+            })
+            .sum();
+        assert!(subs.len() > 1, "expected the subtable to be split");
+        assert_eq!(n_pair_sets, G1_COUNT);
+    }
+
     #[test]
     fn count_glyph_ranges() {
         fn make_input(glyphs: &[u16]) -> BTreeSet<GlyphId16> {
@@ -787,7 +836,16 @@ mod tests {
     #[test]
     fn ensure_split_pairpos_f2_works() {
         let _ = env_logger::builder().is_test(true).try_init();
+        ensure_split_pairpos_f2_works_impl(false)
+    }
 
+    #[test]
+    fn ensure_split_pairpos_f2_works_in_extension_lookup() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        ensure_split_pairpos_f2_works_impl(true)
+    }
+
+    fn ensure_split_pairpos_f2_works_impl(use_extension: bool) {
         // and sanity check that we have the same number of records:
         let lookup = make_pairpos2();
         let expected_n_c2_recs = match &lookup {
@@ -804,6 +862,10 @@ mod tests {
                 })
                 .sum::<usize>(),
             _ => panic!("wrong lookup type"),
+        };
+        let lookup = match (use_extension, lookup) {
+            (true, PositionLookup::Pair(pairpos)) => wrap_in_extension(pairpos),
+            (_, lookup) => lookup,
         };
         let lookup_list = wlayout::LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookup_list).unwrap();
