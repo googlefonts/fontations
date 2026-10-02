@@ -30,8 +30,8 @@ use super::OutlineKind;
 type GlyphStack = SmallVec<GlyphId, 8>;
 type CoordVec = SmallVec<F2Dot14, 64>;
 type AxisIndexVec = SmallVec<u16, 64>;
-type AxisValueVec = SmallVec<f32, 64>;
-type DeltaVec = SmallVec<f32, 64>;
+type AxisValueVec = SmallVec<f64, 64>;
+type DeltaVec = SmallVec<f64, 64>;
 type ScalarCacheVec = SmallVec<f32, 128>;
 type Affine = Matrix<f32>;
 
@@ -518,7 +518,7 @@ impl<'a> Outlines<'a> {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Malformed);
             };
-            let raw = value.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+            let raw = value.round().clamp(i16::MIN as f64, i16::MAX as f64) as i16;
             *slot = F2Dot14::from_bits(raw);
         }
         Ok(())
@@ -548,7 +548,7 @@ impl<'a> Outlines<'a> {
         };
         out.resize_and_fill(count, 0.0);
         for (slot, value) in out.iter_mut().zip(packed.iter().by_ref().take(count)) {
-            *slot = value as f32;
+            *slot = value as f64;
         }
         Ok(())
     }
@@ -597,7 +597,7 @@ impl<'a> Outlines<'a> {
         )?;
 
         // Apply deltas in flag order, consuming from iterator
-        let mut delta_iter = scratch.deltas.iter().copied();
+        let mut delta_iter = scratch.deltas.iter().map(|&delta| delta as f32);
 
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
             let delta = delta_iter.next().unwrap_or(0.0);
@@ -703,7 +703,7 @@ impl<'a> Outlines<'a> {
                     && coord <= condition.filter_range_max_value())
             }
             Condition::Format2VariableValue(condition) => {
-                let default_value = condition.default_value() as f32;
+                let default_value = condition.default_value() as f64;
                 let var_idx = condition.var_index();
                 if var_idx == NO_VARIATION_INDEX {
                     return Ok(default_value > 0.0);
@@ -880,7 +880,7 @@ fn compute_tuple_deltas(
                 skip = 0;
             }
             deltas
-                .add_to_f32_scaled(out_slice, scalar)
+                .add_to_f64_scaled(out_slice, scalar as f64)
                 .map_err(|_| DrawError::Malformed)?;
         }
     }
@@ -1108,7 +1108,7 @@ mod tests {
                 .unwrap();
                 assert_eq!(actual.as_slice(), first.as_slice());
 
-                let mut expected = vec![0.0f32; tuple_len];
+                let mut expected = vec![0.0f64; tuple_len];
                 for (region_order, region_idx) in data.region_indices().iter().enumerate() {
                     let scalar = region_list
                         .get(region_idx.get() as usize)
@@ -1119,12 +1119,12 @@ mod tests {
                     }
                     let base = region_order * tuple_len;
                     for (i, slot) in expected.iter_mut().enumerate() {
-                        *slot += decoded[base + i] as f32 * scalar;
+                        *slot += decoded[base + i] as f64 * scalar as f64;
                     }
                 }
                 assert_eq!(actual.len(), expected.len());
                 for (a, e) in actual.iter().zip(expected.iter()) {
-                    assert_close(*a, *e);
+                    assert_eq!(*a, *e);
                 }
                 tried += 1;
             }
@@ -1173,7 +1173,7 @@ mod tests {
             deltas,
         )?;
 
-        let mut delta_iter = deltas.iter().copied();
+        let mut delta_iter = deltas.iter().map(|&delta| delta as f32);
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
             transform.set_translate_x(transform.translate_x() + delta_iter.next().unwrap_or(0.0));
         }
@@ -1339,6 +1339,30 @@ mod tests {
                 "Q704.43,783.31 717.03,804.56".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn large_deltas_preserve_conditions_transforms_and_axis_values() {
+        use read_fonts::model::glyph::outline::SvgPen;
+
+        let font = FontRef::new(font_test_data::varc::DELTA_PRECISION).unwrap();
+        let outlines = font.outline_glyphs();
+        let coords = [coord(1.0), coord(0.0)];
+        for (gid, expected) in [
+            (2, "M600,0 L800,0 L600,200 Z"),
+            (3, "M664,0 L864,0 L664,200 Z"),
+            (4, "M101,0 L201,0 L101,100 Z"),
+        ] {
+            let glyph = outlines.get(GlyphId::new(gid)).unwrap();
+            let mut pen = SvgPen::default();
+            glyph
+                .draw(
+                    crate::outline::DrawSettings::unhinted(Size::unscaled(), coords.as_slice()),
+                    &mut pen,
+                )
+                .unwrap();
+            assert_eq!(pen.as_ref(), expected);
+        }
     }
 
     // Build the store/regions needed by `eval_condition`'s signature. The
