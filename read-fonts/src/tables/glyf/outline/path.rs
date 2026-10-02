@@ -1,7 +1,7 @@
 //! Turning a loaded outline into path commands.
 
 use super::super::{PointCoord, PointFlags};
-use crate::{model::pen::OutlinePen, types::Point};
+use crate::{model::glyph::outline::OutlinePen, types::Point};
 
 /// Where a contour starts when its first point is off-curve.
 ///
@@ -78,7 +78,7 @@ pub fn outline_to_path<C: PointCoord>(
 ///
 /// ```
 /// use read_fonts::{
-///     model::pen::SvgPen,
+///     model::glyph::outline::SvgPen,
 ///     tables::glyf::{outline::{contour_to_path, PathContourStart}, PointFlags},
 ///     types::Point,
 /// };
@@ -312,7 +312,7 @@ impl<C: PointCoord> PendingState<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::pen::SvgPen;
+    use crate::model::glyph::outline::SvgPen;
     use crate::types::F26Dot6;
     use alloc::vec::Vec;
 

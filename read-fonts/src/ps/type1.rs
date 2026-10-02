@@ -8,7 +8,7 @@ use super::{
     transform::{self, FontMatrix, ScaledFontMatrix, Transform},
 };
 use crate::{
-    model::pen::OutlinePen,
+    model::glyph::outline::OutlinePen,
     types::{BoundingBox, Fixed, GlyphId},
 };
 use alloc::{string::String, vec::Vec};
@@ -2383,7 +2383,7 @@ mod tests {
 #[cfg(test)]
 mod width_only_tests {
     use super::*;
-    use crate::model::pen::NullPen;
+    use crate::model::glyph::outline::NullPen;
 
     const FONTS: [&[u8]; 2] = [
         font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
@@ -2443,7 +2443,7 @@ mod width_only_tests {
 #[cfg(test)]
 mod extents_tests {
     use super::*;
-    use crate::model::pen::OutlinePen;
+    use crate::model::glyph::outline::OutlinePen;
 
     const FONTS: [&[u8]; 2] = [
         font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
