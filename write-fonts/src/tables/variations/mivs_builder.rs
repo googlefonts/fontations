@@ -247,7 +247,7 @@ impl MultiItemVariationStoreBuilder {
             .map(|(region, _)| region.to_sparse_variation_region())
             .collect();
 
-        SparseVariationRegionList::new(sparse_regions.len() as u16, sparse_regions)
+        SparseVariationRegionList::new(sparse_regions.len() as u32, sparse_regions)
     }
 
     fn build_var_data(
@@ -278,13 +278,8 @@ impl MultiItemVariationStoreBuilder {
         }
 
         let index2 = Index2::from_items(items);
-        let raw_delta_sets = crate::dump_table(&index2).expect("Index2 serialization failed");
 
-        MultiItemVariationData::new(
-            region_indices.len() as u16,
-            region_indices.to_vec(),
-            raw_delta_sets,
-        )
+        MultiItemVariationData::new(region_indices.len() as u16, region_indices.to_vec(), index2)
     }
 
     /// Flatten delta tuples into a single vector in region order.
