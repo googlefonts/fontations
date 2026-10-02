@@ -665,6 +665,14 @@ impl<'a> Outlines<'a> {
             return Err(DrawError::Malformed);
         };
         let condition_list = condition_list.map_err(|_| DrawError::Malformed)?;
+        let offset = condition_list
+            .condition_offsets()
+            .get(condition_index as usize)
+            .ok_or(DrawError::Malformed)?;
+        // A null condition is unconditional; it is not a format-0 table.
+        if offset.get().is_null() {
+            return Ok(true);
+        }
         let condition = condition_list
             .conditions()
             .get(condition_index as usize)
@@ -714,8 +722,14 @@ impl<'a> Outlines<'a> {
                 Ok(default_value + delta > 0.0)
             }
             Condition::Format3And(condition) => {
-                for nested in condition.conditions().iter() {
-                    let nested = nested.map_err(|_| DrawError::Malformed)?;
+                for (index, offset) in condition.condition_offsets().iter().enumerate() {
+                    if offset.get().is_null() {
+                        continue;
+                    }
+                    let nested = condition
+                        .conditions()
+                        .get(index)
+                        .map_err(|_| DrawError::Malformed)?;
                     if !Self::eval_condition(
                         &nested,
                         coords,
@@ -730,8 +744,14 @@ impl<'a> Outlines<'a> {
                 Ok(true)
             }
             Condition::Format4Or(condition) => {
-                for nested in condition.conditions().iter() {
-                    let nested = nested.map_err(|_| DrawError::Malformed)?;
+                for (index, offset) in condition.condition_offsets().iter().enumerate() {
+                    if offset.get().is_null() {
+                        return Ok(true);
+                    }
+                    let nested = condition
+                        .conditions()
+                        .get(index)
+                        .map_err(|_| DrawError::Malformed)?;
                     if Self::eval_condition(
                         &nested,
                         coords,
@@ -746,6 +766,9 @@ impl<'a> Outlines<'a> {
                 Ok(false)
             }
             Condition::Format5Negate(condition) => {
+                if condition.condition_offset().is_null() {
+                    return Ok(false);
+                }
                 let nested = condition.condition().map_err(|_| DrawError::Malformed)?;
                 Ok(!Self::eval_condition(
                     &nested,
@@ -1448,6 +1471,57 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(transform.translate_x(), expected_translation);
+        }
+    }
+
+    #[test]
+    fn null_condition_offsets_are_unconditional() {
+        use read_fonts::{FontData, FontRead};
+
+        let leaf = [0, 1, 0, 0, 0xE0, 0, 0x20, 0]; // false at 0.75
+        let mut cases = vec![
+            (None, true),
+            (Some(vec![0, 3, 1, 0, 0, 0]), true),
+            (Some(vec![0, 4, 1, 0, 0, 0]), true),
+            (Some(vec![0, 5, 0, 0, 0]), false),
+        ];
+        for format in [3, 4] {
+            for null_first in [false, true] {
+                let mut bytes = vec![0, format, 2];
+                bytes.extend_from_slice(if null_first {
+                    &[0, 0, 0, 0, 0, 9]
+                } else {
+                    &[0, 0, 9, 0, 0, 0]
+                });
+                bytes.extend_from_slice(&leaf);
+                cases.push((Some(bytes), format == 4));
+            }
+        }
+        for (condition, expected) in cases {
+            let mut bytes = vec![0u8; 24];
+            bytes[..4].copy_from_slice(&0x00010000u32.to_be_bytes());
+            bytes[12..16].copy_from_slice(&24u32.to_be_bytes());
+            bytes.extend(1u32.to_be_bytes());
+            bytes.extend(if condition.is_some() { 8u32 } else { 0 }.to_be_bytes());
+            if let Some(condition) = condition.as_ref() {
+                bytes.extend_from_slice(condition);
+            }
+            let glyphs_offset = bytes.len() as u32;
+            bytes[20..24].copy_from_slice(&glyphs_offset.to_be_bytes());
+            bytes.extend([0, 0, 0, 1, 1, 1, 6, 0x80, 0x80, 0, 1, 0]);
+            let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+            let mut outlines = Outlines::new(&font).unwrap();
+            outlines.varc = Varc::read(FontData::new(&bytes)).unwrap();
+            let glyph = outlines.varc.glyph(0).unwrap();
+            let component = glyph.components().next().unwrap().unwrap();
+            let result = outlines.component_condition_met(
+                &component,
+                &[coord(0.75)],
+                &mut ScalarCache::new(0),
+                &mut Scratchpad::new(),
+                None,
+            );
+            assert_eq!(result.unwrap(), expected, "condition {condition:?}");
         }
     }
 
