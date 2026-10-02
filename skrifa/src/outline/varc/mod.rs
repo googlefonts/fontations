@@ -493,18 +493,20 @@ impl<'a> Outlines<'a> {
 
         self.axis_values(component, num_axes, &mut scratch.axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
-            let (store, regions) = store_regions.ok_or(DrawError::Malformed)?;
-            compute_tuple_deltas(
-                store,
-                regions,
-                var_idx,
-                current_coords,
-                scratch.axis_indices.len(),
-                scalar_cache,
-                &mut scratch.deltas,
-            )?;
-            for (value, delta) in scratch.axis_values.iter_mut().zip(scratch.deltas.iter()) {
-                *value += *delta;
+            if var_idx != NO_VARIATION_INDEX && num_axes != 0 {
+                let (store, regions) = store_regions.ok_or(DrawError::Malformed)?;
+                compute_tuple_deltas(
+                    store,
+                    regions,
+                    var_idx,
+                    current_coords,
+                    scratch.axis_indices.len(),
+                    scalar_cache,
+                    &mut scratch.deltas,
+                )?;
+                for (value, delta) in scratch.axis_values.iter_mut().zip(scratch.deltas.iter()) {
+                    *value += *delta;
+                }
             }
         }
 
@@ -579,7 +581,7 @@ impl<'a> Outlines<'a> {
                 | VarcFlags::HAVE_TCENTER_Y.bits(),
         );
         let field_count = (flags.bits() & TRANSFORM_MASK.bits()).count_ones() as usize;
-        if field_count == 0 {
+        if field_count == 0 || var_idx == NO_VARIATION_INDEX {
             return Ok(());
         }
 
@@ -667,15 +669,13 @@ impl<'a> Outlines<'a> {
             .conditions()
             .get(condition_index as usize)
             .map_err(|_| DrawError::Malformed)?;
-        let (store, regions) = store_regions.ok_or(DrawError::Malformed)?;
-        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch, 0)
+        Self::eval_condition(&condition, coords, store_regions, scalar_cache, scratch, 0)
     }
 
     fn eval_condition(
         condition: &Condition<'a>,
         coords: &[F2Dot14],
-        var_store: &MultiItemVariationStore<'a>,
-        regions: &SparseVariationRegionList<'a>,
+        store_regions: Option<(&MultiItemVariationStore<'a>, &SparseVariationRegionList<'a>)>,
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
         depth: usize,
@@ -697,6 +697,10 @@ impl<'a> Outlines<'a> {
             Condition::Format2VariableValue(condition) => {
                 let default_value = condition.default_value() as f32;
                 let var_idx = condition.var_index();
+                if var_idx == NO_VARIATION_INDEX {
+                    return Ok(default_value > 0.0);
+                }
+                let (var_store, regions) = store_regions.ok_or(DrawError::Malformed)?;
                 compute_tuple_deltas(
                     var_store,
                     regions,
@@ -715,8 +719,7 @@ impl<'a> Outlines<'a> {
                     if !Self::eval_condition(
                         &nested,
                         coords,
-                        var_store,
-                        regions,
+                        store_regions,
                         scalar_cache,
                         scratch,
                         depth + 1,
@@ -732,8 +735,7 @@ impl<'a> Outlines<'a> {
                     if Self::eval_condition(
                         &nested,
                         coords,
-                        var_store,
-                        regions,
+                        store_regions,
                         scalar_cache,
                         scratch,
                         depth + 1,
@@ -748,8 +750,7 @@ impl<'a> Outlines<'a> {
                 Ok(!Self::eval_condition(
                     &nested,
                     coords,
-                    var_store,
-                    regions,
+                    store_regions,
                     scalar_cache,
                     scratch,
                     depth + 1,
@@ -1332,6 +1333,124 @@ mod tests {
         (font, store, regions)
     }
 
+    #[test]
+    fn component_conditions_without_variations_do_not_require_a_store() {
+        use read_fonts::{FontData, FontRead};
+
+        let leaf = vec![0, 1, 0, 0, 0xE0, 0, 0x20, 0]; // axis 0: [-0.5, 0.5]
+        let mut cases = vec![(leaf.clone(), false)];
+        for default in [-1i16, 0, 1] {
+            let mut bytes = vec![0, 2];
+            bytes.extend(default.to_be_bytes());
+            bytes.extend(NO_VARIATION_INDEX.to_be_bytes());
+            cases.push((bytes, default > 0));
+        }
+        for format in [3, 4] {
+            let mut bytes = vec![0, format, 1, 0, 0, 6];
+            bytes.extend_from_slice(&leaf);
+            cases.push((bytes, false));
+        }
+        let mut negate = vec![0, 5, 0, 0, 5];
+        negate.extend_from_slice(&leaf);
+        cases.push((negate, true));
+
+        for (condition, expected) in cases {
+            let mut bytes = vec![0u8; 24]; // VARC header
+            bytes[..4].copy_from_slice(&0x00010000u32.to_be_bytes());
+            bytes[12..16].copy_from_slice(&24u32.to_be_bytes()); // condition list
+            bytes.extend(1u32.to_be_bytes()); // one condition
+            bytes.extend(8u32.to_be_bytes()); // condition offset
+            bytes.extend_from_slice(&condition);
+            let glyphs_offset = bytes.len() as u32;
+            bytes[20..24].copy_from_slice(&glyphs_offset.to_be_bytes());
+            // One CFF2 INDEX entry: component with condition 0, gid 1.
+            bytes.extend([0, 0, 0, 1, 1, 1, 6, 0x80, 0x80, 0, 1, 0]);
+            let varc = Varc::read(FontData::new(&bytes)).unwrap();
+            let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+            let mut outlines = Outlines::new(&font).unwrap();
+            outlines.varc = varc;
+            let glyph = outlines.varc.glyph(0).unwrap();
+            let component = glyph.components().next().unwrap().unwrap();
+            assert_eq!(component.condition_index(), Some(0));
+            let result = outlines.component_condition_met(
+                &component,
+                &[coord(0.75)],
+                &mut ScalarCache::new(0),
+                &mut Scratchpad::new(),
+                None,
+            );
+            assert_eq!(result.unwrap(), expected, "condition bytes {condition:?}");
+        }
+    }
+
+    #[test]
+    fn component_zero_deltas_do_not_require_a_store() {
+        use read_fonts::{FontData, FontRead};
+
+        for (component_bytes, axis_indices, expected_coord, expected_translation) in [
+            // One explicit axis value with NO_VARIATION_INDEX.
+            (
+                vec![6, 0, 1, 0, 0x40, 0x10, 0, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF],
+                vec![0, 0], // packed axis index 0
+                0.25,
+                0.0,
+            ),
+            // An empty axis tuple consumes no deltas, even with a real index.
+            (vec![6, 0, 1, 0, 0], vec![], 0.5, 0.0),
+            // A translated component with NO_VARIATION_INDEX.
+            (
+                vec![0x18, 0, 1, 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 7],
+                vec![],
+                0.5,
+                7.0,
+            ),
+        ] {
+            let mut bytes = vec![0u8; 24];
+            bytes[..4].copy_from_slice(&0x00010000u32.to_be_bytes());
+            bytes[16..20].copy_from_slice(&24u32.to_be_bytes());
+            bytes.extend([0, 0, 0, 1, 1, 1, axis_indices.len() as u8 + 1]);
+            bytes.extend_from_slice(&axis_indices);
+            let glyphs_offset = bytes.len() as u32;
+            bytes[20..24].copy_from_slice(&glyphs_offset.to_be_bytes());
+            bytes.extend([0, 0, 0, 1, 1, 1, component_bytes.len() as u8 + 1]);
+            bytes.extend_from_slice(&component_bytes);
+            let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+            let mut outlines = Outlines::new(&font).unwrap();
+            outlines.varc = Varc::read(FontData::new(&bytes)).unwrap();
+            let glyph = outlines.varc.glyph(0).unwrap();
+            let component = glyph.components().next().unwrap().unwrap();
+            let mut coords = CoordVec::new();
+            let mut cache = ScalarCache::new(0);
+            let mut scratch = Scratchpad::new();
+            // A stale scratch delta must not leak into the zero-delta case.
+            scratch.deltas.push(100.0);
+            outlines
+                .component_coords(
+                    &component,
+                    &[coord(0.5)],
+                    &mut coords,
+                    &mut cache,
+                    &mut scratch,
+                    &[coord(0.5)],
+                    None,
+                )
+                .unwrap();
+            assert_eq!(coords.as_slice(), &[coord(expected_coord)]);
+            let mut transform = *component.transform();
+            outlines
+                .apply_transform_variations(
+                    &component,
+                    &[coord(0.5)],
+                    &mut transform,
+                    &mut cache,
+                    &mut scratch,
+                    None,
+                )
+                .unwrap();
+            assert_eq!(transform.translate_x(), expected_translation);
+        }
+    }
+
     // A deeply nested condition tree must return an error instead of overflowing
     // the stack. Regression test for the unbounded recursion in `eval_condition`.
     #[test]
@@ -1353,8 +1472,14 @@ mod tests {
         let mut cache = ScalarCache::new(regions.region_count() as usize);
         let mut scratch = Scratchpad::new();
 
-        let result =
-            Outlines::eval_condition(&cond, &[], &store, &regions, &mut cache, &mut scratch, 0);
+        let result = Outlines::eval_condition(
+            &cond,
+            &[],
+            Some((&store, &regions)),
+            &mut cache,
+            &mut scratch,
+            0,
+        );
         assert!(
             matches!(result, Err(DrawError::RecursionLimitExceeded(_))),
             "expected RecursionLimitExceeded, got {result:?}"
@@ -1375,8 +1500,7 @@ mod tests {
         assert!(Outlines::eval_condition(
             &cond,
             &[coord(0.5)],
-            &store,
-            &regions,
+            Some((&store, &regions)),
             &mut cache,
             &mut scratch,
             0,
@@ -1385,8 +1509,7 @@ mod tests {
         assert!(!Outlines::eval_condition(
             &cond,
             &[coord(1.5)],
-            &store,
-            &regions,
+            Some((&store, &regions)),
             &mut cache,
             &mut scratch,
             0,
@@ -1401,8 +1524,7 @@ mod tests {
         assert!(!Outlines::eval_condition(
             &cond,
             &[coord(0.5)],
-            &store,
-            &regions,
+            Some((&store, &regions)),
             &mut cache,
             &mut scratch,
             0,
