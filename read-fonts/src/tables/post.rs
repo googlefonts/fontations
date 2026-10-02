@@ -110,6 +110,18 @@ impl VarSize for PString<'_> {
 const NUM_CHECKPOINTS: usize = 16;
 const UNSET_CHECKPOINT: u32 = u32::MAX;
 
+/// Returns the array slot that holds the offset of `index`, if `index` is one
+/// of the checkpoints we keep.
+///
+/// Slot `n` is read back as the start of index `(n + 1) * stride`, so an index
+/// past the last checkpoint has to be dropped rather than clamped into it.
+fn checkpoint_slot(index: usize, stride: usize) -> Option<usize> {
+    (index % stride == 0)
+        .then(|| index / stride)
+        .filter(|slot| (1..=NUM_CHECKPOINTS).contains(slot))
+        .map(|slot| slot - 1)
+}
+
 /// Iterator over the glyph names in a post table.
 #[derive(Clone)]
 pub struct GlyphNames<'a> {
@@ -205,15 +217,12 @@ impl<'a> Iterator for GlyphNames<'a> {
                         scan_idx += 1;
                         // If this index is a checkpoint, record the offset
                         // for future scans
-                        if scan_idx % stride == 0 {
-                            let slot = (scan_idx / stride).min(NUM_CHECKPOINTS);
-                            if slot > 0 {
-                                checkpoints[slot - 1] = u32::try_from(offset).ok()?;
-                            }
+                        if let Some(slot) = checkpoint_slot(scan_idx, stride) {
+                            checkpoints[slot] = u32::try_from(offset).ok()?;
                         }
                     }
-                    if actual_idx % stride == 0 && target_slot > 0 {
-                        checkpoints[target_slot - 1] = u32::try_from(offset).ok()?;
+                    if let Some(slot) = checkpoint_slot(actual_idx, stride) {
+                        checkpoints[slot] = u32::try_from(offset).ok()?;
                     }
                     // Record the last index and offset for future scans
                     *last_actual_idx = Some(actual_idx);
@@ -367,5 +376,37 @@ mod tests {
                 assert_eq!(*name, expected.as_str());
             }
         }
+    }
+
+    /// A post table may hold more strings than it has glyphs, which puts a
+    /// name index past the last checkpoint the iterator keeps. Clamping such
+    /// an index into the final slot makes a later scan resume from the wrong
+    /// offset.
+    #[test]
+    fn glyph_names_matches_naive_past_the_last_checkpoint() {
+        // Two glyphs give a stride of one, so only the first NUM_CHECKPOINTS
+        // string indices get a checkpoint of their own. The higher index is
+        // read first, so the clamped slot is written before it is read back.
+        let indices = [258u16 + 50, 258 + 30];
+        let mut buf = BeBuffer::new()
+            .push(Version16Dot16::VERSION_2_0)
+            .push(Fixed::from_i32(0))
+            .extend([FWord::new(0), FWord::new(0)])
+            .push(0u32)
+            .extend([0u32, 0, 0, 0])
+            .push(indices.len() as u16);
+        for index in indices {
+            buf = buf.push(index);
+        }
+        for i in 0..70u8 {
+            buf = buf.push(2u8).extend([b'a' + i / 26, b'a' + i % 26]);
+        }
+        let post = Post::read(buf.data().into()).unwrap();
+        let from_naive: Vec<_> = (0..indices.len() as u16)
+            .map(|gid| post.glyph_name(GlyphId16::new(gid)).unwrap())
+            .collect();
+        assert_eq!(from_naive, ["by", "be"]);
+        let from_iter: Vec<_> = post.glyph_names().map(|(_, name)| name).collect();
+        assert_eq!(from_iter, from_naive);
     }
 }

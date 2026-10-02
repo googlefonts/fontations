@@ -146,6 +146,9 @@ impl<'a> Charmap<'a> {
     ///
     /// Default variation entries use the selected Unicode mapping, just as
     /// [`map_unicode_variant`](Self::map_unicode_variant) does.
+    ///
+    /// Yields `(codepoint, selector, glyph)` tuples, where `glyph` is the
+    /// resolved glyph ID.
     pub fn iter_unicode_variants(&self) -> impl Iterator<Item = (u32, u32, GlyphId)> + '_ {
         self.font.unicode_charmap().into_iter().flat_map(|map| {
             map.vs_subtable
