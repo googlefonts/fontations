@@ -571,6 +571,23 @@ impl<'a> PackedDeltaFetcher<'a> {
     }
 
     pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Result<(), ReadError> {
+        self.add_to_scaled(out, scale, |delta| delta as f32)
+    }
+
+    /// Adds packed deltas without losing precision from 32-bit integer values.
+    pub fn add_to_f64_scaled(&mut self, out: &mut [f64], scale: f64) -> Result<(), ReadError> {
+        self.add_to_scaled(out, scale, |delta| delta as f64)
+    }
+
+    fn add_to_scaled<T>(
+        &mut self,
+        out: &mut [T],
+        scale: T,
+        convert: impl Fn(i32) -> T,
+    ) -> Result<(), ReadError>
+    where
+        T: Copy + core::ops::AddAssign + core::ops::Mul<Output = T>,
+    {
         let mut remaining = out.len();
         if let Some(remaining_total) = self.remaining_total {
             if remaining > remaining_total {
@@ -590,7 +607,7 @@ impl<'a> PackedDeltaFetcher<'a> {
                 DeltaRunType::I8 => {
                     let bytes = &self.data[self.pos..self.pos + take];
                     for &b in bytes {
-                        out[idx] += b as i8 as f32 * scale;
+                        out[idx] += convert(b as i8 as i32) * scale;
                         idx += 1;
                     }
                     self.pos += take;
@@ -598,8 +615,8 @@ impl<'a> PackedDeltaFetcher<'a> {
                 DeltaRunType::I16 => {
                     let bytes = &self.data[self.pos..self.pos + take * 2];
                     for chunk in bytes.chunks_exact(2) {
-                        let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
-                        out[idx] += delta * scale;
+                        let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as i32;
+                        out[idx] += convert(delta) * scale;
                         idx += 1;
                     }
                     self.pos += take * 2;
@@ -607,9 +624,8 @@ impl<'a> PackedDeltaFetcher<'a> {
                 DeltaRunType::I32 => {
                     let bytes = &self.data[self.pos..self.pos + take * 4];
                     for chunk in bytes.chunks_exact(4) {
-                        let delta =
-                            i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
-                        out[idx] += delta * scale;
+                        let delta = i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                        out[idx] += convert(delta) * scale;
                         idx += 1;
                     }
                     self.pos += take * 4;
@@ -2112,6 +2128,21 @@ mod tests {
         let mut extra = [0.0f32; 1];
         assert!(matches!(
             fetcher.add_to_f32_scaled(&mut extra, 1.0),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn packed_delta_fetcher_f64_preserves_i32_residuals() {
+        static INPUT: FontData =
+            FontData::new(&[0xC1, 0x01, 0x00, 0x00, 0x01, 0xFF, 0x00, 0x00, 0x00]);
+        let mut fetcher = PackedDeltas::new(INPUT, 2).fetcher();
+        let mut out = [0.0f64];
+        fetcher.add_to_f64_scaled(&mut out, 0.5).unwrap();
+        fetcher.add_to_f64_scaled(&mut out, 0.5).unwrap();
+        assert_eq!(out, [0.5]);
+        assert!(matches!(
+            fetcher.add_to_f64_scaled(&mut out, 1.0),
             Err(ReadError::OutOfBounds)
         ));
     }
