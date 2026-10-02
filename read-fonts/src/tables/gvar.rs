@@ -63,6 +63,26 @@ impl<'a> GlyphVariationDataHeader<'a> {
 }
 
 impl<'a> Gvar<'a> {
+    /// Offset from the start of this table to the shared tuple records.
+    pub fn shared_tuples_offset(&self) -> Offset32 {
+        self.data
+            .read_at(self.shared_tuples_offset_byte_range().start)
+            .ok()
+            .unwrap()
+    }
+
+    /// Returns the shared tuples, including an empty array when both the
+    /// count and offset are zero.
+    pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
+        let count = self.shared_tuple_count();
+        let axis_count = self.axis_count();
+        let offset = self.shared_tuples_offset();
+        if count == 0 && offset.is_null() {
+            return SharedTuples::read(self.data, 0, axis_count);
+        }
+        offset.resolve_with_args(self.data, (count, axis_count))
+    }
+
     /// Return the raw data for this gid.
     ///
     /// If there is no variation data for the glyph, returns `Ok(None)`.
@@ -459,6 +479,50 @@ mod tests {
             .collect();
 
         assert_eq!(tuple_vec, EXPECTED);
+    }
+
+    #[test]
+    fn embedded_peak_with_null_shared_tuples_offset() {
+        // One glyph with a private point list and an embedded peak at 1.0.
+        // There are no shared tuples, so their offset is null.
+        let glyph_data = [
+            0x00, 0x01, // one tuple
+            0x00, 0x0A, // serialized data starts after the tuple header
+            0x00, 0x04, // four bytes of serialized data
+            0xA0, 0x00, // embedded peak and private point numbers
+            0x40, 0x00, // peak at 1.0
+            0x00, // all points
+            0x00, 0x0A, // one x delta of 10
+            0x80, // one zero y delta
+        ];
+        let mut buf = BeBuffer::new();
+        buf = buf.push(1u16).push(0u16); // version
+        buf = buf.push(1u16); // axis count
+        buf = buf.push(0u16).push(0u32); // no shared tuples, null offset
+        buf = buf.push(1u16).push(1u16); // one glyph, long offsets
+        buf = buf.push(28u32); // glyph data starts after the offset array
+        buf = buf.push(0u32).push(glyph_data.len() as u32);
+        let mut bytes = buf.to_vec();
+        bytes.extend_from_slice(&glyph_data);
+
+        let gvar = Gvar::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(gvar.shared_tuples().unwrap().tuples().iter().count(), 0);
+        let data = gvar.glyph_variation_data(GlyphId::new(0)).unwrap().unwrap();
+        let (tuple, scalar) = data.active_tuples_at(&[F2Dot14::ONE]).next().unwrap();
+        assert_eq!(scalar, Fixed::ONE);
+        assert_eq!(
+            tuple.deltas().collect::<Vec<_>>(),
+            [GlyphDelta {
+                position: 0,
+                x_delta: 10,
+                y_delta: 0,
+            }]
+        );
+
+        // A nonzero shared tuple count still requires a valid offset.
+        bytes[6..8].copy_from_slice(&1u16.to_be_bytes());
+        let gvar = Gvar::read(FontData::new(&bytes)).unwrap();
+        assert!(matches!(gvar.shared_tuples(), Err(ReadError::NullOffset)));
     }
 
     // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6gvar.html

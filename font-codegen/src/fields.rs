@@ -851,7 +851,7 @@ impl Field {
         if self.attrs.skip_getter.is_none() {
             return true;
         }
-        self.is_computed() || self.is_count()
+        self.is_computed() || self.is_count() || self.attrs.compile_with.is_some()
     }
 
     pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {
