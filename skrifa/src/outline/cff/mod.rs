@@ -105,6 +105,15 @@ impl<'a> Outlines<'a> {
         self.top_dict.charstrings.count() as usize
     }
 
+    pub(crate) fn variation_axis_count(&self) -> usize {
+        self.top_dict
+            .var_store
+            .as_ref()
+            .and_then(|store| store.variation_region_list().ok())
+            .map(|regions| regions.axis_count() as usize)
+            .unwrap_or_default()
+    }
+
     /// Returns the number of available subfonts.
     pub fn subfont_count(&self) -> u32 {
         // All CFF fonts have at least one logical subfont.
