@@ -1072,16 +1072,13 @@ where
             if peak == 0 || peak == coord {
                 continue;
             }
-            if coord == 0 {
-                return None;
-            }
             if let (Some(inter_start), Some(inter_end)) = (&inter_start, &inter_end) {
                 let start = inter_start.get(i).unwrap_or_default().to_bits() as i32;
                 let end = inter_end.get(i).unwrap_or_default().to_bits() as i32;
                 if start > peak || peak > end || (start < 0 && end > 0 && peak != 0) {
                     continue;
                 }
-                if coord < start || coord > end {
+                if coord == 0 || coord < start || coord > end {
                     return None;
                 }
                 if coord < peak {
@@ -1092,7 +1089,7 @@ where
                     scalar *= (end - coord) as f32 / (end - peak) as f32;
                 }
             } else {
-                if coord < peak.min(0) || coord > peak.max(0) {
+                if coord == 0 || coord < peak.min(0) || coord > peak.max(0) {
                     return None;
                 }
                 scalar *= coord as f32 / peak as f32;
@@ -1379,9 +1376,6 @@ pub(crate) fn scalar_for(
         .filter(|(_, peak)| peak.get() != F2Dot14::ZERO)
     {
         let coord = coords.get(i).copied().unwrap_or_default();
-        if coord == F2Dot14::ZERO {
-            return None;
-        }
         let peak = peak.get();
         if peak == coord {
             continue;
@@ -1411,7 +1405,10 @@ pub(crate) fn scalar_for(
                 scalar = scalar.mul_div(end - coord, end - peak);
             }
         } else {
-            if coord < peak.min(F2Dot14::ZERO) || coord > peak.max(F2Dot14::ZERO) {
+            if coord == F2Dot14::ZERO
+                || coord < peak.min(F2Dot14::ZERO)
+                || coord > peak.max(F2Dot14::ZERO)
+            {
                 return None;
             }
             let coord = coord.to_fixed();
@@ -1935,6 +1932,31 @@ mod tests {
     // rather than interpolated. This matches the OpenType algorithm and the
     // sibling `compute_scalar_f32` / `VariationRegion::compute_scalar`, which
     // already apply the guard.
+    #[test]
+    fn tuple_scalars_ignore_invalid_axes_at_default() {
+        for [start, peak, end] in [[0.5, 0.25, 1.0], [0.0, 1.0, 0.5], [-1.0, 0.5, 1.0]] {
+            let mut data = vec![0, 0, 0xC0, 0];
+            for value in [peak, start, end] {
+                data.extend(F2Dot14::from_f32(value).to_bits().to_be_bytes());
+            }
+            let variation = TupleVariation::<GlyphDelta> {
+                axis_count: 1,
+                header: TupleVariationHeader::read(data.as_slice().into(), 1).unwrap(),
+                shared_tuples: None,
+                serialized_data: FontData::new(&[]),
+                shared_point_numbers: None,
+                _marker: std::marker::PhantomData,
+            };
+            for value in [-1.0, 0.0, 0.25, 0.5, 1.0] {
+                let coords = [F2Dot14::from_f32(value)];
+                assert_eq!(variation.compute_scalar(&coords), Some(Fixed::ONE));
+                assert_eq!(variation.compute_scalar_f32(&coords), Some(1.0));
+            }
+            assert_eq!(variation.compute_scalar(&[]), Some(Fixed::ONE));
+            assert_eq!(variation.compute_scalar_f32(&[]), Some(1.0));
+        }
+    }
+
     #[test]
     fn scalar_for_ignores_invalid_intermediate_region() {
         fn tuple(values: &[BigEndian<F2Dot14>]) -> Tuple<'_> {

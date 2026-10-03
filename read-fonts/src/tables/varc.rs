@@ -61,13 +61,14 @@ impl SparseVariationRegion<'_> {
             if coord == peak {
                 continue;
             }
-            if coord == F2Dot14::ZERO {
-                return 0.0;
-            }
             let start = axis.start();
             let end = axis.end();
             if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
                 continue;
+            }
+            // Invalid axes contribute one, including at the default coordinate.
+            if coord == F2Dot14::ZERO {
+                return 0.0;
             }
             if coord < start || coord > end {
                 return 0.0;
@@ -590,6 +591,21 @@ mod tests {
         let data = [0, 1, 0xFF, 0xFF, 0xFF, 0xFF];
         let region = SparseVariationRegion::read(data.as_slice().into()).unwrap();
         assert_eq!(region.compute_scalar_f32(&[coord(1.0)]), 0.0);
+    }
+
+    #[test]
+    fn sparse_region_ignores_invalid_axes_at_default() {
+        for [start, peak, end] in [[0.5, 0.25, 1.0], [0.0, 1.0, 0.5], [-1.0, 0.5, 1.0]] {
+            let mut data = vec![0, 1, 0, 0, 0, 6, 0, 0];
+            for value in [start, peak, end] {
+                data.extend(coord(value).to_bits().to_be_bytes());
+            }
+            let region = SparseVariationRegion::read(data.as_slice().into()).unwrap();
+            for value in [-1.0, 0.0, 0.25, 0.5, 1.0] {
+                assert_eq!(region.compute_scalar_f32(&[coord(value)]), 1.0);
+            }
+            assert_eq!(region.compute_scalar_f32(&[]), 1.0);
+        }
     }
 
     #[test]
