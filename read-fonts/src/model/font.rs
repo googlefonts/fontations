@@ -29,6 +29,7 @@ use crate::tables::{
     hvar::Hvar,
     layout::SelectedFeatureVariations,
     loca::Loca,
+    variations::ScalarCache,
     vorg::Vorg,
     vvar::Vvar,
 };
@@ -65,6 +66,7 @@ struct VariedInstance {
     feature_vars: FeatureVarsStorage,
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
+    hvar_scalars: Once<ScalarCache>,
 }
 
 impl Font {
@@ -97,6 +99,7 @@ impl Font {
                 feature_vars: FeatureVarsStorage::new(),
                 metrics: Once::new(),
                 style_metrics: Once::new(),
+                hvar_scalars: Once::new(),
             },
         }
     }
@@ -253,6 +256,15 @@ impl Font {
     #[inline]
     pub(crate) fn hvar(&self) -> Option<&Hvar<'_>> {
         self.shared().hvar()
+    }
+
+    pub(crate) fn hvar_scalar_cache(&self, hvar: &Hvar<'_>) -> Option<&ScalarCache> {
+        match &self.0 {
+            Repr::Varied(instance) => {
+                Some(instance.hvar_scalars.get_or_init(|| hvar.scalar_cache()))
+            }
+            Repr::Default(_) => None,
+        }
     }
 
     /// Returns `VVAR`.

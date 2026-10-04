@@ -577,9 +577,17 @@ impl<'a> GlyphMetrics<'a> {
     ) {
         // Ask the table that answers directly, and stop there if it does.
         if let Some(hvar) = self.font.hvar() {
+            let cache = self.font.hvar_scalar_cache(hvar);
             return raw.run_varied(
                 self.num_glyphs,
-                |gid| hvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                |gid| {
+                    cache
+                        .map_or_else(
+                            || hvar.advance_delta(gid, coords),
+                            |cache| hvar.advance_delta_with_cache(gid, coords, cache),
+                        )
+                        .unwrap_or(F48Dot16::ZERO)
+                },
                 convert,
                 glyphs,
             );
@@ -916,6 +924,50 @@ mod tests {
     /// Charstring outlines, with no `glyf` to answer ahead of them.
     const CFF: &[u8] = font_test_data::NOTO_SANS_JP_CFF;
     const CFF2: &[u8] = font_test_data::ift::CFF2_FONT;
+
+    #[test]
+    fn cached_hvar_advances_match_uncached_across_instances_and_threads() {
+        for data in [VAR, TAIL, CFF2] {
+            let font = Font::new(data, 0).unwrap();
+            let hvar = font.hvar().unwrap();
+            for coord in [-0.75, 0.25, 0.75] {
+                let instance = font
+                    .instance_builder()
+                    .normalized_coords([NormalizedCoord::from_f32(coord)])
+                    .build();
+                let clone = instance.clone();
+                assert!(core::ptr::eq(
+                    instance.hvar_scalar_cache(hvar).unwrap(),
+                    clone.hvar_scalar_cache(hvar).unwrap(),
+                ));
+                std::thread::scope(|scope| {
+                    for _ in 0..8 {
+                        scope.spawn(|| {
+                            let metrics = instance.glyph_metrics();
+                            for _ in 0..2 {
+                                for gid in 0..instance.num_glyphs() {
+                                    let gid = GlyphId::new(gid);
+                                    let delta = hvar
+                                        .advance_delta(gid, instance.normalized_coords())
+                                        .unwrap_or(F48Dot16::ZERO);
+                                    let expected = font
+                                        .h_metrics()
+                                        .stored_advance(instance.num_glyphs(), gid)
+                                        .saturating_add(delta);
+                                    assert_eq!(metrics.h_advance_exact(gid), expected);
+                                }
+                            }
+                            assert_eq!(
+                                metrics.h_advance_exact(GlyphId::new(u32::MAX)),
+                                F48Dot16::ZERO
+                            );
+                        });
+                    }
+                });
+            }
+            assert!(font.hvar_scalar_cache(hvar).is_none());
+        }
+    }
 
     #[test]
     fn vertical_origins_in_design_units_match_their_sources_and_batch() {
