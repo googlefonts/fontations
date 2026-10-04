@@ -215,16 +215,8 @@ impl Font {
 }
 
 impl Font {
-    pub(crate) fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
-        self.shared().unicode_charmap()
-    }
-
-    pub(crate) fn encoding_tables(&self) -> Option<&EncodingTables<'_>> {
-        self.shared().encodings()
-    }
-
     /// The state every instance of this font shares.
-    fn shared(&self) -> &SharedFont {
+    pub(super) fn shared(&self) -> &SharedFont {
         match &self.0 {
             Repr::Default(font) => font,
             Repr::Varied(varied) => &varied.font,
@@ -746,7 +738,7 @@ impl FeatureVarsStorage {
 /// Reference counted internally: cloning it costs no more than the count,
 /// and it is thread safe.
 #[derive(Clone)]
-struct SharedFont(Arc<SharedFontRepr>);
+pub(super) struct SharedFont(Arc<SharedFontRepr>);
 
 impl SharedFont {
     /// Creates a new font from the given source and font index.
@@ -797,7 +789,7 @@ impl SharedFont {
     }
 
     /// Returns the underlying kind of the font.
-    fn kind(&self) -> Kind<'_> {
+    pub(super) fn kind(&self) -> Kind<'_> {
         match &self.0.kind {
             KindRepr::Sfnt(tables, index) => Kind::Sfnt(tables, *index),
             KindRepr::Type1(font) => Kind::Type1(font),
@@ -831,7 +823,7 @@ impl SharedFont {
     ///
     /// Fixed for the font: no location varies it.
     #[inline]
-    fn num_glyphs(&self) -> u32 {
+    pub(super) fn num_glyphs(&self) -> u32 {
         self.metrics().num_glyphs
     }
 
@@ -852,7 +844,7 @@ impl SharedFont {
     }
 
     /// Returns the selected character maps, parsed once for the font.
-    fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
+    pub(super) fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
         let tables = self.tables_arc()?;
         Some(
             self.0
@@ -865,7 +857,7 @@ impl SharedFont {
     }
 
     /// Returns all selectable cmap subtables, parsed on first use.
-    fn encodings(&self) -> Option<&EncodingTables<'_>> {
+    pub(super) fn encodings(&self) -> Option<&EncodingTables<'_>> {
         let tables = self.tables_arc()?;
         Some(
             self.0
