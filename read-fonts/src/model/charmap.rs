@@ -493,6 +493,7 @@ impl<'a> UnicodeCharmap<'a> {
         }
     }
 
+    #[inline(always)]
     pub(crate) fn map(&self, mut codepoint: u32) -> Option<GlyphId> {
         let subtable = self.subtable.as_ref()?;
         if self.is_mac_roman && codepoint > 0x7f {
