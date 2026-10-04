@@ -1,5 +1,7 @@
 //! impl subset() for LigatureSubst subtable
-use crate::FastHashMap;
+mod extended;
+
+use crate::fnv::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph},
     offset::{SerializeSerialize, SerializeSubset},
@@ -183,7 +185,21 @@ fn intersects_lig_glyph(
     Ok(false)
 }
 
-crate::layout::legacy_subset!(gsub, LigatureSubst, LigatureSubstFormat1);
+impl<'a> SubsetTable<'a> for read_fonts::tables::gsub::LigatureSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
