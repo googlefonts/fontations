@@ -5,7 +5,7 @@ use write_fonts::{
     read::{
         tables::layout::{
             ChainedSequenceContextFormat4, ChainedSequenceRule2, ChainedSequenceRuleSet2,
-            SequenceContextFormat4, SequenceRule2, SequenceRuleSet2,
+            SequenceContextFormat4, SequenceContextFormat6, SequenceRule2, SequenceRuleSet2,
         },
         MinByteRange,
     },
@@ -172,6 +172,28 @@ impl<'a> SubsetTable<'a> for ChainedSequenceRule2<'_> {
         s.embed(self.lookahead_glyph_count())?;
         serialize_glyph_sequence24(self.lookahead_sequence(), plan, s)?;
         let count_pos = s.embed(0u16)?;
+        let count = serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
+        s.copy_assign(count_pos, count);
+        Ok(())
+    }
+}
+
+impl<'a> SubsetTable<'a> for SequenceContextFormat6<'_> {
+    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        lookup_map: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        if self.min_table_bytes().is_empty() {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
+        s.embed(self.format())?;
+        s.embed(self.glyph_count())?;
+        let count_pos = s.embed(0u16)?;
+        self.coverages().subset(plan, s, ())?;
         let count = serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
         s.copy_assign(count_pos, count);
         Ok(())
@@ -495,5 +517,121 @@ mod tests {
             serialize_glyph_sequence(&sequence, &[GlyphId::new(0), GlyphId::new(65536)], &mut s),
             Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)
         );
+    }
+
+    fn coverage_context() -> Vec<u8> {
+        BeBuffer::new()
+            .push(6u16)
+            .push(2u16)
+            .push(3u16)
+            .push(Uint24::new(24))
+            .push(Uint24::new(32))
+            .extend([0u16, 7, 1, 8, 1, 7])
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(65536))
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(70000))
+            .to_vec()
+    }
+
+    #[test]
+    fn coverage_context_subset_preserves_format_and_remaps_coverages_and_lookups() {
+        for mapped in [[1, 2, 3, 4, 5], [65535, 65536, 70000, 70001, 0xffffff]] {
+            let bytes = subset(false, &coverage_context(), &make_plan(mapped)).unwrap();
+            let table = SequenceContextFormat6::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(table.glyph_count(), 2);
+            assert_eq!(table.seq_lookup_count(), 2);
+            assert_eq!(
+                table.coverages().get(0).unwrap().iter().collect::<Vec<_>>(),
+                [GlyphId::new(mapped[1])]
+            );
+            assert_eq!(
+                table.coverages().get(1).unwrap().iter().collect::<Vec<_>>(),
+                [GlyphId::new(mapped[2])]
+            );
+            assert_eq!(
+                table
+                    .seq_lookup_records()
+                    .iter()
+                    .map(|r| (r.sequence_index(), r.lookup_list_index()))
+                    .collect::<Vec<_>>(),
+                [(0, 2), (1, 2)]
+            );
+        }
+    }
+
+    #[test]
+    fn coverage_context_subset_requires_every_coverage_and_rejects_invalid_data() {
+        for excluded in [65536, 70000] {
+            let mut plan = make_plan([1, 2, 3, 4, 5]);
+            plan.glyph_map_gsub[excluded] = crate::INVALID_GID;
+            assert_eq!(
+                subset(false, &coverage_context(), &plan),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+            );
+        }
+        let plan = make_plan([1, 2, 3, 4, 5]);
+        for range in [6..9, 9..12] {
+            let mut bytes = coverage_context();
+            bytes[range.clone()].fill(0);
+            assert_eq!(
+                subset(false, &bytes, &plan),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+            );
+            bytes[range].fill(0xff);
+            assert_eq!(
+                subset(false, &bytes, &plan),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+            );
+        }
+        assert_eq!(
+            subset(false, &coverage_context()[..23], &plan),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+        );
+        assert_eq!(
+            subset(
+                false,
+                &coverage_context(),
+                &make_plan([1, 2, 0x1000000, 4, 5])
+            ),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)
+        );
+    }
+
+    #[test]
+    fn coverage_context_subset_preserves_maximum_count_and_large_offsets() {
+        let count = u16::MAX;
+        let coverage_offset = 6 + u32::from(count) * 3 + 4;
+        let source = BeBuffer::new()
+            .push(6u16)
+            .push(count)
+            .push(1u16)
+            .extend((0..count).map(|_| Uint24::new(coverage_offset)))
+            .push(count - 1)
+            .push(7u16)
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(65536));
+        let bytes = subset(
+            false,
+            &source,
+            &make_plan([65535, 65536, 70000, 70001, 70002]),
+        )
+        .unwrap();
+        let table = SequenceContextFormat6::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(table.glyph_count(), count);
+        assert!(table.coverage_offsets()[count as usize - 1].get().to_u32() > 65535);
+        assert_eq!(
+            table
+                .coverages()
+                .get(count as usize - 1)
+                .unwrap()
+                .get(GlyphId::new(65536)),
+            Some(0)
+        );
+        assert_eq!(table.seq_lookup_records()[0].sequence_index(), count - 1);
+        assert_eq!(table.seq_lookup_records()[0].lookup_list_index(), 2);
     }
 }
