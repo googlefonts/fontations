@@ -17,9 +17,9 @@ use write_fonts::{
             SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
             SequenceLookupRecord, SequenceRule, SequenceRuleSet,
         },
-        ArrayOfOffsets, FontRef,
+        ArrayOfOffsets, FontRef, Offset,
     },
-    types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16},
+    types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16, Scalar},
 };
 
 impl<'a> SubsetTable<'a> for SequenceContext<'_> {
@@ -397,7 +397,9 @@ impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+impl<'a, O: Scalar + Offset + FixedSize> SubsetTable<'a>
+    for ArrayOfOffsets<'a, CoverageTable<'a>, O>
+{
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -415,8 +417,8 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
                 s.revert_snapshot(snap);
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
             };
-            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            Offset16::serialize_subset(&cov, s, plan, (), offset_pos)?;
+            let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
+            O::serialize_subset(&cov, s, plan, (), offset_pos)?;
         }
         Ok(())
     }

@@ -1,4 +1,6 @@
 //! impl subset() for ReverseChainSingleSubst subtable
+mod extended;
+
 use crate::fnv::FnvHashMap;
 use crate::{
     layout::map_gsub_glyph,
@@ -68,11 +70,21 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
-crate::layout::legacy_subset!(
-    gsub,
-    ReverseChainSingleSubst,
-    ReverseChainSingleSubstFormat1
-);
+impl<'a> SubsetTable<'a> for write_fonts::read::tables::gsub::ReverseChainSingleSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
