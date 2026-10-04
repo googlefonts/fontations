@@ -1,5 +1,7 @@
 //! impl subset() for SingleSubst subtable
-use crate::FastHashMap;
+mod extended;
+
+use crate::fnv::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph},
     offset::SerializeSerialize,
@@ -8,11 +10,14 @@ use crate::{
 };
 use read_fonts::{
     tables::{
-        gsub::{SingleSubst, SingleSubstFormat1, SingleSubstFormat2},
+        gsub::{
+            SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SingleSubstFormat3,
+            SingleSubstFormat4,
+        },
         layout::CoverageTable,
     },
     types::GlyphId,
-    types::Offset16,
+    types::{Int24, Offset16},
     FontRef,
 };
 
@@ -28,9 +33,8 @@ impl<'a> SubsetTable<'a> for SingleSubst<'_> {
         match self {
             Self::Format1(item) => item.subset(plan, s, ()),
             Self::Format2(item) => item.subset(plan, s, ()),
-            Self::Format3(_) | Self::Format4(_) => {
-                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
-            }
+            Self::Format3(item) => item.subset(plan, s, ()),
+            Self::Format4(item) => item.subset(plan, s, ()),
         }
     }
 }
@@ -66,7 +70,7 @@ impl SubsetTable<'_> for SingleSubstFormat1<'_> {
             .map(|g| {
                 (
                     g,
-                    GlyphId::from((g.to_u32() as u16).wrapping_add_signed(delta)),
+                    GlyphId::from(g.to_u32().wrapping_add_signed(delta) & 0xffff),
                 )
             })
             .filter_map(|(g, sub_g)| {
@@ -146,15 +150,37 @@ impl<'a> Serialize<'a> for SingleSubst<'_> {
         if glyphs.len() != sub_glyphs.len() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
+        if glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        let max_gid = glyphs
+            .iter()
+            .chain(sub_glyphs)
+            .map(|gid| gid.to_u32())
+            .max()
+            .unwrap();
+        if max_gid > 0xffffff {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW));
+        }
+        let wide = max_gid > 0xffff;
+        let mask = if wide { 0xffffff } else { 0xffff };
 
-        let delta = (sub_glyphs[0].to_u32() as u16).wrapping_sub(glyphs[0].to_u32() as u16);
+        let delta = sub_glyphs[0].to_u32().wrapping_sub(glyphs[0].to_u32()) & mask;
         if glyphs
             .iter()
             .zip(sub_glyphs)
             .skip(1)
-            .all(|(g, sub_g)| (sub_g.to_u32() as u16).wrapping_sub(g.to_u32() as u16) == delta)
+            .all(|(g, sub_g)| sub_g.to_u32().wrapping_sub(g.to_u32()) & mask == delta)
         {
-            SingleSubstFormat1::serialize(s, (glyphs, delta as i16))
+            if wide {
+                // Sign-extend the modular delta into the signed 24-bit field.
+                let delta = Int24::new((delta as i32) << 8 >> 8);
+                SingleSubstFormat3::serialize(s, (glyphs, delta))
+            } else {
+                SingleSubstFormat1::serialize(s, (glyphs, delta as i16))
+            }
+        } else if wide || glyphs.len() > u16::MAX as usize {
+            SingleSubstFormat4::serialize(s, (glyphs, sub_glyphs))
         } else {
             SingleSubstFormat2::serialize(s, (glyphs, sub_glyphs))
         }
