@@ -328,11 +328,7 @@ impl<'a> GlyphMetrics<'a> {
             self.font
                 .vvar()
                 .and_then(|vvar| {
-                    vvar.v_origin_y_delta_with_scalars(
-                        glyph,
-                        self.coords,
-                        self.font.vvar_scalars(),
-                    )
+                    vvar.v_origin_y_delta_with_scalars(glyph, self.coords, self.font.vvar_scalars())
                 })
                 .unwrap_or(F48Dot16::ZERO)
         };
