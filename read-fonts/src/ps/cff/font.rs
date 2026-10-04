@@ -634,7 +634,7 @@ impl Subfont {
             ..Default::default()
         };
         let data = data.get(range.clone()).ok_or(Error::Malformed)?;
-        for entry in dict::entries(data, blend).filter_map(|e| e.ok()) {
+        for entry in dict::unhinted_private_entries(data, blend).filter_map(|e| e.ok()) {
             match entry {
                 dict::Entry::SubrsOffset(offset) => {
                     subfont.subrs_offset =
