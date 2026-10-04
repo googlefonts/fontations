@@ -3488,6 +3488,7 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
+/// Version 1.1 is defined in ISO/IEC 14496-22:2026, 6.2.11.
 #[derive(Clone)]
 pub struct FeatureVariations<'a> {
     data: FontData<'a>,
@@ -3515,6 +3516,14 @@ impl<'a> FeatureVariations<'a> {
         self.data.read_array(range).ok().unwrap_or_default()
     }
 
+    /// Number of lookup variation records.
+    pub fn lookup_variation_record_count(&self) -> Option<u32> {
+        let range = self.lookup_variation_record_count_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         let end = start + MajorMinor::RAW_BYTE_LEN;
@@ -3533,6 +3542,30 @@ impl<'a> FeatureVariations<'a> {
         let end = start
             + (transforms::to_usize(feature_variation_record_count))
                 .saturating_mul(FeatureVariationRecord::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn lookup_variation_record_count_byte_range(&self) -> Range<usize> {
+        let start = self.feature_variation_records_byte_range().end;
+        let end = if self.version().compatible((1u16, 1u16)) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn lookup_variation_records_byte_range(&self) -> Range<usize> {
+        let lookup_variation_record_count =
+            self.lookup_variation_record_count().unwrap_or_default();
+        let start = self.lookup_variation_record_count_byte_range().end;
+        let end = if self.version().compatible((1u16, 1u16)) {
+            start
+                + (transforms::to_usize(lookup_variation_record_count))
+                    .saturating_mul(LookupVariationRecord::RAW_BYTE_LEN)
+        } else {
+            start
+        };
         start..end
     }
 }
@@ -3602,6 +3635,546 @@ impl FeatureVariationRecord {
 
 impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+/// Lookup variations for one feature (ISO/IEC 14496-22:2026, 6.2.11).
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LookupVariationRecord {
+    pub feature_index: BigEndian<u16>,
+    /// Offset from the beginning of FeatureVariations.
+    pub feature_lookups_offset: BigEndian<Offset32>,
+}
+
+impl LookupVariationRecord {
+    pub fn feature_index(&self) -> u16 {
+        self.feature_index.get()
+    }
+
+    /// Offset from the beginning of FeatureVariations.
+    pub fn feature_lookups_offset(&self) -> Offset32 {
+        self.feature_lookups_offset.get()
+    }
+
+    /// Offset from the beginning of FeatureVariations.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn feature_lookups<'a>(&self, data: FontData<'a>) -> Result<FeatureLookups<'a>, ReadError> {
+        self.feature_lookups_offset().resolve(data)
+    }
+}
+
+impl FixedSize for LookupVariationRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> MinByteRange<'a> for FeatureLookups<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_condition_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for FeatureLookups<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for FeatureLookups<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Conditional lookup sets for one feature (ISO/IEC 14496-22:2026, 6.2.11).
+#[derive(Clone)]
+pub struct FeatureLookups<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FeatureLookups<'a> {
+    pub const MIN_SIZE: usize =
+        (MajorMinor::RAW_BYTE_LEN + FeatureLookupsFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn version(&self) -> MajorMinor {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn flags(&self) -> FeatureLookupsFlags {
+        let range = self.flags_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn lookup_condition_count(&self) -> u32 {
+        let range = self.lookup_condition_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn lookup_condition_records(&self) -> &'a [LookupConditionRecord] {
+        let range = self.lookup_condition_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + FeatureLookupsFlags::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookup_condition_count_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookup_condition_records_byte_range(&self) -> Range<usize> {
+        let lookup_condition_count = self.lookup_condition_count();
+        let start = self.lookup_condition_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(lookup_condition_count))
+                .saturating_mul(LookupConditionRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(FeatureLookups::MIN_SIZE));
+
+impl Default for FeatureLookups<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+/// Qualifiers for [FeatureLookups].
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct FeatureLookupsFlags {
+    bits: u16,
+}
+
+impl FeatureLookupsFlags {
+    /// Include the current feature's lookups as well as conditional lookups.
+    pub const ADD_DEFAULT_LOOKUPS: Self = Self { bits: 0x0001 };
+}
+
+impl FeatureLookupsFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::ADD_DEFAULT_LOOKUPS.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u16 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u16) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for FeatureLookupsFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: FeatureLookupsFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for FeatureLookupsFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for FeatureLookupsFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for FeatureLookupsFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for FeatureLookupsFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for FeatureLookupsFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for FeatureLookupsFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for FeatureLookupsFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for FeatureLookupsFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for FeatureLookupsFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[("ADD_DEFAULT_LOOKUPS", Self::ADD_DEFAULT_LOOKUPS)];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for FeatureLookupsFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for FeatureLookupsFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for FeatureLookupsFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for FeatureLookupsFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for FeatureLookupsFlags {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+/// Lookups to include when a condition is true.
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LookupConditionRecord {
+    /// Offset from the beginning of FeatureLookups; null means true.
+    pub condition_offset: BigEndian<Nullable<Offset32>>,
+    /// Offset from the beginning of FeatureLookups.
+    pub lookup_index_list_offset: BigEndian<Offset32>,
+}
+
+impl LookupConditionRecord {
+    /// Offset from the beginning of FeatureLookups; null means true.
+    pub fn condition_offset(&self) -> Nullable<Offset32> {
+        self.condition_offset.get()
+    }
+
+    /// Offset from the beginning of FeatureLookups; null means true.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn condition<'a>(&self, data: FontData<'a>) -> Option<Result<Condition<'a>, ReadError>> {
+        self.condition_offset().resolve(data)
+    }
+
+    /// Offset from the beginning of FeatureLookups.
+    pub fn lookup_index_list_offset(&self) -> Offset32 {
+        self.lookup_index_list_offset.get()
+    }
+
+    /// Offset from the beginning of FeatureLookups.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn lookup_index_list<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Result<LookupIndexList<'a>, ReadError> {
+        self.lookup_index_list_offset().resolve(data)
+    }
+}
+
+impl FixedSize for LookupConditionRecord {
+    const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> MinByteRange<'a> for LookupIndexList<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_indices_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for LookupIndexList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LookupIndexList<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Indices into the GSUB or GPOS LookupList.
+#[derive(Clone)]
+pub struct LookupIndexList<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LookupIndexList<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    pub fn lookup_index_count(&self) -> u16 {
+        let range = self.lookup_index_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn lookup_indices(&self) -> &'a [BigEndian<u16>] {
+        let range = self.lookup_indices_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn lookup_index_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookup_indices_byte_range(&self) -> Range<usize> {
+        let lookup_index_count = self.lookup_index_count();
+        let start = self.lookup_index_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(lookup_index_count)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    LookupIndexList::MIN_SIZE
+));
+
+impl Default for LookupIndexList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
 }
 
 impl<'a> MinByteRange<'a> for ConditionSet<'a> {
@@ -3686,8 +4259,7 @@ impl Default for ConditionSet<'_> {
 
 /// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
 ///
-/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
-/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+/// Formats 2..5 are defined in ISO/IEC 14496-22:2026, 6.2.10.
 #[derive(Clone)]
 pub enum Condition<'a> {
     Format1AxisRange(ConditionFormat1<'a>),

@@ -581,8 +581,11 @@ format DeltaFormat@4 DeviceOrVariationIndex {
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
+/// Version 1.1 is defined in ISO/IEC 14496-22:2026, 6.2.11.
+#[validate(validate_lookup_variations)]
 table FeatureVariations {
-    #[compile(MajorMinor::VERSION_1_0)]
+    #[version]
+    #[compile(self.compute_version())]
     version: MajorMinor,
     /// Number of feature variation records.
     #[compile(array_len($feature_variation_records))]
@@ -590,6 +593,15 @@ table FeatureVariations {
     /// Array of feature variation records.
     #[count($feature_variation_record_count)]
     feature_variation_records: [FeatureVariationRecord],
+    /// Number of lookup variation records.
+    #[since_version(1.1)]
+    #[compile(array_len($lookup_variation_records))]
+    lookup_variation_record_count: u32,
+    /// Lookup variations, sorted by feature index.
+    #[since_version(1.1)]
+    #[count($lookup_variation_record_count)]
+    #[skip_getter]
+    lookup_variation_records: [LookupVariationRecord],
 }
 
 /// Part of [FeatureVariations]
@@ -602,6 +614,47 @@ record FeatureVariationRecord {
     /// the FeatureVariations table.
     #[nullable]
     feature_table_substitution_offset: Offset32<FeatureTableSubstitution>,
+}
+
+/// Lookup variations for one feature (ISO/IEC 14496-22:2026, 6.2.11).
+record LookupVariationRecord {
+    feature_index: u16,
+    /// Offset from the beginning of FeatureVariations.
+    feature_lookups_offset: Offset32<FeatureLookups>,
+}
+
+/// Conditional lookup sets for one feature (ISO/IEC 14496-22:2026, 6.2.11).
+table FeatureLookups {
+    #[compile(MajorMinor::VERSION_1_0)]
+    version: MajorMinor,
+    flags: FeatureLookupsFlags,
+    #[compile(array_len($lookup_condition_records))]
+    lookup_condition_count: u32,
+    #[count($lookup_condition_count)]
+    lookup_condition_records: [LookupConditionRecord],
+}
+
+/// Qualifiers for [FeatureLookups].
+flags u16 FeatureLookupsFlags {
+    /// Include the current feature's lookups as well as conditional lookups.
+    ADD_DEFAULT_LOOKUPS = 0x0001,
+}
+
+/// Lookups to include when a condition is true.
+record LookupConditionRecord {
+    /// Offset from the beginning of FeatureLookups; null means true.
+    #[nullable]
+    condition_offset: Offset32<Condition>,
+    /// Offset from the beginning of FeatureLookups.
+    lookup_index_list_offset: Offset32<LookupIndexList>,
+}
+
+/// Indices into the GSUB or GPOS LookupList.
+table LookupIndexList {
+    #[compile(array_len($lookup_indices))]
+    lookup_index_count: u16,
+    #[count($lookup_index_count)]
+    lookup_indices: [u16],
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
@@ -617,8 +670,7 @@ table ConditionSet {
 
 /// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
 /// 
-/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
-/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+/// Formats 2..5 are defined in ISO/IEC 14496-22:2026, 6.2.10.
 format u16 Condition {
     Format1AxisRange(ConditionFormat1),
     Format2VariableValue(ConditionFormat2),
@@ -790,4 +842,3 @@ table CharacterVariantParams {
     #[count($char_count)]
     character: [Uint24],
 }
-
