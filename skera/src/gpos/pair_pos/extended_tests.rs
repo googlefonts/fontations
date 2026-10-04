@@ -36,7 +36,7 @@ fn input() -> Vec<u8> {
         .to_vec()
 }
 
-fn plan(mapped: [u32; 3]) -> Plan {
+pub(super) fn plan(mapped: [u32; 3]) -> Plan {
     let mut plan = Plan {
         glyph_map_gsub: vec![crate::INVALID_GID; 0x1000000],
         ..Default::default()
@@ -55,7 +55,7 @@ fn plan(mapped: [u32; 3]) -> Plan {
     plan
 }
 
-fn subset(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
+pub(super) fn subset(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
     let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
     let mut s = Serializer::new(4 * 1024 * 1024);
     s.start_serialize().unwrap();
@@ -69,7 +69,7 @@ fn subset(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
     Ok(s.copy_bytes())
 }
 
-fn varidx(record: &ValueRecord) -> u32 {
+pub(super) fn varidx(record: &ValueRecord) -> u32 {
     let DeviceOrVariationIndex::VariationIndex(index) = record.x_advance_device().unwrap().unwrap()
     else {
         panic!("expected a VariationIndex")
