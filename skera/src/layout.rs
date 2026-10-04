@@ -1859,6 +1859,24 @@ impl<
     }
 }
 
+macro_rules! legacy_subset {
+    ($module:ident, $new:ident, $old:ident) => {
+        impl<'a, 'b> crate::SubsetTable<'a> for write_fonts::read::tables::$module::$new<'b> {
+            type ArgsForSubset = <write_fonts::read::tables::$module::$old<'b> as crate::SubsetTable<'a>>::ArgsForSubset;
+            type Output = <write_fonts::read::tables::$module::$old<'b> as crate::SubsetTable<'a>>::Output;
+            fn subset(&self, plan: &crate::Plan, s: &mut crate::serialize::Serializer, args: Self::ArgsForSubset)
+                -> Result<Self::Output, crate::serialize::SerializeErrorFlags> {
+                match self {
+                    Self::Format1(t) => t.subset(plan, s, args),
+                    Self::Format2(_) => Err(s.set_err(crate::serialize::SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use legacy_subset;
+
 #[cfg(test)]
 mod test {
     use super::*;

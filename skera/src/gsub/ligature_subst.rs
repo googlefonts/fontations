@@ -181,6 +181,8 @@ fn intersects_lig_glyph(
     Ok(false)
 }
 
+crate::layout::legacy_subset!(gsub, LigatureSubst, LigatureSubstFormat1);
+
 #[cfg(test)]
 mod test {
     use super::*;

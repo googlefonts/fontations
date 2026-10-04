@@ -68,6 +68,12 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
+crate::layout::legacy_subset!(
+    gsub,
+    ReverseChainSingleSubst,
+    ReverseChainSingleSubstFormat1
+);
+
 #[cfg(test)]
 mod test {
     use super::*;

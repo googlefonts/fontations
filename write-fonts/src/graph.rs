@@ -1787,6 +1787,7 @@ mod tests {
                     vec![],
                     vec![GlyphId16::new(id + 1)],
                 )
+                .into()
             })
             .collect();
 

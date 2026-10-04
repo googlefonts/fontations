@@ -56,6 +56,26 @@ macro_rules! lookup_type {
 ///
 /// We use this to ensure that shared lookup types (Sequence/Chain
 /// lookups) can be given different lookup ids for each of GSUB/GPOS.
+macro_rules! legacy_lookup {
+    ($group:ident, $variant:ident, $old:ty, $new:ty) => {
+        impl From<Lookup<$old>> for $group {
+            fn from(lookup: Lookup<$old>) -> Self {
+                Self::$variant(Lookup {
+                    lookup_flag: lookup.lookup_flag,
+                    subtables: lookup
+                        .subtables
+                        .into_iter()
+                        .map(|subtable| OffsetMarker::new(<$new>::from(subtable.into_inner())))
+                        .collect(),
+                    mark_filtering_set: lookup.mark_filtering_set,
+                })
+            }
+        }
+    };
+}
+
+pub(crate) use legacy_lookup;
+
 macro_rules! table_newtype {
     ($name:ident, $inner:ident, $read_type:path) => {
         /// A typed wrapper around a shared table.
