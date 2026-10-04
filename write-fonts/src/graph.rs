@@ -751,6 +751,8 @@ impl Graph {
                 }
             }
             subgraph.insert(*root, inbound_wide_offsets);
+        }
+        for root in roots.iter() {
             self.find_subgraph_map_hb(*root, &mut subgraph);
         }
 
@@ -1732,6 +1734,25 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn connected_roots_keep_all_incoming_edges_during_isolation() {
+        let ids = make_ids::<4>();
+        let sizes = [8, 8, 8, 8];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .build();
+        graph.sort_shortest_distance();
+        graph.assign_spaces_hb();
+        // Root 2 has one wide parent plus one parent within this space.
+        // No edge comes from outside, so neither it nor its child needs
+        // duplication when the two connected roots are isolated together.
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.nodes[&ids[1]].space, graph.nodes[&ids[2]].space);
     }
 
     #[test]
