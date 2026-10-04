@@ -67,8 +67,7 @@ struct VariedInstance {
     style_metrics: Once<Box<StyleMetrics>>,
     gvar_scalars: Once<Box<[Fixed]>>,
     hvar_scalars: Once<Box<[Fixed]>>,
-    /// Shared by VVAR advances and VORG origins.
-    vertical_scalars: Once<Box<[Fixed]>>,
+    vvar_scalars: Once<Box<[Fixed]>>,
 }
 
 const MAX_PRECOMPUTED_SCALARS: usize = 128;
@@ -105,7 +104,7 @@ impl Font {
                 style_metrics: Once::new(),
                 gvar_scalars: Once::new(),
                 hvar_scalars: Once::new(),
-                vertical_scalars: Once::new(),
+                vvar_scalars: Once::new(),
             },
         }
     }
@@ -311,11 +310,11 @@ impl Font {
         }
     }
 
-    pub(crate) fn vertical_scalars(&self) -> &[Fixed] {
+    pub(crate) fn vvar_scalars(&self) -> &[Fixed] {
         match &self.0 {
             Repr::Default(_) => &[],
             Repr::Varied(varied) => varied
-                .vertical_scalars
+                .vvar_scalars
                 .get_or_init(|| {
                     let Some(vvar) = varied.font.vvar() else {
                         return Box::new([]);
@@ -1194,7 +1193,7 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
-    fn vertical_scalars_are_lazy_bounded_and_shared() {
+    fn vvar_scalars_are_lazy_bounded_and_shared() {
         let font = Font::new(font_test_data::MPLUS1CODE_VERTICAL_SUBSET, 0).unwrap();
         let instance = font
             .instance_builder()
@@ -1203,9 +1202,9 @@ mod tests {
         let Repr::Varied(varied) = &instance.0 else {
             panic!("expected a varied instance");
         };
-        assert!(varied.vertical_scalars.get().is_none());
+        assert!(varied.vvar_scalars.get().is_none());
 
-        let scalars = instance.vertical_scalars();
+        let scalars = instance.vvar_scalars();
         assert!(!scalars.is_empty());
         let vvar = instance.vvar().unwrap();
         let regions = vvar
@@ -1223,8 +1222,8 @@ mod tests {
         let mut expected = alloc::vec![Fixed::ZERO; scalars.len()];
         let count = vvar.compute_scalars(instance.normalized_coords(), &mut expected);
         assert_eq!(scalars, &expected[..count]);
-        assert!(core::ptr::eq(scalars, instance.clone().vertical_scalars()));
-        assert!(font.vertical_scalars().is_empty());
+        assert!(core::ptr::eq(scalars, instance.clone().vvar_scalars()));
+        assert!(font.vvar_scalars().is_empty());
     }
 
     #[test]

@@ -331,7 +331,7 @@ impl<'a> GlyphMetrics<'a> {
                     vvar.v_origin_y_delta_with_scalars(
                         glyph,
                         self.coords,
-                        self.font.vertical_scalars(),
+                        self.font.vvar_scalars(),
                     )
                 })
                 .unwrap_or(F48Dot16::ZERO)
@@ -381,7 +381,7 @@ impl<'a> GlyphMetrics<'a> {
                 self.font.vvar()
             };
             let scalars = if vvar.is_some() {
-                self.font.vertical_scalars()
+                self.font.vvar_scalars()
             } else {
                 &[]
             };
@@ -546,7 +546,7 @@ impl<'a> GlyphMetrics<'a> {
     ) {
         // Ask the table that answers directly, and stop there if it does.
         if let Some(vvar) = self.font.vvar() {
-            let scalars = self.font.vertical_scalars();
+            let scalars = self.font.vvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
                 |gid| {
