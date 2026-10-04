@@ -1,7 +1,9 @@
 //! Closure support for the ISO OFF extended GSUB formats.
 
 use super::*;
-use crate::tables::gsub::{SingleSubstFormat3, SingleSubstFormat4};
+use crate::tables::gsub::{
+    AlternateSubstFormat2, MultipleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
+};
 
 impl GlyphClosure for SingleSubstFormat3<'_> {
     fn closure_glyphs(
@@ -90,7 +92,73 @@ macro_rules! intersects_coverage {
     )*};
 }
 
-intersects_coverage!(SingleSubstFormat3, SingleSubstFormat4);
+intersects_coverage!(
+    SingleSubstFormat3,
+    SingleSubstFormat4,
+    MultipleSubstFormat2,
+    AlternateSubstFormat2,
+);
+
+macro_rules! closure_array_sets {
+    ($table:ident, $count:ident, $sets:ident, $glyphs:ident) => {
+        impl GlyphClosure for $table<'_> {
+            fn closure_glyphs(
+                &self,
+                ctx: &mut ClosureCtx,
+                _lookup_list: &SubstitutionLookupList,
+                _lookup_index: u16,
+            ) -> Result<(), ReadError> {
+                if self.coverage_offset().is_null() || self.$count().to_u32() == 0 {
+                    return Ok(());
+                }
+                let coverage = self.coverage()?;
+                let glyph_set = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
+                let sets = self.$sets();
+                if self.$count().to_u32() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                    ctx.output.extend(
+                        glyph_set
+                            .iter()
+                            .filter_map(|gid| coverage.get(gid))
+                            .filter_map(|index| sets.get(index as usize).ok())
+                            .flat_map(|set| {
+                                set.$glyphs().iter().map(|gid| GlyphId::from(gid.get()))
+                            }),
+                    );
+                } else {
+                    ctx.output.extend(
+                        coverage
+                            .iter()
+                            .zip(sets.iter_as_nullable())
+                            .filter_map(|(gid, set)| {
+                                if glyph_set.contains(gid) {
+                                    set.transpose().ok().flatten()
+                                } else {
+                                    None
+                                }
+                            })
+                            .flat_map(|set| {
+                                set.$glyphs().iter().map(|gid| GlyphId::from(gid.get()))
+                            }),
+                    );
+                }
+                Ok(())
+            }
+        }
+    };
+}
+
+closure_array_sets!(
+    MultipleSubstFormat2,
+    sequence_count,
+    sequences,
+    substitute_glyph_ids
+);
+closure_array_sets!(
+    AlternateSubstFormat2,
+    alternate_set_count,
+    alternate_sets,
+    alternate_glyph_ids
+);
 
 #[cfg(test)]
 mod tests {
@@ -99,7 +167,7 @@ mod tests {
     use font_test_data::bebuffer::BeBuffer;
     use font_types::{GlyphId24, Int24, Uint24};
 
-    fn gsub_with_single(subtable: &[u8]) -> Vec<u8> {
+    fn gsub_with_lookup(kind: u16, subtable: &[u8]) -> Vec<u8> {
         BeBuffer::new()
             .push(1u16)
             .push(2u16)
@@ -112,7 +180,7 @@ mod tests {
             .push(26u32)
             .push(1u16)
             .push(6u32)
-            .push(1u16)
+            .push(kind)
             .push(0u16)
             .push(1u16)
             .push(8u16)
@@ -120,8 +188,8 @@ mod tests {
             .to_vec()
     }
 
-    fn close(subtable: &[u8], inputs: &[u32]) -> Vec<u32> {
-        let bytes = gsub_with_single(subtable);
+    fn close_lookup(kind: u16, subtable: &[u8], inputs: &[u32]) -> Vec<u32> {
+        let bytes = gsub_with_lookup(kind, subtable);
         let gsub = Gsub::read(FontData::new(&bytes)).unwrap();
         let mut glyphs: IntSet<_> = inputs.iter().copied().map(GlyphId::new).collect();
         let mut lookups: IntSet<_> = [0].into_iter().collect();
@@ -129,6 +197,10 @@ mod tests {
         assert_eq!(lookups.iter().collect::<Vec<_>>(), [0]);
         gsub.closure_glyphs(&lookups, &mut glyphs).unwrap();
         glyphs.iter().map(GlyphId::to_u32).collect()
+    }
+
+    fn close(subtable: &[u8], inputs: &[u32]) -> Vec<u32> {
+        close_lookup(1, subtable, inputs)
     }
 
     #[test]
@@ -199,7 +271,7 @@ mod tests {
                 .push(Uint24::new(0))
                 .to_vec(),
         ] {
-            let bytes = gsub_with_single(&subtable);
+            let bytes = gsub_with_lookup(1, &subtable);
             let gsub = Gsub::read(FontData::new(&bytes)).unwrap();
             let mut glyphs: IntSet<_> = [GlyphId::new(65536)].into_iter().collect();
             let mut lookups: IntSet<_> = [0].into_iter().collect();
@@ -213,9 +285,75 @@ mod tests {
             .push(12u32)
             .push(Uint24::new(2))
             .push(GlyphId24::new(70000));
-        let bytes = gsub_with_single(&truncated);
+        let bytes = gsub_with_lookup(1, &truncated);
         let gsub = Gsub::read(FontData::new(&bytes)).unwrap();
         let mut glyphs = [GlyphId::new(65536)].into_iter().collect();
         assert!(gsub.closure_glyphs(&IntSet::all(), &mut glyphs).is_err());
+    }
+
+    #[test]
+    fn wide_multiple_and_alternate_closure_is_transitive() {
+        let subtable = BeBuffer::new()
+            .push(2u16)
+            .push(15u32)
+            .push(Uint24::new(2))
+            .extend([26, 34].map(Uint24::new))
+            .push(3u16)
+            .push(Uint24::new(2))
+            .extend([65536, 70000].map(GlyphId24::new))
+            .push(2u16)
+            .extend([70000, 65535].map(GlyphId24::new))
+            .push(1u16)
+            .push(GlyphId24::new(0xffffff));
+        for kind in [2, 3] {
+            assert_eq!(
+                close_lookup(kind, &subtable, &[65536]),
+                [65535, 65536, 70000, 0xffffff]
+            );
+            assert_eq!(
+                close_lookup(kind, &subtable, &[65536, 70000]),
+                [65535, 65536, 70000, 0xffffff]
+            );
+        }
+    }
+
+    #[test]
+    fn wide_multiple_and_alternate_closure_keeps_large_indices_and_offsets() {
+        let count = 65537u32;
+        let coverage_offset = 9 + count * 3;
+        let sequence_offset = coverage_offset + 14;
+        let subtable = BeBuffer::new()
+            .push(2u16)
+            .push(coverage_offset)
+            .push(Uint24::new(count))
+            .extend(
+                (0..count)
+                    .map(|index| Uint24::new(if index == 65536 { sequence_offset } else { 0 })),
+            )
+            .push(4u16)
+            .push(Uint24::new(1))
+            .extend([0, 65536, 0].map(Uint24::new))
+            .push(1u16)
+            .push(GlyphId24::new(70000));
+        for kind in [2, 3] {
+            assert_eq!(close_lookup(kind, &subtable, &[65536]), [65536, 70000]);
+        }
+    }
+
+    #[test]
+    fn wide_multiple_and_alternate_closure_skips_null_and_invalid_sets() {
+        for kind in [2, 3] {
+            for offset in [0, 0xffffff] {
+                let subtable = BeBuffer::new()
+                    .push(2u16)
+                    .push(12u32)
+                    .push(Uint24::new(1))
+                    .push(Uint24::new(offset))
+                    .push(3u16)
+                    .push(Uint24::new(1))
+                    .push(GlyphId24::new(65536));
+                assert_eq!(close_lookup(kind, &subtable, &[65536]), [65536]);
+            }
+        }
     }
 }
