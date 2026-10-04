@@ -67,6 +67,7 @@ struct VariedInstance {
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
     hvar_scalars: Once<ScalarCache>,
+    vvar_scalars: Once<ScalarCache>,
     gvar_scalars: Once<Box<[Fixed]>>,
 }
 
@@ -101,6 +102,7 @@ impl Font {
                 metrics: Once::new(),
                 style_metrics: Once::new(),
                 hvar_scalars: Once::new(),
+                vvar_scalars: Once::new(),
                 gvar_scalars: Once::new(),
             },
         }
@@ -273,6 +275,15 @@ impl Font {
     #[inline]
     pub(crate) fn vvar(&self) -> Option<&Vvar<'_>> {
         self.shared().vvar()
+    }
+
+    pub(crate) fn vvar_scalar_cache(&self, vvar: &Vvar<'_>) -> Option<&ScalarCache> {
+        match &self.0 {
+            Repr::Varied(instance) => {
+                Some(instance.vvar_scalars.get_or_init(|| vvar.scalar_cache()))
+            }
+            Repr::Default(_) => None,
+        }
     }
 
     /// Returns `gvar`.
