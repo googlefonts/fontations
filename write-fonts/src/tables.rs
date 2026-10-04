@@ -50,6 +50,7 @@ fn do_we_even_serde() {
         avar: avar::Avar,
         base: base::Base,
         cmap: cmap::Cmap,
+        dmap: cmap::Dmap,
         cpal: cpal::Cpal,
         cvar: cvar::Cvar,
         dsig: dsig::Dsig,

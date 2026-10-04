@@ -5,13 +5,15 @@ use crate::{
     ps::encoding::PredefinedEncoding,
     ps::type1::Type1Font,
     tables::{
-        cmap::{Cmap14, CmapIterLimits, CmapSubtable, MapVariant, PlatformId},
+        cmap::{
+            Cmap, Cmap14, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId,
+        },
         name::MacRomanMapping,
     },
-    TableProvider,
+    FontData, TableProvider,
 };
 use alloc::vec::Vec;
-use types::GlyphId;
+use types::{GlyphId, Tag};
 use yoke::Yokeable;
 
 /// Character mappings for a font.
@@ -29,6 +31,8 @@ use yoke::Yokeable;
 /// Unicode codepoints to Mac Roman character codes before lookup. For a Type 1
 /// font, the Unicode map is derived from glyph names when the `agl` feature is
 /// enabled. Glyph ID 0 is treated as unmapped.
+/// An optional `DMAP` table takes precedence, with missing mappings falling
+/// back to `cmap` (ISO/IEC 14496-22:2026, 5.6.15).
 ///
 /// [`map_unicode_variant`](Self::map_unicode_variant) uses the first SFNT
 /// `cmap` format 14 subtable. A non-default variation sequence names its glyph
@@ -49,6 +53,8 @@ use yoke::Yokeable;
 /// These methods use character codes in the selected encoding as stored in
 /// the font. They do not convert Mac Roman codes from Unicode or apply the
 /// Microsoft symbol fallback. A mapping to glyph ID 0 is treated as unmapped.
+/// DMAP overrides are applied to matching encodings, and encodings supplied
+/// only by DMAP are also available.
 ///
 /// The selected Unicode subtable and the individual encoding records are
 /// parsed and cached separately, only when their respective methods need them.
@@ -71,20 +77,22 @@ impl<'a> Charmap<'a> {
             _ => self
                 .font
                 .unicode_charmap()
-                .is_some_and(|map| map.subtable.is_some()),
+                .is_some_and(|map| map.dmap.subtable.is_some() || map.cmap.subtable.is_some()),
         }
     }
 
     /// Returns whether Unicode lookup uses a Microsoft symbol subtable.
     pub fn unicode_is_symbol(&self) -> bool {
-        self.font.unicode_charmap().is_some_and(|map| map.is_symbol)
+        self.font
+            .unicode_charmap()
+            .is_some_and(|map| map.dmap.is_symbol || map.cmap.is_symbol)
     }
 
     /// Returns whether Unicode lookup uses a Mac Roman subtable.
     pub fn unicode_is_mac_roman(&self) -> bool {
         self.font
             .unicode_charmap()
-            .is_some_and(|map| map.is_mac_roman)
+            .is_some_and(|map| map.dmap.is_mac_roman || map.cmap.is_mac_roman)
     }
 
     /// Maps a Unicode codepoint to a glyph.
@@ -124,7 +132,7 @@ impl<'a> Charmap<'a> {
     pub fn has_unicode_variants(&self) -> bool {
         self.font
             .unicode_charmap()
-            .is_some_and(|map| map.vs_subtable.is_some())
+            .is_some_and(|map| map.dmap.vs_subtable.is_some() || map.cmap.vs_subtable.is_some())
     }
 
     /// Maps a Unicode codepoint and variation selector to a glyph.
@@ -151,22 +159,17 @@ impl<'a> Charmap<'a> {
     /// resolved glyph ID.
     pub fn iter_unicode_variants(&self) -> impl Iterator<Item = (u32, u32, GlyphId)> + '_ {
         self.font.unicode_charmap().into_iter().flat_map(|map| {
-            map.vs_subtable
-                .as_ref()
-                .into_iter()
-                .flat_map(|subtable| {
-                    subtable.iter_with_limits(CmapIterLimits {
-                        max_char: char::MAX as u32,
-                        glyph_count: self.font.num_glyphs(),
-                    })
-                })
-                .filter_map(move |(codepoint, selector, variant)| {
-                    let glyph = match variant {
-                        MapVariant::UseDefault => map.map(codepoint)?,
-                        MapVariant::Variant(glyph) => glyph,
-                    };
-                    (glyph != GlyphId::NOTDEF).then_some((codepoint, selector, glyph))
-                })
+            map.variant_mappings(CmapIterLimits {
+                max_char: char::MAX as u32,
+                glyph_count: self.font.num_glyphs(),
+            })
+            .filter_map(move |(codepoint, selector, variant)| {
+                let glyph = match variant {
+                    MapVariant::UseDefault => map.map(codepoint)?,
+                    MapVariant::Variant(glyph) => glyph,
+                };
+                (glyph != GlyphId::NOTDEF).then_some((codepoint, selector, glyph))
+            })
         })
     }
 
@@ -323,6 +326,7 @@ pub struct Encoding {
 }
 
 impl Encoding {
+    const DMAP: u32 = 1 << 31;
     const TYPE1_UNICODE: u32 = u32::MAX - 1;
     const TYPE1_NATIVE: u32 = u32::MAX;
 
@@ -331,9 +335,20 @@ impl Encoding {
         self.kind
     }
 
-    /// Returns the SFNT cmap record index, if this mapping came from SFNT.
+    /// Returns the encoding record index within [`sfnt_tag`](Self::sfnt_tag).
     pub fn sfnt_index(self) -> Option<u32> {
-        (self.index < Self::TYPE1_UNICODE).then_some(self.index)
+        (self.index < Self::TYPE1_UNICODE).then_some(self.index & !Self::DMAP)
+    }
+
+    /// Returns the SFNT mapping table tag (`cmap` or `DMAP`), if applicable.
+    pub fn sfnt_tag(self) -> Option<Tag> {
+        self.sfnt_index().map(|_| {
+            if self.index & Self::DMAP != 0 {
+                Tag::new(b"DMAP")
+            } else {
+                Tag::new(b"cmap")
+            }
+        })
     }
 
     /// Returns the SFNT platform and encoding identifiers, if applicable.
@@ -367,77 +382,99 @@ impl Encoding {
     }
 }
 
-/// Parsed, selectable SFNT character mappings, indexed by cmap record.
+/// Parsed, selectable SFNT character mappings, indexed by table and encoding record.
 #[derive(Clone, Default, Yokeable)]
-pub(crate) struct EncodingTables<'a>(Vec<Option<EncodingTable<'a>>>);
+pub(crate) struct EncodingTables<'a> {
+    cmap: Vec<Option<EncodingTable<'a>>>,
+    dmap: Vec<Option<EncodingTable<'a>>>,
+}
 
 #[derive(Clone, Yokeable)]
 struct EncodingTable<'a> {
     encoding: Encoding,
     subtable: CmapSubtable<'a>,
+    delta: Option<CmapSubtable<'a>>,
 }
 
 impl<'a> EncodingTables<'a> {
     pub(crate) fn read(font: &impl TableProvider<'a>) -> Self {
-        let Ok(cmap) = font.cmap() else {
-            return Self::default();
-        };
-        let tables = cmap
-            .encoding_records()
-            .iter()
-            .enumerate()
-            .map(|(index, record)| {
-                let subtable = record.subtable(cmap.offset_data()).ok()?;
-                match subtable {
-                    CmapSubtable::Format0(_)
-                    | CmapSubtable::Format4(_)
-                    | CmapSubtable::Format6(_)
-                    | CmapSubtable::Format10(_)
-                    | CmapSubtable::Format12(_)
-                    | CmapSubtable::Format13(_) => {}
-                    _ => return None,
-                }
-                let platform = record.platform_id();
-                let id = record.encoding_id();
-                let kind = match platform {
-                    PlatformId::Unicode | PlatformId::ISO => EncodingKind::Unicode,
-                    PlatformId::Macintosh if id == 0 => EncodingKind::AppleRoman,
-                    PlatformId::Windows => match id {
-                        0 => EncodingKind::MsSymbol,
-                        1 | 10 => EncodingKind::Unicode,
-                        2 => EncodingKind::Sjis,
-                        3 => EncodingKind::Prc,
-                        4 => EncodingKind::Big5,
-                        5 => EncodingKind::Wansung,
-                        6 => EncodingKind::Johab,
-                        _ => EncodingKind::None,
-                    },
-                    _ => EncodingKind::None,
-                };
-                Some(EncodingTable {
-                    encoding: Encoding {
-                        kind,
-                        index: index as u32,
-                        platform_id: platform as u16,
-                        encoding_id: id,
-                    },
-                    subtable,
+        let read = |cmap: Option<Cmap<'a>>, source| {
+            cmap.into_iter()
+                .flat_map(|cmap| {
+                    cmap.encoding_records()
+                        .iter()
+                        .enumerate()
+                        .map(move |(index, record)| {
+                            EncodingTable::read(index as u32 | source, record, cmap.offset_data())
+                        })
                 })
-            })
-            .collect();
-        Self(tables)
+                .collect::<Vec<_>>()
+        };
+        let dmap = font.dmap().ok().map(|table| table.as_cmap());
+        let mut tables = Self {
+            cmap: read(font.cmap().ok(), 0),
+            dmap: read(dmap.clone(), Encoding::DMAP),
+        };
+        let unicode_delta = dmap
+            .and_then(|table| table.best_subtable())
+            .and_then(|(index, _, _)| tables.dmap.get(index as usize)?.as_ref())
+            .filter(|table| table.encoding.kind == EncodingKind::Unicode);
+        for base in tables.cmap.iter_mut().flatten() {
+            let matches = |delta: &&EncodingTable<'_>| {
+                delta.encoding.kind == base.encoding.kind
+                    && (base.encoding.kind != EncodingKind::None
+                        || delta.encoding.sfnt_ids() == base.encoding.sfnt_ids())
+            };
+            let delta = (base.encoding.kind == EncodingKind::Unicode)
+                .then_some(unicode_delta)
+                .flatten()
+                .or_else(|| {
+                    tables
+                        .dmap
+                        .iter()
+                        .flatten()
+                        .find(|delta| delta.encoding.sfnt_ids() == base.encoding.sfnt_ids())
+                })
+                .or_else(|| tables.dmap.iter().flatten().find(matches));
+            base.delta = delta.map(|table| table.subtable.clone());
+        }
+        tables
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = Encoding> + '_ {
-        self.0.iter().flatten().map(|table| table.encoding)
+        self.cmap
+            .iter()
+            .flatten()
+            .chain(self.dmap.iter().flatten().filter(|delta| {
+                !self.cmap.iter().flatten().any(|base| {
+                    base.encoding.kind == delta.encoding.kind
+                        && (base.encoding.kind != EncodingKind::None
+                            || base.encoding.sfnt_ids() == delta.encoding.sfnt_ids())
+                })
+            }))
+            .map(|table| table.encoding)
+    }
+
+    fn table(&self, encoding: Encoding) -> Option<&EncodingTable<'a>> {
+        let tables = if encoding.index & Encoding::DMAP != 0 {
+            &self.dmap
+        } else {
+            &self.cmap
+        };
+        tables
+            .get(encoding.sfnt_index()? as usize)?
+            .as_ref()
+            .filter(|table| table.encoding == encoding)
     }
 
     pub(crate) fn map(&self, encoding: Encoding, code: u32) -> Option<GlyphId> {
-        let table = self.0.get(encoding.sfnt_index()? as usize)?.as_ref()?;
-        if table.encoding != encoding {
-            return None;
-        }
-        table.subtable.map_codepoint(code)
+        let table = self.table(encoding)?;
+        table
+            .delta
+            .as_ref()
+            .and_then(|delta| delta.map_codepoint(code))
+            .filter(|glyph| *glyph != GlyphId::NOTDEF)
+            .or_else(|| table.subtable.map_codepoint(code))
     }
 
     fn iter_codes(
@@ -445,29 +482,89 @@ impl<'a> EncodingTables<'a> {
         encoding: Encoding,
         limits: CmapIterLimits,
     ) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
-        self.0
-            .get(encoding.sfnt_index().unwrap_or(u32::MAX) as usize)
-            .and_then(Option::as_ref)
-            .filter(|table| table.encoding == encoding)
-            .into_iter()
-            .flat_map(move |table| {
-                let subtable = &table.subtable;
-                let format0 = matches!(subtable, CmapSubtable::Format0(_));
-                subtable
-                    .iter_with_limits(limits)
-                    .chain((0_u32..=255).filter_map(move |code| {
-                        format0
-                            .then(|| subtable.map_codepoint(code))
-                            .flatten()
-                            .map(|glyph| (code, glyph))
-                    }))
-            })
+        self.table(encoding).into_iter().flat_map(move |table| {
+            table
+                .delta
+                .as_ref()
+                .into_iter()
+                .flat_map(move |delta| iter_subtable(delta, limits))
+                .filter(|(_, glyph)| *glyph != GlyphId::NOTDEF)
+                .chain(iter_subtable(&table.subtable, limits).filter(|(code, _)| {
+                    table
+                        .delta
+                        .as_ref()
+                        .and_then(|delta| delta.map_codepoint(*code))
+                        .is_none_or(|glyph| glyph == GlyphId::NOTDEF)
+                }))
+        })
+    }
+}
+
+fn iter_subtable<'a>(
+    subtable: &'a CmapSubtable<'a>,
+    limits: CmapIterLimits,
+) -> impl Iterator<Item = (u32, GlyphId)> + 'a {
+    subtable
+        .iter_with_limits(limits)
+        .chain((0_u32..=255).filter_map(move |code| {
+            matches!(subtable, CmapSubtable::Format0(_))
+                .then(|| subtable.map_codepoint(code))
+                .flatten()
+                .map(|glyph| (code, glyph))
+        }))
+}
+
+impl<'a> EncodingTable<'a> {
+    fn read(index: u32, record: &EncodingRecord, data: FontData<'a>) -> Option<Self> {
+        let subtable = record.subtable(data).ok()?;
+        match subtable {
+            CmapSubtable::Format0(_)
+            | CmapSubtable::Format4(_)
+            | CmapSubtable::Format6(_)
+            | CmapSubtable::Format10(_)
+            | CmapSubtable::Format12(_)
+            | CmapSubtable::Format13(_) => {}
+            _ => return None,
+        }
+        let platform = record.platform_id();
+        let id = record.encoding_id();
+        let kind = match platform {
+            PlatformId::Unicode | PlatformId::ISO => EncodingKind::Unicode,
+            PlatformId::Macintosh if id == 0 => EncodingKind::AppleRoman,
+            PlatformId::Windows => match id {
+                0 => EncodingKind::MsSymbol,
+                1 | 10 => EncodingKind::Unicode,
+                2 => EncodingKind::Sjis,
+                3 => EncodingKind::Prc,
+                4 => EncodingKind::Big5,
+                5 => EncodingKind::Wansung,
+                6 => EncodingKind::Johab,
+                _ => EncodingKind::None,
+            },
+            _ => EncodingKind::None,
+        };
+        Some(EncodingTable {
+            encoding: Encoding {
+                kind,
+                index,
+                platform_id: platform as u16,
+                encoding_id: id,
+            },
+            subtable,
+            delta: None,
+        })
     }
 }
 
 /// The selected cmap subtables and the metadata needed to use them.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct UnicodeCharmap<'a> {
+    cmap: UnicodeSubtables<'a>,
+    dmap: UnicodeSubtables<'a>,
+}
+
+#[derive(Clone, Default, Yokeable)]
+struct UnicodeSubtables<'a> {
     subtable: Option<CmapSubtable<'a>>,
     vs_subtable: Option<Cmap14<'a>>,
     is_symbol: bool,
@@ -476,7 +573,77 @@ pub(crate) struct UnicodeCharmap<'a> {
 
 impl<'a> UnicodeCharmap<'a> {
     pub(crate) fn read(font: &impl TableProvider<'a>) -> Self {
-        let Ok(cmap) = font.cmap() else {
+        Self {
+            cmap: UnicodeSubtables::read(font.cmap().ok()),
+            dmap: UnicodeSubtables::read(font.dmap().ok().map(|table| table.as_cmap())),
+        }
+    }
+
+    pub(crate) fn map(&self, codepoint: u32) -> Option<GlyphId> {
+        self.dmap
+            .map(codepoint)
+            .filter(|glyph| *glyph != GlyphId::NOTDEF)
+            .or_else(|| self.cmap.map(codepoint))
+    }
+
+    pub(crate) fn map_variant(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
+        let variant = self
+            .dmap
+            .vs_subtable
+            .as_ref()
+            .and_then(|table| table.map_variant(codepoint, selector))
+            .or_else(|| {
+                self.cmap
+                    .vs_subtable
+                    .as_ref()?
+                    .map_variant(codepoint, selector)
+            })?;
+        match variant {
+            MapVariant::UseDefault => self.map(codepoint),
+            MapVariant::Variant(glyph) => Some(glyph),
+        }
+    }
+
+    fn iter(&self, limits: CmapIterLimits) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
+        self.dmap
+            .iter(limits)
+            .filter(|(_, glyph)| *glyph != GlyphId::NOTDEF)
+            .chain(self.cmap.iter(limits).filter(|(codepoint, _)| {
+                self.dmap
+                    .map(*codepoint)
+                    .is_none_or(|glyph| glyph == GlyphId::NOTDEF)
+            }))
+    }
+
+    fn variant_mappings(
+        &self,
+        limits: CmapIterLimits,
+    ) -> impl Iterator<Item = (u32, u32, MapVariant)> + '_ {
+        self.dmap
+            .vs_subtable
+            .as_ref()
+            .into_iter()
+            .flat_map(move |table| table.iter_with_limits(limits))
+            .chain(
+                self.cmap
+                    .vs_subtable
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(move |table| table.iter_with_limits(limits))
+                    .filter(|(codepoint, selector, _)| {
+                        self.dmap
+                            .vs_subtable
+                            .as_ref()
+                            .and_then(|table| table.map_variant(*codepoint, *selector))
+                            .is_none()
+                    }),
+            )
+    }
+}
+
+impl<'a> UnicodeSubtables<'a> {
+    fn read(cmap: Option<Cmap<'a>>) -> Self {
+        let Some(cmap) = cmap else {
             return Self::default();
         };
         let (subtable, is_symbol, is_mac_roman) = cmap
@@ -509,17 +676,6 @@ impl<'a> UnicodeCharmap<'a> {
             return subtable.map_codepoint(0xf000 + codepoint);
         }
         result
-    }
-
-    pub(crate) fn map_variant(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
-        match self
-            .vs_subtable
-            .as_ref()?
-            .map_variant(codepoint, selector)?
-        {
-            MapVariant::UseDefault => self.map(codepoint),
-            MapVariant::Variant(glyph) => Some(glyph),
-        }
     }
 
     fn iter(&self, limits: CmapIterLimits) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
@@ -573,6 +729,79 @@ mod tests {
     use alloc::{sync::Arc, vec};
     use core::sync::atomic::{AtomicUsize, Ordering};
     use types::Tag;
+
+    #[test]
+    fn dmap_unicode_lookups_and_iterators() {
+        use font_test_data::cmap::{font_with_cmaps, format12, format14, table};
+        let base = table(&[
+            (3, 10, &format12(&[(65, 1), (66, 2), (68, 5)])),
+            (0, 5, &format14(0xfe0f, &[66], &[(65, 5), (67, 6)])),
+        ]);
+        let delta = table(&[
+            (0, 4, &format12(&[(65, 3), (66, 0), (67, 4)])),
+            (0, 5, &format14(0xfe0f, &[65], &[(66, 4), (68, 7)])),
+        ]);
+        let data = font_with_cmaps(Some(&base), Some(&delta));
+        let font = Font::new(data, 0).unwrap();
+        let charmap = font.charmap();
+        assert!(charmap.has_unicode());
+        assert!(charmap.has_unicode_variants());
+        let mut mappings: Vec<_> = charmap.iter_unicodes().collect();
+        mappings.sort_unstable();
+        assert_eq!(
+            mappings,
+            vec![
+                (65, GlyphId::new(3)),
+                (66, GlyphId::new(2)),
+                (67, GlyphId::new(4)),
+                (68, GlyphId::new(5))
+            ]
+        );
+        for (ch, glyph) in mappings {
+            assert_eq!(charmap.map_unicode(ch), Some(glyph));
+        }
+        for encoding in charmap.encodings() {
+            assert_eq!(encoding.sfnt_tag(), Some(Tag::new(b"cmap")));
+            assert_eq!(charmap.map_code(encoding, 65), Some(GlyphId::new(3)));
+            let mut codes: Vec<_> = charmap.iter_codes(encoding).collect();
+            codes.sort_unstable();
+            assert_eq!(
+                codes,
+                vec![
+                    (65, GlyphId::new(3)),
+                    (66, GlyphId::new(2)),
+                    (67, GlyphId::new(4)),
+                    (68, GlyphId::new(5))
+                ]
+            );
+        }
+        let mut variants: Vec<_> = charmap.iter_unicode_variants().collect();
+        variants.sort_unstable();
+        assert_eq!(
+            variants,
+            vec![
+                (65, 0xfe0f, GlyphId::new(3)),
+                (66, 0xfe0f, GlyphId::new(4)),
+                (67, 0xfe0f, GlyphId::new(6)),
+                (68, 0xfe0f, GlyphId::new(7))
+            ]
+        );
+        for (ch, selector, glyph) in variants {
+            assert_eq!(charmap.map_unicode_variant(ch, selector), Some(glyph));
+        }
+        let data = font_with_cmaps(None, Some(&delta));
+        let font = Font::new(data, 0).unwrap();
+        assert!(font.charmap().has_unicode());
+        assert_eq!(font.charmap().map_unicode('A'), Some(GlyphId::new(3)));
+        assert_eq!(
+            font.charmap().map_unicode_variant('A', 0xfe0fu32),
+            Some(GlyphId::new(3))
+        );
+        let encoding = font.charmap().encodings().next().unwrap();
+        assert_eq!(encoding.sfnt_tag(), Some(Tag::new(b"DMAP")));
+        assert_eq!(encoding.sfnt_index(), Some(0));
+        assert_eq!(font.charmap().map_code(encoding, 65), Some(GlyphId::new(3)));
+    }
 
     #[test]
     fn maps_a_selected_unicode_subtable() {

@@ -31,6 +31,8 @@ pub use read_fonts::tables::cmap::MapVariant;
 /// table. Depending on the font, the returned mapping may have entries that point to virtual/phantom glyph
 /// ids beyond the `num_glyphs` entry of the `maxp` table, which are only used during the shaping process,
 /// for example.
+/// An optional `DMAP` table (ISO/IEC 14496-22:2026) is consulted first, with
+/// unmapped characters and variation sequences falling back to `cmap`.
 ///
 /// ## Obtaining a Charmap
 ///
@@ -54,18 +56,110 @@ pub use read_fonts::tables::cmap::MapVariant;
 ///
 #[derive(Clone, Default)]
 pub struct Charmap<'a> {
+    cmap: TableCharmap<'a>,
+    dmap: TableCharmap<'a>,
+    cmap_limits: CmapIterLimits,
+}
+
+#[derive(Clone, Default)]
+struct TableCharmap<'a> {
     codepoint_subtable: Option<CodepointSubtable<'a>>,
     variant_subtable: Option<Cmap14<'a>>,
-    cmap_limits: CmapIterLimits,
 }
 
 impl<'a> Charmap<'a> {
     /// Creates a new character map from the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
-        let Ok(cmap) = font.cmap() else {
-            return Default::default();
+        Self {
+            cmap: TableCharmap::new(font.cmap().ok()),
+            dmap: TableCharmap::new(font.dmap().ok().map(|table| table.as_cmap())),
+            cmap_limits: CmapIterLimits::default_for_font(font),
+        }
+    }
+
+    /// Returns true if a suitable Unicode character mapping is available.
+    pub fn has_map(&self) -> bool {
+        self.dmap.codepoint_subtable.is_some() || self.cmap.codepoint_subtable.is_some()
+    }
+
+    /// Returns true if a symbol mapping was selected.
+    pub fn is_symbol(&self) -> bool {
+        [&self.dmap, &self.cmap].iter().any(|table| {
+            table
+                .codepoint_subtable
+                .as_ref()
+                .is_some_and(|x| x.is_symbol)
+        })
+    }
+
+    /// Returns true if a Unicode variation sequence mapping is available.
+    pub fn has_variant_map(&self) -> bool {
+        self.dmap.variant_subtable.is_some() || self.cmap.variant_subtable.is_some()
+    }
+
+    /// Maps a character to a nominal glyph identifier.
+    ///
+    /// Returns `None` if a mapping does not exist.
+    pub fn map(&self, ch: impl Into<u32>) -> Option<GlyphId> {
+        let ch = ch.into();
+        self.dmap
+            .codepoint_subtable
+            .as_ref()
+            .and_then(|table| table.map(ch))
+            .or_else(|| self.cmap.codepoint_subtable.as_ref()?.map(ch))
+    }
+
+    /// Returns an iterator over all mappings of codepoint to nominal glyph
+    /// identifiers in the character map.
+    pub fn mappings(&self) -> Mappings<'a> {
+        Mappings {
+            dmap: self.dmap.mappings(self.cmap_limits).peekable(),
+            cmap: self.cmap.mappings(self.cmap_limits).peekable(),
+        }
+    }
+
+    /// Maps a character and variation selector to a nominal glyph identifier.
+    ///
+    /// Returns `None` if a mapping does not exist.
+    pub fn map_variant(&self, ch: impl Into<u32>, selector: impl Into<u32>) -> Option<MapVariant> {
+        let (ch, selector) = (ch.into(), selector.into());
+        self.dmap
+            .variant_subtable
+            .as_ref()
+            .and_then(|table| table.map_variant(ch, selector))
+            .or_else(|| {
+                self.cmap
+                    .variant_subtable
+                    .as_ref()?
+                    .map_variant(ch, selector)
+            })
+    }
+
+    /// Returns an iterator over all mappings of character and variation
+    /// selector to nominal glyph identifier in the character map.
+    pub fn variant_mappings(&self) -> VariantMappings<'a> {
+        VariantMappings {
+            dmap: self
+                .dmap
+                .variant_subtable
+                .clone()
+                .map(|table| table.iter_with_limits(self.cmap_limits)),
+            cmap: self
+                .cmap
+                .variant_subtable
+                .clone()
+                .map(|table| table.iter_with_limits(self.cmap_limits)),
+            dmap_subtable: self.dmap.variant_subtable.clone(),
+        }
+    }
+}
+
+impl<'a> TableCharmap<'a> {
+    fn new(cmap: Option<Cmap<'a>>) -> Self {
+        let Some(cmap) = cmap else {
+            return Self::default();
         };
-        let selection = MappingSelection::new(font, &cmap);
+        let selection = MappingSelection::new(&cmap);
         Self {
             codepoint_subtable: selection
                 .codepoint_subtable
@@ -74,69 +168,24 @@ impl<'a> Charmap<'a> {
                     is_symbol: selection.mapping_index.codepoint_subtable_is_symbol,
                 }),
             variant_subtable: selection.variant_subtable,
-            cmap_limits: selection.mapping_index.cmap_limits,
         }
     }
 
-    /// Returns true if a suitable Unicode character mapping is available.
-    pub fn has_map(&self) -> bool {
-        self.codepoint_subtable.is_some()
-    }
-
-    /// Returns true if a symbol mapping was selected.
-    pub fn is_symbol(&self) -> bool {
-        self.codepoint_subtable
-            .as_ref()
-            .map(|x| x.is_symbol)
-            .unwrap_or(false)
-    }
-
-    /// Returns true if a Unicode variation sequence mapping is available.
-    pub fn has_variant_map(&self) -> bool {
-        self.variant_subtable.is_some()
-    }
-
-    /// Maps a character to a nominal glyph identifier.
-    ///
-    /// Returns `None` if a mapping does not exist.
-    pub fn map(&self, ch: impl Into<u32>) -> Option<GlyphId> {
-        self.codepoint_subtable.as_ref()?.map(ch.into())
-    }
-
-    /// Returns an iterator over all mappings of codepoint to nominal glyph
-    /// identifiers in the character map.
-    pub fn mappings(&self) -> Mappings<'a> {
+    fn mappings(&self, limits: CmapIterLimits) -> SubtableMappings<'a> {
         self.codepoint_subtable
             .as_ref()
             .map(|subtable| {
-                Mappings(match &subtable.subtable {
+                SubtableMappings(match &subtable.subtable {
                     SupportedSubtable::Format4(cmap4) => MappingsInner::Format4(cmap4.iter()),
                     SupportedSubtable::Format12(cmap12) => {
-                        MappingsInner::Format12(cmap12.iter_with_limits(self.cmap_limits))
+                        MappingsInner::Format12(cmap12.iter_with_limits(limits))
                     }
                     SupportedSubtable::Format13(cmap13) => {
-                        MappingsInner::Format13(cmap13.iter_with_limits(self.cmap_limits))
+                        MappingsInner::Format13(cmap13.iter_with_limits(limits))
                     }
                 })
             })
-            .unwrap_or(Mappings(MappingsInner::None))
-    }
-
-    /// Maps a character and variation selector to a nominal glyph identifier.
-    ///
-    /// Returns `None` if a mapping does not exist.
-    pub fn map_variant(&self, ch: impl Into<u32>, selector: impl Into<u32>) -> Option<MapVariant> {
-        self.variant_subtable.as_ref()?.map_variant(ch, selector)
-    }
-
-    /// Returns an iterator over all mappings of character and variation
-    /// selector to nominal glyph identifier in the character map.
-    pub fn variant_mappings(&self) -> VariantMappings<'a> {
-        VariantMappings(
-            self.variant_subtable
-                .clone()
-                .map(|cmap14| cmap14.iter_with_limits(self.cmap_limits)),
-        )
+            .unwrap_or(SubtableMappings(MappingsInner::None))
     }
 }
 
@@ -149,24 +198,35 @@ impl<'a> Charmap<'a> {
 /// mappings.
 #[derive(Copy, Clone, Default, Debug)]
 pub struct MappingIndex {
+    cmap: TableMappingIndex,
+    dmap: TableMappingIndex,
+    cmap_limits: CmapIterLimits,
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+struct TableMappingIndex {
     /// Index of Unicode or symbol mapping subtable.
     codepoint_subtable: Option<u16>,
     /// True if the above is a symbol mapping.
     codepoint_subtable_is_symbol: bool,
     /// Index of Unicode variation selector subtable.
     variant_subtable: Option<u16>,
-    /// Limits for iterating a cmap format 12 subtable.
-    cmap_limits: CmapIterLimits,
 }
 
 impl MappingIndex {
     /// Finds the indices of the most suitable Unicode mapping tables in the
     /// given font.
     pub fn new(font: &FontRef) -> Self {
-        let Ok(cmap) = font.cmap() else {
-            return Default::default();
+        let index = |table: Option<Cmap<'_>>| {
+            table
+                .map(|table| MappingSelection::new(&table).mapping_index)
+                .unwrap_or_default()
         };
-        MappingSelection::new(font, &cmap).mapping_index
+        Self {
+            cmap: index(font.cmap().ok()),
+            dmap: index(font.dmap().ok().map(|table| table.as_cmap())),
+            cmap_limits: CmapIterLimits::default_for_font(font),
+        }
     }
 
     /// Creates a new character map for the given font using the tables referenced by
@@ -174,12 +234,24 @@ impl MappingIndex {
     ///
     /// The font should be the same as the one used to construct this object.
     pub fn charmap<'a>(&self, font: &FontRef<'a>) -> Charmap<'a> {
-        let Ok(cmap) = font.cmap() else {
-            return Default::default();
+        Charmap {
+            cmap: self.cmap.charmap(font.cmap().ok()),
+            dmap: self
+                .dmap
+                .charmap(font.dmap().ok().map(|table| table.as_cmap())),
+            cmap_limits: self.cmap_limits,
+        }
+    }
+}
+
+impl TableMappingIndex {
+    fn charmap<'a>(&self, cmap: Option<Cmap<'a>>) -> TableCharmap<'a> {
+        let Some(cmap) = cmap else {
+            return TableCharmap::default();
         };
         let records = cmap.encoding_records();
         let data = cmap.offset_data();
-        Charmap {
+        TableCharmap {
             codepoint_subtable: self
                 .codepoint_subtable
                 .and_then(|index| get_subtable(data, records, index))
@@ -195,7 +267,6 @@ impl MappingIndex {
                     CmapSubtable::Format14(cmap14) => Some(cmap14),
                     _ => None,
                 }),
-            cmap_limits: self.cmap_limits,
         }
     }
 }
@@ -205,9 +276,31 @@ impl MappingIndex {
 ///
 /// This is created with the [`Charmap::mappings`] method.
 #[derive(Clone)]
-pub struct Mappings<'a>(MappingsInner<'a>);
+pub struct Mappings<'a> {
+    dmap: core::iter::Peekable<SubtableMappings<'a>>,
+    cmap: core::iter::Peekable<SubtableMappings<'a>>,
+}
 
 impl Iterator for Mappings<'_> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.dmap.peek(), self.cmap.peek()) {
+            (Some(delta), Some(base)) if delta.0 == base.0 => {
+                self.cmap.next();
+                self.dmap.next()
+            }
+            (Some(delta), Some(base)) if delta.0 < base.0 => self.dmap.next(),
+            (Some(_), None) => self.dmap.next(),
+            _ => self.cmap.next(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct SubtableMappings<'a>(MappingsInner<'a>);
+
+impl Iterator for SubtableMappings<'_> {
     type Item = (u32, GlyphId);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -238,13 +331,25 @@ enum MappingsInner<'a> {
 ///
 /// This is created with the [`Charmap::variant_mappings`] method.
 #[derive(Clone)]
-pub struct VariantMappings<'a>(Option<Cmap14Iter<'a>>);
+pub struct VariantMappings<'a> {
+    dmap: Option<Cmap14Iter<'a>>,
+    cmap: Option<Cmap14Iter<'a>>,
+    dmap_subtable: Option<Cmap14<'a>>,
+}
 
 impl Iterator for VariantMappings<'_> {
     type Item = (u32, u32, MapVariant);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.as_mut()?.next()
+        if let Some(item) = self.dmap.as_mut().and_then(Iterator::next) {
+            return Some(item);
+        }
+        self.cmap.as_mut()?.find(|(ch, selector, _)| {
+            self.dmap_subtable
+                .as_ref()
+                .and_then(|table| table.map_variant(*ch, *selector))
+                .is_none()
+        })
     }
 }
 
@@ -337,7 +442,7 @@ enum MappingKind {
 struct MappingSelection<'a> {
     /// The mapping index accelerator that holds indices of the following
     /// subtables.
-    mapping_index: MappingIndex,
+    mapping_index: TableMappingIndex,
     /// Either a symbol subtable or the Unicode subtable with the
     /// greatest coverage.
     codepoint_subtable: Option<SupportedSubtable<'a>>,
@@ -346,14 +451,14 @@ struct MappingSelection<'a> {
 }
 
 impl<'a> MappingSelection<'a> {
-    fn new(font: &FontRef<'a>, cmap: &Cmap<'a>) -> Self {
+    fn new(cmap: &Cmap<'a>) -> Self {
         const ENCODING_MS_SYMBOL: u16 = 0;
         const ENCODING_MS_UNICODE_CS: u16 = 1;
         const ENCODING_APPLE_ID_UNICODE_32: u16 = 4;
         const ENCODING_APPLE_ID_VARIANT_SELECTOR: u16 = 5;
         const ENCODING_UNICODE_FULL_REPERTOIRE: u16 = 6;
         const ENCODING_MS_ID_UCS_4: u16 = 10;
-        let mut mapping_index = MappingIndex::default();
+        let mut mapping_index = TableMappingIndex::default();
         let mut mapping_kind = MappingKind::None;
         let mut codepoint_subtable = None;
         let mut variant_subtable = None;
@@ -409,7 +514,6 @@ impl<'a> MappingSelection<'a> {
                 _ => {}
             }
         }
-        mapping_index.cmap_limits = CmapIterLimits::default_for_font(font);
         Self {
             mapping_index,
             codepoint_subtable,
@@ -425,11 +529,95 @@ mod tests {
     use read_fonts::FontRef;
 
     #[test]
+    fn dmap_overrides_and_falls_back_to_cmap() {
+        use font_test_data::cmap::{font_with_cmaps, format12, table};
+        let base = table(&[(3, 10, &format12(&[(65, 1), (66, 2), (68, 5)]))]);
+        let delta = table(&[(0, 4, &format12(&[(65, 3), (66, 0), (67, 4)]))]);
+        let data = font_with_cmaps(Some(&base), Some(&delta));
+        let font = FontRef::new(&data).unwrap();
+        for charmap in [font.charmap(), MappingIndex::new(&font).charmap(&font)] {
+            assert!(charmap.has_map());
+            for (ch, gid) in [('A', 3), ('B', 2), ('C', 4), ('D', 5)] {
+                assert_eq!(charmap.map(ch), Some(GlyphId::new(gid)));
+            }
+            assert_eq!(charmap.map('E'), None);
+            assert_eq!(
+                charmap.mappings().collect::<Vec<_>>(),
+                vec![
+                    (65, GlyphId::new(3)),
+                    (66, GlyphId::new(2)),
+                    (67, GlyphId::new(4)),
+                    (68, GlyphId::new(5))
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn dmap_only_and_malformed_dmap() {
+        use font_test_data::cmap::{font_with_cmaps, format12, table};
+        let delta = table(&[(3, 10, &format12(&[(65, 70000)]))]);
+        let data = font_with_cmaps(None, Some(&delta));
+        let font = FontRef::new(&data).unwrap();
+        assert_eq!(
+            font.dmap().unwrap().as_cmap().map_codepoint('A'),
+            Some(GlyphId::new(70000))
+        );
+        for charmap in [font.charmap(), MappingIndex::new(&font).charmap(&font)] {
+            assert!(charmap.has_map());
+            assert_eq!(charmap.map('A'), Some(GlyphId::new(70000)));
+        }
+        let data = font_with_cmaps(Some(&delta), Some(&[0, 0]));
+        let font = FontRef::new(&data).unwrap();
+        for charmap in [font.charmap(), MappingIndex::new(&font).charmap(&font)] {
+            assert_eq!(charmap.map('A'), Some(GlyphId::new(70000)));
+        }
+    }
+
+    #[test]
+    fn dmap_variants_override_and_fall_back_to_cmap() {
+        use font_test_data::cmap::{font_with_cmaps, format12, format14, table};
+        let base = table(&[
+            (3, 10, &format12(&[(65, 1), (66, 2)])),
+            (0, 5, &format14(0xfe0f, &[66], &[(65, 5), (67, 6)])),
+        ]);
+        let delta = table(&[
+            (3, 10, &format12(&[(65, 3)])),
+            (0, 5, &format14(0xfe0f, &[65], &[(66, 4), (68, 7)])),
+        ]);
+        let data = font_with_cmaps(Some(&base), Some(&delta));
+        let font = FontRef::new(&data).unwrap();
+        for charmap in [font.charmap(), MappingIndex::new(&font).charmap(&font)] {
+            assert!(charmap.has_variant_map());
+            assert_eq!(charmap.map('A'), Some(GlyphId::new(3)));
+            let expected = [
+                (65, MapVariant::UseDefault),
+                (66, MapVariant::Variant(GlyphId::new(4))),
+                (67, MapVariant::Variant(GlyphId::new(6))),
+                (68, MapVariant::Variant(GlyphId::new(7))),
+            ];
+            let variants: Vec<_> = charmap.variant_mappings().collect();
+            assert_eq!(variants.len(), expected.len());
+            for (ch, variant) in expected {
+                assert_eq!(charmap.map_variant(ch, 0xfe0fu32), Some(variant));
+                assert!(variants.contains(&(ch, 0xfe0f, variant)));
+            }
+            assert_eq!(charmap.map_variant(69u32, 0xfe0fu32), None);
+        }
+        let data = font_with_cmaps(None, Some(&delta));
+        let font = FontRef::new(&data).unwrap();
+        assert_eq!(
+            font.charmap().map_variant('B', 0xfe0fu32),
+            Some(MapVariant::Variant(GlyphId::new(4)))
+        );
+    }
+
+    #[test]
     fn choose_format_12_over_4() {
         let font = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
         let charmap = font.charmap();
         assert!(matches!(
-            charmap.codepoint_subtable.unwrap().subtable,
+            charmap.cmap.codepoint_subtable.unwrap().subtable,
             SupportedSubtable::Format12(..)
         ));
     }
@@ -439,7 +627,7 @@ mod tests {
         let font = FontRef::new(font_test_data::TOFU).unwrap();
         let charmap = font.charmap();
         assert!(matches!(
-            charmap.codepoint_subtable.unwrap().subtable,
+            charmap.cmap.codepoint_subtable.unwrap().subtable,
             SupportedSubtable::Format13(..)
         ));
     }
@@ -450,7 +638,7 @@ mod tests {
         let charmap = font.charmap();
 
         assert!(matches!(
-            charmap.codepoint_subtable.as_ref().unwrap().subtable,
+            charmap.cmap.codepoint_subtable.as_ref().unwrap().subtable,
             SupportedSubtable::Format13(..)
         ));
         for ch in ['A', 'あ', '😀'] {
@@ -463,7 +651,7 @@ mod tests {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let charmap = font.charmap();
         assert!(matches!(
-            charmap.codepoint_subtable.unwrap().subtable,
+            charmap.cmap.codepoint_subtable.unwrap().subtable,
             SupportedSubtable::Format4(..)
         ));
     }
@@ -474,7 +662,7 @@ mod tests {
         let charmap = font.charmap();
         assert!(charmap.is_symbol());
         assert!(matches!(
-            charmap.codepoint_subtable.unwrap().subtable,
+            charmap.cmap.codepoint_subtable.unwrap().subtable,
             SupportedSubtable::Format4(..)
         ));
     }
@@ -515,7 +703,7 @@ mod tests {
     fn map_symbol_pua() {
         let font = FontRef::new(font_test_data::CMAP4_SYMBOL_PUA).unwrap();
         let charmap = font.charmap();
-        assert!(charmap.codepoint_subtable.as_ref().unwrap().is_symbol);
+        assert!(charmap.cmap.codepoint_subtable.as_ref().unwrap().is_symbol);
         assert_eq!(charmap.map(0xF001_u32), Some(GlyphId::new(1)));
         assert_eq!(charmap.map(0xF002_u32), Some(GlyphId::new(2)));
         assert_eq!(charmap.map(0xF003_u32), Some(GlyphId::new(3)));

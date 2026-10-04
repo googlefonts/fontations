@@ -8,6 +8,33 @@ use std::collections::HashMap;
 
 use crate::search_range::SearchRange;
 
+#[cfg(test)]
+mod dmap_tests {
+    use super::*;
+    use crate::{dump_table, FontBuilder};
+    use read_fonts::{FontRef, TableProvider};
+
+    #[test]
+    fn dmap_roundtrip() {
+        let dmap = Dmap::new(vec![EncodingRecord::new(
+            PlatformId::Windows,
+            10,
+            CmapSubtable::format_12(0, vec![SequentialMapGroup::new(65, 65, 70000)]),
+        )]);
+        let bytes = dump_table(&dmap).unwrap();
+        assert_eq!(Dmap::read(FontData::new(&bytes)).unwrap(), dmap);
+        let mut builder = FontBuilder::new();
+        builder.add_table(&dmap).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert_eq!(
+            font.dmap().unwrap().as_cmap().map_codepoint('A'),
+            Some(GlyphId::new(70000))
+        );
+        assert!(font.cmap().is_err());
+    }
+}
+
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
 const WINDOWS_BMP_ENCODING: u16 = 1;
 const WINDOWS_FULL_REPERTOIRE_ENCODING: u16 = 10;

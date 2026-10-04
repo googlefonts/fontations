@@ -24,6 +24,7 @@ TABLES = [
     ("cmap", "Character to glyph mapping table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/cmap"),
     ("cvar", "CVT variations table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/cvar"),
     ("cvt ", "Control value table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/cvt"),
+    ("DMAP", "Delta character mapping table.", "https://www.iso.org/obp/ui/#iso:std:iso-iec:14496:-22:ed-5:v1:en"),
     ("DSIG", "Digital signature table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/dsig"),
     ("EBDT", "Embedded bitmap data table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt"),
     ("EBLC", "Embedded bitmap location data table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/eblc"),

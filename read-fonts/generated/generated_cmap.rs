@@ -93,6 +93,94 @@ impl Default for Cmap<'_> {
     }
 }
 
+impl<'a> MinByteRange<'a> for Dmap<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.encoding_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl TopLevelTable for Dmap<'_> {
+    /// `DMAP`
+    const TAG: Tag = Tag::new(b"DMAP");
+}
+
+impl ReadArgs for Dmap<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Dmap<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Delta map table (ISO/IEC 14496-22:2026, 5.6.15).
+#[derive(Clone)]
+pub struct Dmap<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Dmap<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Table version number (0).
+    pub fn version(&self) -> u16 {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of encoding tables that follow.
+    pub fn num_tables(&self) -> u16 {
+        let range = self.num_tables_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn encoding_records(&self) -> &'a [EncodingRecord] {
+        let range = self.encoding_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_tables_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn encoding_records_byte_range(&self) -> Range<usize> {
+        let num_tables = self.num_tables();
+        let start = self.num_tables_byte_range().end;
+        let end =
+            start + (transforms::to_usize(num_tables)).saturating_mul(EncodingRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Dmap::MIN_SIZE));
+
+impl Default for Dmap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -102,8 +190,8 @@ pub struct EncodingRecord {
     pub platform_id: BigEndian<PlatformId>,
     /// Platform-specific encoding ID.
     pub encoding_id: BigEndian<u16>,
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     pub subtable_offset: BigEndian<Offset32>,
 }
 
@@ -118,14 +206,14 @@ impl EncodingRecord {
         self.encoding_id.get()
     }
 
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     pub fn subtable_offset(&self) -> Offset32 {
         self.subtable_offset.get()
     }
 
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
