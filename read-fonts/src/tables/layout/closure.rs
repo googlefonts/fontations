@@ -10,8 +10,8 @@ use super::{
     ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, Feature, FeatureList,
     FeatureVariations, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
     SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4,
-    SequenceLookupRecord, SequenceRule, SequenceRule2, SequenceRuleSet, SequenceRuleSet2,
-    Subtables, Tag,
+    SequenceContextFormat6, SequenceLookupRecord, SequenceRule, SequenceRule2, SequenceRuleSet,
+    SequenceRuleSet2, Subtables, Tag,
 };
 use crate::{
     collections::{FnvHashMap, IntSet},
@@ -877,13 +877,23 @@ impl ChainedClassSequenceRule<'_> {
 pub(crate) enum ContextFormat3<'a> {
     Plain(SequenceContextFormat3<'a>),
     Chain(ChainedSequenceContextFormat3<'a>),
+    PlainWide(SequenceContextFormat6<'a>),
 }
 
 impl ContextFormat3<'_> {
-    pub(crate) fn coverages(&self) -> ArrayOfOffsets<'_, CoverageTable<'_>> {
+    pub(crate) fn input_count(&self) -> usize {
         match self {
-            ContextFormat3::Plain(table) => table.coverages(),
-            ContextFormat3::Chain(table) => table.input_coverages(),
+            Self::Plain(table) => table.coverages().len(),
+            Self::Chain(table) => table.input_coverages().len(),
+            Self::PlainWide(table) => table.coverages().len(),
+        }
+    }
+
+    pub(crate) fn coverage(&self, index: usize) -> Result<CoverageTable<'_>, ReadError> {
+        match self {
+            Self::Plain(table) => table.coverages().get(index),
+            Self::Chain(table) => table.input_coverages().get(index),
+            Self::PlainWide(table) => table.coverages().get(index),
         }
     }
 
@@ -891,22 +901,31 @@ impl ContextFormat3<'_> {
         match self {
             ContextFormat3::Plain(table) => table.seq_lookup_records(),
             ContextFormat3::Chain(table) => table.seq_lookup_records(),
+            ContextFormat3::PlainWide(table) => table.seq_lookup_records(),
         }
     }
 
     pub(crate) fn matches_glyphs(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        for index in 0..self.input_count() {
+            let coverage = match self.coverage(index) {
+                Err(ReadError::NullOffset) => return Ok(false),
+                other => other?,
+            };
+            if !coverage.intersects(glyphs) {
+                return Ok(false);
+            }
+        }
         let (backtrack, lookahead) = match self {
-            Self::Plain(_) => (None, None),
+            Self::Plain(_) | Self::PlainWide(_) => (None, None),
             Self::Chain(table) => (
                 Some(table.backtrack_coverages()),
                 Some(table.lookahead_coverages()),
             ),
         };
 
-        for coverage in self
-            .coverages()
-            .iter_as_nullable()
-            .chain(backtrack.into_iter().flat_map(|x| x.iter_as_nullable()))
+        for coverage in backtrack
+            .into_iter()
+            .flat_map(|x| x.iter_as_nullable())
             .chain(lookahead.into_iter().flat_map(|x| x.iter_as_nullable()))
         {
             let Some(coverage) = coverage.transpose()? else {
@@ -1134,6 +1153,7 @@ impl Intersect for SequenceContext<'_> {
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).intersects(glyph_set),
             Self::Format4(table) => ContextFormat1::PlainWide(table.clone()).intersects(glyph_set),
+            Self::Format6(table) => ContextFormat3::PlainWide(table.clone()).intersects(glyph_set),
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -1148,6 +1168,9 @@ impl LookupClosure for SequenceContext<'_> {
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format4(table) => {
                 ContextFormat1::PlainWide(table.clone()).closure_lookups(c, arg)
+            }
+            Self::Format6(table) => {
+                ContextFormat3::PlainWide(table.clone()).closure_lookups(c, arg)
             }
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),

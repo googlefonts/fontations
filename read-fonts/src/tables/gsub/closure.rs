@@ -752,6 +752,11 @@ impl GlyphClosure for SequenceContext<'_> {
                 lookup_list,
                 lookup_index,
             ),
+            Self::Format6(table) => ContextFormat3::PlainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -1029,8 +1034,7 @@ impl GlyphClosure for ContextFormat3<'_> {
         }
 
         let mut seen_sequence_indices = IntSet::new();
-        let input_coverages = self.coverages();
-        let input_count = input_coverages.len();
+        let input_count = self.input_count();
         let lookups = lookup_list.lookups();
         for record in self.lookup_records() {
             let lookup_index = record.lookup_list_index();
@@ -1047,10 +1051,10 @@ impl GlyphClosure for ContextFormat3<'_> {
             let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
                 ctx.glyphs().clone()
             } else if seq_idx == 0 {
-                let cov = input_coverages.get(0)?;
+                let cov = self.coverage(0)?;
                 cov.intersect_set(ctx.parent_active_glyphs())
             } else {
-                let cov = input_coverages.get(seq_idx as usize)?;
+                let cov = self.coverage(seq_idx as usize)?;
                 cov.intersect_set(ctx.glyphs())
             };
 
@@ -1061,7 +1065,8 @@ impl GlyphClosure for ContextFormat3<'_> {
                 active_glyphs,
                 &mut seen_sequence_indices,
                 seq_idx,
-                input_count as u16 + 1,
+                // Coverage arrays already include the first input glyph.
+                input_count as u16,
             )?;
         }
         Ok(())
