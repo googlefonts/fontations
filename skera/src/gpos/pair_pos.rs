@@ -2,7 +2,7 @@
 
 use crate::{
     gpos::value_record::{compute_effective_format, compute_record_len},
-    layout::{map_gsub_glyph, ClassDefSubsetStruct},
+    layout::{map_gsub_glyph, ClassDefSubsetStruct, ClassMap},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -386,7 +386,7 @@ struct PairPosFormat2Info<'a> {
 
 fn compute_effective_pair_formats_2(
     pairpos2_info: &mut PairPosFormat2Info,
-    class1_map: &FnvHashMap<u16, u16>,
+    class1_map: &ClassMap,
     class2_idxes: &[u16],
     strip_hints: bool,
     strip_empty: bool,
@@ -415,7 +415,7 @@ fn compute_effective_pair_formats_2(
         &mut pairpos2_info.new_format2,
     );
 
-    for i in (0..class1_count).filter(|i| class1_map.contains_key(i)) {
+    for i in (0..class1_count).filter(|i| class1_map.contains_key(&u32::from(*i))) {
         for j in class2_idxes {
             let offset = records_offset + (i as usize * class2_count + *j as usize) * record_size;
             let record1 = ValueRecord::new(font_data, offset, value_format1);
@@ -484,7 +484,8 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         if class1_map.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        let class1_count = class1_map.len() as u16;
+        let class1_count = u16::try_from(class1_map.len())
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
 
         // classdef2 offset
         let classdef2_offset_pos = s.embed(0_u16)?;
@@ -512,7 +513,8 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         if class2_map.len() <= 1 {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        let class2_count = class2_map.len() as u16;
+        let class2_count = u16::try_from(class2_map.len())
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
 
         // class1_count
         s.embed(class1_count)?;
@@ -522,7 +524,7 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         // value formats
         let (subset_state, font) = args;
         let class2_idxes: Vec<u16> = (0..self.class2_count())
-            .filter(|i| class2_map.contains_key(i))
+            .filter(|i| class2_map.contains_key(&u32::from(*i)))
             .collect();
 
         let value_format1 = self.value_format1();
@@ -574,7 +576,7 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         s.copy_assign(value_format2_pos, pairpos2_info.new_format2);
 
         // serialize value records
-        for i in (0..self.class1_count()).filter(|i| class1_map.contains_key(i)) {
+        for i in (0..self.class1_count()).filter(|i| class1_map.contains_key(&u32::from(*i))) {
             for j in &class2_idxes {
                 let offset =
                     records_offset + (i as usize * class2_count + *j as usize) * record_size;

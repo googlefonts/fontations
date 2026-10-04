@@ -395,7 +395,7 @@ fn clone_range_format2(
         .filter(|(_, c)| *c >= start && *c < end)
     {
         new_cov_glyphs.push(g);
-        gid_and_new_classes.push((g.to_u32() as u16, class - start));
+        gid_and_new_classes.push((g.to_u32(), u32::from(class - start)));
     }
 
     add_new_coverage(
@@ -449,7 +449,7 @@ fn shrink_format2(
         .filter(|(_, c)| *c < shrink_point)
     {
         new_cov_glyphs.push(g);
-        gid_and_new_classes.push((g.to_u32() as u16, class));
+        gid_and_new_classes.push((g.to_u32(), u32::from(class)));
     }
 
     make_coverage(
@@ -881,10 +881,10 @@ fn make_class_def(
     parent_idx: ObjIdx,
     dest_idx: ObjIdx,
     pos: u32,
-    glyph_classes: &[(u16, u16)],
+    glyph_classes: &[(u32, u32)],
 ) -> Result<(), RepackError> {
     let dest_idx = graph.unshared_child(parent_idx, dest_idx, pos)?;
-    let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
+    let mut s = Serializer::new(glyph_classes.len() * 8 + 8);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -898,11 +898,11 @@ fn make_class_def(
 fn add_new_class_def(
     graph: &mut Graph,
     parent_idx: ObjIdx,
-    glyph_classes: &[(u16, u16)],
+    glyph_classes: &[(u32, u32)],
     position: u32,
 ) -> Result<ObjIdx, RepackError> {
     let new_class_def_idx = graph.new_vertex(0)?;
-    let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
+    let mut s = Serializer::new(glyph_classes.len() * 8 + 8);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -926,7 +926,7 @@ fn add_new_class_def(
 pub(crate) mod test {
     use super::*;
 
-    fn actual_class_def_size(glyph_and_classes: &[(u16, u16)]) -> usize {
+    fn actual_class_def_size(glyph_and_classes: &[(u32, u32)]) -> usize {
         let mut s = Serializer::new(100);
         s.start_serialize().unwrap();
         ClassDef::serialize(&mut s, glyph_and_classes).unwrap();
@@ -951,7 +951,7 @@ pub(crate) mod test {
         let mut filtered_glyph_classes = Vec::new();
         let mut filtered_glyphs = Vec::new();
         for &(g, class) in glyph_and_classes.iter().filter(|(_, c)| *c == class) {
-            filtered_glyph_classes.push((g.to_u32() as u16, class));
+            filtered_glyph_classes.push((g.to_u32(), u32::from(class)));
             filtered_glyphs.push(g);
         }
         let actual_class_def_size = actual_class_def_size(&filtered_glyph_classes);
@@ -976,7 +976,7 @@ pub(crate) mod test {
             .iter()
             .filter(|(_, c)| classes.contains(*c))
         {
-            filtered_glyph_classes.push((g.to_u32() as u16, class));
+            filtered_glyph_classes.push((g.to_u32(), u32::from(class)));
             filtered_glyphs.push(g);
         }
 

@@ -432,7 +432,7 @@ impl Intersect for ClassDefFormat2<'_> {
         let num_ranges = self.class_range_count();
         let num_bits = 16 - num_ranges.leading_zeros();
         if num_ranges as u64 > glyph_set.len() * num_bits as u64 {
-            for g in glyph_set.iter().map(|g| GlyphId16::from(g.to_u32() as u16)) {
+            for g in glyph_set.iter() {
                 if self.get(g) != 0 {
                     return Ok(true);
                 }
@@ -1147,5 +1147,16 @@ mod tests {
         let glyphs: IntSet<GlyphId> = [GlyphId::new(14)].into_iter().collect();
 
         assert!(!classdef.intersects(&glyphs).unwrap());
+    }
+
+    #[test]
+    fn classdef_format2_does_not_alias_wide_glyphs() {
+        let bytes = [
+            0, 2, 0, 3, 0, 1, 0, 1, 0, 1, 0, 2, 0, 2, 0, 1, 0, 3, 0, 3, 0, 1,
+        ];
+        let classdef = ClassDefFormat2::read(FontData::new(&bytes)).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(65537)].into_iter().collect();
+        assert!(!classdef.intersects(&glyphs).unwrap());
+        assert!(!ClassDef::Format2(classdef).intersects(&glyphs).unwrap());
     }
 }
