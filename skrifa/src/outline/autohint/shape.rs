@@ -2,6 +2,7 @@
 
 use super::style::{GlyphStyle, StyleClass};
 use crate::{charmap::Charmap, collections::SmallVec, FontRef, GlyphId, MetadataProvider};
+use alloc::vec::Vec;
 use core::ops::Range;
 use raw::{
     tables::{
@@ -9,10 +10,11 @@ use raw::{
             ChainedSequenceContext, Gsub, SequenceContext, SingleSubst, SubstitutionLookupList,
             SubstitutionSubtables,
         },
-        layout::{Feature, ScriptTags},
+        layout::{FeatureLookupsFlags, ScriptTags},
         varc::CoverageTable,
+        variations::DeltaSetIndex,
     },
-    types::Tag,
+    types::{F2Dot14, Tag},
     TableProvider,
 };
 
@@ -83,6 +85,7 @@ pub(crate) struct Shaper<'a> {
     mode: ShaperMode,
     charmap: Charmap<'a>,
     gsub: Option<Gsub<'a>>,
+    coords: &'a [F2Dot14],
 }
 
 impl<'a> Shaper<'a> {
@@ -96,7 +99,122 @@ impl<'a> Shaper<'a> {
             mode,
             charmap,
             gsub,
+            coords: &[],
         }
+    }
+
+    pub fn with_coords(mut self, coords: &'a [F2Dot14]) -> Self {
+        self.coords = coords;
+        self
+    }
+
+    fn lookup_indices(&self, feature_ix: u16, all_locations: bool) -> Option<Vec<u16>> {
+        let gsub = self.gsub.as_ref()?;
+        let feature = gsub.feature_list().ok()?.get(feature_ix).ok()?.element;
+        let mut lookups: Vec<_> = feature
+            .lookup_list_indices()
+            .iter()
+            .map(|ix| ix.get())
+            .collect();
+        let Some(variations) = gsub.feature_variations().transpose().ok().flatten() else {
+            return Some(lookups);
+        };
+        let store = self
+            .font
+            .gdef()
+            .ok()
+            .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten());
+        let delta = |index: u32| {
+            Ok::<_, core::convert::Infallible>(
+                store
+                    .as_ref()
+                    .and_then(|store| {
+                        store.compute_delta(
+                            DeltaSetIndex {
+                                outer: (index >> 16) as u16,
+                                inner: index as u16,
+                            },
+                            self.coords,
+                        )
+                    })
+                    .unwrap_or_default()
+                    .to_f64(),
+            )
+        };
+        let selected = (!all_locations)
+            .then(|| variations.index_for_coords_with_delta(self.coords, delta))
+            .flatten();
+        for (index, record) in variations.feature_variation_records().iter().enumerate() {
+            if !all_locations && selected != Some(index as u32) {
+                continue;
+            }
+            let Some(Ok(substitution)) =
+                record.feature_table_substitution(variations.offset_data())
+            else {
+                continue;
+            };
+            if let Some(alternate) = substitution
+                .substitutions()
+                .iter()
+                .find(|rec| rec.feature_index() == feature_ix)
+                .filter(|rec| !rec.alternate_feature_offset().is_null())
+                .and_then(|rec| rec.alternate_feature(substitution.offset_data()).ok())
+            {
+                if !all_locations {
+                    lookups.clear();
+                }
+                lookups.extend(alternate.lookup_list_indices().iter().map(|ix| ix.get()));
+            }
+        }
+        if let Some(records) = variations.lookup_variation_records().filter(|records| {
+            variations.version().major == 1
+                && !records
+                    .windows(2)
+                    .any(|pair| pair[0].feature_index() >= pair[1].feature_index())
+        }) {
+            if let Some(conditional) = records
+                .iter()
+                .find(|rec| rec.feature_index() == feature_ix)
+                .filter(|rec| rec.feature_lookups_offset().to_u32() != 0)
+                .and_then(|rec| rec.feature_lookups(variations.offset_data()).ok())
+                .filter(|table| {
+                    table.version().major == 1
+                        && table.lookup_condition_records().len()
+                            == table.lookup_condition_count() as usize
+                })
+            {
+                if !all_locations
+                    && !conditional
+                        .flags()
+                        .contains(FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS)
+                {
+                    lookups.clear();
+                }
+                for condition in conditional.lookup_condition_records() {
+                    if !all_locations
+                        && condition
+                            .evaluate(conditional.offset_data(), self.coords, delta)
+                            .ok()
+                            != Some(true)
+                    {
+                        continue;
+                    }
+                    if condition.lookup_index_list_offset().to_u32() == 0 {
+                        continue;
+                    }
+                    if let Ok(indices) = condition.lookup_index_list(conditional.offset_data()) {
+                        if indices.lookup_indices().len()
+                            == usize::from(indices.lookup_index_count())
+                        {
+                            lookups.extend(indices.lookup_indices().iter().map(|ix| ix.get()));
+                        }
+                    }
+                }
+            }
+        }
+        lookups.sort_unstable();
+        lookups.dedup();
+        Some(lookups)
     }
 
     pub fn font(&self) -> &FontRef<'a> {
@@ -128,14 +246,14 @@ impl<'a> Shaper<'a> {
                     let lang_sys = script.default_lang_sys()?.ok()?;
                     let feature_list = gsub.feature_list().ok()?;
                     let feature_ix = lang_sys.feature_index_for_tag(&feature_list, feature_tag)?;
-                    let feature = feature_list.get(feature_ix).ok()?.element;
+                    let feature = self.lookup_indices(feature_ix, false)?;
                     let lookup_list = gsub.lookup_list().ok()?;
                     Some((lookup_list, feature))
                 }) {
                     return ClusterShaper {
                         shaper: self,
                         lookup_list: Some(lookup_list),
-                        kind: ClusterShaperKind::SingleFeature(feature),
+                        kind: ClusterShaperKind::Lookups(feature),
                     };
                 }
             }
@@ -221,14 +339,16 @@ impl<'a> Shaper<'a> {
                 .chain(script.default_lang_sys().transpose().ok().flatten())
             {
                 for feature_ix in langsys.feature_indices() {
-                    let Some(feature) = feature_list
+                    let Some(lookups) = feature_list
                         .feature_records()
                         .get(feature_ix.get() as usize)
                         .and_then(|rec| {
                             // If our style has a feature tag, we only look at that specific
                             // feature; otherwise, handle all of them
                             if style.feature == Some(rec.feature_tag()) || style.feature.is_none() {
-                                rec.feature(feature_list.offset_data()).ok()
+                                // Style coverage is shared by all instances, so
+                                // include every possible conditional lookup.
+                                self.lookup_indices(feature_ix.get(), true)
                             } else {
                                 None
                             }
@@ -237,9 +357,9 @@ impl<'a> Shaper<'a> {
                         continue;
                     };
                     // And now process associated lookups
-                    for index in feature.lookup_list_indices().iter() {
+                    for index in lookups {
                         // We only care about errors here for testing
-                        let _ = gsub_handler.process_lookup(index.get());
+                        let _ = gsub_handler.process_lookup(index);
                     }
                 }
             }
@@ -263,7 +383,7 @@ impl<'a> Shaper<'a> {
 pub(crate) struct ClusterShaper<'a> {
     shaper: &'a Shaper<'a>,
     lookup_list: Option<SubstitutionLookupList<'a>>,
-    kind: ClusterShaperKind<'a>,
+    kind: ClusterShaperKind,
 }
 
 impl ClusterShaper<'_> {
@@ -277,7 +397,7 @@ impl ClusterShaper<'_> {
                 y_offset: 0,
             });
         }
-        match self.kind.clone() {
+        match &self.kind {
             ClusterShaperKind::Nominal => {
                 // In nominal mode, reject clusters with multiple glyphs
                 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afshaper.c#L639>
@@ -285,12 +405,12 @@ impl ClusterShaper<'_> {
                     output.clear();
                 }
             }
-            ClusterShaperKind::SingleFeature(feature) => {
+            ClusterShaperKind::Lookups(lookups) => {
                 let mut did_subst = false;
-                for lookup_ix in feature.lookup_list_indices() {
+                for lookup_ix in lookups {
                     let mut glyph_ix = 0;
                     while glyph_ix < output.len() {
-                        did_subst |= self.apply_lookup(lookup_ix.get(), output, glyph_ix, 0);
+                        did_subst |= self.apply_lookup(*lookup_ix, output, glyph_ix, 0);
                         glyph_ix += 1;
                     }
                 }
@@ -395,10 +515,9 @@ impl ClusterShaper<'_> {
     }
 }
 
-#[derive(Clone)]
-enum ClusterShaperKind<'a> {
+enum ClusterShaperKind {
     Nominal,
-    SingleFeature(Feature<'a>),
+    Lookups(Vec<u16>),
 }
 
 /// Captures glyphs from the GSUB table that aren't present in cmap.
@@ -895,6 +1014,119 @@ mod tests {
         assert_eq!(cluster.len(), 1);
         // from ttx, gid 1 is "H"
         assert_eq!(cluster[0].id, GlyphId::new(1));
+    }
+
+    fn conditional_gsub(add_defaults: bool, alternate: bool, conditional: bool) -> Vec<u8> {
+        fn words(values: &[u16]) -> Vec<u8> {
+            values
+                .iter()
+                .flat_map(|value| value.to_be_bytes())
+                .collect()
+        }
+        fn offset16(bytes: &mut [u8], pos: usize, value: usize) {
+            bytes[pos..pos + 2].copy_from_slice(&(value as u16).to_be_bytes());
+        }
+        fn offset32(bytes: &mut [u8], pos: usize, value: usize) {
+            bytes[pos..pos + 4].copy_from_slice(&(value as u32).to_be_bytes());
+        }
+        let mut bytes = words(&[1, 1, 14, 0, 0, 0, 0]);
+        // Latin default language system with one c2sc feature.
+        bytes.extend(words(&[1, 0x6c61, 0x746e, 8, 4, 0, 0, 0xffff, 1, 0]));
+        let start = bytes.len();
+        offset16(&mut bytes, 6, start);
+        bytes.extend(words(&[1, 0x6332, 0x7363, 8, 0, 1, 0]));
+        let start = bytes.len();
+        offset16(&mut bytes, 8, start);
+        // Lookup 0: H -> gid 8; lookup 1: H -> gid 9.
+        bytes.extend(words(&[2, 6, 28]));
+        for output in [8, 9] {
+            bytes.extend(words(&[1, 0, 1, 8, 2, 8, 1, output, 1, 1, 1]));
+        }
+        let fv = bytes.len();
+        offset32(&mut bytes, 10, fv);
+        bytes.extend(words(&[1, 1, 0, u16::from(alternate)]));
+        if alternate {
+            // Universal feature variation; substitute lookup 1 for lookup 0.
+            bytes.extend(words(&[0, 0, 0, 0]));
+        }
+        bytes.extend(words(&[0, 1, 0, 0, 0]));
+        let record = bytes.len() - 6;
+        let fl = bytes.len();
+        offset32(&mut bytes, record + 2, fl - fv);
+        bytes.extend(words(&[1, 0, u16::from(add_defaults), 0, 1, 0, 0, 0, 0]));
+        let list = bytes.len();
+        offset32(&mut bytes, fl + 14, list - fl);
+        bytes.extend(words(&[2, 1, 1])); // Duplicate indices must be deduplicated.
+        if conditional {
+            let condition = bytes.len();
+            offset32(&mut bytes, fl + 10, condition - fl);
+            bytes.extend(words(&[1, 0, 0x1000, 0x4000])); // Axis 0 in [0.25, 1].
+        }
+        if alternate {
+            let substitution = bytes.len();
+            offset32(&mut bytes, fv + 12, substitution - fv);
+            bytes.extend(words(&[1, 0, 1, 0, 0, 12, 0, 1, 1]));
+        }
+        bytes
+    }
+
+    #[test]
+    fn conditional_lookups_shape_metrics_at_current_location() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
+        for add_defaults in [false, true] {
+            for alternate in [false, true] {
+                for conditional in [false, true] {
+                    let bytes = conditional_gsub(add_defaults, alternate, conditional);
+                    for coord in [0.0, 0.5] {
+                        let coords = [F2Dot14::from_f32(coord)];
+                        // Empty and explicitly zero coordinates select the same lookups.
+                        for coords in [coords.as_slice(), if coord == 0.0 { &[] } else { &coords }]
+                        {
+                            let mut shaper =
+                                Shaper::new(&font, ShaperMode::BestEffort).with_coords(coords);
+                            shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
+                            let mut expected = Vec::new();
+                            if add_defaults {
+                                expected.push(u16::from(alternate));
+                            }
+                            if !conditional || coord >= 0.25 {
+                                expected.push(1);
+                            }
+                            expected.sort_unstable();
+                            expected.dedup();
+                            assert_eq!(shaper.lookup_indices(0, false), Some(expected.clone()));
+                            assert_eq!(shaper.lookup_indices(0, true), Some(vec![0, 1]));
+                            let mut cluster = ShapedCluster::new();
+                            shaper.cluster_shaper(style).shape("H", &mut cluster);
+                            let output = expected
+                                .first()
+                                .map(|index| GlyphId::new(8 + u32::from(*index)));
+                            assert_eq!(cluster.first().map(|glyph| glyph.id), output);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn conditional_coverage_includes_outputs_from_all_locations() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let bytes = conditional_gsub(false, false, true);
+        let mut shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
+        let mut styles = [GlyphStyle::default(); 10];
+        let mut visited = [0; 1];
+        assert!(shaper.compute_coverage(
+            style,
+            ShaperCoverageKind::Script,
+            &mut styles,
+            &mut VisitedLookupSet::new(&mut visited)
+        ));
+        assert_eq!(styles[8].style_index(), Some(style.index as u16));
+        assert_eq!(styles[9].style_index(), Some(style.index as u16));
     }
 
     #[test]
