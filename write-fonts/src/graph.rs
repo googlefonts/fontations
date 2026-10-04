@@ -593,10 +593,9 @@ impl Graph {
         true
     }
 
-    /// Find the root nodes of 32 (and later 24?)-bit space.
+    /// Find the root nodes of wide-offset spaces.
     ///
-    /// These are the set of nodes that have incoming long offsets, for which
-    /// no ancestor has an incoming long offset.
+    /// Prefer nested 32-bit roots over their enclosing wide-offset lists.
     ///
     /// Ported from the [find_space_roots] method in HarfBuzz.
     ///
@@ -613,16 +612,49 @@ impl Graph {
             }
             let obj = self.objects.get(&id).unwrap();
             for link in &obj.offsets {
-                //FIXME: harfbuzz has a bunch of logic here for 24-bit offsets
-                if link.len == OffsetLen::Offset32 {
-                    roots.insert(link.object);
-                    self.find_subgraph_hb(link.object, &mut visited);
+                if link.len != OffsetLen::Offset16 {
+                    // LookupList2 is itself reached through a wide header
+                    // offset. Its lookups, not the whole list, must become
+                    // separate spaces so narrow links can be packed locally.
+                    let nested = self.find_32bit_roots_hb(link.object);
+                    if nested.is_empty() {
+                        roots.insert(link.object);
+                        self.find_subgraph_hb(link.object, &mut visited);
+                    } else {
+                        for root in nested {
+                            roots.insert(root);
+                            self.find_subgraph_hb(root, &mut visited);
+                        }
+                    }
                 } else {
                     queue.push_back(link.object);
                 }
             }
         }
         (visited, roots)
+    }
+
+    /// Find topmost 32-bit roots within a wide-offset subgraph.
+    fn find_32bit_roots_hb(&self, start: ObjectId) -> BTreeSet<ObjectId> {
+        let mut visited = HashSet::new();
+        let mut roots = BTreeSet::new();
+        let mut queue = VecDeque::from([start]);
+        while let Some(id) = queue.pop_front() {
+            if !visited.insert(id) {
+                continue;
+            }
+            for link in &self.objects[&id].offsets {
+                if link.len == OffsetLen::Offset32 {
+                    roots.insert(link.object);
+                    visited.insert(link.object);
+                } else {
+                    queue.push_back(link.object);
+                }
+            }
+        }
+        // BFS also prevents traversing a node queued through a narrow link
+        // when another link at the same level makes it a wide-offset root.
+        roots
     }
 
     fn find_subgraph_hb(&self, idx: ObjectId, nodes: &mut HashSet<ObjectId>) {
@@ -1550,6 +1582,30 @@ mod tests {
         // ensure we are correctly update the roots_per_space thing
         assert_eq!(graph.num_roots_per_space[&graph.nodes[&ids[6]].space], 1);
         assert_eq!(graph.num_roots_per_space[&graph.nodes[&ids[5]].space], 1);
+    }
+
+    #[test]
+    fn pack_extended_header_with_nested_wide_lookup_offsets() {
+        // GSUB/GPOS 1.2: the header and LookupList2 both use Offset32.
+        // Two lookups share large coverage tables through narrow offsets.
+        // Isolating the entire list leaves only one root, so the coverage
+        // tables cannot be duplicated into independently packed lookups.
+        let ids = make_ids::<8>();
+        let sizes = [26, 10, 8, 8, 14, 14, 65520, 65520];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[3], OffsetLen::Offset32)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[5], OffsetLen::Offset16)
+            .add_link(ids[4], ids[6], OffsetLen::Offset16)
+            .add_link(ids[4], ids[7], OffsetLen::Offset16)
+            .add_link(ids[5], ids[6], OffsetLen::Offset16)
+            .add_link(ids[5], ids[7], OffsetLen::Offset16)
+            .build();
+        assert!(graph.pack_objects());
+        assert!(!graph.has_overflows());
+        assert_eq!(graph.nodes.len(), 10);
     }
 
     #[test]
