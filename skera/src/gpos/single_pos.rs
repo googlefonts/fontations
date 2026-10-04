@@ -339,7 +339,7 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
             for idx in glyph_set
                 .iter()
                 .filter_map(|g| coverage.get(g))
-                .filter(|idx| *idx < value_count)
+                .filter(|idx| *idx < u32::from(value_count))
             {
                 let offset = records_offset + idx as usize * record_size;
                 let value_record = ValueRecord::new(font_data, offset, value_format);

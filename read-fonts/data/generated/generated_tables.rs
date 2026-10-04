@@ -29,6 +29,8 @@ struct PerTableData<T> {
     cvar: T,
     /// Control value table.
     cvt: T,
+    /// Delta character mapping table.
+    dmap: T,
     /// Digital signature table.
     dsig: T,
     /// Embedded bitmap data table.
@@ -132,6 +134,7 @@ impl<T> PerTableData<T> {
         f(Tag::new(b"cmap"), &mut self.cmap);
         f(Tag::new(b"cvar"), &mut self.cvar);
         f(Tag::new(b"cvt "), &mut self.cvt);
+        f(Tag::new(b"DMAP"), &mut self.dmap);
         f(Tag::new(b"DSIG"), &mut self.dsig);
         f(Tag::new(b"EBDT"), &mut self.ebdt);
         f(Tag::new(b"EBLC"), &mut self.eblc);
@@ -230,6 +233,10 @@ trait TableDataProvider<'a> where Self: 'a {
 
     fn cvt(&self) -> Option<TableState<'a>> {
         self.table_state(Tag::new(b"cvt "), &self.tables().cvt)
+    }
+
+    fn dmap(&self) -> Option<TableState<'a>> {
+        self.table_state(Tag::new(b"DMAP"), &self.tables().dmap)
     }
 
     fn dsig(&self) -> Option<TableState<'a>> {
@@ -584,6 +591,21 @@ impl Tables {
             TableSource::None => None,
             TableSource::Blob(blob) => blob.cvt(),
             TableSource::Function(func) => func.cvt(),
+        }
+    }
+
+    /// Delta character mapping table data.
+    ///
+    /// See the [DMAP](https://www.iso.org/obp/ui/#iso:std:iso-iec:14496:-22:ed-5:v1:en) specification.
+    pub fn dmap_data(&self) -> Option<&'_ [u8]> {
+        self.dmap_state().map(|state| state.data)
+    }
+
+    fn dmap_state(&self) -> Option<TableState<'_>> {
+        match &self.0 {
+            TableSource::None => None,
+            TableSource::Blob(blob) => blob.dmap(),
+            TableSource::Function(func) => func.dmap(),
         }
     }
 

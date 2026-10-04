@@ -13,14 +13,27 @@ table Cmap {
     encoding_records: [EncodingRecord],
 }
 
+/// Delta map table (ISO/IEC 14496-22:2026, 5.6.15).
+#[tag = "DMAP"]
+table Dmap {
+    /// Table version number (0).
+    #[compile(0)]
+    version: u16,
+    /// Number of encoding tables that follow.
+    #[compile(array_len($encoding_records))]
+    num_tables: u16,
+    #[count($num_tables)]
+    encoding_records: [EncodingRecord],
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 record EncodingRecord {
     /// Platform ID.
     platform_id: PlatformId,
     /// Platform-specific encoding ID.
     encoding_id: u16,
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     subtable_offset: Offset32<CmapSubtable>,
 }
 

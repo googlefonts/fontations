@@ -72,6 +72,71 @@ impl<'a> FontRead<'a> for Cmap {
     }
 }
 
+/// Delta map table (ISO/IEC 14496-22:2026, 5.6.15).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Dmap {
+    pub encoding_records: Vec<EncodingRecord>,
+}
+
+impl Dmap {
+    /// Construct a new `Dmap`
+    pub fn new(encoding_records: Vec<EncodingRecord>) -> Self {
+        Self { encoding_records }
+    }
+}
+
+impl FontWrite for Dmap {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (0 as u16).write_into(writer);
+        (u16::try_from(array_len(&self.encoding_records)).unwrap()).write_into(writer);
+        self.encoding_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Dmap::TAG)
+    }
+}
+
+impl Validate for Dmap {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Dmap", |ctx| {
+            ctx.in_field("encoding_records", |ctx| {
+                if self.encoding_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.encoding_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl TopLevelTable for Dmap {
+    const TAG: Tag = Tag::new(b"DMAP");
+}
+
+impl<'a> FromObjRef<read_fonts::tables::cmap::Dmap<'a>> for Dmap {
+    fn from_obj_ref(obj: &read_fonts::tables::cmap::Dmap<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Dmap {
+            encoding_records: obj.encoding_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::cmap::Dmap<'a>> for Dmap {}
+
+impl ReadArgs for Dmap {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Dmap {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::cmap::Dmap as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -80,8 +145,8 @@ pub struct EncodingRecord {
     pub platform_id: PlatformId,
     /// Platform-specific encoding ID.
     pub encoding_id: u16,
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     pub subtable: OffsetMarker<CmapSubtable, WIDTH_32>,
 }
 

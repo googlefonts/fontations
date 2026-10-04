@@ -141,6 +141,10 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn dmap(&self) -> Result<tables::cmap::Dmap<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn gdef(&self) -> Result<tables::gdef::Gdef<'a>, ReadError> {
         self.expect_table()
     }

@@ -318,6 +318,10 @@ impl<'a> TableProvider<'a> for &'a Tables {
         self.load_table(self.cmap_state())
     }
 
+    fn dmap(&self) -> Result<tables::cmap::Dmap<'a>, ReadError> {
+        self.load_table(self.dmap_state())
+    }
+
     fn gdef(&self) -> Result<tables::gdef::Gdef<'a>, ReadError> {
         self.load_table(self.gdef_state())
     }

@@ -31,6 +31,13 @@ pub enum MapVariant {
     Variant(GlyphId),
 }
 
+impl<'a> Dmap<'a> {
+    /// Returns a cmap view of this table, whose structure and subtables are identical.
+    pub fn as_cmap(&self) -> Cmap<'a> {
+        Cmap { data: self.data }
+    }
+}
+
 impl<'a> Cmap<'a> {
     /// Map a codepoint to a nominal glyph identifier
     ///
