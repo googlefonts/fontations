@@ -1,5 +1,7 @@
 //! impl subset() for PairPos subtable
 
+#[cfg(test)]
+mod class_tests;
 mod extended;
 #[cfg(test)]
 mod extended_tests;
@@ -20,8 +22,8 @@ use write_fonts::{
         collections::IntSet,
         tables::{
             gpos::{
-                PairPos, PairPosFormat1, PairPosFormat2, PairPosFormat3, PairSet, PairSet2,
-                ValueFormat, ValueRecord,
+                PairPos, PairPosFormat1, PairPosFormat2, PairPosFormat3, PairPosFormat4, PairSet,
+                PairSet2, ValueFormat, ValueRecord,
             },
             layout::CoverageTable,
         },
@@ -45,7 +47,7 @@ impl<'a> SubsetTable<'a> for PairPos<'_> {
             Self::Format1(item) => item.subset(plan, s, args),
             Self::Format2(item) => item.subset(plan, s, args),
             Self::Format3(item) => item.subset(plan, s, args),
-            Self::Format4(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+            Self::Format4(item) => item.subset(plan, s, args),
         }
     }
 }
@@ -475,168 +477,195 @@ fn compute_effective_pair_formats_2(
     Ok(())
 }
 
-impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        if self.coverage_offset().is_null()
-            || self.class_def1_offset().is_null()
-            || self.class_def2_offset().is_null()
-        {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let Ok(coverage) = self.coverage() else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-        };
+macro_rules! subset_class_pairs {
+    ($table:ident, $offset:ident) => {
+        impl<'a> SubsetTable<'a> for $table<'_> {
+            type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<(), SerializeErrorFlags> {
+                if self.coverage_offset().is_null()
+                    || self.class_def1_offset().is_null()
+                    || self.class_def2_offset().is_null()
+                {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                if self.min_table_bytes().is_empty() {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                let Ok(coverage) = self.coverage() else {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                };
 
-        // format
-        s.embed(self.pos_format())?;
+                // format
+                s.embed(self.pos_format())?;
 
-        // coverage offset
-        let cov_offset_pos = s.embed(0_u16)?;
+                // coverage offset
+                let cov_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
 
-        // value format
-        let value_format1_pos = s.embed(0_u16)?;
-        let value_format2_pos = s.embed(0_u16)?;
+                // value format
+                let value_format1_pos = s.embed(0_u16)?;
+                let value_format2_pos = s.embed(0_u16)?;
 
-        // classdef1 offset
-        let classdef1_offset_pos = s.embed(0_u16)?;
-        let class_def1 = self
-            .class_def1()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let class1_map = match Offset16::serialize_subset(
-            &class_def1,
-            s,
-            plan,
-            &ClassDefSubsetStruct {
-                remap_class: true,
-                keep_empty_table: true,
-                use_class_zero: true,
-                glyph_filter: Some(&coverage),
-            },
-            classdef1_offset_pos,
-        ) {
-            Ok(Some(out)) => out,
-            _ => FnvHashMap::default(),
-        };
+                // classdef1 offset
+                let classdef1_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                let class_def1 = self
+                    .class_def1()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                let Some(class1_map) = $offset::serialize_subset(
+                    &class_def1,
+                    s,
+                    plan,
+                    &ClassDefSubsetStruct {
+                        remap_class: true,
+                        keep_empty_table: true,
+                        use_class_zero: true,
+                        glyph_filter: Some(&coverage),
+                    },
+                    classdef1_offset_pos,
+                )?
+                else {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+                };
 
-        if class1_map.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let class1_count = u16::try_from(class1_map.len())
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                if class1_map.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                if class1_map
+                    .keys()
+                    .any(|&class| class >= u32::from(self.class1_count()))
+                {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                let class1_count = u16::try_from(class1_map.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
 
-        // classdef2 offset
-        let classdef2_offset_pos = s.embed(0_u16)?;
-        let class_def2 = self
-            .class_def2()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                // classdef2 offset
+                let classdef2_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                let class_def2 = self
+                    .class_def2()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let class2_map = match Offset16::serialize_subset(
-            &class_def2,
-            s,
-            plan,
-            &ClassDefSubsetStruct {
-                remap_class: true,
-                keep_empty_table: true,
-                use_class_zero: false,
-                glyph_filter: None,
-            },
-            classdef2_offset_pos,
-        ) {
-            Ok(Some(out)) => out,
-            _ => FnvHashMap::default(),
-        };
+                let Some(class2_map) = $offset::serialize_subset(
+                    &class_def2,
+                    s,
+                    plan,
+                    &ClassDefSubsetStruct {
+                        remap_class: true,
+                        keep_empty_table: true,
+                        use_class_zero: false,
+                        glyph_filter: None,
+                    },
+                    classdef2_offset_pos,
+                )?
+                else {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+                };
 
-        // If only Class2 0 left, no need to keep anything.
-        if class2_map.len() <= 1 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let class2_count = u16::try_from(class2_map.len())
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                if class2_map
+                    .keys()
+                    .any(|&class| class >= u32::from(self.class2_count()))
+                {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
 
-        // class1_count
-        s.embed(class1_count)?;
-        // class2_count
-        s.embed(class2_count)?;
+                // If only Class2 0 left, no need to keep anything.
+                if class2_map.len() <= 1 {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                let class2_count = u16::try_from(class2_map.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
 
-        // value formats
-        let (subset_state, font) = args;
-        let class2_idxes: Vec<u16> = (0..self.class2_count())
-            .filter(|i| class2_map.contains_key(&u32::from(*i)))
-            .collect();
+                // class1_count
+                s.embed(class1_count)?;
+                // class2_count
+                s.embed(class2_count)?;
 
-        let value_format1 = self.value_format1();
-        let value_format2 = self.value_format2();
-        let class2_count = self.class2_count() as usize;
-        let records_offset = self.class2_count_byte_range().end;
-        let record1_size = compute_record_len(value_format1);
-        let record_size = record1_size + compute_record_len(value_format2);
-        let font_data = self.offset_data();
-        let class1_count = self.class1_count();
-        let mut pairpos2_info = PairPosFormat2Info {
-            font_data,
-            value_format1,
-            value_format2,
-            class1_count,
-            class2_count,
-            records_offset,
-            record1_size,
-            record_size,
-            new_format1: ValueFormat::empty(),
-            new_format2: ValueFormat::empty(),
-        };
+                // value formats
+                let (subset_state, font) = args;
+                let class2_idxes: Vec<u16> = (0..self.class2_count())
+                    .filter(|i| class2_map.contains_key(&u32::from(*i)))
+                    .collect();
 
-        if plan
-            .subset_flags
-            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
-        {
-            // do not strip hints for VF unless it has no GDEF varstore after subsetting
-            let strip_hints = if font.fvar().is_ok() {
-                !subset_state.has_gdef_varstore
-            } else {
-                true
-            };
+                let value_format1 = self.value_format1();
+                let value_format2 = self.value_format2();
+                let class2_count = self.class2_count() as usize;
+                let records_offset = self.class2_count_byte_range().end;
+                let record1_size = compute_record_len(value_format1);
+                let record_size = record1_size + compute_record_len(value_format2);
+                let font_data = self.offset_data();
+                let class1_count = self.class1_count();
+                let mut pairpos2_info = PairPosFormat2Info {
+                    font_data,
+                    value_format1,
+                    value_format2,
+                    class1_count,
+                    class2_count,
+                    records_offset,
+                    record1_size,
+                    record_size,
+                    new_format1: ValueFormat::empty(),
+                    new_format2: ValueFormat::empty(),
+                };
 
-            compute_effective_pair_formats_2(
-                &mut pairpos2_info,
-                &class1_map,
-                &class2_idxes,
-                strip_hints,
-                true,
-            )
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        } else {
-            pairpos2_info.new_format1 = value_format1;
-            pairpos2_info.new_format2 = value_format2;
-        };
+                if plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                {
+                    // do not strip hints for VF unless it has no GDEF varstore after subsetting
+                    let strip_hints = if font.fvar().is_ok() {
+                        !subset_state.has_gdef_varstore
+                    } else {
+                        true
+                    };
 
-        s.copy_assign(value_format1_pos, pairpos2_info.new_format1);
-        s.copy_assign(value_format2_pos, pairpos2_info.new_format2);
+                    compute_effective_pair_formats_2(
+                        &mut pairpos2_info,
+                        &class1_map,
+                        &class2_idxes,
+                        strip_hints,
+                        true,
+                    )
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                } else {
+                    pairpos2_info.new_format1 = value_format1;
+                    pairpos2_info.new_format2 = value_format2;
+                };
 
-        // serialize value records
-        for i in (0..self.class1_count()).filter(|i| class1_map.contains_key(&u32::from(*i))) {
-            for j in &class2_idxes {
-                let offset =
-                    records_offset + (i as usize * class2_count + *j as usize) * record_size;
-                let record1 = ValueRecord::new(self.offset_data(), offset, value_format1);
-                let record2 =
-                    ValueRecord::new(self.offset_data(), offset + record1_size, value_format2);
+                s.copy_assign(value_format1_pos, pairpos2_info.new_format1);
+                s.copy_assign(value_format2_pos, pairpos2_info.new_format2);
 
-                record1.subset(plan, s, pairpos2_info.new_format1)?;
-                record2.subset(plan, s, pairpos2_info.new_format2)?;
+                // serialize value records
+                for i in
+                    (0..self.class1_count()).filter(|i| class1_map.contains_key(&u32::from(*i)))
+                {
+                    for j in &class2_idxes {
+                        let offset = records_offset
+                            + (i as usize * class2_count + *j as usize) * record_size;
+                        let record1 = ValueRecord::new(self.offset_data(), offset, value_format1);
+                        let record2 = ValueRecord::new(
+                            self.offset_data(),
+                            offset + record1_size,
+                            value_format2,
+                        );
+
+                        record1.subset(plan, s, pairpos2_info.new_format1)?;
+                        record2.subset(plan, s, pairpos2_info.new_format2)?;
+                    }
+                }
+
+                // this can be moved, put it at last so we have the same binary data with Harfbuzz subsetter
+                $offset::serialize_subset(&coverage, s, plan, (), cov_offset_pos)
             }
         }
-
-        // this can be moved, put it at last so we have the same binary data with Harfbuzz subsetter
-        Offset16::serialize_subset(&coverage, s, plan, (), cov_offset_pos)
-    }
+    };
 }
+subset_class_pairs!(PairPosFormat2, Offset16);
+subset_class_pairs!(PairPosFormat4, Offset32);
 
 fn collect_pairset_variation_indices(
     pair_set: &PairSetData,
@@ -715,7 +744,7 @@ impl CollectVariationIndices for PairPos<'_> {
             Self::Format1(item) => item.collect_variation_indices(plan, varidx_set),
             Self::Format2(item) => item.collect_variation_indices(plan, varidx_set),
             Self::Format3(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format4(_) => (), // rejected by subset()
+            Self::Format4(item) => item.collect_variation_indices(plan, varidx_set),
         }
     }
 }
@@ -799,68 +828,81 @@ macro_rules! collect_glyph_pair_variations {
 collect_glyph_pair_variations!(PairPosFormat1, Narrow, 2usize);
 collect_glyph_pair_variations!(PairPosFormat3, Wide, 3usize);
 
-impl CollectVariationIndices for PairPosFormat2<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        let value_format1 = self.value_format1();
-        let value_format2 = self.value_format2();
+macro_rules! collect_class_pair_variations {
+    ($table:ident) => {
+        impl CollectVariationIndices for $table<'_> {
+            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+                let value_format1 = self.value_format1();
+                let value_format2 = self.value_format2();
 
-        if !value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
-            && !value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
-        {
-            return;
-        }
-        let Ok(coverage) = self.coverage() else {
-            return;
-        };
-
-        let glyph_set = &plan.glyphset_gsub;
-        let cov_glyphs = coverage.intersect_set(glyph_set);
-        if cov_glyphs.is_empty() {
-            return;
-        };
-
-        let Ok(classdef1) = self.class_def1() else {
-            return;
-        };
-
-        let Ok(classdef2) = self.class_def2() else {
-            return;
-        };
-
-        let class1_set = classdef1.intersect_classes(&cov_glyphs);
-        if class1_set.is_empty() {
-            return;
-        }
-        let mut class2_set = classdef2.intersect_classes(glyph_set);
-        if class2_set.is_empty() {
-            return;
-        }
-        class2_set.insert(0);
-
-        let class2_count = self.class2_count() as usize;
-        let records_offset = self.class2_count_byte_range().end;
-        let record1_size = compute_record_len(value_format1);
-        let record_size = record1_size + compute_record_len(value_format2);
-        let font_data = self.offset_data();
-
-        for i in class1_set.iter() {
-            for j in class2_set.iter() {
-                let offset =
-                    records_offset + (i as usize * class2_count + j as usize) * record_size;
-
-                if value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
-                    let record1 = ValueRecord::new(font_data, offset, value_format1);
-                    record1.collect_variation_indices(plan, varidx_set);
+                if !value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+                    && !value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
+                {
+                    return;
                 }
+                let Ok(coverage) = self.coverage() else {
+                    return;
+                };
 
-                if value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
-                    let record2 = ValueRecord::new(font_data, offset + record1_size, value_format2);
-                    record2.collect_variation_indices(plan, varidx_set);
+                let glyph_set = &plan.glyphset_gsub;
+                let cov_glyphs = coverage.intersect_set(glyph_set);
+                if cov_glyphs.is_empty() {
+                    return;
+                };
+
+                let Ok(classdef1) = self.class_def1() else {
+                    return;
+                };
+
+                let Ok(classdef2) = self.class_def2() else {
+                    return;
+                };
+
+                let class1_set = classdef1.intersect_classes(&cov_glyphs);
+                if class1_set.is_empty() {
+                    return;
+                }
+                let mut class2_set = classdef2.intersect_classes(glyph_set);
+                if class2_set.is_empty() {
+                    return;
+                }
+                class2_set.insert(0);
+
+                let class2_count = self.class2_count() as usize;
+                let records_offset = self.class2_count_byte_range().end;
+                let record1_size = compute_record_len(value_format1);
+                let record_size = record1_size + compute_record_len(value_format2);
+                let font_data = self.offset_data();
+
+                for i in class1_set
+                    .iter()
+                    .filter(|&i| i < u32::from(self.class1_count()))
+                {
+                    for j in class2_set
+                        .iter()
+                        .filter(|&j| j < u32::from(self.class2_count()))
+                    {
+                        let offset =
+                            records_offset + (i as usize * class2_count + j as usize) * record_size;
+
+                        if value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+                            let record1 = ValueRecord::new(font_data, offset, value_format1);
+                            record1.collect_variation_indices(plan, varidx_set);
+                        }
+
+                        if value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+                            let record2 =
+                                ValueRecord::new(font_data, offset + record1_size, value_format2);
+                            record2.collect_variation_indices(plan, varidx_set);
+                        }
+                    }
                 }
             }
         }
-    }
+    };
 }
+collect_class_pair_variations!(PairPosFormat2);
+collect_class_pair_variations!(PairPosFormat4);
 
 #[cfg(test)]
 mod test {
