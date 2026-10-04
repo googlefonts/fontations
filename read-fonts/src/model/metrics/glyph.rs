@@ -656,48 +656,90 @@ impl<'a> GlyphMetrics<'a> {
     }
 }
 
-/// The per-glyph records of `hmtx` or `vmtx`.
+/// Unvaried per-glyph records from HMTX/hmtx or VMTX/vmtx.
 ///
 /// Both tables hold the same records, so one type reads either, and which
 /// direction it describes is fixed when it is read.
 ///
+/// Obtain these through [`TableProvider::glyph_metric_records`] or
+/// [`TableProvider::vertical_glyph_metric_records`]. Uppercase tables are selected
+/// independently of the outlines, with legacy tables used if they are absent.
 /// Nothing here depends on a location, so every location shares one parse.
 #[derive(Clone, Default, yoke::Yokeable)]
-pub(crate) struct RawGlyphMetrics<'a> {
+pub struct GlyphMetricRecords<'a> {
     metrics: &'a [LongMetric],
     /// Bare side bearings after the last long metric.
     bearings: &'a [BigEndian<i16>],
 }
 
-impl<'a> RawGlyphMetrics<'a> {
+pub(crate) type RawGlyphMetrics<'a> = GlyphMetricRecords<'a>;
+
+impl<'a> GlyphMetricRecords<'a> {
+    pub(crate) fn read_horizontal(
+        tables: &(impl TableProvider<'a> + ?Sized),
+    ) -> Result<Self, crate::ReadError> {
+        crate::table_provider::prefer_extended(
+            tables.hmtx_extended().map(|table| Self {
+                metrics: table.h_metrics(),
+                bearings: table.left_side_bearings(),
+            }),
+            types::Tag::new(b"HMTX"),
+            || {
+                tables.hmtx().map(|table| Self {
+                    metrics: table.h_metrics(),
+                    bearings: table.left_side_bearings(),
+                })
+            },
+        )
+    }
+
+    pub(crate) fn read_vertical(
+        tables: &(impl TableProvider<'a> + ?Sized),
+    ) -> Result<Self, crate::ReadError> {
+        crate::table_provider::prefer_extended(
+            tables.vmtx_extended().map(|table| Self {
+                metrics: table.v_metrics(),
+                bearings: table.top_side_bearings(),
+            }),
+            types::Tag::new(b"VMTX"),
+            || {
+                tables.vmtx().map(|table| Self {
+                    metrics: table.v_metrics(),
+                    bearings: table.top_side_bearings(),
+                })
+            },
+        )
+    }
+
+    /// Returns the paired advance and side-bearing records.
+    pub fn long_metrics(&self) -> &'a [LongMetric] {
+        self.metrics
+    }
+
+    /// Returns the side bearings after the last long metric record.
+    pub fn side_bearings(&self) -> &'a [BigEndian<i16>] {
+        self.bearings
+    }
+
+    /// Returns the unvaried advance, repeating the last record when needed.
+    /// This does not check the font's glyph count.
+    pub fn advance(&self, glyph: GlyphId) -> Option<u16> {
+        crate::tables::hmtx::advance(self.metrics, glyph)
+    }
+
+    /// Returns the unvaried leading side bearing for a glyph.
+    pub fn side_bearing(&self, glyph: GlyphId) -> Option<i16> {
+        crate::tables::hmtx::side_bearing(self.metrics, self.bearings, glyph)
+    }
+
     /// Reads what `hmtx` states.
     pub(crate) fn from_hmtx(tables: &impl TableProvider<'a>) -> Self {
-        let hmtx = tables.hmtx().ok();
-        Self {
-            metrics: hmtx
-                .as_ref()
-                .map(|hmtx| hmtx.h_metrics())
-                .unwrap_or_default(),
-            bearings: hmtx
-                .as_ref()
-                .map(|hmtx| hmtx.left_side_bearings())
-                .unwrap_or_default(),
-        }
+        tables.glyph_metric_records().unwrap_or_default()
     }
 
     /// Reads what `vmtx` states.
     pub(crate) fn from_vmtx(tables: &impl TableProvider<'a>) -> Self {
-        let vmtx = tables.vmtx().ok();
-        Self {
-            metrics: vmtx
-                .as_ref()
-                .map(|vmtx| vmtx.v_metrics())
-                .unwrap_or_default(),
-            bearings: vmtx
-                .as_ref()
-                .map(|vmtx| vmtx.top_side_bearings())
-                .unwrap_or_default(),
-        }
+        tables.vertical_glyph_metric_records().unwrap_or_default()
     }
 
     /// Returns `true` if the table states no metrics.
@@ -909,6 +951,89 @@ mod tests {
     use types::Tag;
 
     const STATIC: &[u8] = font_test_data::TINOS_SUBSET;
+
+    #[test]
+    fn extended_metrics_in_the_cached_font_model() {
+        use font_test_data::extended::metrics_font;
+        for outline in [None, Some(*b"glyf"), Some(*b"GLYF")] {
+            for legacy in [false, true] {
+                let data = metrics_font(true, legacy, outline);
+                let font = Font::new(data, 0).unwrap();
+                assert_eq!(font.num_glyphs(), 70002);
+                assert_eq!(
+                    font.tables().maxp_extended().unwrap().num_glyphs().to_u32(),
+                    70002
+                );
+                assert_eq!(
+                    font.tables().hhea_extended().unwrap().number_of_h_metrics(),
+                    70000
+                );
+                assert_eq!(
+                    font.tables()
+                        .vhea_extended()
+                        .unwrap()
+                        .number_of_long_ver_metrics(),
+                    70000
+                );
+                let metrics = font.glyph_metrics();
+                for gid in [0, 65535, 65536, 69999] {
+                    assert_eq!(
+                        metrics.h_advance_exact(GlyphId::new(gid)),
+                        F48Dot16::from_i32((1000 + gid % 100) as i32)
+                    );
+                    assert_eq!(
+                        metrics.v_advance_exact(GlyphId::new(gid)),
+                        F48Dot16::from_i32((1200 + gid % 100) as i32)
+                    );
+                }
+                assert_eq!(
+                    metrics.h_advance_exact(GlyphId::new(70001)),
+                    F48Dot16::from_i32(1099)
+                );
+                assert_eq!(
+                    metrics.v_advance_exact(GlyphId::new(70001)),
+                    F48Dot16::from_i32(1299)
+                );
+                assert_eq!(metrics.h_advance_exact(GlyphId::new(70002)), F48Dot16::ZERO);
+            }
+        }
+    }
+
+    #[test]
+    fn extended_metrics_from_callback_tables_are_cached() {
+        let data = font_test_data::extended::metrics_font(true, true, None);
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let requests = asked.clone();
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+            requests.lock().unwrap().push(tag);
+            let font = FontRef::new(&data).ok()?;
+            Some(Blob::from(font.table_data(tag)?.as_bytes().to_vec()))
+        });
+        let font = Font::new(source, 0).unwrap();
+        for _ in 0..2 {
+            let metrics = font.glyph_metrics();
+            assert_eq!(font.num_glyphs(), 70002);
+            assert_eq!(
+                metrics.h_advance_exact(GlyphId::new(65536)),
+                F48Dot16::from_i32(1036)
+            );
+            assert_eq!(
+                metrics.v_advance_exact(GlyphId::new(65536)),
+                F48Dot16::from_i32(1236)
+            );
+        }
+        let asked = asked.lock().unwrap();
+        for tag in [b"MAXP", b"HHEA", b"HMTX", b"VHEA", b"VMTX"] {
+            assert_eq!(
+                asked.iter().filter(|&&seen| seen == Tag::new(tag)).count(),
+                1
+            );
+        }
+        for tag in [b"maxp", b"hhea", b"hmtx", b"vhea", b"vmtx"] {
+            assert!(!asked.contains(&Tag::new(tag)));
+        }
+    }
+
     /// Has both `HVAR` and `gvar`, so it can answer either way.
     const VAR: &[u8] = font_test_data::VAZIRMATN_VAR;
     /// Eleven glyphs but one long metric, so ten of them are in the tail.

@@ -38,7 +38,7 @@ impl<'a> SkrifaInstance<'a> {
         }
     }
 
-    pub fn glyph_count(&self) -> u16 {
+    pub fn glyph_count(&self) -> u32 {
         match self {
             Self::Sfnt(sfnt) => sfnt.glyph_count(),
             Self::Type1(type1) => type1.font.num_glyphs() as _,
@@ -127,9 +127,9 @@ impl<'a> SkrifaSfntInstance<'a> {
         self.font.outline_glyphs().require_interpreter()
     }
 
-    pub fn glyph_count(&self) -> u16 {
+    pub fn glyph_count(&self) -> u32 {
         self.font
-            .maxp()
+            .maxp_table()
             .map(|maxp| maxp.num_glyphs())
             .unwrap_or_default()
     }

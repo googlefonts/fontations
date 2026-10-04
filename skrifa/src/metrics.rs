@@ -73,7 +73,7 @@ pub struct Metrics {
     /// Number of font design units per em unit.
     pub units_per_em: u16,
     /// Number of glyphs in the font.
-    pub glyph_count: u16,
+    pub glyph_count: u32,
     /// True if the font is not proportionally spaced.
     pub is_monospace: bool,
     /// Italic angle in counter-clockwise degrees from the vertical. Zero for upright text,
@@ -121,7 +121,7 @@ impl Metrics {
                 y_max: head.y_max() as f32 * scale,
             });
         }
-        if let Ok(maxp) = font.maxp() {
+        if let Ok(maxp) = font.maxp_table() {
             metrics.glyph_count = maxp.num_glyphs();
         }
         if let Ok(post) = font.post() {
@@ -132,7 +132,7 @@ impl Metrics {
                 thickness: post.underline_thickness().to_i16() as f32 * scale,
             });
         }
-        let hhea = font.hhea();
+        let hhea = font.hhea_table();
         if let Ok(hhea) = &hhea {
             metrics.max_width = Some(hhea.advance_width_max().to_u16() as f32 * scale);
         }
@@ -169,7 +169,7 @@ impl Metrics {
             });
         }
         if !used_typo_metrics {
-            if let Ok(hhea) = font.hhea() {
+            if let Ok(hhea) = font.hhea_table() {
                 metrics.ascent = hhea.ascender().to_i16() as f32 * scale;
                 metrics.descent = hhea.descender().to_i16() as f32 * scale;
                 metrics.leading = hhea.line_gap().to_i16() as f32 * scale;
@@ -236,8 +236,8 @@ impl<'a> GlyphMetrics<'a> {
     /// normalized variation space.
     pub fn new(font: &FontRef<'a>, size: Size, location: impl Into<LocationRef<'a>>) -> Self {
         let glyph_count = font
-            .maxp()
-            .map(|maxp| maxp.num_glyphs() as u32)
+            .maxp_table()
+            .map(|maxp| maxp.num_glyphs())
             .unwrap_or_default();
         let upem = font
             .head()
@@ -246,11 +246,11 @@ impl<'a> GlyphMetrics<'a> {
         let fixed_scale = FixedScaleFactor(size.fixed_linear_scale(upem));
         let coords = location.into().effective_coords();
         let (h_metrics, default_advance_width, lsbs) = font
-            .hmtx()
+            .glyph_metric_records()
             .map(|hmtx| {
-                let h_metrics = hmtx.h_metrics();
+                let h_metrics = hmtx.long_metrics();
                 let default_advance_width = h_metrics.last().map(|m| m.advance.get()).unwrap_or(0);
-                let lsbs = hmtx.left_side_bearings();
+                let lsbs = hmtx.side_bearings();
                 (h_metrics, default_advance_width, lsbs)
             })
             .unwrap_or_default();
@@ -419,6 +419,37 @@ mod tests {
     use super::*;
     use font_test_data::{NOTO_SANS_JP_CFF, SIMPLE_GLYF, VAZIRMATN_VAR};
     use read_fonts::FontRef;
+
+    #[test]
+    fn extended_glyph_metrics_with_any_outline_tag() {
+        use font_test_data::extended::metrics_font;
+        for outline in [None, Some(*b"glyf"), Some(*b"GLYF")] {
+            for legacy in [false, true] {
+                let data = metrics_font(true, legacy, outline);
+                let font = FontRef::new(&data).unwrap();
+                let global = font.metrics(Size::unscaled(), LocationRef::default());
+                assert_eq!(global.glyph_count, 70002);
+                assert_eq!(global.ascent, 800.0);
+                assert_eq!(global.descent, -200.0);
+                let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+                assert_eq!(metrics.glyph_count(), 70002);
+                for gid in [0, 65535, 65536, 69999] {
+                    let glyph = GlyphId::new(gid);
+                    assert_eq!(
+                        metrics.advance_width(glyph),
+                        Some((1000 + gid % 100) as f32)
+                    );
+                    assert_eq!(
+                        metrics.left_side_bearing(glyph),
+                        Some(-((gid % 300) as f32))
+                    );
+                }
+                assert_eq!(metrics.advance_width(GlyphId::new(70001)), Some(1099.0));
+                assert_eq!(metrics.left_side_bearing(GlyphId::new(70001)), Some(-11.0));
+                assert_eq!(metrics.advance_width(GlyphId::new(70002)), None);
+            }
+        }
+    }
 
     #[test]
     fn metrics() {

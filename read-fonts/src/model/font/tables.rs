@@ -218,10 +218,26 @@ impl<'a> TableProvider<'a> for &'a Tables {
         self.load_table(self.vhea_state())
     }
 
+    fn hhea_extended(&self) -> Result<tables::hhea::HheaExtended<'a>, ReadError> {
+        self.load_table(self.hhea_extended_state())
+    }
+
+    fn vhea_extended(&self) -> Result<tables::vhea::VheaExtended<'a>, ReadError> {
+        self.load_table(self.vhea_extended_state())
+    }
+
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
         self.load_table_with_args(self.hmtx_state(), number_of_h_metrics)
+    }
+
+    fn hmtx_extended(&self) -> Result<tables::hmtx::HmtxExtended<'a>, ReadError> {
+        let state = self
+            .hmtx_extended_state()
+            .ok_or(ReadError::TableIsMissing(tables::hmtx::HmtxExtended::TAG))?;
+        let count = self.hhea_extended()?.number_of_h_metrics();
+        self.load_table_with_args(Some(state), count)
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
@@ -233,6 +249,14 @@ impl<'a> TableProvider<'a> for &'a Tables {
         //FIXME: should we make the user pass these in?
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
         self.load_table_with_args(self.vmtx_state(), number_of_v_metrics)
+    }
+
+    fn vmtx_extended(&self) -> Result<tables::vmtx::VmtxExtended<'a>, ReadError> {
+        let state = self
+            .vmtx_extended_state()
+            .ok_or(ReadError::TableIsMissing(tables::vmtx::VmtxExtended::TAG))?;
+        let count = self.vhea_extended()?.number_of_long_ver_metrics();
+        self.load_table_with_args(Some(state), count)
     }
 
     fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
@@ -261,6 +285,10 @@ impl<'a> TableProvider<'a> for &'a Tables {
 
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
         self.load_table(self.maxp_state())
+    }
+
+    fn maxp_extended(&self) -> Result<tables::maxp::MaxpExtended<'a>, ReadError> {
+        self.load_table(self.maxp_extended_state())
     }
 
     fn os2(&self) -> Result<tables::os2::Os2<'a>, ReadError> {

@@ -53,3 +53,52 @@ table Maxp {
     #[since_version(1.0)]
     max_component_depth: u16,
 }
+
+/// MAXP maximum profile table (ISO/IEC 14496-22:2026, 5.1.12).
+#[tag = "MAXP"]
+table MaxpExtended {
+    #[version]
+    #[compile(self.compute_version())]
+    version: Version16Dot16,
+    /// The number of glyphs in the font.
+    num_glyphs: Uint24,
+    /// Maximum points in a non-composite glyph.
+    #[since_version(1.0)]
+    max_points: u16,
+    /// Maximum contours in a non-composite glyph.
+    #[since_version(1.0)]
+    max_contours: u16,
+    /// Maximum points in a composite glyph.
+    #[since_version(1.0)]
+    max_composite_points: u16,
+    /// Maximum contours in a composite glyph.
+    #[since_version(1.0)]
+    max_composite_contours: u16,
+    /// Number of zones used by instructions.
+    #[since_version(1.0)]
+    max_zones: u16,
+    /// Maximum points in the twilight zone.
+    #[since_version(1.0)]
+    max_twilight_points: u16,
+    /// Number of storage locations.
+    #[since_version(1.0)]
+    max_storage: u16,
+    /// Number of function definitions.
+    #[since_version(1.0)]
+    max_function_defs: u16,
+    /// Number of instruction definitions.
+    #[since_version(1.0)]
+    max_instruction_defs: u16,
+    /// Maximum interpreter stack depth.
+    #[since_version(1.0)]
+    max_stack_elements: u16,
+    /// Maximum glyph instruction byte count.
+    #[since_version(1.0)]
+    max_size_of_instructions: u16,
+    /// Maximum top-level component count.
+    #[since_version(1.0)]
+    max_component_elements: u16,
+    /// Maximum component recursion depth.
+    #[since_version(1.0)]
+    max_component_depth: u16,
+}
