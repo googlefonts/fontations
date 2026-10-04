@@ -45,7 +45,7 @@ impl Validate for Gvar {
                 self.shared_tuples.validate_impl(ctx);
             });
             ctx.in_field("glyph_variation_data_offsets", |ctx| {
-                self.glyph_variation_data_offsets.validate_impl(ctx);
+                self.validate_glyph_variation_data(ctx);
             });
         })
     }
@@ -53,6 +53,49 @@ impl Validate for Gvar {
 
 impl TopLevelTable for Gvar {
     const TAG: Tag = Tag::new(b"gvar");
+}
+
+/// GVAR from ISO Open Font Format fifth edition (ISO/IEC 14496-22:2026, 7.3.9).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GvarExtended {
+    pub axis_count: u16,
+    pub shared_tuples: OffsetMarker<SharedTuples, WIDTH_32>,
+    pub glyph_variation_data_offsets: Vec<GlyphVariationData>,
+}
+
+impl FontWrite for GvarExtended {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        self.axis_count.write_into(writer);
+        (u16::try_from(array_len(&self.shared_tuples)).unwrap()).write_into(writer);
+        (self.compute_shared_tuples_offset()).write_into(writer);
+        (self.compute_glyph_count() as Uint24).write_into(writer);
+        (self.compute_flags() as GvarFlags).write_into(writer);
+        (self.compute_data_array_offset() as u32).write_into(writer);
+        (self.compile_variation_data()).write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(GvarExtended::TAG)
+    }
+}
+
+impl Validate for GvarExtended {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("GvarExtended", |ctx| {
+            ctx.in_field("shared_tuples", |ctx| {
+                self.shared_tuples.validate_impl(ctx);
+            });
+            ctx.in_field("glyph_variation_data_offsets", |ctx| {
+                self.validate_glyph_variation_data(ctx);
+            });
+        })
+    }
+}
+
+impl TopLevelTable for GvarExtended {
+    const TAG: Tag = Tag::new(b"GVAR");
 }
 
 impl FontWrite for GvarFlags {
@@ -129,6 +172,24 @@ pub struct GlyphVariationDataHeader {
 impl Validate for GlyphVariationDataHeader {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("GlyphVariationDataHeader", |ctx| {
+            ctx.in_field("tuple_variation_headers", |ctx| {
+                self.tuple_variation_headers.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+/// Per-glyph variation header in GVAR (ISO/IEC 14496-22:2026, 7.3.9.1.3).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GlyphVariationDataHeaderExtended {
+    pub tuple_variation_count: TupleVariationCount,
+    pub tuple_variation_headers: Vec<TupleVariationHeader>,
+}
+
+impl Validate for GlyphVariationDataHeaderExtended {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("GlyphVariationDataHeaderExtended", |ctx| {
             ctx.in_field("tuple_variation_headers", |ctx| {
                 self.tuple_variation_headers.validate_impl(ctx);
             });

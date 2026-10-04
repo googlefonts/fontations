@@ -240,6 +240,19 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn gvar_extended(&self) -> Result<tables::gvar::GvarExtended<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    /// Selects GVAR before the legacy gvar table.
+    fn gvar_table(&self) -> Result<tables::gvar::GvarTable<'a>, ReadError> {
+        prefer_extended(
+            self.gvar_extended().map(tables::gvar::GvarTable::Extended),
+            Tag::new(b"GVAR"),
+            || self.gvar().map(tables::gvar::GvarTable::Standard),
+        )
+    }
+
     /// Returns the array of entries for the control value table which is used
     /// for TrueType hinting.
     fn cvt(&self) -> Result<&'a [BigEndian<i16>], ReadError> {

@@ -24,7 +24,7 @@
 
 use read_fonts::{
     tables::{
-        glyf::Glyf, gvar::Gvar, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags,
+        glyf::Glyf, gvar::GvarTable, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags,
     },
     types::{BigEndian, Fixed, GlyphId},
     FontRef, TableProvider,
@@ -226,7 +226,7 @@ pub struct GlyphMetrics<'a> {
     default_advance_width: u16,
     lsbs: &'a [BigEndian<i16>],
     hvar: Option<Hvar<'a>>,
-    gvar: Option<Gvar<'a>>,
+    gvar: Option<GvarTable<'a>>,
     loca_glyf: Option<(Loca<'a>, Glyf<'a>)>,
     coords: &'a [NormalizedCoord],
 }
@@ -255,7 +255,7 @@ impl<'a> GlyphMetrics<'a> {
             })
             .unwrap_or_default();
         let hvar = font.hvar().ok();
-        let gvar = font.gvar().ok();
+        let gvar = font.gvar_table().ok();
         let loca_glyf = font.glyf_loca(None).ok().map(|(glyf, loca)| (loca, glyf));
         Self {
             font: font.clone(),
