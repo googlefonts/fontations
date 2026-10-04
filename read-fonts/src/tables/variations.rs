@@ -19,7 +19,7 @@ pub(crate) struct ScalarCache {
 }
 
 impl ScalarCache {
-    const MAX_LEN: usize = 128;
+    pub(crate) const MAX_LEN: usize = 128;
     const INVALID: i32 = i32::MIN;
 
     pub(crate) fn new(count: usize) -> Self {
