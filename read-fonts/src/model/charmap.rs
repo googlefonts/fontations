@@ -1,7 +1,7 @@
 //! Character mappings for a font.
 
 use crate::{
-    model::Font,
+    model::{font::SharedFont, Font},
     ps::encoding::PredefinedEncoding,
     ps::type1::Type1Font,
     tables::{
@@ -54,12 +54,14 @@ use yoke::Yokeable;
 /// parsed and cached separately, only when their respective methods need them.
 #[derive(Clone, Copy)]
 pub struct Charmap<'a> {
-    font: &'a Font,
+    font: &'a SharedFont,
 }
 
 impl<'a> Charmap<'a> {
     pub(crate) fn new(font: &'a Font) -> Self {
-        Self { font }
+        Self {
+            font: font.shared(),
+        }
     }
 
     /// Returns whether this font has a selected Unicode mapping.
@@ -177,7 +179,7 @@ impl<'a> Charmap<'a> {
     pub fn encodings(&self) -> impl Iterator<Item = Encoding> + '_ {
         let sfnt = self
             .font
-            .encoding_tables()
+            .encodings()
             .into_iter()
             .flat_map(EncodingTables::iter);
         let type1 = match self.font.kind() {
@@ -210,7 +212,7 @@ impl<'a> Charmap<'a> {
                 }
                 native.map(u8::try_from(code).ok()?)
             }
-            _ => self.font.encoding_tables()?.map(encoding, code),
+            _ => self.font.encodings()?.map(encoding, code),
         };
         glyph.filter(|glyph| *glyph != GlyphId::NOTDEF)
     }
@@ -238,19 +240,15 @@ impl<'a> Charmap<'a> {
                 (0_u32..=255)
                     .filter_map(move |code| native.map(code as u8).map(|glyph| (code, glyph)))
             });
-        let sfnt = self
-            .font
-            .encoding_tables()
-            .into_iter()
-            .flat_map(move |tables| {
-                tables.iter_codes(
-                    encoding,
-                    CmapIterLimits {
-                        max_char: u32::MAX,
-                        glyph_count: self.font.num_glyphs(),
-                    },
-                )
-            });
+        let sfnt = self.font.encodings().into_iter().flat_map(move |tables| {
+            tables.iter_codes(
+                encoding,
+                CmapIterLimits {
+                    max_char: u32::MAX,
+                    glyph_count: self.font.num_glyphs(),
+                },
+            )
+        });
         type1_unicode
             .chain(type1_native)
             .chain(sfnt)
@@ -681,7 +679,9 @@ mod tests {
                 .map(|data| Blob::from(data.as_bytes().to_vec()))
         });
         let font = Font::new(source, 0).unwrap();
-        assert_eq!(font.charmap().map_unicode('A'), Some(GlyphId::new(1)));
+        let charmap = font.charmap();
+        assert_eq!(cmap_reads.load(Ordering::Relaxed), 0);
+        assert_eq!(charmap.map_unicode('A'), Some(GlyphId::new(1)));
         let first_reads = cmap_reads.load(Ordering::Relaxed);
         assert!(first_reads > 0);
         assert_eq!(font.charmap().map_unicode('A'), Some(GlyphId::new(1)));
@@ -689,6 +689,12 @@ mod tests {
             font.default_instance().charmap().map_unicode('A'),
             Some(GlyphId::new(1))
         );
+        let varied = font
+            .instance_builder()
+            .variations([("wght", 500.0)])
+            .build();
+        assert!(!varied.normalized_coords().is_empty());
+        assert_eq!(varied.charmap().map_unicode('A'), Some(GlyphId::new(1)));
         assert_eq!(cmap_reads.load(Ordering::Relaxed), first_reads);
     }
 
