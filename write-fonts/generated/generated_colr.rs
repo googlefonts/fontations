@@ -1164,6 +1164,7 @@ pub enum Paint {
     SkewAroundCenter(PaintSkewAroundCenter),
     VarSkewAroundCenter(PaintVarSkewAroundCenter),
     Composite(PaintComposite),
+    Glyph2(PaintGlyph2),
 }
 
 impl Paint {
@@ -1517,6 +1518,11 @@ impl Paint {
             backdrop_paint,
         ))
     }
+
+    /// Construct a new `PaintGlyph2` subtable
+    pub fn glyph_2(paint: Paint, glyph_id: GlyphId24) -> Self {
+        Self::Glyph2(PaintGlyph2::new(paint, glyph_id))
+    }
 }
 
 impl Default for Paint {
@@ -1560,6 +1566,7 @@ impl FontWrite for Paint {
             Self::SkewAroundCenter(item) => item.write_into(writer),
             Self::VarSkewAroundCenter(item) => item.write_into(writer),
             Self::Composite(item) => item.write_into(writer),
+            Self::Glyph2(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
@@ -1596,6 +1603,7 @@ impl FontWrite for Paint {
             Self::SkewAroundCenter(item) => item.table_type(),
             Self::VarSkewAroundCenter(item) => item.table_type(),
             Self::Composite(item) => item.table_type(),
+            Self::Glyph2(item) => item.table_type(),
         }
     }
 }
@@ -1635,6 +1643,7 @@ impl Validate for Paint {
             Self::SkewAroundCenter(item) => item.validate_impl(ctx),
             Self::VarSkewAroundCenter(item) => item.validate_impl(ctx),
             Self::Composite(item) => item.validate_impl(ctx),
+            Self::Glyph2(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -1687,6 +1696,7 @@ impl FromObjRef<read_fonts::tables::colr::Paint<'_>> for Paint {
                 Paint::VarSkewAroundCenter(item.to_owned_table())
             }
             ObjRefType::Composite(item) => Paint::Composite(item.to_owned_table()),
+            ObjRefType::Glyph2(item) => Paint::Glyph2(item.to_owned_table()),
         }
     }
 }
@@ -1892,6 +1902,12 @@ impl From<PaintVarSkewAroundCenter> for Paint {
 impl From<PaintComposite> for Paint {
     fn from(src: PaintComposite) -> Paint {
         Paint::Composite(src)
+    }
+}
+
+impl From<PaintGlyph2> for Paint {
+    fn from(src: PaintGlyph2) -> Paint {
+        Paint::Glyph2(src)
     }
 }
 
@@ -2759,6 +2775,70 @@ impl ReadArgs for PaintGlyph {
 impl<'a> FontRead<'a> for PaintGlyph {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// PaintGlyph2 (format 33), defined in ISO Open Font Format, fifth edition.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PaintGlyph2 {
+    /// Offset to a Paint table.
+    pub paint: OffsetMarker<Paint, WIDTH_24>,
+    /// Glyph ID for the source outline.
+    pub glyph_id: GlyphId24,
+}
+
+impl PaintGlyph2 {
+    /// Construct a new `PaintGlyph2`
+    pub fn new(paint: Paint, glyph_id: GlyphId24) -> Self {
+        Self {
+            paint: paint.into(),
+            glyph_id,
+        }
+    }
+}
+
+impl FontWrite for PaintGlyph2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (33 as u8).write_into(writer);
+        self.paint.write_into(writer);
+        self.glyph_id.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PaintGlyph2")
+    }
+}
+
+impl Validate for PaintGlyph2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PaintGlyph2", |ctx| {
+            ctx.in_field("paint", |ctx| {
+                self.paint.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::colr::PaintGlyph2<'a>> for PaintGlyph2 {
+    fn from_obj_ref(obj: &read_fonts::tables::colr::PaintGlyph2<'a>, _: FontData) -> Self {
+        PaintGlyph2 {
+            paint: obj.paint().to_owned_table(),
+            glyph_id: obj.glyph_id(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::colr::PaintGlyph2<'a>> for PaintGlyph2 {}
+
+impl ReadArgs for PaintGlyph2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PaintGlyph2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::colr::PaintGlyph2 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 

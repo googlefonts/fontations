@@ -2,6 +2,7 @@
 
 pub mod bebuffer;
 pub mod cmap;
+pub mod colr;
 pub mod gdef;
 pub mod gpos;
 pub mod gsub;

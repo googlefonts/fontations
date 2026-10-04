@@ -1328,6 +1328,7 @@ pub enum Paint<'a> {
     SkewAroundCenter(PaintSkewAroundCenter<'a>),
     VarSkewAroundCenter(PaintVarSkewAroundCenter<'a>),
     Composite(PaintComposite<'a>),
+    Glyph2(PaintGlyph2<'a>),
 }
 
 impl Default for Paint<'_> {
@@ -1372,6 +1373,7 @@ impl<'a> Paint<'a> {
             Self::SkewAroundCenter(item) => item.offset_data(),
             Self::VarSkewAroundCenter(item) => item.offset_data(),
             Self::Composite(item) => item.offset_data(),
+            Self::Glyph2(item) => item.offset_data(),
         }
     }
 
@@ -1410,6 +1412,7 @@ impl<'a> Paint<'a> {
             Self::SkewAroundCenter(item) => item.format(),
             Self::VarSkewAroundCenter(item) => item.format(),
             Self::Composite(item) => item.format(),
+            Self::Glyph2(item) => item.format(),
         }
     }
 }
@@ -1464,6 +1467,7 @@ impl<'a> FontRead<'a> for Paint<'a> {
                 Ok(Self::VarSkewAroundCenter(FontRead::read(data)?))
             }
             PaintComposite::FORMAT => Ok(Self::Composite(FontRead::read(data)?)),
+            PaintGlyph2::FORMAT => Ok(Self::Glyph2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1504,6 +1508,7 @@ impl<'a> MinByteRange<'a> for Paint<'a> {
             Self::SkewAroundCenter(item) => item.min_byte_range(),
             Self::VarSkewAroundCenter(item) => item.min_byte_range(),
             Self::Composite(item) => item.min_byte_range(),
+            Self::Glyph2(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
@@ -1540,6 +1545,7 @@ impl<'a> MinByteRange<'a> for Paint<'a> {
             Self::SkewAroundCenter(item) => item.min_table_bytes(),
             Self::VarSkewAroundCenter(item) => item.min_table_bytes(),
             Self::Composite(item) => item.min_table_bytes(),
+            Self::Glyph2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -2773,6 +2779,89 @@ impl<'a> PaintGlyph<'a> {
     pub fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
         let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+impl Format<u8> for PaintGlyph2<'_> {
+    const FORMAT: u8 = 33;
+}
+
+impl<'a> MinByteRange<'a> for PaintGlyph2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for PaintGlyph2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PaintGlyph2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// PaintGlyph2 (format 33), defined in ISO Open Font Format, fifth edition.
+#[derive(Clone)]
+pub struct PaintGlyph2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PaintGlyph2<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + GlyphId24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Set to 33.
+    pub fn format(&self) -> u8 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Offset to a Paint table.
+    pub fn paint_offset(&self) -> Offset24 {
+        let range = self.paint_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
+        let data = self.data;
+        self.paint_offset().resolve(data)
+    }
+
+    /// Glyph ID for the source outline.
+    pub fn glyph_id(&self) -> GlyphId24 {
+        let range = self.glyph_id_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + GlyphId24::RAW_BYTE_LEN;
         start..end
     }
 }
