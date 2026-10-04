@@ -154,3 +154,104 @@ fn wide_context_coverage_offsets_are_24bit() {
     assert_eq!(&bytes[6..9], &[0, 0, 13]);
     assert_eq!(&bytes[9..13], &[0, 0, 0xFF, 0xFF]);
 }
+
+#[test]
+fn gsub_and_gpos_extended_headers_roundtrip_and_fall_back() {
+    macro_rules! check {
+        ($module:ident, $header:ident, $list2:ident, $lookup:ident, $single:ident) => {{
+            use crate::tables::$module as owned;
+            use read_fonts::tables::$module as raw;
+            let mut table = owned::$header::default();
+            table.script_list2 = Some(ScriptList::new(vec![ScriptRecord::new(
+                Tag::new(b"grek"),
+                Script::default(),
+            )]))
+            .into();
+            table.feature_list2 = Some(FeatureList::new(vec![FeatureRecord::new(
+                Tag::new(b"test"),
+                Feature {
+                    lookup_list_indices: vec![0xFFFF],
+                    ..Default::default()
+                },
+            )]))
+            .into();
+            table.lookup_list2 = Some(owned::$list2::new(vec![owned::$lookup::Single(
+                Lookup::new(LookupFlag::empty(), vec![owned::$single::default()]),
+            )]))
+            .into();
+            let mut bytes = dump_table(&table).unwrap();
+            let read = raw::$header::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(read.version(), MajorMinor::new(1, 2));
+            assert_eq!(
+                read.script_list().unwrap().script_records()[0].script_tag(),
+                Tag::new(b"grek")
+            );
+            assert_eq!(
+                read.legacy_script_list().unwrap().unwrap().script_count(),
+                0
+            );
+            assert_eq!(read.feature_list().unwrap().feature_count(), 1);
+            assert_eq!(
+                read.legacy_feature_list().unwrap().unwrap().feature_count(),
+                0
+            );
+            assert_eq!(read.lookup_list().unwrap().lookup_count(), 1);
+            assert_eq!(
+                read.legacy_lookup_list().unwrap().unwrap().lookup_count(),
+                0
+            );
+            assert!(matches!(
+                read.lookup_list().unwrap(),
+                read_fonts::tables::layout::LookupListTable::Offset32(_)
+            ));
+            let owned: owned::$header = read.to_owned_table();
+            assert_eq!(dump_table(&owned).unwrap(), bytes);
+            for (start, end) in [(14, 18), (18, 22), (22, 26)] {
+                bytes[start..end].fill(0);
+            }
+            let read = raw::$header::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(read.script_list().unwrap().script_count(), 0);
+            assert_eq!(read.feature_list().unwrap().feature_count(), 0);
+            assert!(matches!(
+                read.lookup_list().unwrap(),
+                read_fonts::tables::layout::LookupListTable::Offset16(_)
+            ));
+            // A bad nonzero wide offset is authoritative: never fall back.
+            bytes[14..18].copy_from_slice(&u32::MAX.to_be_bytes());
+            let read = raw::$header::read(FontData::new(&bytes)).unwrap();
+            assert!(read.script_list().is_err());
+            assert!(read.legacy_script_list().unwrap().is_ok());
+        }};
+    }
+    check!(
+        gsub,
+        Gsub,
+        SubstitutionLookupList2,
+        SubstitutionLookup,
+        SingleSubst
+    );
+    check!(gpos, Gpos, PositionLookupList2, PositionLookup, SinglePos);
+}
+
+#[test]
+fn layout_header_uses_full_32bit_offsets_and_rejects_truncation() {
+    let mut bytes = vec![0; 65538];
+    bytes[..4].copy_from_slice(&[0, 1, 0, 2]);
+    bytes[4..10].copy_from_slice(&[0, 26, 0, 26, 0, 26]);
+    bytes[14..18].copy_from_slice(&65536u32.to_be_bytes());
+    macro_rules! check {
+        ($module:ident, $header:ident) => {{
+            let read = read_fonts::tables::$module::$header::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(read.script_list().unwrap().offset_data().len(), 2);
+            assert_eq!(read.feature_list().unwrap().feature_count(), 0);
+            assert_eq!(read.lookup_list().unwrap().lookup_count(), 0);
+            let truncated =
+                read_fonts::tables::$module::$header::read(FontData::new(&bytes[..14])).unwrap();
+            assert!(truncated.script_list().is_err());
+            assert!(truncated.feature_list().is_err());
+            assert!(truncated.lookup_list().is_err());
+        }};
+    }
+    check!(gsub, Gsub);
+    check!(gpos, Gpos);
+}

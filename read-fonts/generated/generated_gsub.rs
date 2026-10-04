@@ -55,39 +55,21 @@ impl<'a> Gsub<'a> {
     }
 
     /// Offset to ScriptList table, from beginning of GSUB table
-    pub fn script_list_offset(&self) -> Offset16 {
+    pub fn script_list_offset(&self) -> Nullable<Offset16> {
         let range = self.script_list_offset_byte_range();
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
-    pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        let data = self.data;
-        self.script_list_offset().resolve(data)
-    }
-
     /// Offset to FeatureList table, from beginning of GSUB table
-    pub fn feature_list_offset(&self) -> Offset16 {
+    pub fn feature_list_offset(&self) -> Nullable<Offset16> {
         let range = self.feature_list_offset_byte_range();
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
-    pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        let data = self.data;
-        self.feature_list_offset().resolve(data)
-    }
-
     /// Offset to LookupList table, from beginning of GSUB table
-    pub fn lookup_list_offset(&self) -> Offset16 {
+    pub fn lookup_list_offset(&self) -> Nullable<Offset16> {
         let range = self.lookup_list_offset_byte_range();
         self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
-    pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
-        let data = self.data;
-        self.lookup_list_offset().resolve(data)
     }
 
     /// Offset to FeatureVariations table, from beginning of the GSUB
@@ -103,6 +85,48 @@ impl<'a> Gsub<'a> {
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = self.data;
         self.feature_variations_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    pub fn script_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.script_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`script_list2_offset`][Self::script_list2_offset].
+    pub fn script_list2(&self) -> Option<Result<ScriptList<'a>, ReadError>> {
+        let data = self.data;
+        self.script_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    pub fn feature_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.feature_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`feature_list2_offset`][Self::feature_list2_offset].
+    pub fn feature_list2(&self) -> Option<Result<FeatureList<'a>, ReadError>> {
+        let data = self.data;
+        self.feature_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    pub fn lookup_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.lookup_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`lookup_list2_offset`][Self::lookup_list2_offset].
+    pub fn lookup_list2(&self) -> Option<Result<SubstitutionLookupList2<'a>, ReadError>> {
+        let data = self.data;
+        self.lookup_list2_offset().map(|x| x.resolve(data))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -132,6 +156,36 @@ impl<'a> Gsub<'a> {
     pub fn feature_variations_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_list_offset_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn script_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.feature_variations_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn feature_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.script_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn lookup_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.feature_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
             start + Offset32::RAW_BYTE_LEN
         } else {
             start

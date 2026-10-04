@@ -3,22 +3,47 @@
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 #[tag = "GSUB"]
+#[skip_constructor]
 table Gsub {
     /// The major and minor version of the GSUB table, as a tuple (u16, u16)
     #[version]
     #[compile(self.compute_version())]
     version: MajorMinor,
     /// Offset to ScriptList table, from beginning of GSUB table
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(script_list)]
+    #[to_owned(obj.legacy_script_list().to_owned_table())]
     script_list_offset: Offset16<ScriptList>,
     /// Offset to FeatureList table, from beginning of GSUB table
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(feature_list)]
+    #[to_owned(obj.legacy_feature_list().to_owned_table())]
     feature_list_offset: Offset16<FeatureList>,
     /// Offset to LookupList table, from beginning of GSUB table
-    lookup_list_offset: Offset16<SubstitutionLookupList>,
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(lookup_list)]
+    #[to_owned(obj.legacy_lookup_list().to_owned_table())]
+    lookup_list_offset: Offset16<LegacySubstitutionLookupList>,
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
     #[since_version(1.1)]
     #[nullable]
     feature_variations_offset: Offset32<FeatureVariations>,
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    script_list2_offset: Offset32<ScriptList>,
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    feature_list2_offset: Offset32<FeatureList>,
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    lookup_list2_offset: Offset32<SubstitutionLookupList2>,
 }
 
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
@@ -220,4 +245,3 @@ table ReverseChainSingleSubstFormat1 {
     #[count($glyph_count)]
     substitute_glyph_ids: [GlyphId16],
 }
-

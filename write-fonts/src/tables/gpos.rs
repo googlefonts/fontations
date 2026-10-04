@@ -4,6 +4,16 @@
 
 include!("../../generated/generated_gpos.rs");
 
+impl ReadArgs for PositionLookupList2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PositionLookupList2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        read_fonts::tables::gpos::PositionLookupList2::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 use std::collections::HashSet;
 
 //use super::layout::value_record::ValueRecord;
@@ -26,6 +36,12 @@ pub use value_record::ValueRecord;
 /// A GPOS lookup list table.
 pub type PositionLookupList = LookupList<PositionLookup>;
 
+/// A lookup list with the original 16-bit offsets.
+pub type LegacyPositionLookupList = PositionLookupList;
+
+/// A lookup list with 32-bit offsets.
+pub type PositionLookupList2 = super::layout::LookupList2<PositionLookup>;
+
 super::layout::table_newtype!(
     PositionSequenceContext,
     SequenceContext,
@@ -39,8 +55,27 @@ super::layout::table_newtype!(
 );
 
 impl Gpos {
+    /// Creates a GPOS table using the original 16-bit header offsets.
+    pub fn new(
+        script_list: ScriptList,
+        feature_list: FeatureList,
+        lookup_list: PositionLookupList,
+    ) -> Self {
+        Self {
+            script_list: Some(script_list).into(),
+            feature_list: Some(feature_list).into(),
+            lookup_list: Some(lookup_list).into(),
+            ..Default::default()
+        }
+    }
+
     fn compute_version(&self) -> MajorMinor {
-        if self.feature_variations.is_none() {
+        if self.script_list2.is_some()
+            || self.feature_list2.is_some()
+            || self.lookup_list2.is_some()
+        {
+            MajorMinor::new(1, 2)
+        } else if self.feature_variations.is_none() {
             MajorMinor::VERSION_1_0
         } else {
             MajorMinor::VERSION_1_1
@@ -83,7 +118,7 @@ impl ReadArgs for PositionLookupList {
 
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        read_fonts::tables::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gpos::LegacyPositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -252,7 +287,16 @@ impl RemapVarStore<VariationIndex> for AnchorTable {
 
 impl RemapVarStore<VariationIndex> for Gpos {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
-        self.lookup_list.as_mut().remap_variation_indices(key_map)
+        if let Some(list) = self.lookup_list.as_mut() {
+            for lookup in &mut list.lookups {
+                lookup.remap_variation_indices(key_map);
+            }
+        }
+        if let Some(list) = self.lookup_list2.as_mut() {
+            for lookup in &mut list.lookups {
+                lookup.remap_variation_indices(key_map);
+            }
+        }
     }
 }
 

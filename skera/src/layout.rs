@@ -1834,6 +1834,31 @@ where
     }
 }
 
+impl<
+        'a,
+        T: FontRead<'a, Args = ()>
+            + SubsetTable<
+                'a,
+                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            >,
+    > SubsetTable<'a> for write_fonts::read::tables::layout::LookupListTable<'a, T>
+{
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Offset16(t) => t.subset(plan, s, args),
+            Self::Offset32(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -34,6 +34,8 @@ mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
+pub use extended::{LayoutOffsetArray, LookupListTable};
+
 impl<'a, T: FontRead<'a, Args = ()>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.resolve_offset(offset)

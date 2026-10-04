@@ -19,7 +19,19 @@ impl Gpos<'_> {
         languages: &IntSet<Tag>,
         features: &IntSet<Tag>,
     ) -> Result<IntSet<u16>, ReadError> {
-        if self.script_list_offset().is_null() || self.feature_list_offset().is_null() {
+        if super::super::layout::extended::preferred_offset(
+            self.script_list_offset(),
+            self.script_list2_offset(),
+            self.version() >= font_types::MajorMinor::new(1, 2),
+        )?
+        .is_null()
+            || super::super::layout::extended::preferred_offset(
+                self.feature_list_offset(),
+                self.feature_list2_offset(),
+                self.version() >= font_types::MajorMinor::new(1, 2),
+            )?
+            .is_null()
+        {
             return Ok(IntSet::empty());
         }
         let feature_list = self.feature_list()?;
@@ -30,7 +42,13 @@ impl Gpos<'_> {
 
     /// Return a set of lookups referenced by the specified features
     pub fn collect_lookups(&self, feature_indices: &IntSet<u16>) -> Result<IntSet<u16>, ReadError> {
-        if self.feature_list_offset().is_null() {
+        if super::super::layout::extended::preferred_offset(
+            self.feature_list_offset(),
+            self.feature_list2_offset(),
+            self.version() >= font_types::MajorMinor::new(1, 2),
+        )?
+        .is_null()
+        {
             return Ok(IntSet::empty());
         }
         let feature_list = self.feature_list()?;
@@ -49,7 +67,13 @@ impl Gpos<'_> {
         glyphs: &IntSet<GlyphId>,
         lookup_indices: &mut IntSet<u16>,
     ) -> Result<(), ReadError> {
-        if self.lookup_list_offset().is_null() {
+        if super::super::layout::extended::preferred_offset(
+            self.lookup_list_offset(),
+            self.lookup_list2_offset(),
+            self.version() >= font_types::MajorMinor::new(1, 2),
+        )?
+        .is_null()
+        {
             return Ok(());
         }
         let lookup_list = self.lookup_list()?;

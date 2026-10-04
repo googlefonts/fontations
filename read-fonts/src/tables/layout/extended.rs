@@ -1,6 +1,110 @@
-//! Accessors for the ISO OFF extended coverage and class definitions.
+//! Accessors shared by the ISO OFF extended layout formats.
 
 use super::*;
+
+/// An offset array whose serialized offsets have one of the layout widths.
+#[derive(Clone)]
+pub enum LayoutOffsetArray<'a, T: FontRead<'a, Args = ()>> {
+    Offset16(ArrayOfOffsets<'a, T, Offset16>),
+    Offset24(ArrayOfOffsets<'a, T, Offset24>),
+    Offset32(ArrayOfOffsets<'a, T, Offset32>),
+}
+
+impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Offset16(array) => array.len(),
+            Self::Offset24(array) => array.len(),
+            Self::Offset32(array) => array.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn get(&self, index: usize) -> Result<T, ReadError> {
+        match self {
+            Self::Offset16(array) => array.get(index),
+            Self::Offset24(array) => array.get(index),
+            Self::Offset32(array) => array.get(index),
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+        let (one, two, three) = match self {
+            Self::Offset16(array) => (Some(array.iter()), None, None),
+            Self::Offset24(array) => (None, Some(array.iter()), None),
+            Self::Offset32(array) => (None, None, Some(array.iter())),
+        };
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+    }
+
+    pub fn iter_as_nullable(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+        self.iter().map(|result| match result {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        })
+    }
+}
+
+/// LookupList or LookupList2, selected by the enclosing GSUB/GPOS header.
+#[derive(Clone)]
+pub enum LookupListTable<'a, T: FontRead<'a, Args = ()>> {
+    Offset16(LookupList<'a, T>),
+    Offset32(LookupList2<'a, T>),
+}
+
+impl<'a, T: FontRead<'a, Args = ()>> ReadArgs for LookupListTable<'a, T> {
+    type Args = ();
+}
+
+impl<'a, T: FontRead<'a, Args = ()> + 'a> FontRead<'a> for LookupListTable<'a, T> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        LookupList::read(data).map(Self::Offset16)
+    }
+}
+
+impl<'a, T: FontRead<'a, Args = ()> + 'a> LookupListTable<'a, T> {
+    pub fn lookup_count(&self) -> u16 {
+        match self {
+            Self::Offset16(table) => table.lookup_count(),
+            Self::Offset32(table) => table.lookup_count(),
+        }
+    }
+
+    pub fn lookups(&self) -> LayoutOffsetArray<'a, T> {
+        match self {
+            Self::Offset16(table) => LayoutOffsetArray::Offset16(table.lookups()),
+            Self::Offset32(table) => LayoutOffsetArray::Offset32(table.lookups()),
+        }
+    }
+
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Offset16(table) => table.offset_data(),
+            Self::Offset32(table) => table.offset_data(),
+        }
+    }
+}
+
+pub(crate) fn preferred_offset(
+    legacy: Nullable<Offset16>,
+    extended: Option<Nullable<Offset32>>,
+    has_extended_header: bool,
+) -> Result<Offset32, ReadError> {
+    if has_extended_header {
+        let extended = extended.ok_or(ReadError::OutOfBounds)?;
+        let extended = *extended.offset();
+        if !extended.is_null() {
+            return Ok(extended);
+        }
+    }
+    Ok(Offset32::new(legacy.offset().to_u32()))
+}
 
 impl CoverageFormat3<'_> {
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
