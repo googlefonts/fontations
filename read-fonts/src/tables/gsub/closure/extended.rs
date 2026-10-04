@@ -3,7 +3,7 @@
 use super::*;
 use crate::tables::gsub::{
     AlternateSubstFormat2, Ligature2, LigatureSet2, LigatureSubstFormat2, MultipleSubstFormat2,
-    SingleSubstFormat3, SingleSubstFormat4,
+    ReverseChainSingleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
 };
 
 impl GlyphClosure for SingleSubstFormat3<'_> {
@@ -243,6 +243,61 @@ impl Intersect for Ligature2<'_> {
             .component_glyph_ids()
             .iter()
             .all(|gid| glyphs.contains(gid.get().into())))
+    }
+}
+
+impl Intersect for ReverseChainSingleSubstFormat2<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() || !self.coverage()?.intersects(glyphs) {
+            return Ok(false);
+        }
+        for coverage in self
+            .backtrack_coverages()
+            .iter_as_nullable()
+            .chain(self.lookahead_coverages().iter_as_nullable())
+        {
+            let Some(coverage) = coverage.transpose()? else {
+                return Ok(false);
+            };
+            if !coverage.intersects(glyphs) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+impl GlyphClosure for ReverseChainSingleSubstFormat2<'_> {
+    fn closure_glyphs(
+        &self,
+        ctx: &mut ClosureCtx,
+        _lookup_list: &SubstitutionLookupList,
+        _lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        if !self.intersects(ctx.glyphs())? {
+            return Ok(());
+        }
+        let coverage = self.coverage()?;
+        let glyphs = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
+        let substitutes = self.substitute_glyph_ids();
+        if self.glyph_count().to_u32() as u64 > glyphs.len() * coverage.cost() as u64 {
+            ctx.output.extend(
+                glyphs
+                    .iter()
+                    .filter_map(|gid| coverage.get(gid))
+                    .filter_map(|index| substitutes.get(index as usize))
+                    .map(|gid| GlyphId::from(gid.get())),
+            );
+        } else {
+            ctx.output.extend(
+                coverage
+                    .iter()
+                    .zip(substitutes)
+                    .filter(|(gid, _)| glyphs.contains(*gid))
+                    .map(|(_, gid)| GlyphId::from(gid.get())),
+            );
+        }
+        Ok(())
     }
 }
 
@@ -521,6 +576,83 @@ mod tests {
             let mut glyphs = [GlyphId::new(65536)].into_iter().collect();
             let result = gsub.closure_glyphs(&IntSet::all(), &mut glyphs);
             assert_eq!(result.is_ok(), offset == 0);
+        }
+    }
+
+    fn reverse_subtable(backtrack_offset: u32, lookahead_offset: u32) -> Vec<u8> {
+        BeBuffer::new()
+            .push(2u16)
+            .push(22u32)
+            .push(1u16)
+            .push(Uint24::new(backtrack_offset))
+            .push(1u16)
+            .push(Uint24::new(lookahead_offset))
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(70000))
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(65536))
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(65535))
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(0xffffff))
+            .to_vec()
+    }
+
+    #[test]
+    fn wide_reverse_closure_requires_backtrack_and_lookahead() {
+        let subtable = reverse_subtable(30, 38);
+        assert_eq!(
+            close_lookup(8, &subtable, &[65535, 65536, 0xffffff]),
+            [65535, 65536, 70000, 0xffffff]
+        );
+        for inputs in [vec![65536], vec![65535, 65536], vec![65536, 0xffffff]] {
+            let bytes = gsub_with_lookup(8, &subtable);
+            let gsub = Gsub::read(FontData::new(&bytes)).unwrap();
+            let mut glyphs = inputs.iter().copied().map(GlyphId::new).collect();
+            let mut lookups = [0].into_iter().collect();
+            gsub.closure_lookups(&glyphs, &mut lookups).unwrap();
+            assert!(lookups.is_empty());
+            gsub.closure_glyphs(&IntSet::all(), &mut glyphs).unwrap();
+            assert_eq!(
+                glyphs.iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+                inputs
+            );
+        }
+    }
+
+    #[test]
+    fn wide_reverse_closure_keeps_large_coverage_indices() {
+        let count = 65537u32;
+        let subtable = BeBuffer::new()
+            .push(2u16)
+            .push(13 + 3 * count)
+            .push(0u16)
+            .push(0u16)
+            .push(Uint24::new(count))
+            .extend((0..count).map(|index| GlyphId24::new(if index == 65536 { 70000 } else { 0 })))
+            .push(4u16)
+            .push(Uint24::new(1))
+            .extend([0, 65536, 0].map(Uint24::new));
+        assert_eq!(close_lookup(8, &subtable, &[65536]), [65536, 70000]);
+    }
+
+    #[test]
+    fn wide_reverse_closure_handles_null_and_invalid_context_offsets() {
+        let glyphs: IntSet<_> = [65535, 65536, 0xffffff]
+            .map(GlyphId::new)
+            .into_iter()
+            .collect();
+        for (backtrack, lookahead) in [(0, 38), (30, 0), (0xffffff, 38), (30, 0xffffff)] {
+            let bytes = reverse_subtable(backtrack, lookahead);
+            let subtable = ReverseChainSingleSubstFormat2::read(FontData::new(&bytes)).unwrap();
+            if backtrack == 0 || lookahead == 0 {
+                assert!(!subtable.intersects(&glyphs).unwrap());
+            } else {
+                assert!(subtable.intersects(&glyphs).is_err());
+            }
         }
     }
 }
