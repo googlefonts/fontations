@@ -44,6 +44,36 @@ table Gvar {
     #[read_with($flags)]
     #[compile_with(compile_variation_data)]
     #[compile_type(Vec<GlyphVariationData>)]
+    #[validate(validate_glyph_variation_data)]
+    glyph_variation_data_offsets: ComputedArray<U16Or32>,
+}
+
+/// GVAR from ISO Open Font Format fifth edition (ISO/IEC 14496-22:2026, 7.3.9).
+#[tag = "GVAR"]
+#[skip_from_obj]
+#[skip_constructor]
+table GvarExtended {
+    #[compile(MajorMinor::VERSION_1_0)]
+    version: MajorMinor,
+    axis_count: u16,
+    #[compile(array_len($shared_tuples_offset))]
+    shared_tuple_count: u16,
+    #[skip_getter]
+    #[read_offset_with($shared_tuple_count, $axis_count)]
+    #[compile_with(compute_shared_tuples_offset)]
+    shared_tuples_offset: Offset32<SharedTuples>,
+    /// Number of glyphs, equal to numGlyphs in MAXP.
+    #[compile(self.compute_glyph_count())]
+    glyph_count: Uint24,
+    #[compile(self.compute_flags())]
+    flags: GvarFlags,
+    #[compile(self.compute_data_array_offset())]
+    glyph_variation_data_array_offset: u32,
+    #[count(add($glyph_count, 1))]
+    #[read_with($flags)]
+    #[compile_with(compile_variation_data)]
+    #[compile_type(Vec<GlyphVariationData>)]
+    #[validate(validate_glyph_variation_data)]
     glyph_variation_data_offsets: ComputedArray<U16Or32>,
 }
 
@@ -79,3 +109,14 @@ table GlyphVariationDataHeader {
     tuple_variation_headers: VarLenArray<TupleVariationHeader<'_>>,
 }
 
+/// Per-glyph variation header in GVAR (ISO/IEC 14496-22:2026, 7.3.9.1.3).
+#[skip_font_write]
+#[skip_from_obj]
+#[skip_constructor]
+table GlyphVariationDataHeaderExtended {
+    tuple_variation_count: TupleVariationCount,
+    #[compile(skip)]
+    serialized_data_offset: Offset24<FontData>,
+    #[count(..)]
+    tuple_variation_headers: VarLenArray<TupleVariationHeader<'_>>,
+}

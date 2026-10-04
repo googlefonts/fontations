@@ -19,6 +19,49 @@ use super::{
 /// Variation data specialized for the glyph variations table.
 pub type GlyphVariationData<'a> = TupleVariationData<'a, GlyphDelta>;
 
+/// Glyph variations from GVAR or the legacy gvar table.
+#[derive(Clone, yoke::Yokeable)]
+pub enum GvarTable<'a> {
+    Standard(Gvar<'a>),
+    Extended(GvarExtended<'a>),
+}
+
+impl<'a> From<Gvar<'a>> for GvarTable<'a> {
+    fn from(table: Gvar<'a>) -> Self {
+        Self::Standard(table)
+    }
+}
+
+impl<'a> From<GvarExtended<'a>> for GvarTable<'a> {
+    fn from(table: GvarExtended<'a>) -> Self {
+        Self::Extended(table)
+    }
+}
+
+impl<'a> GvarTable<'a> {
+    pub fn glyph_count(&self) -> u32 {
+        match self {
+            Self::Standard(table) => table.glyph_count().into(),
+            Self::Extended(table) => table.glyph_count().into(),
+        }
+    }
+
+    fn is_extended(&self) -> bool {
+        matches!(self, Self::Extended(_))
+    }
+
+    extended_table_getters!(
+        version -> MajorMinor,
+        axis_count -> u16,
+        shared_tuple_count -> u16,
+        shared_tuples_offset -> Offset32,
+        flags -> GvarFlags,
+        glyph_variation_data_array_offset -> u32,
+        glyph_variation_data_offsets -> ComputedArray<'a, U16Or32>,
+        offset_data -> FontData<'a>,
+    );
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct U16Or32(u32);
 
@@ -62,180 +105,219 @@ impl<'a> GlyphVariationDataHeader<'a> {
     }
 }
 
-impl<'a> Gvar<'a> {
-    /// Offset from the start of this table to the shared tuple records.
-    pub fn shared_tuples_offset(&self) -> Offset32 {
-        self.data
-            .read_at(self.shared_tuples_offset_byte_range().start)
-            .ok()
-            .unwrap()
-    }
-
-    /// Returns the shared tuples, including an empty array when both the
-    /// count and offset are zero.
-    pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
-        let count = self.shared_tuple_count();
-        let axis_count = self.axis_count();
-        let offset = self.shared_tuples_offset();
-        if count == 0 && offset.is_null() {
-            return SharedTuples::read(self.data, 0, axis_count);
-        }
-        offset.resolve_with_args(self.data, (count, axis_count))
-    }
-
-    /// Return the raw data for this gid.
-    ///
-    /// If there is no variation data for the glyph, returns `Ok(None)`.
-    pub fn data_for_gid(&self, gid: GlyphId) -> Result<Option<FontData<'a>>, ReadError> {
-        let range = self.data_range_for_gid(gid)?;
-        if range.is_empty() {
-            return Ok(None);
-        }
-        match self.data.slice(range) {
-            Some(data) => Ok(Some(data)),
-            None => Err(ReadError::OutOfBounds),
-        }
-    }
-
-    pub fn glyph_variation_data_for_range(
-        &self,
-        offset_range: Range<usize>,
-    ) -> Result<FontData<'a>, ReadError> {
-        let base = self.glyph_variation_data_array_offset() as usize;
-        let start = base
-            .checked_add(offset_range.start)
-            .ok_or(ReadError::OutOfBounds)?;
-        let end = base
-            .checked_add(offset_range.end)
-            .ok_or(ReadError::OutOfBounds)?;
-        self.data.slice(start..end).ok_or(ReadError::OutOfBounds)
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        self.data.as_bytes()
-    }
-
-    fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {
-        let start_idx = gid.to_u32() as usize;
-        let end_idx = start_idx + 1;
-        let data_start = self.glyph_variation_data_array_offset();
-        let start =
-            data_start.checked_add(self.glyph_variation_data_offsets().get(start_idx)?.get());
-        let end = data_start.checked_add(self.glyph_variation_data_offsets().get(end_idx)?.get());
-        let (Some(start), Some(end)) = (start, end) else {
-            return Err(ReadError::OutOfBounds);
-        };
-        Ok(start as usize..end as usize)
-    }
-
-    /// Get the variation data for a specific glyph.
-    ///
-    /// Returns `Ok(None)` if there is no variation data for this glyph, and
-    /// returns an error if there is data but it is malformed.
-    pub fn glyph_variation_data(
-        &self,
-        gid: GlyphId,
-    ) -> Result<Option<GlyphVariationData<'a>>, ReadError> {
-        let shared_tuples = self.shared_tuples()?;
-        let axis_count = self.axis_count();
-        let data = self.data_for_gid(gid)?;
-        data.map(|data| GlyphVariationData::new(data, axis_count, shared_tuples))
-            .transpose()
-    }
-
-    /// Returns the phantom point deltas for the given variation coordinates
-    /// and glyph identifier, if variation data exists for the glyph.
-    ///
-    /// The resulting array will contain four deltas:
-    /// `[left, right, top, bottom]`.
-    /// Computes the scalar for each shared tuple at `coords`, in table order,
-    /// and returns how many were written.
-    ///
-    /// A tuple that does not apply at `coords` is written as zero, which is
-    /// the value it contributes. Only the peak is used: a glyph naming a
-    /// shared tuple may state its own range alongside it, and that range is
-    /// not shared.
-    ///
-    /// `out` may be shorter than the table has shared tuples, and an
-    /// unreadable table writes nothing. A reader computes whatever is
-    /// missing.
-    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
-        let Ok(shared) = self.shared_tuples() else {
-            out.fill(NOT_COMPUTED);
-            return 0;
-        };
-        let shared = shared.tuples();
-        let axis_count = self.axis_count() as usize;
-        let count = out.len().min(self.shared_tuple_count() as usize);
-        for (i, out) in out[..count].iter_mut().enumerate() {
-            // An unreadable tuple ends the run. Entries already written
-            // stay valid; the caller computes the rest.
-            let Ok(tuple) = shared.get(i) else {
-                return i;
-            };
-            *out = (tuple.len() == axis_count)
-                .then(|| scalar_for(&tuple, None, coords))
-                .flatten()
-                .unwrap_or(Fixed::ZERO);
-        }
-        // Mark the tail so a slice longer than the table is safe to read.
-        out[count..].fill(NOT_COMPUTED);
-        count
-    }
-
-    pub fn phantom_point_deltas(
-        &self,
-        glyf: &Glyf,
-        loca: &Loca,
-        coords: &[F2Dot14],
-        glyph_id: GlyphId,
-    ) -> Option<[Point<Fixed>; 4]> {
-        self.phantom_point_deltas_with_scalars(glyf, loca, coords, &[], glyph_id)
-    }
-
-    /// Returns the phantom point deltas for `glyph_id` at `coords`, reusing
-    /// `scalars`.
-    ///
-    /// `scalars` holds one entry per shared tuple, from
-    /// [`compute_scalars`](Self::compute_scalars). It may be empty or cover
-    /// only some of them; the rest are computed here.
-    pub fn phantom_point_deltas_with_scalars(
-        &self,
-        glyf: &Glyf,
-        loca: &Loca,
-        coords: &[F2Dot14],
-        scalars: &[Fixed],
-        glyph_id: GlyphId,
-    ) -> Option<[Point<Fixed>; 4]> {
-        // For any given glyph, there's only one outline that contributes to
-        // metrics deltas (via "phantom points"). For simple glyphs, that is
-        // the glyph itself. For composite glyphs, it is the last component
-        // in the tree that has the USE_MY_METRICS flag set or, if there are
-        // none, the composite glyph itself.
-        //
-        // This searches for the glyph that meets that criteria and also
-        // returns the point count (for composites, this is the component
-        // count), so that we know where the deltas for phantom points start
-        // in the variation data.
-        let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0).ok()?;
-        let mut phantom_deltas = [Point::default(); 4];
-        let phantom_range = point_count..point_count + 4;
-        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
-            return None;
-        };
-        // Note that phantom points can never belong to a contour so we don't have
-        // to handle the IUP case here.
-        for (tuple, scalar) in var_data.active_tuples_at_with_scalars(coords, scalars) {
-            for tuple_delta in tuple.deltas() {
-                let ix = tuple_delta.position as usize;
-                if phantom_range.contains(&ix) {
-                    phantom_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar);
-                }
-            }
-        }
-        Some(phantom_deltas)
+impl<'a> GlyphVariationDataHeaderExtended<'a> {
+    fn raw_tuple_header_data(&self) -> FontData<'a> {
+        let range = self.tuple_variation_headers_byte_range();
+        self.data.split_off(range.start).unwrap()
     }
 }
+
+macro_rules! impl_gvar_header {
+    ($table:ident, $extended:expr) => {
+        impl<'a> $table<'a> {
+            /// Offset from the start of this table to the shared tuple records.
+            pub fn shared_tuples_offset(&self) -> Offset32 {
+                self.data
+                    .read_at(self.shared_tuples_offset_byte_range().start)
+                    .ok()
+                    .unwrap()
+            }
+
+            fn is_extended(&self) -> bool {
+                $extended
+            }
+        }
+    };
+}
+
+impl_gvar_header!(Gvar, false);
+impl_gvar_header!(GvarExtended, true);
+
+macro_rules! impl_gvar_methods {
+    ($table:ident) => {
+        impl<'a> $table<'a> {
+            /// Returns the shared tuples, including an empty array when both the
+            /// count and offset are zero.
+            pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
+                let count = self.shared_tuple_count();
+                let axis_count = self.axis_count();
+                let offset = self.shared_tuples_offset();
+                if count == 0 && offset.is_null() {
+                    return SharedTuples::read(self.offset_data(), 0, axis_count);
+                }
+                offset.resolve_with_args(self.offset_data(), (count, axis_count))
+            }
+
+            /// Return the raw data for this gid.
+            ///
+            /// If there is no variation data for the glyph, returns `Ok(None)`.
+            pub fn data_for_gid(&self, gid: GlyphId) -> Result<Option<FontData<'a>>, ReadError> {
+                let range = self.data_range_for_gid(gid)?;
+                if range.is_empty() {
+                    return Ok(None);
+                }
+                match self.offset_data().slice(range) {
+                    Some(data) => Ok(Some(data)),
+                    None => Err(ReadError::OutOfBounds),
+                }
+            }
+
+            pub fn glyph_variation_data_for_range(
+                &self,
+                offset_range: Range<usize>,
+            ) -> Result<FontData<'a>, ReadError> {
+                let base = self.glyph_variation_data_array_offset() as usize;
+                let start = base
+                    .checked_add(offset_range.start)
+                    .ok_or(ReadError::OutOfBounds)?;
+                let end = base
+                    .checked_add(offset_range.end)
+                    .ok_or(ReadError::OutOfBounds)?;
+                self.offset_data()
+                    .slice(start..end)
+                    .ok_or(ReadError::OutOfBounds)
+            }
+
+            pub fn as_bytes(&self) -> &[u8] {
+                self.offset_data().as_bytes()
+            }
+
+            fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {
+                let start_idx = gid.to_u32() as usize;
+                let end_idx = start_idx.checked_add(1).ok_or(ReadError::OutOfBounds)?;
+                let data_start = self.glyph_variation_data_array_offset();
+                let start = data_start
+                    .checked_add(self.glyph_variation_data_offsets().get(start_idx)?.get());
+                let end =
+                    data_start.checked_add(self.glyph_variation_data_offsets().get(end_idx)?.get());
+                let (Some(start), Some(end)) = (start, end) else {
+                    return Err(ReadError::OutOfBounds);
+                };
+                Ok(start as usize..end as usize)
+            }
+
+            /// Get the variation data for a specific glyph.
+            ///
+            /// Returns `Ok(None)` if there is no variation data for this glyph, and
+            /// returns an error if there is data but it is malformed.
+            pub fn glyph_variation_data(
+                &self,
+                gid: GlyphId,
+            ) -> Result<Option<GlyphVariationData<'a>>, ReadError> {
+                let shared_tuples = self.shared_tuples()?;
+                let axis_count = self.axis_count();
+                let data = self.data_for_gid(gid)?;
+                data.map(|data| {
+                    if self.is_extended() {
+                        GlyphVariationData::new_extended(data, axis_count, shared_tuples)
+                    } else {
+                        GlyphVariationData::new(data, axis_count, shared_tuples)
+                    }
+                })
+                .transpose()
+            }
+
+            /// Returns the phantom point deltas for the given variation coordinates
+            /// and glyph identifier, if variation data exists for the glyph.
+            ///
+            /// The resulting array will contain four deltas:
+            /// `[left, right, top, bottom]`.
+            /// Computes the scalar for each shared tuple at `coords`, in table order,
+            /// and returns how many were written.
+            ///
+            /// A tuple that does not apply at `coords` is written as zero, which is
+            /// the value it contributes. Only the peak is used: a glyph naming a
+            /// shared tuple may state its own range alongside it, and that range is
+            /// not shared.
+            ///
+            /// `out` may be shorter than the table has shared tuples, and an
+            /// unreadable table writes nothing. A reader computes whatever is
+            /// missing.
+            pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+                let Ok(shared) = self.shared_tuples() else {
+                    out.fill(NOT_COMPUTED);
+                    return 0;
+                };
+                let shared = shared.tuples();
+                let axis_count = self.axis_count() as usize;
+                let count = out.len().min(self.shared_tuple_count() as usize);
+                for (i, out) in out[..count].iter_mut().enumerate() {
+                    // An unreadable tuple ends the run. Entries already written
+                    // stay valid; the caller computes the rest.
+                    let Ok(tuple) = shared.get(i) else {
+                        return i;
+                    };
+                    *out = (tuple.len() == axis_count)
+                        .then(|| scalar_for(&tuple, None, coords))
+                        .flatten()
+                        .unwrap_or(Fixed::ZERO);
+                }
+                // Mark the tail so a slice longer than the table is safe to read.
+                out[count..].fill(NOT_COMPUTED);
+                count
+            }
+
+            pub fn phantom_point_deltas(
+                &self,
+                glyf: &Glyf,
+                loca: &Loca,
+                coords: &[F2Dot14],
+                glyph_id: GlyphId,
+            ) -> Option<[Point<Fixed>; 4]> {
+                self.phantom_point_deltas_with_scalars(glyf, loca, coords, &[], glyph_id)
+            }
+
+            /// Returns the phantom point deltas for `glyph_id` at `coords`, reusing
+            /// `scalars`.
+            ///
+            /// `scalars` holds one entry per shared tuple, from
+            /// [`compute_scalars`](Self::compute_scalars). It may be empty or cover
+            /// only some of them; the rest are computed here.
+            pub fn phantom_point_deltas_with_scalars(
+                &self,
+                glyf: &Glyf,
+                loca: &Loca,
+                coords: &[F2Dot14],
+                scalars: &[Fixed],
+                glyph_id: GlyphId,
+            ) -> Option<[Point<Fixed>; 4]> {
+                // For any given glyph, there's only one outline that contributes to
+                // metrics deltas (via "phantom points"). For simple glyphs, that is
+                // the glyph itself. For composite glyphs, it is the last component
+                // in the tree that has the USE_MY_METRICS flag set or, if there are
+                // none, the composite glyph itself.
+                //
+                // This searches for the glyph that meets that criteria and also
+                // returns the point count (for composites, this is the component
+                // count), so that we know where the deltas for phantom points start
+                // in the variation data.
+                let (glyph_id, point_count) =
+                    find_glyph_and_point_count(glyf, loca, glyph_id, 0).ok()?;
+                let mut phantom_deltas = [Point::default(); 4];
+                let phantom_range = point_count..point_count + 4;
+                let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+                    return None;
+                };
+                // Note that phantom points can never belong to a contour so we don't have
+                // to handle the IUP case here.
+                for (tuple, scalar) in var_data.active_tuples_at_with_scalars(coords, scalars) {
+                    for tuple_delta in tuple.deltas() {
+                        let ix = tuple_delta.position as usize;
+                        if phantom_range.contains(&ix) {
+                            phantom_deltas[ix - phantom_range.start] +=
+                                tuple_delta.apply_scalar(scalar);
+                        }
+                    }
+                }
+                Some(phantom_deltas)
+            }
+        }
+    };
+}
+
+impl_gvar_methods!(Gvar);
+impl_gvar_methods!(GvarExtended);
+impl_gvar_methods!(GvarTable);
 
 impl<'a> GlyphVariationData<'a> {
     pub(crate) fn new(
@@ -243,20 +325,46 @@ impl<'a> GlyphVariationData<'a> {
         axis_count: u16,
         shared_tuples: SharedTuples<'a>,
     ) -> Result<Self, ReadError> {
-        let header = GlyphVariationDataHeader::read(data)?;
+        Self::new_with_format(data, axis_count, shared_tuples, false)
+    }
 
-        let header_data = header.raw_tuple_header_data();
-        let count = header.tuple_variation_count();
-        let data = header.serialized_data()?;
+    fn new_extended(
+        data: FontData<'a>,
+        axis_count: u16,
+        shared_tuples: SharedTuples<'a>,
+    ) -> Result<Self, ReadError> {
+        Self::new_with_format(data, axis_count, shared_tuples, true)
+    }
+
+    fn new_with_format(
+        data: FontData<'a>,
+        axis_count: u16,
+        shared_tuples: SharedTuples<'a>,
+        extended: bool,
+    ) -> Result<Self, ReadError> {
+        let (count, header_data, data) = if extended {
+            let header = GlyphVariationDataHeaderExtended::read(data)?;
+            (
+                header.tuple_variation_count(),
+                header.raw_tuple_header_data(),
+                header.serialized_data()?,
+            )
+        } else {
+            let header = GlyphVariationDataHeader::read(data)?;
+            (
+                header.tuple_variation_count(),
+                header.raw_tuple_header_data(),
+                header.serialized_data()?,
+            )
+        };
 
         // if there are shared point numbers, get them now
-        let (shared_point_numbers, serialized_data) =
-            if header.tuple_variation_count().shared_point_numbers() {
-                let (packed, data) = PackedPointNumbers::split_off_front(data);
-                (Some(packed), data)
-            } else {
-                (None, data)
-            };
+        let (shared_point_numbers, serialized_data) = if count.shared_point_numbers() {
+            let (packed, data) = PackedPointNumbers::split_off_front(data);
+            (Some(packed), data)
+        } else {
+            (None, data)
+        };
 
         Ok(GlyphVariationData {
             tuple_count: count,
@@ -368,6 +476,104 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    #[test]
+    fn extended_gvar_glyph_counts_and_data_offsets() {
+        for long_offsets in [false, true] {
+            for wide_data_offset in [false, true] {
+                let bytes =
+                    font_test_data::extended::gvar(65537, true, long_offsets, wide_data_offset);
+                let raw = GvarExtended::read(bytes.as_slice().into()).unwrap();
+                let selected = GvarTable::Extended(raw.clone());
+                assert_eq!(raw.glyph_count().to_u32(), 65537);
+                assert_eq!(selected.glyph_count(), 65537);
+                assert_eq!(raw.flags().contains(GvarFlags::LONG_OFFSETS), long_offsets);
+                assert_eq!(raw.glyph_variation_data_offsets().len(), 65538);
+                assert!(raw.glyph_variation_data(GlyphId::new(0)).unwrap().is_none());
+                for table in [GvarTable::Extended(raw), selected] {
+                    let mut scalars = [Fixed::ZERO];
+                    assert_eq!(
+                        table.compute_scalars(&[F2Dot14::from_f32(0.5)], &mut scalars),
+                        1
+                    );
+                    assert_eq!(scalars[0], Fixed::from_f64(0.5));
+                    let data = table
+                        .glyph_variation_data(GlyphId::new(65536))
+                        .unwrap()
+                        .unwrap();
+                    let tuples: Vec<_> = data.tuples().collect();
+                    assert_eq!(tuples.len(), 1);
+                    assert!(tuples[0].has_deltas_for_all_points());
+                    let mut dense = [Point::<Fixed>::default(); 8];
+                    tuples[0]
+                        .accumulate_dense_deltas(&mut dense, Fixed::ONE)
+                        .unwrap();
+                    assert_eq!(dense[0].x, Fixed::from_i32(40));
+                    let deltas: Vec<_> =
+                        tuples[0].deltas().map(|d| (d.x_delta, d.y_delta)).collect();
+                    assert_eq!(
+                        deltas,
+                        [
+                            (40, 0),
+                            (40, 0),
+                            (40, 0),
+                            (40, 0),
+                            (0, 0),
+                            (100, 0),
+                            (0, 40),
+                            (0, -20)
+                        ]
+                    );
+                    for gid in [65537, u32::MAX] {
+                        assert!(table.glyph_variation_data(GlyphId::new(gid)).is_err());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn extended_gvar_selection_and_malformed_headers() {
+        use font_test_data::extended::{font, gvar};
+        let extended = gvar(65537, true, true, false);
+        let legacy = gvar(3, false, false, false);
+        for with_legacy in [false, true] {
+            let mut tables = vec![(*b"GVAR", extended.as_slice())];
+            if with_legacy {
+                tables.push((*b"gvar", legacy.as_slice()));
+            }
+            let bytes = font(&tables);
+            let font = FontRef::new(&bytes).unwrap();
+            assert_eq!(font.gvar_table().unwrap().glyph_count(), 65537);
+        }
+        let bytes = font(&[(*b"gvar", &legacy)]);
+        assert_eq!(
+            FontRef::new(&bytes)
+                .unwrap()
+                .gvar_table()
+                .unwrap()
+                .glyph_count(),
+            3
+        );
+        let bytes = font(&[(*b"GVAR", &extended[..20]), (*b"gvar", &legacy)]);
+        assert!(FontRef::new(&bytes).unwrap().gvar_table().is_err());
+        let bytes = font(&[(*b"GVAR", &extended[..21]), (*b"gvar", &legacy)]);
+        let source = FontRef::new(&bytes).unwrap();
+        let selected = source.gvar_table().unwrap();
+        assert_eq!(selected.glyph_count(), 65537);
+        assert!(selected.glyph_variation_data(GlyphId::new(65536)).is_err());
+        let mut overflowing_offsets = extended.clone();
+        overflowing_offsets[17..21].copy_from_slice(&u32::MAX.to_be_bytes());
+        let table = GvarExtended::read(overflowing_offsets.as_slice().into()).unwrap();
+        assert!(table.glyph_variation_data(GlyphId::new(65536)).is_err());
+    }
+    #[test]
+    fn extended_gvar_rejects_truncated_glyph_headers_and_data_offsets() {
+        let tuples = SharedTuples::read(FontData::new(&[]), 0, 0).unwrap();
+        for bytes in [&[0, 1, 0, 0][..], &[0, 1, 0xff, 0xff, 0xff][..]] {
+            assert!(GlyphVariationData::new_extended(bytes.into(), 0, tuples.clone()).is_err());
+        }
+    }
 
     /// A cached shared tuple scalar has to give the same deltas as computing
     /// one.

@@ -42,6 +42,7 @@ TABLES = [
     ("GPOS", "Glyph positioning table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gpos"),
     ("GSUB", "Glyph substitution table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gsub"),
     ("gvar", "Glyph variation table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gvar"),
+    ("GVAR", "Extended glyph variation table.", "ISO/IEC 14496-22:2026, 7.3.9"),
     ("hdmx", "Horizontal device metrics.", "https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx"),
     ("head", "Font header table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/head"),
     ("hhea", "Horizontal header table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/hhea"),
@@ -90,7 +91,7 @@ TABLES = [
 
 def tag_to_name(tag: str):
     name = tag.lower().replace("/", "").removesuffix(" ")
-    if tag in ("MAXP", "HHEA", "HMTX", "VHEA", "VMTX", "GLYF", "LOCA"):
+    if tag in ("MAXP", "HHEA", "HMTX", "VHEA", "VMTX", "GLYF", "LOCA", "GVAR"):
         name += "_extended"
     return name
 

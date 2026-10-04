@@ -55,6 +55,8 @@ struct PerTableData<T> {
     gsub: T,
     /// Glyph variation table.
     gvar: T,
+    /// Extended glyph variation table.
+    gvar_extended: T,
     /// Horizontal device metrics.
     hdmx: T,
     /// Font header table.
@@ -159,6 +161,7 @@ impl<T> PerTableData<T> {
         f(Tag::new(b"GPOS"), &mut self.gpos);
         f(Tag::new(b"GSUB"), &mut self.gsub);
         f(Tag::new(b"gvar"), &mut self.gvar);
+        f(Tag::new(b"GVAR"), &mut self.gvar_extended);
         f(Tag::new(b"hdmx"), &mut self.hdmx);
         f(Tag::new(b"head"), &mut self.head);
         f(Tag::new(b"hhea"), &mut self.hhea);
@@ -303,6 +306,10 @@ trait TableDataProvider<'a> where Self: 'a {
 
     fn gvar(&self) -> Option<TableState<'a>> {
         self.table_state(Tag::new(b"gvar"), &self.tables().gvar)
+    }
+
+    fn gvar_extended(&self) -> Option<TableState<'a>> {
+        self.table_state(Tag::new(b"GVAR"), &self.tables().gvar_extended)
     }
 
     fn hdmx(&self) -> Option<TableState<'a>> {
@@ -828,6 +835,21 @@ impl Tables {
             TableSource::None => None,
             TableSource::Blob(blob) => blob.gvar(),
             TableSource::Function(func) => func.gvar(),
+        }
+    }
+
+    /// Extended glyph variation table data.
+    ///
+    /// See ISO/IEC 14496-22:2026, 7.3.9.
+    pub fn gvar_extended_data(&self) -> Option<&'_ [u8]> {
+        self.gvar_extended_state().map(|state| state.data)
+    }
+
+    fn gvar_extended_state(&self) -> Option<TableState<'_>> {
+        match &self.0 {
+            TableSource::None => None,
+            TableSource::Blob(blob) => blob.gvar_extended(),
+            TableSource::Function(func) => func.gvar_extended(),
         }
     }
 
