@@ -1506,6 +1506,53 @@ mod tests {
         assert_eq!(pen.as_ref(), "M0.0,0.0 L10.0,0.0 L10.0,10.0 Z");
     }
 
+    #[test]
+    fn scaled_extended_cubic_outlines_match_cached_metrics() {
+        use font_test_data::extended::outlines_font;
+        use read_fonts::model::Font;
+
+        for long_loca in [false, true] {
+            let bytes = outlines_font(true, true, true, long_loca);
+            let font = FontRef::new(&bytes).unwrap();
+            let cached = Font::new(bytes.clone(), 0).unwrap();
+            let outlines = font.outline_glyphs();
+            for gid in [1, 65536] {
+                let id = GlyphId::new(gid);
+                let extents = cached.glyph_metrics().extents(id).unwrap();
+                assert_eq!(
+                    (extents.x_bearing, extents.width, extents.height),
+                    (0.0, 80.0, 80.0)
+                );
+                for size in [125.0, 1000.0] {
+                    let edge = size * 0.08;
+                    let mid = edge / 2.0;
+                    let expected = format!(
+                        "M0.0,{mid:.1} C0.0,0.0 {edge:.1},0.0 {edge:.1},{mid:.1} C{edge:.1},{edge:.1} 0.0,{edge:.1} 0.0,{mid:.1} Z"
+                    );
+                    for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                        let mut pen = SvgPen::with_precision(1);
+                        let adjusted = outlines
+                            .get(id)
+                            .unwrap()
+                            .draw(
+                                DrawSettings::unhinted(Size::new(size), LocationRef::default())
+                                    .with_path_style(style),
+                                &mut pen,
+                            )
+                            .unwrap();
+                        assert_eq!(pen.as_ref(), expected, "gid {gid}, size {size}, {style:?}");
+                        assert_eq!(adjusted.advance_width, Some(size));
+                        assert_eq!(
+                            font.glyph_metrics(Size::new(size), LocationRef::default())
+                                .advance_width(id),
+                            Some(size)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// Case where a font subset caused hinting to fail because execution
     /// budget was derived from glyph count.
     /// <https://github.com/googlefonts/fontations/issues/936>
