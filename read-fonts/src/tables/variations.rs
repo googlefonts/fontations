@@ -1624,7 +1624,7 @@ impl ItemVariationStore<'_> {
         coords: &[F2Dot14],
         scalars: &[Fixed],
     ) -> Option<F48Dot16> {
-        self.compute_delta_impl(index, coords, |i| scalars.get(i).copied(), |_, _| {})
+        self.compute_delta_impl::<true>(index, coords, |i| scalars.get(i).copied(), |_, _| {})
     }
 
     pub(crate) fn compute_delta_with_cache(
@@ -1633,7 +1633,7 @@ impl ItemVariationStore<'_> {
         coords: &[F2Dot14],
         cache: &ScalarCache,
     ) -> Option<F48Dot16> {
-        self.compute_delta_impl(
+        self.compute_delta_impl::<false>(
             index,
             coords,
             |i| cache.get(i),
@@ -1641,7 +1641,7 @@ impl ItemVariationStore<'_> {
         )
     }
 
-    fn compute_delta_impl(
+    fn compute_delta_impl<const SKIP_ZERO_DELTAS: bool>(
         &self,
         index: DeltaSetIndex,
         coords: &[F2Dot14],
@@ -1676,9 +1676,10 @@ impl ItemVariationStore<'_> {
                         }
                     };
                     let region = regions.get(region_index).ok()?;
-                    // A zero delta cannot contribute at any location. Still
-                    // resolve its region so malformed indices fail as before.
-                    if region_delta == 0 {
+                    // Without a cache, a zero delta needs no scalar. With a
+                    // cache, populate the entry: leaving it uncomputed makes
+                    // later zero deltas repeatedly resolve the region.
+                    if SKIP_ZERO_DELTAS && region_delta == 0 {
                         continue;
                     }
                     let scalar = region.compute_scalar(coords);
@@ -1994,6 +1995,10 @@ mod tests {
                             store.compute_delta_with_cache(index, &coords, &cache),
                             expected
                         );
+                    }
+                    // Zero deltas also populate their scalars in the cached path.
+                    for (i, scalar) in scalars[..count].iter().enumerate() {
+                        assert_eq!(cache.get(i), Some(*scalar));
                     }
                 }
             }
