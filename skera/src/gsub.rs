@@ -1,5 +1,6 @@
 //! impl subset() for GSUB table
 mod alternate_subst;
+mod extended;
 mod ligature_subst;
 mod multiple_subst;
 mod reverse_chain_single_subst;
