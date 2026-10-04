@@ -90,3 +90,44 @@ impl<'a> Colr<'a> {
         clip.clip_box(list.offset_data()).ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use font_test_data::bebuffer::BeBuffer;
+
+    #[test]
+    fn paint_glyph2_reads_full_glyph_id() {
+        for gid in [0, 0xffff, 0x10000, 0x123456, 0xffffff] {
+            let data = BeBuffer::new()
+                .push(33u8)
+                .push(Offset24::new(Uint24::new(7)))
+                .push(GlyphId24::new(gid))
+                .extend([2u8, 0, 7, 0x40, 0]);
+            let Paint::Glyph2(paint) = Paint::read(FontData::new(&data)).unwrap() else {
+                panic!("expected PaintGlyph2");
+            };
+            assert_eq!(paint.glyph_id().to_u32(), gid);
+            assert_eq!(paint.paint_offset().to_u32(), 7);
+            let Paint::Solid(solid) = paint.paint().unwrap() else {
+                panic!("expected PaintSolid");
+            };
+            assert_eq!(solid.palette_index(), 7);
+            assert_eq!(solid.alpha(), F2Dot14::ONE);
+        }
+    }
+
+    #[test]
+    fn paint_glyph2_rejects_truncated_header_and_child() {
+        let data = font_test_data::colr::PAINT_GLYPH2;
+        for len in 0..7 {
+            assert!(Paint::read(FontData::new(&data[..len])).is_err());
+        }
+        for len in 7..data.len() {
+            let Paint::Glyph2(paint) = Paint::read(FontData::new(&data[..len])).unwrap() else {
+                panic!("expected PaintGlyph2");
+            };
+            assert!(paint.paint().is_err());
+        }
+    }
+}

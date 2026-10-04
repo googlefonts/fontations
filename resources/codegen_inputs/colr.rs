@@ -245,6 +245,7 @@ format u8 Paint {
     SkewAroundCenter(PaintSkewAroundCenter),
     VarSkewAroundCenter(PaintVarSkewAroundCenter),
     Composite(PaintComposite),
+    Glyph2(PaintGlyph2),
 }
 
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
@@ -431,6 +432,17 @@ table PaintGlyph {
     paint_offset: Offset24<Paint>,
     /// Glyph ID for the source outline.
     glyph_id: GlyphId16,
+}
+
+/// PaintGlyph2 (format 33), defined in ISO Open Font Format, fifth edition.
+table PaintGlyph2 {
+    /// Set to 33.
+    #[format = 33]
+    format: u8,
+    /// Offset to a Paint table.
+    paint_offset: Offset24<Paint>,
+    /// Glyph ID for the source outline.
+    glyph_id: GlyphId24,
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
