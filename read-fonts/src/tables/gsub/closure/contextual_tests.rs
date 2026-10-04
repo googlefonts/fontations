@@ -207,3 +207,93 @@ fn wide_glyph_context_lookup_closure_also_handles_gpos() {
         }
     }
 }
+
+fn coverage_context(records: &[(u16, u16)]) -> Vec<u8> {
+    let first_coverage = 12 + 4 * records.len() as u32;
+    let mut bytes = BeBuffer::new()
+        .push(6u16)
+        .push(2u16)
+        .push(records.len() as u16)
+        .push(Uint24::new(first_coverage))
+        .push(Uint24::new(first_coverage + 8));
+    for &(sequence, lookup) in records {
+        bytes = bytes.push(sequence).push(lookup);
+    }
+    bytes
+        .push(3u16)
+        .push(Uint24::new(1))
+        .push(GlyphId24::new(65536))
+        .push(3u16)
+        .push(Uint24::new(1))
+        .push(GlyphId24::new(70000))
+        .to_vec()
+}
+
+#[test]
+fn wide_coverage_context_closure_preserves_active_glyphs_and_checks_every_position() {
+    for (records, expected) in [
+        (vec![(0, 1)], vec![65536, 70000, 70001]),
+        (vec![(1, 1)], vec![65536, 70000, 70002]),
+        (vec![(1, 1), (1, 1)], vec![65536, 70000, 70001, 70002]),
+        (vec![(2, 1)], vec![65536, 70000]),
+    ] {
+        let bytes = coverage_context(&records);
+        let (glyphs, lookups) = close(5, &bytes, &[65536, 70000]).unwrap();
+        assert_eq!(glyphs, expected);
+        assert_eq!(lookups, [0, 1]);
+        for inputs in [[65536], [70000]] {
+            let (glyphs, lookups) = close(5, &bytes, &inputs).unwrap();
+            assert_eq!(glyphs, inputs);
+            assert!(lookups.is_empty());
+        }
+    }
+    let single = BeBuffer::new()
+        .push(1u16)
+        .push(8u16)
+        .push(4u16)
+        .push(10i16)
+        .push(3u16)
+        .push(Uint24::new(1))
+        .push(GlyphId24::new(70000));
+    let bytes = layout_font(7, &coverage_context(&[(1, 1)]), &single);
+    let gpos = crate::tables::gpos::Gpos::read(FontData::new(&bytes)).unwrap();
+    let mut lookups = [0].into_iter().collect();
+    gpos.closure_lookups(
+        &[65536, 70000].map(GlyphId::new).into_iter().collect(),
+        &mut lookups,
+    )
+    .unwrap();
+    assert_eq!(lookups.iter().collect::<Vec<_>>(), [0, 1]);
+}
+
+#[test]
+fn wide_coverage_context_closure_handles_null_and_invalid_offsets() {
+    for range in [6..9, 9..12] {
+        let mut bytes = coverage_context(&[(1, 1)]);
+        bytes[range.clone()].fill(0);
+        let (glyphs, lookups) = close(5, &bytes, &[65536, 70000]).unwrap();
+        assert_eq!(glyphs, [65536, 70000]);
+        assert!(lookups.is_empty());
+        bytes[range].fill(0xff);
+        assert!(close(5, &bytes, &[65536, 70000]).is_err());
+    }
+}
+
+#[test]
+fn coverage_context_closure_accepts_maximum_sequence_length() {
+    let count = u16::MAX;
+    let coverage_offset = 6 + u32::from(count) * 3 + 4;
+    let bytes = BeBuffer::new()
+        .push(6u16)
+        .push(count)
+        .push(1u16)
+        .extend((0..count).map(|_| Uint24::new(coverage_offset)))
+        .push(count - 1)
+        .push(1u16)
+        .push(3u16)
+        .push(Uint24::new(1))
+        .push(GlyphId24::new(65536));
+    let (glyphs, lookups) = close(5, &bytes, &[65536]).unwrap();
+    assert_eq!(glyphs, [65536, 70001]);
+    assert_eq!(lookups, [0, 1]);
+}
