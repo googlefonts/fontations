@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::tables::layout::DeltaFormat;
+pub use read_fonts::tables::layout::{DeltaFormat, FeatureLookupsFlags};
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2921,11 +2921,14 @@ impl From<PendingVariationIndex> for DeviceOrVariationIndex {
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
+/// Version 1.1 is defined in ISO/IEC 14496-22:2026, 6.2.11.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FeatureVariations {
     /// Array of feature variation records.
     pub feature_variation_records: Vec<FeatureVariationRecord>,
+    /// Lookup variations, sorted by feature index.
+    pub lookup_variation_records: Option<Vec<LookupVariationRecord>>,
 }
 
 impl FeatureVariations {
@@ -2933,6 +2936,7 @@ impl FeatureVariations {
     pub fn new(feature_variation_records: Vec<FeatureVariationRecord>) -> Self {
         Self {
             feature_variation_records,
+            ..Default::default()
         }
     }
 }
@@ -2940,9 +2944,19 @@ impl FeatureVariations {
 impl FontWrite for FeatureVariations {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        let version = self.compute_version() as MajorMinor;
+        version.write_into(writer);
         (u32::try_from(array_len(&self.feature_variation_records)).unwrap()).write_into(writer);
         self.feature_variation_records.write_into(writer);
+        version.compatible((1u16, 1u16)).then(|| {
+            (u32::try_from(array_len(&self.lookup_variation_records)).unwrap()).write_into(writer)
+        });
+        version.compatible((1u16, 1u16)).then(|| {
+            self.lookup_variation_records
+                .as_ref()
+                .expect("missing conditional field should have failed validation")
+                .write_into(writer)
+        });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureVariations")
@@ -2952,12 +2966,25 @@ impl FontWrite for FeatureVariations {
 impl Validate for FeatureVariations {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureVariations", |ctx| {
+            let version: MajorMinor = self.compute_version();
             ctx.in_field("feature_variation_records", |ctx| {
                 if self.feature_variation_records.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.feature_variation_records.validate_impl(ctx);
             });
+            ctx.in_field("lookup_variation_records", |ctx| {
+                if version.compatible((1u16, 1u16)) && self.lookup_variation_records.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+                if self.lookup_variation_records.is_some()
+                    && self.lookup_variation_records.as_ref().unwrap().len() > to_usize(u32::MAX)
+                {
+                    ctx.report("array exceeds max length");
+                }
+                self.lookup_variation_records.validate_impl(ctx);
+            });
+            self.validate_lookup_variations(ctx);
         })
     }
 }
@@ -2967,6 +2994,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureVariations<'a>> for Featu
         let offset_data = obj.offset_data();
         FeatureVariations {
             feature_variation_records: obj.feature_variation_records().to_owned_obj(offset_data),
+            lookup_variation_records: obj.lookup_variation_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -3047,6 +3075,249 @@ impl FromObjRef<read_fonts::tables::layout::FeatureVariationRecord> for FeatureV
     }
 }
 
+/// Lookup variations for one feature (ISO/IEC 14496-22:2026, 6.2.11).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LookupVariationRecord {
+    pub feature_index: u16,
+    /// Offset from the beginning of FeatureVariations.
+    pub feature_lookups: OffsetMarker<FeatureLookups, WIDTH_32>,
+}
+
+impl LookupVariationRecord {
+    /// Construct a new `LookupVariationRecord`
+    pub fn new(feature_index: u16, feature_lookups: FeatureLookups) -> Self {
+        Self {
+            feature_index,
+            feature_lookups: feature_lookups.into(),
+        }
+    }
+}
+
+impl FontWrite for LookupVariationRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.feature_index.write_into(writer);
+        self.feature_lookups.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LookupVariationRecord")
+    }
+}
+
+impl Validate for LookupVariationRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LookupVariationRecord", |ctx| {
+            ctx.in_field("feature_lookups", |ctx| {
+                self.feature_lookups.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::layout::LookupVariationRecord> for LookupVariationRecord {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::LookupVariationRecord,
+        offset_data: FontData,
+    ) -> Self {
+        LookupVariationRecord {
+            feature_index: obj.feature_index(),
+            feature_lookups: obj.feature_lookups(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// Conditional lookup sets for one feature (ISO/IEC 14496-22:2026, 6.2.11).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FeatureLookups {
+    pub flags: FeatureLookupsFlags,
+    pub lookup_condition_records: Vec<LookupConditionRecord>,
+}
+
+impl FeatureLookups {
+    /// Construct a new `FeatureLookups`
+    pub fn new(
+        flags: FeatureLookupsFlags,
+        lookup_condition_records: Vec<LookupConditionRecord>,
+    ) -> Self {
+        Self {
+            flags,
+            lookup_condition_records,
+        }
+    }
+}
+
+impl FontWrite for FeatureLookups {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        self.flags.write_into(writer);
+        (u32::try_from(array_len(&self.lookup_condition_records)).unwrap()).write_into(writer);
+        self.lookup_condition_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureLookups")
+    }
+}
+
+impl Validate for FeatureLookups {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureLookups", |ctx| {
+            ctx.in_field("lookup_condition_records", |ctx| {
+                if self.lookup_condition_records.len() > to_usize(u32::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.lookup_condition_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::FeatureLookups<'a>> for FeatureLookups {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::FeatureLookups<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        FeatureLookups {
+            flags: obj.flags(),
+            lookup_condition_records: obj.lookup_condition_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::FeatureLookups<'a>> for FeatureLookups {}
+
+impl ReadArgs for FeatureLookups {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for FeatureLookups {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::FeatureLookups as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl FontWrite for FeatureLookupsFlags {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
+/// Lookups to include when a condition is true.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LookupConditionRecord {
+    /// Offset from the beginning of FeatureLookups; null means true.
+    pub condition: NullableOffsetMarker<Condition, WIDTH_32>,
+    /// Offset from the beginning of FeatureLookups.
+    pub lookup_index_list: OffsetMarker<LookupIndexList, WIDTH_32>,
+}
+
+impl LookupConditionRecord {
+    /// Construct a new `LookupConditionRecord`
+    pub fn new(condition: Option<Condition>, lookup_index_list: LookupIndexList) -> Self {
+        Self {
+            condition: condition.into(),
+            lookup_index_list: lookup_index_list.into(),
+        }
+    }
+}
+
+impl FontWrite for LookupConditionRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.condition.write_into(writer);
+        self.lookup_index_list.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LookupConditionRecord")
+    }
+}
+
+impl Validate for LookupConditionRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LookupConditionRecord", |ctx| {
+            ctx.in_field("condition", |ctx| {
+                self.condition.validate_impl(ctx);
+            });
+            ctx.in_field("lookup_index_list", |ctx| {
+                self.lookup_index_list.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::layout::LookupConditionRecord> for LookupConditionRecord {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::LookupConditionRecord,
+        offset_data: FontData,
+    ) -> Self {
+        LookupConditionRecord {
+            condition: obj.condition(offset_data).to_owned_table(),
+            lookup_index_list: obj.lookup_index_list(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// Indices into the GSUB or GPOS LookupList.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LookupIndexList {
+    pub lookup_indices: Vec<u16>,
+}
+
+impl LookupIndexList {
+    /// Construct a new `LookupIndexList`
+    pub fn new(lookup_indices: Vec<u16>) -> Self {
+        Self { lookup_indices }
+    }
+}
+
+impl FontWrite for LookupIndexList {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.lookup_indices)).unwrap()).write_into(writer);
+        self.lookup_indices.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LookupIndexList")
+    }
+}
+
+impl Validate for LookupIndexList {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LookupIndexList", |ctx| {
+            ctx.in_field("lookup_indices", |ctx| {
+                if self.lookup_indices.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::LookupIndexList<'a>> for LookupIndexList {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::LookupIndexList<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        LookupIndexList {
+            lookup_indices: obj.lookup_indices().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::LookupIndexList<'a>> for LookupIndexList {}
+
+impl ReadArgs for LookupIndexList {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LookupIndexList {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::LookupIndexList as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -3113,8 +3384,7 @@ impl<'a> FontRead<'a> for ConditionSet {
 
 /// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
 ///
-/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
-/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+/// Formats 2..5 are defined in ISO/IEC 14496-22:2026, 6.2.10.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Condition {

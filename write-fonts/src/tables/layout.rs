@@ -7,9 +7,32 @@ use read_fonts::FontRead;
 
 pub mod builders;
 #[cfg(test)]
+mod lookup_variations;
+#[cfg(test)]
 mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
+
+impl FeatureVariations {
+    fn compute_version(&self) -> MajorMinor {
+        if self.lookup_variation_records.is_some() {
+            MajorMinor::VERSION_1_1
+        } else {
+            MajorMinor::VERSION_1_0
+        }
+    }
+
+    fn validate_lookup_variations(&self, ctx: &mut ValidationCtx) {
+        if let Some(records) = &self.lookup_variation_records {
+            if records
+                .windows(2)
+                .any(|pair| pair[0].feature_index >= pair[1].feature_index)
+            {
+                ctx.report("lookup variation records must have increasing, unique feature indices");
+            }
+        }
+    }
+}
 
 /// A macro to implement the [LookupSubtable] trait.
 macro_rules! lookup_type {
