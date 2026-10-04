@@ -1611,7 +1611,13 @@ impl ItemVariationStore<'_> {
                             regions.insert(self.variation_region_list().ok()?.variation_regions())
                         }
                     };
-                    regions.get(region_index).ok()?.compute_scalar(coords)
+                    let region = regions.get(region_index).ok()?;
+                    // A zero delta cannot contribute at any location. Still
+                    // resolve its region so malformed indices fail as before.
+                    if region_delta == 0 {
+                        continue;
+                    }
+                    region.compute_scalar(coords)
                 }
             };
             // The sum cannot overflow, even for hostile data: a scalar is a
@@ -1837,6 +1843,59 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    #[test]
+    fn zero_deltas_still_validate_their_regions() {
+        let store_bytes = |indices: [u16; 2]| {
+            BeBuffer::new()
+                .push(1u16) // ItemVariationStore format
+                .push(12u32) // region list offset
+                .push(1u16) // variation data count
+                .push(28u32) // variation data offset
+                .push(1u16) // axis count
+                .push(2u16) // region count
+                .extend([F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE])
+                .extend([F2Dot14::NEG_ONE, F2Dot14::NEG_ONE, F2Dot14::ZERO])
+                .push(2u16) // item count
+                .push(2u16) // word delta count
+                .push(2u16) // region index count
+                .extend(indices)
+                .extend([0i16, 120, -40, 0])
+        };
+        let bytes = store_bytes([0, 1]);
+        let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
+        for coord in [-1.0, -0.25, 0.0, 0.25, 1.0] {
+            let coords = [F2Dot14::from_f32(coord)];
+            let mut scalars = [Fixed::ZERO; 2];
+            assert_eq!(store.compute_scalars(&coords, &mut scalars), 2);
+            for (inner, expected) in [120.0 * (-coord).max(0.0), -40.0 * coord.max(0.0)]
+                .into_iter()
+                .enumerate()
+            {
+                let index = DeltaSetIndex {
+                    outer: 0,
+                    inner: inner as u16,
+                };
+                let expected = Some(F48Dot16::from_f64(expected as f64));
+                assert_eq!(store.compute_delta(index, &coords), expected);
+                for count in 0..=2 {
+                    assert_eq!(
+                        store.compute_delta_with_scalars(index, &coords, &scalars[..count]),
+                        expected
+                    );
+                }
+            }
+        }
+        // Both the leading and trailing zero must reject an invalid region.
+        for (indices, inner) in [([2, 1], 0), ([0, 2], 1)] {
+            let bytes = store_bytes(indices);
+            let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(
+                store.compute_delta(DeltaSetIndex { outer: 0, inner }, &[F2Dot14::ONE]),
+                None
+            );
+        }
+    }
 
     #[test]
     fn implicit_advance_indices_do_not_truncate_glyph_ids() {
