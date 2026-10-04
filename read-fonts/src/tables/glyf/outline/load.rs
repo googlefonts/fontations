@@ -420,10 +420,10 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
             let start_point = self.point_count;
             let component_glyph = self
                 .context
-                .glyph(component.glyph.into())
+                .glyph(component.glyph)
                 .ok_or(OutlineError::MissingGlyph)?
                 .into_glyph();
-            self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
+            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags

@@ -316,6 +316,24 @@ impl<'a> TableProvider<'a> for &'a Tables {
         self.load_table(self.glyf_state())
     }
 
+    fn glyf_extended(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {
+        self.load_table_with_tag(self.glyf_extended_state(), Tag::new(b"GLYF"))
+    }
+
+    fn loca_extended(
+        &self,
+        is_long: impl Into<Option<bool>>,
+    ) -> Result<tables::loca::Loca<'a>, ReadError> {
+        let state = self
+            .loca_extended_state()
+            .ok_or(ReadError::TableIsMissing(Tag::new(b"LOCA")))?;
+        let is_long = match is_long.into() {
+            Some(val) => val,
+            None => self.head()?.index_to_loc_format() == 1,
+        };
+        self.load_table_with_args(Some(state), is_long)
+    }
+
     fn gvar(&self) -> Result<tables::gvar::Gvar<'a>, ReadError> {
         self.load_table(self.gvar_state())
     }

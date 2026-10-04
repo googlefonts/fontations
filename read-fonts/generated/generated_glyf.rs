@@ -296,10 +296,8 @@ impl SimpleGlyphFlags {
     /// for the glyph. See additional details below.
     pub const OVERLAP_SIMPLE: Self = Self { bits: 0x40 };
 
-    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment
-    ///
-    /// * [Spec](https://github.com/harfbuzz/boring-expansion-spec/blob/main/glyf1-cubicOutlines.md)
-    /// * [harfbuzz](https://github.com/harfbuzz/harfbuzz/blob/c1ca46e4ebb6457dfe00a5441d52a4a66134ac58/src/OT/glyf/SimpleGlyph.hh#L23)
+    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment in GLYF
+    /// (ISO/IEC 14496-22:2026, 5.2.8).
     pub const CUBIC: Self = Self { bits: 0x80 };
 }
 
@@ -796,6 +794,10 @@ impl CompositeGlyphFlags {
     /// Bit 12: The composite is designed not to have the component
     /// offset scaled. Ignored if ARGS_ARE_XY_VALUES is not set.
     pub const UNSCALED_COMPONENT_OFFSET: Self = Self { bits: 0x1000 };
+
+    /// Bit 13: The component glyph identifier uses 24-bit encoding in GLYF
+    /// (ISO/IEC 14496-22:2026, 5.2.8).
+    pub const GID_IS_24_BIT: Self = Self { bits: 0x2000 };
 }
 
 impl CompositeGlyphFlags {
@@ -820,7 +822,8 @@ impl CompositeGlyphFlags {
                 | Self::USE_MY_METRICS.bits
                 | Self::OVERLAP_COMPOUND.bits
                 | Self::SCALED_COMPONENT_OFFSET.bits
-                | Self::UNSCALED_COMPONENT_OFFSET.bits,
+                | Self::UNSCALED_COMPONENT_OFFSET.bits
+                | Self::GID_IS_24_BIT.bits,
         }
     }
 
@@ -1051,6 +1054,7 @@ impl std::fmt::Debug for CompositeGlyphFlags {
             ("OVERLAP_COMPOUND", Self::OVERLAP_COMPOUND),
             ("SCALED_COMPONENT_OFFSET", Self::SCALED_COMPONENT_OFFSET),
             ("UNSCALED_COMPONENT_OFFSET", Self::UNSCALED_COMPONENT_OFFSET),
+            ("GID_IS_24_BIT", Self::GID_IS_24_BIT),
         ];
         let mut first = true;
         for (name, value) in members {

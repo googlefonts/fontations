@@ -1034,6 +1034,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn extended_outline_extents_in_the_cached_font_model() {
+        for long_loca in [false, true] {
+            let data = font_test_data::extended::outlines_font(true, true, true, long_loca);
+            let font = Font::new(data, 0).unwrap();
+            let metrics = font.glyph_metrics();
+            for gid in [1, 65536] {
+                let extents = metrics.extents_exact(GlyphId::new(gid)).unwrap();
+                assert_eq!(extents.width, F48Dot16::from_i32(80));
+                assert_eq!(extents.height, F48Dot16::from_i32(80));
+            }
+        }
+    }
+
     /// Has both `HVAR` and `gvar`, so it can answer either way.
     const VAR: &[u8] = font_test_data::VAZIRMATN_VAR;
     /// Eleven glyphs but one long metric, so ten of them are in the tail.

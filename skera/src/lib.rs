@@ -954,7 +954,7 @@ fn glyf_closure_glyphs(
             operation_count = glyf_closure_glyphs(
                 loca,
                 glyf,
-                child.glyph.into(),
+                child.glyph,
                 gids_to_retain,
                 operation_count,
                 depth,

@@ -352,7 +352,7 @@ fn find_glyph_and_point_count(
             );
 
             if let Some(component) = inherit_metrics {
-                find_glyph_and_point_count(glyf, loca, component.into(), recurse_depth + 1)
+                find_glyph_and_point_count(glyf, loca, component, recurse_depth + 1)
             } else {
                 Ok((glyph_id, count))
             }

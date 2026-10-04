@@ -1440,11 +1440,9 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "spec_next")]
     const CUBIC_GLYPH: GlyphId = GlyphId::new(2);
 
     #[test]
-    #[cfg(feature = "spec_next")]
     fn draw_cubic() {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
         assert_glyph_path_start_with(
@@ -1463,6 +1461,49 @@ mod tests {
                 PathEl::LineTo((998.0, -710.0).into()),
             ],
         );
+    }
+
+    #[test]
+    fn draw_extended_glyf_with_wide_components_and_independent_metrics() {
+        use font_test_data::extended::outlines_font;
+        let expected = "M0.0,40.0 C0.0,0.0 80.0,0.0 80.0,40.0 C80.0,80.0 0.0,80.0 0.0,40.0 Z";
+        for long_loca in [false, true] {
+            for legacy in [false, true] {
+                for extended_metrics in [false, true] {
+                    let data = outlines_font(true, legacy, extended_metrics, long_loca);
+                    let font = FontRef::new(&data).unwrap();
+                    let glyphs = font.outline_glyphs();
+                    for gid in [1, 65536] {
+                        let glyph = glyphs.get(GlyphId::new(gid)).unwrap();
+                        for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                            let mut pen = SvgPen::with_precision(1);
+                            let metrics = glyph
+                                .draw(
+                                    DrawSettings::unhinted(
+                                        Size::unscaled(),
+                                        LocationRef::default(),
+                                    )
+                                    .with_path_style(style),
+                                    &mut pen,
+                                )
+                                .unwrap();
+                            assert_eq!(pen.as_ref(), expected);
+                            assert_eq!(metrics.advance_width, Some(1000.0));
+                        }
+                    }
+                    assert!(glyphs.get(GlyphId::new(65537)).is_none());
+                }
+            }
+        }
+        // Uppercase metrics do not require uppercase outlines.
+        let data = outlines_font(false, true, true, false);
+        let font = FontRef::new(&data).unwrap();
+        let glyph = font.outline_glyphs().get(GlyphId::new(1)).unwrap();
+        let mut pen = SvgPen::with_precision(1);
+        glyph
+            .draw((Size::unscaled(), LocationRef::default()), &mut pen)
+            .unwrap();
+        assert_eq!(pen.as_ref(), "M0.0,0.0 L10.0,0.0 L10.0,10.0 Z");
     }
 
     /// Case where a font subset caused hinting to fail because execution

@@ -10,14 +10,14 @@ use crate::{model::glyph::outline::OutlinePen, types::Point};
 /// say which.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub enum PathContourStart {
-    /// Scan backward: the last point if it is on-curve, and the midpoint
-    /// between it and the first otherwise.
+    /// For a quadratic off-curve start, use the last point if it is
+    /// on-curve, and the midpoint between it and the first otherwise.
     ///
     /// What FreeType and HarfBuzz do.
     #[default]
     ScanBackward,
-    /// Scan forward: the second point if it is on-curve, and the midpoint
-    /// between it and the first otherwise.
+    /// For a quadratic off-curve start, use the second point if it is
+    /// on-curve, and the midpoint between it and the first otherwise.
     ///
     /// What HarfBuzz used to do, kept for compatibility purposes.
     ScanForward,
@@ -142,15 +142,22 @@ fn walk_contour<C: PointCoord>(
         return true;
     }
     let first = point(0);
-    // A contour may not begin on a cubic off-curve point.
-    if first.flags.is_off_curve_cubic() {
-        return false;
-    }
     // Where to begin, then `count` points from `base`, wrapping. Every case
     // below is one of those; the forward ones are rotations.
-    let (start_point, base, count) = if !first.flags.is_off_curve_quad() {
+    let (start_point, base, count) = if first.flags.is_on_curve() {
         // Already on-curve, so start there and do not emit it again.
         (first, 1, len - 1)
+    } else if first.flags.is_off_curve_cubic() {
+        let last = point(len - 1);
+        if last.flags.is_on_curve() {
+            (last, 0, len - 1)
+        } else if last.flags.is_off_curve_cubic() {
+            // ISO OFF treats the first point as the first cubic control,
+            // including contours consisting entirely of cubic controls.
+            (last.midpoint(first), 0, len)
+        } else {
+            return false;
+        }
     } else {
         match start {
             PathContourStart::ScanBackward => {
@@ -158,8 +165,10 @@ fn walk_contour<C: PointCoord>(
                 if last.flags.is_on_curve() {
                     // Start at the last point, and leave it out of the walk.
                     (last, 0, len - 1)
-                } else {
+                } else if last.flags.is_off_curve_quad() {
                     (last.midpoint(first), 0, len)
+                } else {
+                    return false;
                 }
             }
             PathContourStart::ScanForward => {
@@ -170,8 +179,10 @@ fn walk_contour<C: PointCoord>(
                 let second = point(1);
                 if second.flags.is_on_curve() {
                     (second, 2, len)
-                } else {
+                } else if second.flags.is_off_curve_quad() {
                     (first.midpoint(second), 1, len)
+                } else {
+                    return false;
                 }
             }
         }
@@ -473,5 +484,73 @@ mod tests {
             PathContourStart::ScanBackward,
             &mut pen
         ));
+    }
+
+    #[test]
+    fn cubic_contours_can_start_with_controls() {
+        for start in [
+            PathContourStart::ScanBackward,
+            PathContourStart::ScanForward,
+        ] {
+            assert_eq!(
+                draw(
+                    &[(0.0, 0.0, 'c'), (80.0, 0.0, 'c'), (80.0, 80.0, 'n')],
+                    &[2],
+                    start,
+                )
+                .unwrap(),
+                "M80.0,80.0 C0.0,0.0 80.0,0.0 80.0,80.0 Z"
+            );
+            assert_eq!(
+                draw(
+                    &[
+                        (0.0, 0.0, 'c'),
+                        (80.0, 0.0, 'c'),
+                        (80.0, 80.0, 'c'),
+                        (0.0, 80.0, 'c'),
+                    ],
+                    &[3],
+                    start,
+                )
+                .unwrap(),
+                "M0.0,40.0 C0.0,0.0 80.0,0.0 80.0,40.0 C80.0,80.0 0.0,80.0 0.0,40.0 Z"
+            );
+        }
+    }
+
+    #[test]
+    fn cubic_flag_on_on_curve_points_is_allowed() {
+        let (points, mut flags) = contour(&[(0.0, 0.0, 'n'), (10.0, 0.0, 'n'), (10.0, 10.0, 'n')]);
+        flags[0] = PointFlags::from_bits(0x81);
+        flags[1] = PointFlags::from_bits(0x81);
+        assert!(!flags[0].is_off_curve());
+        let mut pen = SvgPen::with_precision(1);
+        assert!(outline_to_path(
+            &points,
+            &flags,
+            &[2],
+            PathContourStart::ScanBackward,
+            &mut pen
+        ));
+        assert_eq!(pen.as_ref(), "M0.0,0.0 L10.0,0.0 L10.0,10.0 Z");
+        flags[0].flip_on_curve();
+        assert!(flags[0].is_off_curve_cubic());
+    }
+
+    #[test]
+    fn invalid_cubic_runs_are_refused() {
+        for kinds in ["ccc", "cnc", "ccqn", "qccn", "ccnc"] {
+            let points: Vec<_> = kinds.chars().map(|kind| (0.0, 0.0, kind)).collect();
+            for start in [
+                PathContourStart::ScanBackward,
+                PathContourStart::ScanForward,
+            ] {
+                assert_eq!(
+                    draw(&points, &[(points.len() - 1) as u16], start),
+                    None,
+                    "{kinds}: {start:?}"
+                );
+            }
+        }
     }
 }
