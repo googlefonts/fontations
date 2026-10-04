@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::tables::gsub::{
-    AlternateSubstFormat2, MultipleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
+    AlternateSubstFormat2, Ligature2, LigatureSet2, LigatureSubstFormat2, MultipleSubstFormat2,
+    SingleSubstFormat3, SingleSubstFormat4,
 };
 
 impl GlyphClosure for SingleSubstFormat3<'_> {
@@ -159,6 +160,91 @@ closure_array_sets!(
     alternate_sets,
     alternate_glyph_ids
 );
+
+fn visit_ligatures<'a>(
+    table: &LigatureSubstFormat2<'a>,
+    glyphs: &IntSet<GlyphId>,
+    mut visit: impl FnMut(Ligature2<'a>) -> Result<bool, ReadError>,
+) -> Result<bool, ReadError> {
+    if table.coverage_offset().is_null() || table.ligature_set_count().to_u32() == 0 {
+        return Ok(false);
+    }
+    let coverage = table.coverage()?;
+    let sets = table.ligature_sets();
+    let mut visit_set = |index: usize| {
+        let set = match sets.get(index) {
+            Err(ReadError::NullOffset) => return Ok(false),
+            other => other?,
+        };
+        for ligature in set.ligatures().iter_as_nullable() {
+            let Some(ligature) = ligature.transpose()? else {
+                continue;
+            };
+            if visit(ligature)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    };
+    if table.ligature_set_count().to_u32() as u64 > glyphs.len() * coverage.cost() as u64 {
+        for index in glyphs.iter().filter_map(|gid| coverage.get(gid)) {
+            if visit_set(index as usize)? {
+                return Ok(true);
+            }
+        }
+    } else {
+        for (index, gid) in coverage.iter().enumerate() {
+            if glyphs.contains(gid) && visit_set(index)? {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+impl GlyphClosure for LigatureSubstFormat2<'_> {
+    fn closure_glyphs(
+        &self,
+        ctx: &mut ClosureCtx,
+        _lookup_list: &SubstitutionLookupList,
+        _lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        let active = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
+        visit_ligatures(self, active, |ligature| {
+            if ligature.intersects(ctx.glyphs)? {
+                ctx.output.insert(ligature.ligature_glyph().into());
+            }
+            Ok(false)
+        })?;
+        Ok(())
+    }
+}
+
+impl Intersect for LigatureSubstFormat2<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        visit_ligatures(self, glyphs, |ligature| ligature.intersects(glyphs))
+    }
+}
+
+impl Intersect for LigatureSet2<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        for ligature in self.ligatures().iter_as_nullable().flatten() {
+            if ligature?.intersects(glyphs)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl Intersect for Ligature2<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self
+            .component_glyph_ids()
+            .iter()
+            .all(|gid| glyphs.contains(gid.get().into())))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -354,6 +440,87 @@ mod tests {
                     .push(GlyphId24::new(65536));
                 assert_eq!(close_lookup(kind, &subtable, &[65536]), [65536]);
             }
+        }
+    }
+
+    fn ligature_subtable() -> Vec<u8> {
+        BeBuffer::new()
+            .push(2u16)
+            .push(12u32)
+            .push(Uint24::new(1))
+            .push(Uint24::new(20))
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(65536))
+            .push(2u16)
+            .extend([8, 16].map(Uint24::new))
+            .push(GlyphId24::new(70000))
+            .push(2u16)
+            .push(GlyphId24::new(65535))
+            .push(GlyphId24::new(0xffffff))
+            .push(2u16)
+            .push(GlyphId24::new(70000))
+            .to_vec()
+    }
+
+    #[test]
+    fn wide_ligature_closure_requires_all_components_and_repeats() {
+        assert_eq!(
+            close_lookup(4, &ligature_subtable(), &[65535, 65536]),
+            [65535, 65536, 70000, 0xffffff]
+        );
+        let bytes = gsub_with_lookup(4, &ligature_subtable());
+        let gsub = Gsub::read(FontData::new(&bytes)).unwrap();
+        let mut glyphs = [GlyphId::new(65536)].into_iter().collect();
+        let mut lookups = [0].into_iter().collect();
+        gsub.closure_lookups(&glyphs, &mut lookups).unwrap();
+        assert!(lookups.is_empty());
+        gsub.closure_glyphs(&IntSet::all(), &mut glyphs).unwrap();
+        assert_eq!(glyphs.iter().collect::<Vec<_>>(), [GlyphId::new(65536)]);
+    }
+
+    #[test]
+    fn wide_ligature_closure_keeps_large_indices_and_offsets() {
+        let count = 65537u32;
+        let coverage_offset = 9 + count * 3;
+        let set_offset = coverage_offset + 14;
+        let subtable = BeBuffer::new()
+            .push(2u16)
+            .push(coverage_offset)
+            .push(Uint24::new(count))
+            .extend(
+                (0..count).map(|index| Uint24::new(if index == 65536 { set_offset } else { 0 })),
+            )
+            .push(4u16)
+            .push(Uint24::new(1))
+            .extend([0, 65536, 0].map(Uint24::new))
+            .push(1u16)
+            .push(Uint24::new(5))
+            .push(GlyphId24::new(70000))
+            .push(2u16)
+            .push(GlyphId24::new(70001));
+        assert_eq!(
+            close_lookup(4, &subtable, &[65536, 70001]),
+            [65536, 70000, 70001]
+        );
+    }
+
+    #[test]
+    fn wide_ligature_closure_skips_null_offsets_but_reports_invalid_ones() {
+        for offset in [0, 0xffffff] {
+            let subtable = BeBuffer::new()
+                .push(2u16)
+                .push(12u32)
+                .push(Uint24::new(1))
+                .push(Uint24::new(offset))
+                .push(3u16)
+                .push(Uint24::new(1))
+                .push(GlyphId24::new(65536));
+            let bytes = gsub_with_lookup(4, &subtable);
+            let gsub = Gsub::read(FontData::new(&bytes)).unwrap();
+            let mut glyphs = [GlyphId::new(65536)].into_iter().collect();
+            let result = gsub.closure_glyphs(&IntSet::all(), &mut glyphs);
+            assert_eq!(result.is_ok(), offset == 0);
         }
     }
 }
