@@ -67,6 +67,7 @@ struct VariedInstance {
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
     hvar_scalars: Once<ScalarCache>,
+    gvar_scalars: Once<Box<[Fixed]>>,
 }
 
 impl Font {
@@ -100,6 +101,7 @@ impl Font {
                 metrics: Once::new(),
                 style_metrics: Once::new(),
                 hvar_scalars: Once::new(),
+                gvar_scalars: Once::new(),
             },
         }
     }
@@ -279,6 +281,25 @@ impl Font {
         self.shared().gvar()
     }
 
+    pub(crate) fn gvar_scalar_cache(&self) -> &[Fixed] {
+        let Repr::Varied(instance) = &self.0 else {
+            return &[];
+        };
+        let Some(gvar) = self.gvar() else {
+            return &[];
+        };
+        instance.gvar_scalars.get_or_init(|| {
+            let count = (gvar.shared_tuple_count() as usize).min(ScalarCache::MAX_LEN);
+            let mut scalars = Vec::new();
+            if scalars.try_reserve_exact(count).is_ok() {
+                scalars.resize(count, Fixed::ZERO);
+                let written = gvar.compute_scalars(instance.coords.as_slice(), &mut scalars);
+                scalars.truncate(written);
+            }
+            scalars.into_boxed_slice()
+        })
+    }
+
     /// Returns the charstring outlines.
     #[inline]
     pub(crate) fn cff(&self) -> Option<&CffFontRef<'_>> {
@@ -308,12 +329,21 @@ impl<'a> OutlineContext<'a> for &'a Font {
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
         let (glyf, loca) = self.glyf_loca()?;
-        self.gvar()?
-            .phantom_point_deltas(glyf, loca, self.normalized_coords(), glyph)
+        self.gvar()?.phantom_point_deltas_with_scalars(
+            glyf,
+            loca,
+            self.normalized_coords(),
+            self.gvar_scalar_cache(),
+            glyph,
+        )
     }
 
     fn coords(&self) -> &[F2Dot14] {
         self.normalized_coords()
+    }
+
+    fn gvar_scalars(&self) -> &[Fixed] {
+        self.gvar_scalar_cache()
     }
 
     fn units_per_em(&self) -> u16 {
@@ -1076,6 +1106,61 @@ mod tests {
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
 
+    #[test]
+    fn shared_tuple_cache_tracks_instances_and_is_thread_safe() {
+        let data = font_test_data::VAZIRMATN_VAR;
+        let raw = crate::FontRef::new(data).unwrap();
+        let gvar = raw.gvar().unwrap();
+        let glyf = raw.glyf().unwrap();
+        let loca = raw.loca(None).unwrap();
+        let font = Font::new(data, 0).unwrap();
+        assert!(font.gvar_scalar_cache().is_empty());
+        for coord in [-0.75, 0.25, 0.75] {
+            let instance = font
+                .instance_builder()
+                .normalized_coords([NormalizedCoord::from_f32(coord)])
+                .build();
+            let mut expected = alloc::vec![Fixed::ZERO; ScalarCache::MAX_LEN];
+            let written = gvar.compute_scalars(instance.normalized_coords(), &mut expected);
+            let expected = &expected[..written];
+            assert!(!expected.is_empty());
+            std::thread::scope(|scope| {
+                for _ in 0..8 {
+                    let clone = instance.clone();
+                    let instance = &instance;
+                    let (gvar, glyf, loca) = (&gvar, &glyf, &loca);
+                    scope.spawn(move || {
+                        assert_eq!(clone.gvar_scalar_cache(), expected);
+                        assert!(core::ptr::eq(
+                            clone.gvar_scalar_cache(),
+                            instance.gvar_scalar_cache(),
+                        ));
+                        for gid in (0..instance.num_glyphs().min(16)).map(GlyphId::new) {
+                            let context = &clone;
+                            assert_eq!(
+                                context.phantom_point_deltas(gid),
+                                gvar.phantom_point_deltas(
+                                    glyf,
+                                    loca,
+                                    clone.normalized_coords(),
+                                    gid,
+                                )
+                            );
+                        }
+                    });
+                }
+            });
+            let derived = instance
+                .instance_builder()
+                .normalized_coords([NormalizedCoord::from_f32(-coord)])
+                .build();
+            assert!(!core::ptr::eq(
+                instance.gvar_scalar_cache(),
+                derived.gvar_scalar_cache(),
+            ));
+            assert!(derived.gvar_scalar_cache().len() <= ScalarCache::MAX_LEN);
+        }
+    }
     #[test]
     fn font_outline_context_uses_stated_vertical_metrics() {
         let data = font_test_data::MPLUS1CODE_VERTICAL_SUBSET;
