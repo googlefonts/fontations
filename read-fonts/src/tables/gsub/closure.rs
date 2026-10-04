@@ -1330,7 +1330,7 @@ impl GlyphClosure for super::LigatureSubst<'_> {
     ) -> Result<(), ReadError> {
         match self {
             Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -1338,7 +1338,7 @@ impl Intersect for super::LigatureSubst<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
