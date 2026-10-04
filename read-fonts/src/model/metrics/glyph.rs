@@ -374,10 +374,16 @@ impl<'a> GlyphMetrics<'a> {
             } else {
                 self.font.vvar()
             };
+            let cache = vvar.and_then(|vvar| self.font.vvar_scalar_cache(vvar));
             for (glyph, out) in glyphs {
                 let origin = F48Dot16::from_i32(vorg.vertical_origin_y(glyph) as i32);
                 let delta = vvar
-                    .and_then(|vvar| vvar.v_origin_y_delta(glyph, self.coords))
+                    .and_then(|vvar| {
+                        cache.map_or_else(
+                            || vvar.v_origin_y_delta(glyph, self.coords),
+                            |cache| vvar.v_origin_y_delta_with_cache(glyph, self.coords, cache),
+                        )
+                    })
                     .unwrap_or(F48Dot16::ZERO);
                 *out = convert(glyph, Some(origin.saturating_add(delta)));
             }
@@ -533,9 +539,17 @@ impl<'a> GlyphMetrics<'a> {
     ) {
         // Ask the table that answers directly, and stop there if it does.
         if let Some(vvar) = self.font.vvar() {
+            let cache = self.font.vvar_scalar_cache(vvar);
             return raw.run_varied(
                 self.num_glyphs,
-                |gid| vvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                |gid| {
+                    cache
+                        .map_or_else(
+                            || vvar.advance_delta(gid, coords),
+                            |cache| vvar.advance_delta_with_cache(gid, coords, cache),
+                        )
+                        .unwrap_or(F48Dot16::ZERO)
+                },
                 convert,
                 glyphs,
             );
@@ -968,6 +982,57 @@ mod tests {
                 });
             }
             assert!(font.hvar_scalar_cache(hvar).is_none());
+        }
+    }
+
+    #[test]
+    fn cached_vvar_advances_match_uncached_across_instances_and_threads() {
+        for data in [font_test_data::MPLUS1CODE_VERTICAL_SUBSET, CFF2] {
+            let font = Font::new(data, 0).unwrap();
+            let vvar = font.vvar().unwrap();
+            assert!(font.vvar_scalar_cache(vvar).is_none());
+            for coord in [-0.75, 0.25, 0.75] {
+                let instance = font
+                    .instance_builder()
+                    .normalized_coords([NormalizedCoord::from_f32(coord)])
+                    .build();
+                let clone = instance.clone();
+                assert!(core::ptr::eq(
+                    instance.vvar_scalar_cache(vvar).unwrap(),
+                    clone.vvar_scalar_cache(vvar).unwrap(),
+                ));
+                std::thread::scope(|scope| {
+                    for _ in 0..8 {
+                        scope.spawn(|| {
+                            let metrics = instance.glyph_metrics();
+                            for _ in 0..2 {
+                                for gid in (0..instance.num_glyphs()).map(GlyphId::new) {
+                                    let delta = vvar
+                                        .advance_delta(gid, instance.normalized_coords())
+                                        .unwrap_or(F48Dot16::ZERO);
+                                    let expected = font
+                                        .v_metrics()
+                                        .stored_advance(instance.num_glyphs(), gid)
+                                        .saturating_add(delta);
+                                    assert_eq!(metrics.v_advance_exact(gid), expected);
+                                }
+                            }
+                            assert_eq!(
+                                metrics.v_advance_exact(GlyphId::new(u32::MAX)),
+                                F48Dot16::ZERO,
+                            );
+                        });
+                    }
+                });
+                let derived = instance
+                    .instance_builder()
+                    .normalized_coords([NormalizedCoord::from_f32(-coord)])
+                    .build();
+                assert!(!core::ptr::eq(
+                    instance.vvar_scalar_cache(vvar).unwrap(),
+                    derived.vvar_scalar_cache(vvar).unwrap(),
+                ));
+            }
         }
     }
 

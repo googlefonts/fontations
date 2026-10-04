@@ -7,11 +7,7 @@ include!("../../generated/generated_hvar.rs");
 
 impl Hvar<'_> {
     pub(crate) fn scalar_cache(&self) -> ScalarCache {
-        let count = self
-            .item_variation_store()
-            .and_then(|store| store.variation_region_list())
-            .map_or(0, |regions| regions.region_count() as usize);
-        ScalarCache::new(count)
+        ScalarCache::from_store(self.item_variation_store())
     }
 
     pub(crate) fn advance_delta_with_cache(

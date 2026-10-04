@@ -33,6 +33,13 @@ impl ScalarCache {
         }
     }
 
+    pub(crate) fn from_store(store: Result<ItemVariationStore<'_>, ReadError>) -> Self {
+        let count = store
+            .and_then(|store| store.variation_region_list())
+            .map_or(0, |regions| regions.region_count() as usize);
+        Self::new(count)
+    }
+
     #[inline]
     fn get(&self, index: usize) -> Option<Fixed> {
         let value = self.values.get(index)?.load(Ordering::Relaxed);
@@ -1950,6 +1957,30 @@ pub(crate) fn item_delta_with_scalars(
     coords: &[F2Dot14],
     scalars: &[Fixed],
 ) -> Option<F48Dot16> {
+    item_delta_impl(dsim, ivs, glyph_id, coords, |store, index| {
+        store.compute_delta_with_scalars(index, coords, scalars)
+    })
+}
+
+pub(crate) fn item_delta_with_cache(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+    cache: &ScalarCache,
+) -> Option<F48Dot16> {
+    item_delta_impl(dsim, ivs, glyph_id, coords, |store, index| {
+        store.compute_delta_with_cache(index, coords, cache)
+    })
+}
+
+fn item_delta_impl(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+    compute: impl FnOnce(ItemVariationStore, DeltaSetIndex) -> Option<F48Dot16>,
+) -> Option<F48Dot16> {
     if coords.is_empty() {
         return Some(F48Dot16::ZERO);
     }
@@ -1958,7 +1989,7 @@ pub(crate) fn item_delta_with_scalars(
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
         _ => return None,
     };
-    ivs.ok()?.compute_delta_with_scalars(ix, coords, scalars)
+    compute(ivs.ok()?, ix)
 }
 
 #[cfg(test)]
