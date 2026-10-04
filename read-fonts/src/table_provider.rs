@@ -12,6 +12,17 @@ pub trait TopLevelTable {
     const TAG: Tag;
 }
 
+pub(crate) fn prefer_extended<T>(
+    extended: Result<T, ReadError>,
+    tag: Tag,
+    standard: impl FnOnce() -> Result<T, ReadError>,
+) -> Result<T, ReadError> {
+    match extended {
+        Err(ReadError::TableIsMissing(missing)) if missing == tag => standard(),
+        result => result,
+    }
+}
+
 /// An interface for accessing tables from a font (or font-like object)
 pub trait TableProvider<'a> {
     fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>>;
@@ -40,11 +51,56 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Reads the uppercase HHEA table.
+    fn hhea_extended(&self) -> Result<tables::hhea::HheaExtended<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    /// Selects HHEA before hhea, independently of the outline tables.
+    fn hhea_table(&self) -> Result<tables::hhea::HheaTable<'a>, ReadError> {
+        use tables::hhea::HheaTable;
+        prefer_extended(
+            self.hhea_extended().map(HheaTable::Extended),
+            Tag::new(b"HHEA"),
+            || self.hhea().map(HheaTable::Standard),
+        )
+    }
+
+    /// Reads the uppercase VHEA table.
+    fn vhea_extended(&self) -> Result<tables::vhea::VheaExtended<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    /// Selects VHEA before vhea, independently of the outline tables.
+    fn vhea_table(&self) -> Result<tables::vhea::VheaTable<'a>, ReadError> {
+        use tables::vhea::VheaTable;
+        prefer_extended(
+            self.vhea_extended().map(VheaTable::Extended),
+            Tag::new(b"VHEA"),
+            || self.vhea().map(VheaTable::Standard),
+        )
+    }
+
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
         let data = self.expect_data_for_tag(tables::hmtx::Hmtx::TAG)?;
         tables::hmtx::Hmtx::read(data, number_of_h_metrics)
+    }
+
+    /// Reads HMTX using the long-metric count from HHEA.
+    fn hmtx_extended(&self) -> Result<tables::hmtx::HmtxExtended<'a>, ReadError> {
+        let data = self.expect_data_for_tag(tables::hmtx::HmtxExtended::TAG)?;
+        let count = self.hhea_extended()?.number_of_h_metrics();
+        tables::hmtx::HmtxExtended::read(data, count)
+    }
+
+    /// Returns horizontal metrics records, selecting HMTX before hmtx
+    /// independently of the outline tables. No allocation is required.
+    fn glyph_metric_records(
+        &self,
+    ) -> Result<crate::model::metrics::GlyphMetricRecords<'a>, ReadError> {
+        crate::model::metrics::GlyphMetricRecords::read_horizontal(self)
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
@@ -58,6 +114,21 @@ pub trait TableProvider<'a> {
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
         let data = self.expect_data_for_tag(tables::vmtx::Vmtx::TAG)?;
         tables::vmtx::Vmtx::read(data, number_of_v_metrics)
+    }
+
+    /// Reads VMTX using the long-metric count from VHEA.
+    fn vmtx_extended(&self) -> Result<tables::vmtx::VmtxExtended<'a>, ReadError> {
+        let data = self.expect_data_for_tag(tables::vmtx::VmtxExtended::TAG)?;
+        let count = self.vhea_extended()?.number_of_long_ver_metrics();
+        tables::vmtx::VmtxExtended::read(data, count)
+    }
+
+    /// Returns vertical metrics records, selecting VMTX before vmtx
+    /// independently of the outline tables. No allocation is required.
+    fn vertical_glyph_metric_records(
+        &self,
+    ) -> Result<crate::model::metrics::GlyphMetricRecords<'a>, ReadError> {
+        crate::model::metrics::GlyphMetricRecords::read_vertical(self)
     }
 
     fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
@@ -86,6 +157,21 @@ pub trait TableProvider<'a> {
 
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
         self.expect_table()
+    }
+
+    /// Reads the uppercase MAXP table with a 24-bit glyph count.
+    fn maxp_extended(&self) -> Result<tables::maxp::MaxpExtended<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    /// Selects MAXP before maxp without narrowing its glyph count.
+    fn maxp_table(&self) -> Result<tables::maxp::MaxpTable<'a>, ReadError> {
+        use tables::maxp::MaxpTable;
+        prefer_extended(
+            self.maxp_extended().map(MaxpTable::Extended),
+            Tag::new(b"MAXP"),
+            || self.maxp().map(MaxpTable::Standard),
+        )
     }
 
     fn os2(&self) -> Result<tables::os2::Os2<'a>, ReadError> {
@@ -261,6 +347,150 @@ pub trait TableProvider<'a> {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn extended_metrics_are_selected_independently_of_outlines() {
+        use crate::{types::GlyphId, FontRef};
+        use font_test_data::extended::metrics_font;
+        for outline in [None, Some(*b"glyf"), Some(*b"GLYF")] {
+            for (extended, legacy) in [(true, false), (true, true), (false, true)] {
+                let data = metrics_font(extended, legacy, outline);
+                let font = FontRef::new(&data).unwrap();
+                let expected_count = if extended { 70002 } else { 3 };
+                let long_count = if extended { 70000 } else { 2 };
+                assert_eq!(font.maxp_table().unwrap().num_glyphs(), expected_count);
+                assert_eq!(font.hhea_table().unwrap().number_of_h_metrics(), long_count);
+                assert_eq!(
+                    font.vhea_table().unwrap().number_of_long_ver_metrics(),
+                    long_count
+                );
+                let horizontal = font.glyph_metric_records().unwrap();
+                let vertical = font.vertical_glyph_metric_records().unwrap();
+                assert_eq!(horizontal.long_metrics().len() as u32, long_count);
+                assert_eq!(vertical.long_metrics().len() as u32, long_count);
+                assert_eq!(
+                    horizontal.side_bearings().len(),
+                    if extended { 2 } else { 1 }
+                );
+                assert_eq!(
+                    horizontal.advance(GlyphId::new(0)),
+                    Some(if extended { 1000 } else { 500 })
+                );
+                assert_eq!(
+                    vertical.advance(GlyphId::new(0)),
+                    Some(if extended { 1200 } else { 600 })
+                );
+                if extended {
+                    for gid in [65535, 65536, 69999] {
+                        assert_eq!(
+                            horizontal.advance(GlyphId::new(gid)),
+                            Some(1000 + (gid % 100) as u16)
+                        );
+                        assert_eq!(
+                            horizontal.side_bearing(GlyphId::new(gid)),
+                            Some(-((gid % 300) as i16))
+                        );
+                    }
+                    for gid in [70000, 70001] {
+                        assert_eq!(horizontal.advance(GlyphId::new(gid)), Some(1099));
+                        assert_eq!(vertical.advance(GlyphId::new(gid)), Some(1299));
+                        assert_eq!(
+                            horizontal.side_bearing(GlyphId::new(gid)),
+                            Some(-(10 + (gid - 70000) as i16))
+                        );
+                    }
+                    assert_eq!(horizontal.side_bearing(GlyphId::new(70002)), None);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn extended_glyph_count_does_not_require_extended_metrics() {
+        use crate::{types::GlyphId, FontRef};
+        use font_test_data::extended::{font, maxp, metric_data, metric_header};
+        let profile = maxp(70002, true);
+        let header = metric_header(2, false, false);
+        let records = metric_data(2, 1, 500);
+        let data = font(&[
+            (*b"MAXP", &profile),
+            (*b"hhea", &header),
+            (*b"hmtx", &records),
+        ]);
+        let font = FontRef::new(&data).unwrap();
+        assert_eq!(font.maxp_table().unwrap().num_glyphs(), 70002);
+        let metrics = font.glyph_metric_records().unwrap();
+        assert_eq!(metrics.long_metrics().len(), 2);
+        assert_eq!(metrics.advance(GlyphId::new(2)), Some(501));
+        assert_eq!(metrics.side_bearing(GlyphId::new(2)), Some(-10));
+    }
+
+    #[test]
+    fn malformed_extended_tables_do_not_fall_back_to_legacy() {
+        use crate::{types::GlyphId, FontRef};
+        use font_test_data::extended::{font, maxp, metric_data, metric_header};
+        let profile = maxp(3, false);
+        let header = metric_header(2, false, false);
+        let records = metric_data(2, 1, 500);
+        let data = font(&[
+            (*b"MAXP", &[0, 0]),
+            (*b"maxp", &profile),
+            (*b"HHEA", &[0, 0]),
+            (*b"hhea", &header),
+            (*b"hmtx", &records),
+        ]);
+        let font_ref = FontRef::new(&data).unwrap();
+        assert!(font_ref.maxp_table().is_err());
+        assert!(font_ref.hhea_table().is_err());
+        // Metrics selection is independent of the malformed uppercase header
+        // when there is no HMTX table to use it.
+        assert_eq!(
+            font_ref
+                .glyph_metric_records()
+                .unwrap()
+                .advance(GlyphId::new(0)),
+            Some(500)
+        );
+        let data = font(&[
+            (*b"HMTX", &records),
+            (*b"hhea", &header),
+            (*b"hmtx", &records),
+        ]);
+        let font_ref = FontRef::new(&data).unwrap();
+        assert!(font_ref.glyph_metric_records().is_err());
+    }
+
+    #[test]
+    fn extended_metrics_with_truncated_or_extreme_counts() {
+        use crate::{types::GlyphId, FontRef};
+        use font_test_data::extended::{font, metric_data, metric_header};
+        let records = metric_data(2, 1, 500);
+        for count in [0, 3, u32::MAX] {
+            let horizontal = metric_header(count, true, false);
+            let vertical = metric_header(count, true, true);
+            let data = font(&[
+                (*b"HHEA", &horizontal),
+                (*b"HMTX", &records),
+                (*b"VHEA", &vertical),
+                (*b"VMTX", &records),
+            ]);
+            let font = FontRef::new(&data).unwrap();
+            // Like the legacy readers, truncated long-metric arrays read as
+            // empty rather than exposing a partial record array.
+            for metrics in [
+                font.glyph_metric_records().unwrap(),
+                font.vertical_glyph_metric_records().unwrap(),
+            ] {
+                assert!(metrics.long_metrics().is_empty());
+                assert_eq!(metrics.advance(GlyphId::new(0)), None);
+                assert_eq!(metrics.advance(GlyphId::new(u32::MAX)), None);
+                if count != 0 {
+                    assert!(metrics.side_bearings().is_empty());
+                    assert_eq!(metrics.side_bearing(GlyphId::new(0)), None);
+                }
+            }
+        }
+    }
 
     /// https://github.com/googlefonts/fontations/issues/105
     #[test]

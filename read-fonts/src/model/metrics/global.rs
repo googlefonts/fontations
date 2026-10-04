@@ -144,10 +144,10 @@ impl Metrics {
                 y_max: F48Dot16::from_i32(head.y_max() as i32),
             };
         }
-        if let Ok(maxp) = tables.maxp() {
-            metrics.num_glyphs = maxp.num_glyphs() as u32;
+        if let Ok(maxp) = tables.maxp_table() {
+            metrics.num_glyphs = maxp.num_glyphs();
         }
-        if let Ok(hhea) = tables.hhea() {
+        if let Ok(hhea) = tables.hhea_table() {
             // `MVAR` names one horizontal ascender, descender and line gap
             // between them, so the same delta applies to whichever of these
             // two sets a caller goes on to believe.
@@ -159,14 +159,13 @@ impl Metrics {
             metrics.max_advance_width =
                 Some(F48Dot16::from_i32(hhea.advance_width_max().to_u16() as i32));
         }
-        if let Ok(vhea) = tables.vhea() {
+        if let Ok(vhea) = tables.vhea_table() {
             metrics.vhea_line = Some(LineBox {
                 ascender: metric(vhea.ascender().to_i16() as i32, deltas, tags::VASC),
                 descender: metric(vhea.descender().to_i16() as i32, deltas, tags::VDSC),
                 line_gap: metric(vhea.line_gap().to_i16() as i32, deltas, tags::VLGP),
             });
-            metrics.max_advance_height =
-                Some(F48Dot16::from_i32(vhea.advance_height_max().to_u16() as i32));
+            metrics.max_advance_height = Some(F48Dot16::from_i32(vhea.advance_height_max()));
         }
         if let Ok(os2) = tables.os2() {
             metrics.typo_line = Some(LineBox {

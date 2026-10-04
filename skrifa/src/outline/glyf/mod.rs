@@ -48,7 +48,7 @@ pub struct Outlines<'a> {
     max_twilight_points: u16,
     max_stack_elements: u16,
     max_storage: u16,
-    glyph_count: u16,
+    glyph_count: u32,
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
     prefer_interpreter: bool,
@@ -75,7 +75,7 @@ impl<'a> Outlines<'a> {
             max_storage,
             max_instructions,
         ) = font
-            .maxp()
+            .maxp_table()
             .map(|maxp| {
                 (
                     maxp.num_glyphs(),

@@ -18,7 +18,7 @@ mod style;
 
 pub use global::{LineBox, LineExtents, Metrics};
 pub(crate) use glyph::{empty as empty_glyph_metrics, RawGlyphMetrics};
-pub use glyph::{GlyphExtents, GlyphMetrics};
+pub use glyph::{GlyphExtents, GlyphMetricRecords, GlyphMetrics};
 pub use scaled::{
     Scale, Scale26Dot6, ScaleF32, ScaledGlyphMetrics, ScaledMetrics, ScaledStyleMetrics,
 };

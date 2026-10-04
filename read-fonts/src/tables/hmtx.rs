@@ -2,26 +2,33 @@
 
 include!("../../generated/generated_hmtx.rs");
 
-impl Hmtx<'_> {
-    /// Returns the advance width for the given glyph identifier.
-    pub fn advance(&self, glyph_id: GlyphId) -> Option<u16> {
-        advance(self.h_metrics(), glyph_id)
-    }
+macro_rules! impl_hmtx_lookup {
+    ($table:ident) => {
+        impl $table<'_> {
+            /// Returns the advance width for the given glyph identifier.
+            pub fn advance(&self, glyph_id: GlyphId) -> Option<u16> {
+                advance(self.h_metrics(), glyph_id)
+            }
 
-    /// Returns the left side bearing for the given glyph identifier.
-    pub fn side_bearing(&self, glyph_id: GlyphId) -> Option<i16> {
-        side_bearing(self.h_metrics(), self.left_side_bearings(), glyph_id)
-    }
+            /// Returns the left side bearing for the given glyph identifier.
+            pub fn side_bearing(&self, glyph_id: GlyphId) -> Option<i16> {
+                side_bearing(self.h_metrics(), self.left_side_bearings(), glyph_id)
+            }
+        }
+    };
 }
 
-pub(super) fn advance(metrics: &[LongMetric], glyph_id: GlyphId) -> Option<u16> {
+impl_hmtx_lookup!(Hmtx);
+impl_hmtx_lookup!(HmtxExtended);
+
+pub(crate) fn advance(metrics: &[LongMetric], glyph_id: GlyphId) -> Option<u16> {
     metrics
         .get(glyph_id.to_u32() as usize)
         .or_else(|| metrics.last())
         .map(|metric| metric.advance())
 }
 
-pub(super) fn side_bearing(
+pub(crate) fn side_bearing(
     metrics: &[LongMetric],
     side_bearings: &[BigEndian<i16>],
     glyph_id: GlyphId,
