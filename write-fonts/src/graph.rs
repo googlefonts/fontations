@@ -616,14 +616,30 @@ impl Graph {
                     // LookupList2 is itself reached through a wide header
                     // offset. Its lookups, not the whole list, must become
                     // separate spaces so narrow links can be packed locally.
-                    let nested = self.find_32bit_roots_hb(link.object);
-                    if nested.is_empty() {
-                        roots.insert(link.object);
-                        self.find_subgraph_hb(link.object, &mut visited);
-                    } else {
-                        for root in nested {
+                    let mut pending = VecDeque::from([link.object]);
+                    let mut seen = HashSet::new();
+                    while let Some(root) = pending.pop_front() {
+                        if !seen.insert(root) {
+                            continue;
+                        }
+                        let nested = if root == link.object
+                            || matches!(
+                                self.objects[&root].type_,
+                                TableType::GsubLookup(LookupType::GSUB_EXT_TYPE)
+                                    | TableType::GposLookup(LookupType::GPOS_EXT_TYPE)
+                            ) {
+                            self.find_32bit_roots_hb(root)
+                        } else {
+                            BTreeSet::new()
+                        };
+                        if nested.is_empty() {
                             roots.insert(root);
                             self.find_subgraph_hb(root, &mut visited);
+                        } else {
+                            // A wide-list extension lookup adds another wide
+                            // boundary. Keep its targets independently packable,
+                            // but preserve each target's internal packing space.
+                            pending.extend(nested);
                         }
                     }
                 } else {
@@ -1606,6 +1622,31 @@ mod tests {
         assert!(graph.pack_objects());
         assert!(!graph.has_overflows());
         assert_eq!(graph.nodes.len(), 10);
+    }
+
+    #[test]
+    fn pack_extended_header_with_nested_extension_offsets() {
+        // One wide-list lookup contains two extension subtables sharing
+        // large children through narrow links. The extension targets, not
+        // the lookup, need to be independently packable space roots.
+        let ids = make_ids::<9>();
+        let sizes = [26, 6, 10, 8, 8, 14, 14, 65520, 65520];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset32)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[5], OffsetLen::Offset32)
+            .add_link(ids[4], ids[6], OffsetLen::Offset32)
+            .add_link(ids[5], ids[7], OffsetLen::Offset16)
+            .add_link(ids[5], ids[8], OffsetLen::Offset16)
+            .add_link(ids[6], ids[7], OffsetLen::Offset16)
+            .add_link(ids[6], ids[8], OffsetLen::Offset16)
+            .build();
+        graph.objects.get_mut(&ids[2]).unwrap().type_ = TableType::GsubLookup(7);
+        assert!(graph.pack_objects());
+        assert!(!graph.has_overflows());
+        assert_eq!(graph.nodes.len(), 11);
     }
 
     #[test]
