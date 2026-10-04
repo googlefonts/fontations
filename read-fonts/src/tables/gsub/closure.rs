@@ -2,6 +2,8 @@
 //!
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
+mod extended;
+
 use font_types::GlyphId;
 
 use crate::{
@@ -414,8 +416,8 @@ impl GlyphClosure for SingleSubst<'_> {
         match self {
             SingleSubst::Format1(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
             SingleSubst::Format2(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.subst_format().into())),
+            SingleSubst::Format3(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
+            SingleSubst::Format4(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -1158,8 +1160,8 @@ impl Intersect for SingleSubst<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.subst_format().into())),
+            Self::Format3(item) => item.intersects(glyph_set),
+            Self::Format4(item) => item.intersects(glyph_set),
         }
     }
 }
