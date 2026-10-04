@@ -276,6 +276,17 @@ impl<'a> SubsetTable<'a> for ComponentRecord<'_> {
     }
 }
 
+crate::layout::legacy_subset!(gpos, MarkLigPos, MarkLigPosFormat1);
+
+impl CollectVariationIndices for read_fonts::tables::gpos::MarkLigPos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        // Wide subtables are rejected by subset().
+        if let Self::Format1(t) = self {
+            t.collect_variation_indices(plan, varidx_set);
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
