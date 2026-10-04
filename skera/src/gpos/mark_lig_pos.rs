@@ -100,7 +100,8 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
 
         let glyph_set = &plan.glyphset_gsub;
         let glyph_map = &plan.glyph_map_gsub;
-        let mark_class_map = get_mark_class_map(&mark_coverage, &mark_array, glyph_set);
+        let mark_class_map =
+            get_mark_class_map(&mark_coverage, mark_array.mark_records(), glyph_set);
         if mark_class_map.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
