@@ -5713,3 +5713,65 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet2 {
             .map(|x| x.to_owned_table())
     }
 }
+
+/// ISO Open Font Format, fifth edition: LookupList2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LookupList2<T> {
+    /// Array of offsets to Lookup tables, from beginning of LookupList2
+    /// — zero based (first lookup is Lookup index = 0)
+    pub lookups: Vec<OffsetMarker<T, WIDTH_32>>,
+}
+
+impl<T: Default> LookupList2<T> {
+    /// Construct a new `LookupList2`
+    pub fn new(lookups: Vec<T>) -> Self {
+        Self {
+            lookups: lookups.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<T: FontWrite> FontWrite for LookupList2<T> {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.lookups)).unwrap()).write_into(writer);
+        self.lookups.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LookupList2")
+    }
+}
+
+impl<T: Validate> Validate for LookupList2<T> {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LookupList2", |ctx| {
+            ctx.in_field("lookups", |ctx| {
+                if self.lookups.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.lookups.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a, T, U> FromObjRef<read_fonts::tables::layout::LookupList2<'a, U>> for LookupList2<T>
+where
+    U: FontRead<'a, Args = ()>,
+    T: FromTableRef<U> + Default + 'static,
+{
+    fn from_obj_ref(obj: &read_fonts::tables::layout::LookupList2<'a, U>, _: FontData) -> Self {
+        LookupList2 {
+            lookups: obj.lookups().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a, T, U> FromTableRef<read_fonts::tables::layout::LookupList2<'a, U>> for LookupList2<T>
+where
+    U: FontRead<'a, Args = ()>,
+    T: FromTableRef<U> + Default + 'static,
+{
+}

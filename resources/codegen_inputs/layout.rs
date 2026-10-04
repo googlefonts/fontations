@@ -1118,3 +1118,15 @@ table ChainedClassSequenceRuleSet2 {
     #[count($chained_class_seq_rule_count)]
     chained_class_seq_rule_offsets: [Offset24<ChainedClassSequenceRule>],
 }
+
+/// ISO Open Font Format, fifth edition: LookupList2.
+#[generic_offset(T)]
+table LookupList2 {
+    /// Number of lookups in this table
+    #[compile(array_len($lookup_offsets))]
+    lookup_count: u16,
+    /// Array of offsets to Lookup tables, from beginning of LookupList2
+    /// — zero based (first lookup is Lookup index = 0)
+    #[count($lookup_count)]
+    lookup_offsets: [Offset32<T>],
+}

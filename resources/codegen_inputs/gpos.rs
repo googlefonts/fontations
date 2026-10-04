@@ -6,20 +6,45 @@ extern record ValueRecord<'a>;
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[tag = "GPOS"]
+#[skip_constructor]
 table Gpos {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     #[version]
     #[compile(self.compute_version())]
     version: MajorMinor,
     /// Offset to ScriptList table, from beginning of GPOS table
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(script_list)]
+    #[to_owned(obj.legacy_script_list().to_owned_table())]
     script_list_offset: Offset16<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(feature_list)]
+    #[to_owned(obj.legacy_feature_list().to_owned_table())]
     feature_list_offset: Offset16<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    lookup_list_offset: Offset16<PositionLookupList>,
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(lookup_list)]
+    #[to_owned(obj.legacy_lookup_list().to_owned_table())]
+    lookup_list_offset: Offset16<LegacyPositionLookupList>,
     #[since_version(1.1)]
     #[nullable]
     feature_variations_offset: Offset32<FeatureVariations>,
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    script_list2_offset: Offset32<ScriptList>,
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    feature_list2_offset: Offset32<FeatureList>,
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    lookup_list2_offset: Offset32<PositionLookupList2>,
 }
 
 /// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.

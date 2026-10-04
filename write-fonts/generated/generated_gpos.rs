@@ -9,30 +9,34 @@ pub use read_fonts::tables::gpos::ValueFormat;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gpos {
     /// Offset to ScriptList table, from beginning of GPOS table
-    pub script_list: OffsetMarker<ScriptList>,
+    pub script_list: NullableOffsetMarker<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
-    pub feature_list: OffsetMarker<FeatureList>,
+    pub feature_list: NullableOffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    pub lookup_list: OffsetMarker<PositionLookupList>,
+    pub lookup_list: NullableOffsetMarker<LegacyPositionLookupList>,
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    pub script_list2: NullableOffsetMarker<ScriptList, WIDTH_32>,
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    pub feature_list2: NullableOffsetMarker<FeatureList, WIDTH_32>,
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    pub lookup_list2: NullableOffsetMarker<PositionLookupList2, WIDTH_32>,
 }
 
-impl Gpos {
-    /// Construct a new `Gpos`
-    pub fn new(
-        script_list: ScriptList,
-        feature_list: FeatureList,
-        lookup_list: PositionLookupList,
-    ) -> Self {
+impl Default for Gpos {
+    fn default() -> Self {
         Self {
-            script_list: script_list.into(),
-            feature_list: feature_list.into(),
-            lookup_list: lookup_list.into(),
-            ..Default::default()
+            script_list: Some(Default::default()).into(),
+            feature_list: Some(Default::default()).into(),
+            lookup_list: Some(Default::default()).into(),
+            feature_variations: Default::default(),
+            script_list2: Default::default(),
+            feature_list2: Default::default(),
+            lookup_list2: Default::default(),
         }
     }
 }
@@ -48,6 +52,15 @@ impl FontWrite for Gpos {
         version
             .compatible((1u16, 1u16))
             .then(|| self.feature_variations.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.script_list2.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.feature_list2.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.lookup_list2.write_into(writer));
     }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Gpos::TAG)
@@ -69,6 +82,15 @@ impl Validate for Gpos {
             ctx.in_field("feature_variations", |ctx| {
                 self.feature_variations.validate_impl(ctx);
             });
+            ctx.in_field("script_list2", |ctx| {
+                self.script_list2.validate_impl(ctx);
+            });
+            ctx.in_field("feature_list2", |ctx| {
+                self.feature_list2.validate_impl(ctx);
+            });
+            ctx.in_field("lookup_list2", |ctx| {
+                self.lookup_list2.validate_impl(ctx);
+            });
         })
     }
 }
@@ -80,10 +102,13 @@ impl TopLevelTable for Gpos {
 impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {
-            script_list: obj.script_list().to_owned_table(),
-            feature_list: obj.feature_list().to_owned_table(),
-            lookup_list: obj.lookup_list().to_owned_table(),
+            script_list: obj.legacy_script_list().to_owned_table(),
+            feature_list: obj.legacy_feature_list().to_owned_table(),
+            lookup_list: obj.legacy_lookup_list().to_owned_table(),
             feature_variations: obj.feature_variations().to_owned_table(),
+            script_list2: obj.script_list2().to_owned_table(),
+            feature_list2: obj.feature_list2().to_owned_table(),
+            lookup_list2: obj.lookup_list2().to_owned_table(),
         }
     }
 }

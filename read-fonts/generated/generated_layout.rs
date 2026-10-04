@@ -6904,3 +6904,104 @@ impl Default for ChainedClassSequenceRuleSet2<'_> {
         }
     }
 }
+
+impl<'a, T> MinByteRange<'a> for LookupList2<'a, T> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lookup_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<T> ReadArgs for LookupList2<'_, T> {
+    type Args = ();
+}
+
+impl<'a, T> FontRead<'a> for LookupList2<'a, T> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            offset_type: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<'a, T> LookupList2<'a, T> {
+    #[allow(dead_code)]
+    /// Replace the specific generic type on this implementation with `()`
+    pub(crate) fn of_unit_type(&self) -> LookupList2<'a, ()> {
+        LookupList2 {
+            data: self.data,
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LookupList2.
+#[derive(Clone)]
+pub struct LookupList2<'a, T = ()> {
+    data: FontData<'a>,
+    offset_type: std::marker::PhantomData<*const T>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a, T> LookupList2<'a, T> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of lookups in this table
+    pub fn lookup_count(&self) -> u16 {
+        let range = self.lookup_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to Lookup tables, from beginning of LookupList2
+    /// — zero based (first lookup is Lookup index = 0)
+    pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.lookup_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
+    pub fn lookups(&self) -> ArrayOfOffsets<'a, T, Offset32>
+    where
+        T: FontRead<'a, Args = ()>,
+    {
+        let data = self.data;
+        let offsets = self.lookup_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn lookup_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookup_offsets_byte_range(&self) -> Range<usize> {
+        let lookup_count = self.lookup_count();
+        let start = self.lookup_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(lookup_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    LookupList2::<()>::MIN_SIZE
+));
+
+impl<T> Default for LookupList2<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}

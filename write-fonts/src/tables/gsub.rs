@@ -4,6 +4,16 @@
 
 include!("../../generated/generated_gsub.rs");
 
+impl ReadArgs for SubstitutionLookupList2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SubstitutionLookupList2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        read_fonts::tables::gsub::SubstitutionLookupList2::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 use super::layout::{
     ChainedSequenceContext, CoverageTable, FeatureList, FeatureVariations, Lookup, LookupList,
     LookupSubtable, LookupType, ScriptList, SequenceContext,
@@ -15,6 +25,12 @@ mod spec_tests;
 
 /// A GSUB lookup list table.
 pub type SubstitutionLookupList = LookupList<SubstitutionLookup>;
+
+/// A lookup list with the original 16-bit offsets.
+pub type LegacySubstitutionLookupList = SubstitutionLookupList;
+
+/// A lookup list with 32-bit offsets.
+pub type SubstitutionLookupList2 = super::layout::LookupList2<SubstitutionLookup>;
 
 super::layout::table_newtype!(
     SubstitutionSequenceContext,
@@ -29,8 +45,27 @@ super::layout::table_newtype!(
 );
 
 impl Gsub {
+    /// Creates a GSUB table using the original 16-bit header offsets.
+    pub fn new(
+        script_list: ScriptList,
+        feature_list: FeatureList,
+        lookup_list: SubstitutionLookupList,
+    ) -> Self {
+        Self {
+            script_list: Some(script_list).into(),
+            feature_list: Some(feature_list).into(),
+            lookup_list: Some(lookup_list).into(),
+            ..Default::default()
+        }
+    }
+
     fn compute_version(&self) -> MajorMinor {
-        if self.feature_variations.is_none() {
+        if self.script_list2.is_some()
+            || self.feature_list2.is_some()
+            || self.lookup_list2.is_some()
+        {
+            MajorMinor::new(1, 2)
+        } else if self.feature_variations.is_none() {
             MajorMinor::VERSION_1_0
         } else {
             MajorMinor::VERSION_1_1
@@ -72,6 +107,7 @@ impl ReadArgs for SubstitutionLookupList {
 
 impl<'a> FontRead<'a> for SubstitutionLookupList {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        read_fonts::tables::gsub::SubstitutionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gsub::LegacySubstitutionLookupList::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
