@@ -593,19 +593,23 @@ impl<'a> GlyphMetrics<'a> {
         // Ask the table that answers directly, and stop there if it does.
         if let Some(hvar) = self.font.hvar() {
             let cache = self.font.hvar_scalar_cache(hvar);
-            return raw.run_varied(
-                self.num_glyphs,
-                |gid| {
-                    cache
-                        .map_or_else(
-                            || hvar.advance_delta(gid, coords),
-                            |cache| hvar.advance_delta_with_cache(gid, coords, cache),
-                        )
-                        .unwrap_or(F48Dot16::ZERO)
-                },
-                convert,
-                glyphs,
-            );
+            return match cache {
+                Some(cache) => raw.run_varied(
+                    self.num_glyphs,
+                    |gid| {
+                        hvar.advance_delta_with_cache(gid, coords, cache)
+                            .unwrap_or(F48Dot16::ZERO)
+                    },
+                    convert,
+                    glyphs,
+                ),
+                None => raw.run_varied(
+                    self.num_glyphs,
+                    |gid| hvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                    convert,
+                    glyphs,
+                ),
+            };
         }
         // Without `HVAR`, the answer comes from the phantom points on the
         // outline: an advance spans the two horizontal ones, so a change in
