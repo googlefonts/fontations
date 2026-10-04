@@ -2122,6 +2122,9 @@ pub enum SequenceContext<'a> {
     Format1(SequenceContextFormat1<'a>),
     Format2(SequenceContextFormat2<'a>),
     Format3(SequenceContextFormat3<'a>),
+    Format4(SequenceContextFormat4<'a>),
+    Format5(SequenceContextFormat5<'a>),
+    Format6(SequenceContextFormat6<'a>),
 }
 
 impl Default for SequenceContext<'_> {
@@ -2137,6 +2140,9 @@ impl<'a> SequenceContext<'a> {
             Self::Format1(item) => item.offset_data(),
             Self::Format2(item) => item.offset_data(),
             Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+            Self::Format5(item) => item.offset_data(),
+            Self::Format6(item) => item.offset_data(),
         }
     }
 
@@ -2146,6 +2152,9 @@ impl<'a> SequenceContext<'a> {
             Self::Format1(item) => item.format(),
             Self::Format2(item) => item.format(),
             Self::Format3(item) => item.format(),
+            Self::Format4(item) => item.format(),
+            Self::Format5(item) => item.format(),
+            Self::Format6(item) => item.format(),
         }
     }
 }
@@ -2161,6 +2170,9 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
             SequenceContextFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SequenceContextFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             SequenceContextFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            SequenceContextFormat4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            SequenceContextFormat5::FORMAT => Ok(Self::Format5(FontRead::read(data)?)),
+            SequenceContextFormat6::FORMAT => Ok(Self::Format6(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -2172,6 +2184,9 @@ impl<'a> MinByteRange<'a> for SequenceContext<'a> {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+            Self::Format5(item) => item.min_byte_range(),
+            Self::Format6(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
@@ -2179,6 +2194,9 @@ impl<'a> MinByteRange<'a> for SequenceContext<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
+            Self::Format5(item) => item.min_table_bytes(),
+            Self::Format6(item) => item.min_table_bytes(),
         }
     }
 }
@@ -3137,6 +3155,8 @@ pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
     Format2(ChainedSequenceContextFormat2<'a>),
     Format3(ChainedSequenceContextFormat3<'a>),
+    Format4(ChainedSequenceContextFormat4<'a>),
+    Format5(ChainedSequenceContextFormat5<'a>),
 }
 
 impl Default for ChainedSequenceContext<'_> {
@@ -3152,6 +3172,8 @@ impl<'a> ChainedSequenceContext<'a> {
             Self::Format1(item) => item.offset_data(),
             Self::Format2(item) => item.offset_data(),
             Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
+            Self::Format5(item) => item.offset_data(),
         }
     }
 
@@ -3161,6 +3183,8 @@ impl<'a> ChainedSequenceContext<'a> {
             Self::Format1(item) => item.format(),
             Self::Format2(item) => item.format(),
             Self::Format3(item) => item.format(),
+            Self::Format4(item) => item.format(),
+            Self::Format5(item) => item.format(),
         }
     }
 }
@@ -3176,6 +3200,8 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
             ChainedSequenceContextFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ChainedSequenceContextFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             ChainedSequenceContextFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            ChainedSequenceContextFormat4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            ChainedSequenceContextFormat5::FORMAT => Ok(Self::Format5(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -3187,6 +3213,8 @@ impl<'a> MinByteRange<'a> for ChainedSequenceContext<'a> {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
+            Self::Format5(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
@@ -3194,6 +3222,8 @@ impl<'a> MinByteRange<'a> for ChainedSequenceContext<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
+            Self::Format5(item) => item.min_table_bytes(),
         }
     }
 }
@@ -5662,4 +5692,1215 @@ impl ClassRangeRecord2 {
 impl FixedSize for ClassRangeRecord2 {
     const RAW_BYTE_LEN: usize =
         GlyphId24::RAW_BYTE_LEN + GlyphId24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+impl Format<u16> for SequenceContextFormat4<'_> {
+    const FORMAT: u16 = 4;
+}
+
+impl<'a> MinByteRange<'a> for SequenceContextFormat4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SequenceContextFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceContextFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat4.
+#[derive(Clone)]
+pub struct SequenceContextFormat4<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SequenceContextFormat4<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 4
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat4 table
+    pub fn coverage_offset(&self) -> Offset32 {
+        let range = self.coverage_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.data;
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of SequenceRuleSet tables
+    pub fn seq_rule_set_count(&self) -> Uint24 {
+        let range = self.seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to SequenceRuleSet tables, from beginning of
+    /// SequenceContextFormat4 table (offsets may be NULL)
+    pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        let range = self.seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
+    pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet2<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let seq_rule_set_count = self.seq_rule_set_count();
+        let start = self.seq_rule_set_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(seq_rule_set_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for SequenceRuleSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SequenceRuleSet2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceRuleSet2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceRuleSet2.
+#[derive(Clone)]
+pub struct SequenceRuleSet2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SequenceRuleSet2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of SequenceRule tables
+    pub fn seq_rule_count(&self) -> u16 {
+        let range = self.seq_rule_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to SequenceRule tables, from beginning of the
+    /// SequenceRuleSet2 table
+    pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.seq_rule_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
+    pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule2<'a>, Offset16> {
+        let data = self.data;
+        let offsets = self.seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let seq_rule_count = self.seq_rule_count();
+        let start = self.seq_rule_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(seq_rule_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SequenceRuleSet2::MIN_SIZE
+));
+
+impl Default for SequenceRuleSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for SequenceRule2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SequenceRule2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceRule2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceRule2.
+#[derive(Clone)]
+pub struct SequenceRule2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SequenceRule2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of glyphs in the input glyph sequence
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of input glyph IDs—starting with the second glyph
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.input_sequence_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Array of Sequence lookup records
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        let range = self.seq_lookup_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn input_sequence_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.seq_lookup_count_byte_range().end;
+        let end = start
+            + (transforms::subtract(glyph_count, 1_usize)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let seq_lookup_count = self.seq_lookup_count();
+        let start = self.input_sequence_byte_range().end;
+        let end = start
+            + (transforms::to_usize(seq_lookup_count))
+                .saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(SequenceRule2::MIN_SIZE));
+
+impl Default for SequenceRule2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Format<u16> for SequenceContextFormat5<'_> {
+    const FORMAT: u16 = 5;
+}
+
+impl<'a> MinByteRange<'a> for SequenceContextFormat5<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SequenceContextFormat5<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceContextFormat5<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat5.
+#[derive(Clone)]
+pub struct SequenceContextFormat5<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SequenceContextFormat5<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 5
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat5 table
+    pub fn coverage_offset(&self) -> Offset32 {
+        let range = self.coverage_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.data;
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Offset to ClassDef table, from beginning of
+    /// SequenceContextFormat5 table
+    pub fn class_def_offset(&self) -> Offset32 {
+        let range = self.class_def_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
+    pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = self.data;
+        self.class_def_offset().resolve(data)
+    }
+
+    /// Number of ClassSequenceRuleSet tables
+    pub fn class_seq_rule_set_count(&self) -> Uint24 {
+        let range = self.class_seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to ClassSequenceRuleSet tables, from beginning
+    /// of SequenceContextFormat5 table (may be NULL)
+    pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        let range = self.class_seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
+    pub fn class_seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet2<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.class_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class_seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.class_def_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let class_seq_rule_set_count = self.class_seq_rule_set_count();
+        let start = self.class_seq_rule_set_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(class_seq_rule_set_count))
+                .saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for ClassSequenceRuleSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ClassSequenceRuleSet2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ClassSequenceRuleSet2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ClassSequenceRuleSet2.
+#[derive(Clone)]
+pub struct ClassSequenceRuleSet2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ClassSequenceRuleSet2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of ClassSequenceRule tables
+    pub fn class_seq_rule_count(&self) -> u16 {
+        let range = self.class_seq_rule_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to ClassSequenceRule tables, from beginning of
+    /// ClassSequenceRuleSet2 table
+    pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.class_seq_rule_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
+    pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.class_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn class_seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class_seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let class_seq_rule_count = self.class_seq_rule_count();
+        let start = self.class_seq_rule_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(class_seq_rule_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ClassSequenceRuleSet2::MIN_SIZE
+));
+
+impl Default for ClassSequenceRuleSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Format<u16> for SequenceContextFormat6<'_> {
+    const FORMAT: u16 = 6;
+}
+
+impl<'a> MinByteRange<'a> for SequenceContextFormat6<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SequenceContextFormat6<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceContextFormat6<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat6.
+#[derive(Clone)]
+pub struct SequenceContextFormat6<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SequenceContextFormat6<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 6
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of glyphs in the input sequence
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to Coverage tables, from beginning of
+    /// SequenceContextFormat6 subtable
+    pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.coverage_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
+    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        let range = self.seq_lookup_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offsets_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.seq_lookup_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let seq_lookup_count = self.seq_lookup_count();
+        let start = self.coverage_offsets_byte_range().end;
+        let end = start
+            + (transforms::to_usize(seq_lookup_count))
+                .saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl Format<u16> for ChainedSequenceContextFormat4<'_> {
+    const FORMAT: u16 = 4;
+}
+
+impl<'a> MinByteRange<'a> for ChainedSequenceContextFormat4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ChainedSequenceContextFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat4.
+#[derive(Clone)]
+pub struct ChainedSequenceContextFormat4<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ChainedSequenceContextFormat4<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 4
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// ChainSequenceContextFormat1 table
+    pub fn coverage_offset(&self) -> Offset32 {
+        let range = self.coverage_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.data;
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of ChainedSequenceRuleSet tables
+    pub fn chained_seq_rule_set_count(&self) -> Uint24 {
+        let range = self.chained_seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
+    /// ChainedSequenceContextFormat4 table (may be NULL)
+    pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        let range = self.chained_seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
+    pub fn chained_seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet2<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.chained_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chained_seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chained_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let chained_seq_rule_set_count = self.chained_seq_rule_set_count();
+        let start = self.chained_seq_rule_set_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(chained_seq_rule_set_count))
+                .saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for ChainedSequenceRuleSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ChainedSequenceRuleSet2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceRuleSet2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceRuleSet2.
+#[derive(Clone)]
+pub struct ChainedSequenceRuleSet2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ChainedSequenceRuleSet2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of ChainedSequenceRule tables
+    pub fn chained_seq_rule_count(&self) -> u16 {
+        let range = self.chained_seq_rule_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to ChainedSequenceRule tables, from beginning
+    /// of ChainedSequenceRuleSet2 table
+    pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.chained_seq_rule_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
+    pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule2<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.chained_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn chained_seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chained_seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let chained_seq_rule_count = self.chained_seq_rule_count();
+        let start = self.chained_seq_rule_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(chained_seq_rule_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedSequenceRuleSet2::MIN_SIZE
+));
+
+impl Default for ChainedSequenceRuleSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for ChainedSequenceRule2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ChainedSequenceRule2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceRule2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceRule2.
+#[derive(Clone)]
+pub struct ChainedSequenceRule2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ChainedSequenceRule2<'a> {
+    pub const MIN_SIZE: usize =
+        (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of glyphs in the backtrack sequence
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        let range = self.backtrack_glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of backtrack glyph IDs
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.backtrack_sequence_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Number of glyphs in the input sequence
+    pub fn input_glyph_count(&self) -> u16 {
+        let range = self.input_glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    /// Array of input glyph IDs—start with second glyph
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.input_sequence_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Number of glyphs in the lookahead sequence
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        let range = self.lookahead_glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    /// Array of lookahead glyph IDs
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.lookahead_sequence_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        let range = self.seq_lookup_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn backtrack_sequence_byte_range(&self) -> Range<usize> {
+        let backtrack_glyph_count = self.backtrack_glyph_count();
+        let start = self.backtrack_glyph_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(backtrack_glyph_count)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn input_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_sequence_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn input_sequence_byte_range(&self) -> Range<usize> {
+        let input_glyph_count = self.input_glyph_count();
+        let start = self.input_glyph_count_byte_range().end;
+        let end = start
+            + (transforms::subtract(input_glyph_count, 1_usize))
+                .saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.input_sequence_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookahead_sequence_byte_range(&self) -> Range<usize> {
+        let lookahead_glyph_count = self.lookahead_glyph_count();
+        let start = self.lookahead_glyph_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(lookahead_glyph_count)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_sequence_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let seq_lookup_count = self.seq_lookup_count();
+        let start = self.seq_lookup_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(seq_lookup_count))
+                .saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedSequenceRule2::MIN_SIZE
+));
+
+impl Default for ChainedSequenceRule2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Format<u16> for ChainedSequenceContextFormat5<'_> {
+    const FORMAT: u16 = 5;
+}
+
+impl<'a> MinByteRange<'a> for ChainedSequenceContextFormat5<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_class_seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ChainedSequenceContextFormat5<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat5<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat5.
+#[derive(Clone)]
+pub struct ChainedSequenceContextFormat5<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ChainedSequenceContextFormat5<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 5
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// ChainedSequenceContextFormat5 table
+    pub fn coverage_offset(&self) -> Offset32 {
+        let range = self.coverage_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.data;
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Offset to ClassDef table containing backtrack sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    pub fn backtrack_class_def_offset(&self) -> Offset32 {
+        let range = self.backtrack_class_def_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
+    pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = self.data;
+        self.backtrack_class_def_offset().resolve(data)
+    }
+
+    /// Offset to ClassDef table containing input sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    pub fn input_class_def_offset(&self) -> Offset32 {
+        let range = self.input_class_def_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
+    pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = self.data;
+        self.input_class_def_offset().resolve(data)
+    }
+
+    /// Offset to ClassDef table containing lookahead sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    pub fn lookahead_class_def_offset(&self) -> Offset32 {
+        let range = self.lookahead_class_def_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
+    pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = self.data;
+        self.lookahead_class_def_offset().resolve(data)
+    }
+
+    /// Number of ChainedClassSequenceRuleSet tables
+    pub fn chained_class_seq_rule_set_count(&self) -> u16 {
+        let range = self.chained_class_seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to ChainedClassSequenceRuleSet tables, from
+    /// beginning of ChainedSequenceContextFormat5 table (may be NULL)
+    pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        let range = self.chained_class_seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
+    pub fn chained_class_seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet2<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.chained_class_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn backtrack_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn input_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_class_def_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookahead_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.input_class_def_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chained_class_seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_class_def_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chained_class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let chained_class_seq_rule_set_count = self.chained_class_seq_rule_set_count();
+        let start = self.chained_class_seq_rule_set_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(chained_class_seq_rule_set_count))
+                .saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for ChainedClassSequenceRuleSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.chained_class_seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ChainedClassSequenceRuleSet2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedClassSequenceRuleSet2.
+#[derive(Clone)]
+pub struct ChainedClassSequenceRuleSet2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ChainedClassSequenceRuleSet2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of ChainedClassSequenceRule tables
+    pub fn chained_class_seq_rule_count(&self) -> u16 {
+        let range = self.chained_class_seq_rule_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to ChainedClassSequenceRule tables, from
+    /// beginning of ChainedClassSequenceRuleSet2
+    pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.chained_class_seq_rule_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
+    pub fn chained_class_seq_rules(
+        &self,
+    ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.chained_class_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn chained_class_seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn chained_class_seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let chained_class_seq_rule_count = self.chained_class_seq_rule_count();
+        let start = self.chained_class_seq_rule_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(chained_class_seq_rule_count))
+                .saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedClassSequenceRuleSet2::MIN_SIZE
+));
+
+impl Default for ChainedClassSequenceRuleSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
 }
