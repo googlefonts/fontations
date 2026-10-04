@@ -744,6 +744,11 @@ impl GlyphClosure for SequenceContext<'_> {
             Self::Format2(table) => {
                 ContextFormat2::Plain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            Self::Format5(table) => ContextFormat2::PlainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             Self::Format3(table) => {
                 ContextFormat3::Plain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
@@ -757,8 +762,6 @@ impl GlyphClosure for SequenceContext<'_> {
                 lookup_list,
                 lookup_index,
             ),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -777,6 +780,11 @@ impl GlyphClosure for ChainedSequenceContext<'_> {
             Self::Format2(table) => {
                 ContextFormat2::Chain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            Self::Format5(table) => ContextFormat2::ChainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             Self::Format3(table) => {
                 ContextFormat3::Chain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
@@ -785,8 +793,6 @@ impl GlyphClosure for ChainedSequenceContext<'_> {
                 lookup_list,
                 lookup_index,
             ),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -883,14 +889,14 @@ impl GlyphClosure for ContextFormat1<'_> {
 fn intersected_class_glyphs(
     class_def: &ClassDef,
     glyphs: &IntSet<GlyphId>,
-    class: u16,
-    cache: &mut FnvHashMap<u16, IntSet<GlyphId>>,
+    class: u32,
+    cache: &mut FnvHashMap<u32, IntSet<GlyphId>>,
 ) -> IntSet<GlyphId> {
     if let Some(cached_set) = cache.get(&class) {
         return cached_set.clone();
     }
 
-    let out = class_def.intersected_class_glyphs(glyphs, u32::from(class));
+    let out = class_def.intersected_class_glyphs(glyphs, class);
     cache.insert(class, out.clone());
     out
 }
@@ -915,27 +921,10 @@ impl GlyphClosure for ContextFormat2<'_> {
             return Ok(());
         }
         let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
-        let backtrack_class_def = match self {
-            Self::Plain(_) => None,
-            Self::Chain(table) => {
-                if table.backtrack_class_def_offset().is_null() {
-                    None
-                } else {
-                    Some(table.backtrack_class_def()?)
-                }
-            }
-        };
-        let lookahead_class_def = match self {
-            Self::Plain(_) => None,
-            Self::Chain(table) => {
-                if table.lookahead_class_def_offset().is_null() {
-                    None
-                } else {
-                    Some(table.lookahead_class_def()?)
-                }
-            }
-        };
+        let backtrack_class_def = self.backtrack_class_def().transpose()?;
+        let lookahead_class_def = self.lookahead_class_def().transpose()?;
 
+        let primary_classes = input_class_def.intersect_classes(&cov_active_glyphs);
         let lookups = lookup_list.lookups();
         let mut seen_sequence_indices = IntSet::new();
 
@@ -944,10 +933,8 @@ impl GlyphClosure for ContextFormat2<'_> {
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
-            .filter_map(|(class, rs)| rs.map(|rs| (class as u16, rs)))
-            .filter(|&(class, _)| {
-                input_class_def.intersects_class_glyphs(&cov_active_glyphs, u32::from(class))
-            })
+            .filter_map(|(class, rs)| rs.map(|rs| (class as u32, rs)))
+            .filter(|&(class, _)| primary_classes.contains(class))
         {
             if ctx.lookup_limit_exceed() {
                 return Ok(());
@@ -1001,7 +988,7 @@ impl GlyphClosure for ContextFormat2<'_> {
                         intersected_class_glyphs(
                             &input_class_def,
                             ctx.glyphs(),
-                            c,
+                            u32::from(c),
                             &mut intersected_class_cache,
                         )
                     };
