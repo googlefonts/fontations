@@ -1,4 +1,5 @@
 //! impl subset() for Sequence Context/Chained Sequence Context tables
+mod class_context;
 mod extended;
 
 use crate::fnv::FastHashMap;
@@ -38,7 +39,7 @@ impl<'a> SubsetTable<'a> for SequenceContext<'_> {
             Self::Format3(item) => item.subset(plan, s, lookup_map),
             Self::Format4(item) => item.subset(plan, s, lookup_map),
             Self::Format6(item) => item.subset(plan, s, lookup_map),
-            Self::Format5(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+            Self::Format5(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -478,7 +479,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
             Self::Format2(item) => item.subset(plan, s, lookup_map),
             Self::Format3(item) => item.subset(plan, s, lookup_map),
             Self::Format4(item) => item.subset(plan, s, lookup_map),
-            Self::Format5(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+            Self::Format5(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
