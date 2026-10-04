@@ -85,6 +85,24 @@ pub fn format14(selector: u32, defaults: &[u32], variants: &[(u32, u16)]) -> Vec
     data
 }
 
+/// Builds a format 15 subtable with a single variation selector.
+pub fn format15(selector: u32, defaults: &[u32], variants: &[(u32, u32)]) -> Vec<u8> {
+    let mut data = format14(selector, defaults, &[]);
+    data[..2].copy_from_slice(&15u16.to_be_bytes());
+    if !variants.is_empty() {
+        let offset = data.len() as u32;
+        data[17..21].copy_from_slice(&offset.to_be_bytes());
+        data.extend_from_slice(&(variants.len() as u32).to_be_bytes());
+        for (codepoint, glyph) in variants {
+            data.extend_from_slice(&codepoint.to_be_bytes()[1..]);
+            data.extend_from_slice(&glyph.to_be_bytes()[1..]);
+        }
+    }
+    let length = data.len() as u32;
+    data[2..6].copy_from_slice(&length.to_be_bytes());
+    data
+}
+
 /// Contains two codepoint ranges, both [6, 64]. Surely you don't duplicate them?
 pub fn repetitive_cmap4() -> BeBuffer {
     // <https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values>

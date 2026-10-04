@@ -16,8 +16,8 @@
 
 use read_fonts::{
     tables::cmap::{
-        self, Cmap, Cmap12, Cmap12Iter, Cmap13, Cmap13Iter, Cmap14, Cmap14Iter, Cmap4, Cmap4Iter,
-        CmapIterLimits, CmapSubtable, EncodingRecord, PlatformId,
+        self, Cmap, Cmap12, Cmap12Iter, Cmap13, Cmap13Iter, Cmap4, Cmap4Iter, CmapIterLimits,
+        CmapSubtable, EncodingRecord, PlatformId, VariationSubtable, VariationSubtableIter,
     },
     types::GlyphId,
     FontData, FontRef, TableProvider,
@@ -52,7 +52,7 @@ pub use read_fonts::tables::cmap::MapVariant;
 ///
 /// * Unicode variation sequences: these are provided by a format
 ///   [14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
-///   subtable.
+///   or format 15 (ISO/IEC 14496-22:2026) subtable, preferring format 15.
 ///
 #[derive(Clone, Default)]
 pub struct Charmap<'a> {
@@ -64,7 +64,7 @@ pub struct Charmap<'a> {
 #[derive(Clone, Default)]
 struct TableCharmap<'a> {
     codepoint_subtable: Option<CodepointSubtable<'a>>,
-    variant_subtable: Option<Cmap14<'a>>,
+    variant_subtable: Option<VariationSubtable<'a>>,
 }
 
 impl<'a> Charmap<'a> {
@@ -264,7 +264,8 @@ impl TableMappingIndex {
                 .variant_subtable
                 .and_then(|index| get_subtable(data, records, index))
                 .and_then(|subtable| match subtable {
-                    CmapSubtable::Format14(cmap14) => Some(cmap14),
+                    CmapSubtable::Format14(table) => Some(VariationSubtable::Format14(table)),
+                    CmapSubtable::Format15(table) => Some(VariationSubtable::Format15(table)),
                     _ => None,
                 }),
         }
@@ -332,9 +333,9 @@ enum MappingsInner<'a> {
 /// This is created with the [`Charmap::variant_mappings`] method.
 #[derive(Clone)]
 pub struct VariantMappings<'a> {
-    dmap: Option<Cmap14Iter<'a>>,
-    cmap: Option<Cmap14Iter<'a>>,
-    dmap_subtable: Option<Cmap14<'a>>,
+    dmap: Option<VariationSubtableIter<'a>>,
+    cmap: Option<VariationSubtableIter<'a>>,
+    dmap_subtable: Option<VariationSubtable<'a>>,
 }
 
 impl Iterator for VariantMappings<'_> {
@@ -438,7 +439,7 @@ enum MappingKind {
 /// For `codepoint_subtable`, best means either symbol (which is preferred)
 /// or a Unicode subtable with the greatest coverage.
 ///
-/// For `variant_subtable`, best means a format 14 subtable.
+/// For `variant_subtable`, best means format 15, falling back to format 14.
 struct MappingSelection<'a> {
     /// The mapping index accelerator that holds indices of the following
     /// subtables.
@@ -447,7 +448,7 @@ struct MappingSelection<'a> {
     /// greatest coverage.
     codepoint_subtable: Option<SupportedSubtable<'a>>,
     /// Subtable that supports mapping Unicode variation sequences.
-    variant_subtable: Option<Cmap14<'a>>,
+    variant_subtable: Option<VariationSubtable<'a>>,
 }
 
 impl<'a> MappingSelection<'a> {
@@ -480,10 +481,16 @@ impl<'a> MappingSelection<'a> {
             match (record.platform_id(), record.encoding_id()) {
                 (PlatformId::Unicode, ENCODING_APPLE_ID_VARIANT_SELECTOR) => {
                     // Unicode variation sequences
-                    if let Ok(CmapSubtable::Format14(subtable)) =
-                        record.subtable(cmap.offset_data())
-                    {
-                        if variant_subtable.is_none() {
+                    if let Ok(subtable) = record.subtable(cmap.offset_data()) {
+                        let subtable = match subtable {
+                            CmapSubtable::Format14(table) => VariationSubtable::Format14(table),
+                            CmapSubtable::Format15(table) => VariationSubtable::Format15(table),
+                            _ => continue,
+                        };
+                        if variant_subtable.is_none()
+                            || (matches!(subtable, VariationSubtable::Format15(_))
+                                && matches!(variant_subtable, Some(VariationSubtable::Format14(_))))
+                        {
                             mapping_index.variant_subtable = Some(i as u16);
                             variant_subtable = Some(subtable);
                         }
@@ -527,6 +534,80 @@ mod tests {
     use super::*;
     use crate::MetadataProvider;
     use read_fonts::FontRef;
+
+    #[test]
+    fn format15_variants_and_cached_selection() {
+        use font_test_data::cmap::{font_with_cmaps, format12, format14, format15, table};
+        let nominal = format12(&[(65, 1)]);
+        let old = format14(0xfe0f, &[], &[(65, 2), (67, 3)]);
+        let new = format15(0xfe0f, &[65], &[(66, 70000), (68, 0xffffff)]);
+        for records in [
+            vec![
+                (3, 10, nominal.as_slice()),
+                (0, 5, old.as_slice()),
+                (0, 5, new.as_slice()),
+            ],
+            vec![
+                (3, 10, nominal.as_slice()),
+                (0, 5, new.as_slice()),
+                (0, 5, old.as_slice()),
+            ],
+        ] {
+            let base = table(&records);
+            let data = font_with_cmaps(Some(&base), None);
+            let font = FontRef::new(&data).unwrap();
+            for charmap in [font.charmap(), MappingIndex::new(&font).charmap(&font)] {
+                assert!(charmap.has_variant_map());
+                let expected = [
+                    (65, 0xfe0f, MapVariant::UseDefault),
+                    (66, 0xfe0f, MapVariant::Variant(GlyphId::new(70000))),
+                    (68, 0xfe0f, MapVariant::Variant(GlyphId::new(0xffffff))),
+                ];
+                assert_eq!(charmap.variant_mappings().collect::<Vec<_>>(), expected);
+                for (ch, selector, mapping) in expected {
+                    assert_eq!(charmap.map_variant(ch, selector), Some(mapping));
+                }
+                assert_eq!(charmap.map_variant(67u32, 0xfe0fu32), None);
+            }
+        }
+    }
+
+    #[test]
+    fn dmap_variation_precedence_across_formats() {
+        use font_test_data::cmap::{font_with_cmaps, format14, format15, table};
+        let old = format14(0xfe0f, &[], &[(65, 1), (66, 2)]);
+        let new = format15(0xfe0f, &[], &[(65, 70000), (67, 80000)]);
+        for (base, delta, expected) in [
+            (&old, &new, vec![(65u32, 70000), (66, 2), (67, 80000)]),
+            (&new, &old, vec![(65u32, 1), (66, 2), (67, 80000)]),
+        ] {
+            let base = table(&[(0, 5, base)]);
+            let delta = table(&[(0, 5, delta)]);
+            for cmap in [Some(base.as_slice()), None] {
+                let data = font_with_cmaps(cmap, Some(&delta));
+                let font = FontRef::new(&data).unwrap();
+                for charmap in [font.charmap(), MappingIndex::new(&font).charmap(&font)] {
+                    let mut seen = Vec::new();
+                    for (ch, selector, mapping) in charmap.variant_mappings() {
+                        assert_eq!(charmap.map_variant(ch, selector), Some(mapping));
+                        assert!(!seen.contains(&(ch, selector)));
+                        seen.push((ch, selector));
+                    }
+                    if cmap.is_some() {
+                        assert_eq!(seen.len(), expected.len());
+                        for &(ch, glyph) in &expected {
+                            assert_eq!(
+                                charmap.map_variant(ch, 0xfe0fu32),
+                                Some(MapVariant::Variant(GlyphId::new(glyph)))
+                            );
+                        }
+                    } else {
+                        assert_eq!(seen.len(), 2);
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn dmap_overrides_and_falls_back_to_cmap() {
