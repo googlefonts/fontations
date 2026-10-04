@@ -541,6 +541,19 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                                 }
                             }
                         }
+                        SequenceContext::Format4(table) => {
+                            for set in table
+                                .seq_rule_sets()
+                                .iter()
+                                .filter_map(|set| set.transpose().ok().flatten())
+                            {
+                                for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
+                                    for rec in rule.seq_lookup_records() {
+                                        self.process_lookup(rec.lookup_list_index())?;
+                                    }
+                                }
+                            }
+                        }
                         SequenceContext::Format2(table) => {
                             for set in table
                                 .class_seq_rule_sets()
@@ -556,7 +569,27 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                                 }
                             }
                         }
+                        SequenceContext::Format5(table) => {
+                            for set in table
+                                .class_seq_rule_sets()
+                                .iter()
+                                .filter_map(|set| set.transpose().ok().flatten())
+                            {
+                                for rule in
+                                    set.class_seq_rules().iter().filter_map(|rule| rule.ok())
+                                {
+                                    for rec in rule.seq_lookup_records() {
+                                        self.process_lookup(rec.lookup_list_index())?;
+                                    }
+                                }
+                            }
+                        }
                         SequenceContext::Format3(table) => {
+                            for rec in table.seq_lookup_records() {
+                                self.process_lookup(rec.lookup_list_index())?;
+                            }
+                        }
+                        SequenceContext::Format6(table) => {
                             for rec in table.seq_lookup_records() {
                                 self.process_lookup(rec.lookup_list_index())?;
                             }
@@ -582,7 +615,39 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                                 }
                             }
                         }
+                        ChainedSequenceContext::Format4(table) => {
+                            for set in table
+                                .chained_seq_rule_sets()
+                                .iter()
+                                .filter_map(|set| set.transpose().ok().flatten())
+                            {
+                                for rule in
+                                    set.chained_seq_rules().iter().filter_map(|rule| rule.ok())
+                                {
+                                    for rec in rule.seq_lookup_records() {
+                                        self.process_lookup(rec.lookup_list_index())?;
+                                    }
+                                }
+                            }
+                        }
                         ChainedSequenceContext::Format2(table) => {
+                            for set in table
+                                .chained_class_seq_rule_sets()
+                                .iter()
+                                .filter_map(|set| set.transpose().ok().flatten())
+                            {
+                                for rule in set
+                                    .chained_class_seq_rules()
+                                    .iter()
+                                    .filter_map(|rule| rule.ok())
+                                {
+                                    for rec in rule.seq_lookup_records() {
+                                        self.process_lookup(rec.lookup_list_index())?;
+                                    }
+                                }
+                            }
+                        }
+                        ChainedSequenceContext::Format5(table) => {
                             for set in table
                                 .chained_class_seq_rule_sets()
                                 .iter()

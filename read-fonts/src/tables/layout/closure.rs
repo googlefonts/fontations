@@ -1093,6 +1093,8 @@ impl Intersect for SequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -1103,6 +1105,8 @@ impl LookupClosure for SequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).closure_lookups(c, arg),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -1113,6 +1117,8 @@ impl Intersect for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -1123,6 +1129,8 @@ impl LookupClosure for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).closure_lookups(c, arg),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }

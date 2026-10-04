@@ -710,6 +710,8 @@ impl GlyphClosure for SequenceContext<'_> {
             Self::Format3(table) => {
                 ContextFormat3::Plain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -731,6 +733,8 @@ impl GlyphClosure for ChainedSequenceContext<'_> {
             Self::Format3(table) => {
                 ContextFormat3::Chain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
