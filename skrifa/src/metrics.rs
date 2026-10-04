@@ -256,11 +256,7 @@ impl<'a> GlyphMetrics<'a> {
             .unwrap_or_default();
         let hvar = font.hvar().ok();
         let gvar = font.gvar().ok();
-        let loca_glyf = if let (Ok(loca), Ok(glyf)) = (font.loca(None), font.glyf()) {
-            Some((loca, glyf))
-        } else {
-            None
-        };
+        let loca_glyf = font.glyf_loca(None).ok().map(|(glyf, loca)| (loca, glyf));
         Self {
             font: font.clone(),
             size,

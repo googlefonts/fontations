@@ -38,6 +38,7 @@ TABLES = [
     ("GDEF", "Glyph definition table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gdef"),
 #   ("gcid", "Glyph CID table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6gcid.html"),
     ("glyf", "TrueType glyph data table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/glyf"),
+    ("GLYF", "Extended glyph data table.", "ISO/IEC 14496-22:2026, 5.2.8"),
     ("GPOS", "Glyph positioning table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gpos"),
     ("GSUB", "Glyph substitution table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gsub"),
     ("gvar", "Glyph variation table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/gvar"),
@@ -56,6 +57,7 @@ TABLES = [
     ("kerx", "Extended kerning table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kerx.html"),
 #   ("lcar", "Ligature caret table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6lcar.html"),
     ("loca", "Index to location table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/loca"),
+    ("LOCA", "Extended index to location table.", "ISO/IEC 14496-22:2026, 5.2.9"),
     ("ltag", "Language tag table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html"),
     ("MATH", "Mathematical typesetting table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/math"),
     ("maxp", "Maximum profile table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/maxp"),
@@ -88,7 +90,7 @@ TABLES = [
 
 def tag_to_name(tag: str):
     name = tag.lower().replace("/", "").removesuffix(" ")
-    if tag in ("MAXP", "HHEA", "HMTX", "VHEA", "VMTX"):
+    if tag in ("MAXP", "HHEA", "HMTX", "VHEA", "VMTX", "GLYF", "LOCA"):
         name += "_extended"
     return name
 

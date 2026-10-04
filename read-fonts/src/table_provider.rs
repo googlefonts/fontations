@@ -200,6 +200,42 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Reads GLYF using the shared glyph data representation.
+    fn glyf_extended(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {
+        tables::glyf::Glyf::read(self.expect_data_for_tag(Tag::new(b"GLYF"))?)
+    }
+
+    /// Reads LOCA; its format is shared with loca and specified in head.
+    fn loca_extended(
+        &self,
+        is_long: impl Into<Option<bool>>,
+    ) -> Result<tables::loca::Loca<'a>, ReadError> {
+        let data = self.expect_data_for_tag(Tag::new(b"LOCA"))?;
+        let is_long = match is_long.into() {
+            Some(val) => val,
+            None => self.head()?.index_to_loc_format() == 1,
+        };
+        tables::loca::Loca::read(data, is_long)
+    }
+
+    /// Selects GLYF/LOCA before glyf/loca, independently of metrics.
+    /// A present GLYF requires LOCA; it never uses legacy loca offsets.
+    fn glyf_loca(
+        &self,
+        is_long: impl Into<Option<bool>>,
+    ) -> Result<(tables::glyf::Glyf<'a>, tables::loca::Loca<'a>), ReadError> {
+        let is_long = is_long.into();
+        prefer_extended(
+            self.glyf_extended()
+                .and_then(|glyf| self.loca_extended(is_long).map(|loca| (glyf, loca))),
+            Tag::new(b"GLYF"),
+            || {
+                self.glyf()
+                    .and_then(|glyf| self.loca(is_long).map(|loca| (glyf, loca)))
+            },
+        )
+    }
+
     fn gvar(&self) -> Result<tables::gvar::Gvar<'a>, ReadError> {
         self.expect_table()
     }
@@ -490,6 +526,77 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn extended_outline_tables_are_selected_as_a_pair() {
+        use crate::{tables::glyf::Glyph, types::GlyphId, FontRef};
+        use font_test_data::extended::outlines_font;
+        for long_loca in [false, true] {
+            for legacy in [false, true] {
+                for extended_metrics in [false, true] {
+                    let data = outlines_font(true, legacy, extended_metrics, long_loca);
+                    let font = FontRef::new(&data).unwrap();
+                    let (glyf, loca) = font.glyf_loca(None).unwrap();
+                    assert_eq!(loca.len(), 65537);
+                    let Glyph::Composite(composite) = loca
+                        .get(GlyphId::new(1), &glyf)
+                        .unwrap()
+                        .into_glyph()
+                        .unwrap()
+                    else {
+                        panic!("expected composite")
+                    };
+                    assert_eq!(
+                        composite.components().next().unwrap().glyph,
+                        GlyphId::new(65536)
+                    );
+                    assert_eq!(
+                        composite.component_glyphs_and_flags().next().unwrap().0,
+                        GlyphId::new(65536)
+                    );
+                    assert_eq!(composite.count_and_instructions(), (1, None));
+                    assert!(loca
+                        .get(GlyphId::new(65536), &glyf)
+                        .unwrap()
+                        .glyph()
+                        .is_some());
+                    assert!(loca.get(GlyphId::new(65537), &glyf).is_none());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn extended_outline_pair_does_not_use_legacy_locations() {
+        use crate::FontRef;
+        use font_test_data::extended::{font, outlines_font};
+        let data = outlines_font(true, true, true, true);
+        let source = FontRef::new(&data).unwrap();
+        let tables: Vec<_> = source
+            .table_directory()
+            .table_records()
+            .iter()
+            .filter(|record| record.tag() != Tag::new(b"LOCA"))
+            .map(|record| {
+                (
+                    record.tag().to_be_bytes(),
+                    source.table_data(record.tag()).unwrap().as_bytes(),
+                )
+            })
+            .collect();
+        let data = font(&tables);
+        let source = FontRef::new(&data).unwrap();
+        assert!(
+            matches!(source.glyf_loca(None), Err(ReadError::TableIsMissing(tag)) if tag == Tag::new(b"LOCA"))
+        );
+        assert!(source.glyf().is_ok());
+        assert!(source.loca(None).is_ok());
+        let mut tables = tables;
+        tables.push((*b"LOCA", &[0]));
+        let data = font(&tables);
+        let source = FontRef::new(&data).unwrap();
+        assert!(source.glyf_loca(None).is_err());
     }
 
     /// https://github.com/googlefonts/fontations/issues/105
