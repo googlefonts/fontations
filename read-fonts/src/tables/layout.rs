@@ -4,6 +4,7 @@
 mod closure;
 
 mod feature;
+mod feature_variations;
 mod lookup_flag;
 mod script;
 
@@ -169,6 +170,9 @@ impl FeatureVariations<'_> {
 }
 
 /// Which features variation indices were selected for a given location.
+///
+/// This selects feature variation records only. Lookup variation records are
+/// queried per feature with [`FeatureVariations::feature_lookups`].
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct SelectedFeatureVariations {
     /// Feature variation index for the GSUB table.
