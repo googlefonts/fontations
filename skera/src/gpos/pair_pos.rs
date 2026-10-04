@@ -774,7 +774,7 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
             // intersect_classes reports the class values a ClassDef actually
             // assigns, which is not tied to class1Count/class2Count and so can run
             // past the end of the record matrix in a malformed font.
-            if i >= u32::from(class1_count) {
+            if i >= class1_count {
                 break;
             }
             for j in class2_set.iter() {
