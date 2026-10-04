@@ -6,7 +6,8 @@ use crate::{
     ps::type1::Type1Font,
     tables::{
         cmap::{
-            Cmap, Cmap14, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId,
+            Cmap, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId,
+            VariationSubtable,
         },
         name::MacRomanMapping,
     },
@@ -566,7 +567,7 @@ pub(crate) struct UnicodeCharmap<'a> {
 #[derive(Clone, Default, Yokeable)]
 struct UnicodeSubtables<'a> {
     subtable: Option<CmapSubtable<'a>>,
-    vs_subtable: Option<Cmap14<'a>>,
+    vs_subtable: Option<VariationSubtable<'a>>,
     is_symbol: bool,
     is_mac_roman: bool,
 }
@@ -654,7 +655,7 @@ impl<'a> UnicodeSubtables<'a> {
             .unwrap_or((None, false, false));
         Self {
             subtable,
-            vs_subtable: cmap.uvs_subtable().map(|(_, subtable)| subtable),
+            vs_subtable: cmap.variation_subtable().map(|(_, subtable)| subtable),
             is_symbol,
             is_mac_roman,
         }
@@ -729,6 +730,60 @@ mod tests {
     use alloc::{sync::Arc, vec};
     use core::sync::atomic::{AtomicUsize, Ordering};
     use types::Tag;
+
+    #[test]
+    fn cmap15_selection_and_dmap_variants() {
+        use font_test_data::cmap::{font_with_cmaps, format12, format14, format15, table};
+        let nominal = format12(&[(65, 1)]);
+        let old = format14(0xfe0f, &[], &[(65, 2), (67, 3)]);
+        let new = format15(0xfe0f, &[65], &[(66, 70000), (68, 0xffffff)]);
+        for records in [
+            vec![
+                (3, 10, nominal.as_slice()),
+                (0, 5, old.as_slice()),
+                (0, 5, new.as_slice()),
+            ],
+            vec![
+                (3, 10, nominal.as_slice()),
+                (0, 5, new.as_slice()),
+                (0, 5, old.as_slice()),
+            ],
+        ] {
+            let base = table(&records);
+            let delta = table(&[(0, 5, old.as_slice())]);
+            for (dmap, expected) in [
+                (None, vec![(65, 1), (66, 70000), (68, 0xffffff)]),
+                (
+                    Some(delta.as_slice()),
+                    vec![(65, 2), (66, 70000), (67, 3), (68, 0xffffff)],
+                ),
+            ] {
+                let data = font_with_cmaps(Some(&base), dmap);
+                let font = Font::new(data, 0).unwrap();
+                let charmap = font.charmap();
+                assert!(charmap.has_unicode_variants());
+                let mut mappings: Vec<_> = charmap.iter_unicode_variants().collect();
+                mappings.sort_unstable();
+                assert_eq!(
+                    mappings,
+                    expected
+                        .iter()
+                        .map(|&(ch, glyph)| (ch, 0xfe0f, GlyphId::new(glyph)))
+                        .collect::<Vec<_>>()
+                );
+                for (ch, selector, glyph) in mappings {
+                    assert_eq!(charmap.map_unicode_variant(ch, selector), Some(glyph));
+                }
+            }
+        }
+        let delta = table(&[(0, 5, new.as_slice())]);
+        let data = font_with_cmaps(None, Some(&delta));
+        let font = Font::new(data, 0).unwrap();
+        assert_eq!(
+            font.charmap().map_unicode_variant(66u32, 0xfe0fu32),
+            Some(GlyphId::new(70000))
+        );
+    }
 
     #[test]
     fn dmap_unicode_lookups_and_iterators() {
