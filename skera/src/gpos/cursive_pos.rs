@@ -1,5 +1,8 @@
 //! impl subset() for CursivePos subtable
 
+#[cfg(test)]
+mod extended_tests;
+
 use crate::fnv::FnvHashMap;
 use crate::{
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -11,130 +14,170 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::{
-            gpos::{CursivePosFormat1, EntryExitRecord},
+            gpos::{
+                CursivePos, CursivePosFormat1, CursivePosFormat2, EntryExitRecord, EntryExitRecord2,
+            },
             layout::CoverageTable,
         },
-        FontData, FontRef,
+        FontData, FontRef, MinByteRange,
     },
-    types::Offset16,
+    types::{FixedSize, Offset16, Offset24, Offset32, Uint24},
 };
 
-impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
+macro_rules! subset_cursive_position {
+    ($table:ident, $offset:ident, $count:ident) => {
+        impl<'a> SubsetTable<'a> for $table<'_> {
+            type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                _args: Self::ArgsForSubset,
+            ) -> Result<Self::Output, SerializeErrorFlags> {
+                if self.coverage_offset().is_null() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                if self.min_table_bytes().is_empty() {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                s.embed(self.pos_format())?;
+
+                //cov offset
+                let cov_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+
+                //entry exit count
+                let entryexit_count_pos = s.allocate_size($count::RAW_BYTE_LEN, true)?;
+
+                let coverage = self
+                    .coverage()
+                    .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+                let exit_records = self.entry_exit_record();
+                let font_data = self.offset_data();
+
+                let (glyphs, exit_record_idxes) = intersected_glyphs_and_indices(
+                    &coverage,
+                    &plan.glyphset_gsub,
+                    &plan.glyph_map_gsub,
+                );
+                if glyphs.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+
+                let mut retained_glyphs = Vec::with_capacity(glyphs.len());
+                for (&gid, i) in glyphs.iter().zip(exit_record_idxes.iter()) {
+                    let Some(exit_record) = exit_records.get(i as usize) else {
+                        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                    };
+                    if !exit_record.subset(plan, s, font_data).is_empty()? {
+                        retained_glyphs.push(gid);
+                    }
+                }
+
+                if retained_glyphs.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                let entry_exit_count = $count::try_from(retained_glyphs.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                s.copy_assign(entryexit_count_pos, entry_exit_count);
+                $offset::serialize_serialize::<CoverageTable>(s, &retained_glyphs, cov_offset_pos)
+            }
+        }
+    };
+}
+subset_cursive_position!(CursivePosFormat1, Offset16, u16);
+subset_cursive_position!(CursivePosFormat2, Offset32, Uint24);
+
+macro_rules! subset_entry_exit_record {
+    ($record:ident, $offset:ident) => {
+        impl<'a> SubsetTable<'a> for $record {
+            type ArgsForSubset = FontData<'a>;
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                font_data: FontData,
+            ) -> Result<Self::Output, SerializeErrorFlags> {
+                if self.entry_anchor_offset().is_null() && self.exit_anchor_offset().is_null() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                let entry_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                if let Some(entry_anchor) = self
+                    .entry_anchor(font_data)
+                    .transpose()
+                    .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                {
+                    $offset::serialize_subset(&entry_anchor, s, plan, (), entry_offset_pos)?;
+                }
+
+                let exit_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                if let Some(exit_anchor) = self
+                    .exit_anchor(font_data)
+                    .transpose()
+                    .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                {
+                    $offset::serialize_subset(&exit_anchor, s, plan, (), exit_offset_pos)?;
+                }
+                Ok(())
+            }
+        }
+    };
+}
+subset_entry_exit_record!(EntryExitRecord, Offset16);
+subset_entry_exit_record!(EntryExitRecord2, Offset24);
+
+macro_rules! collect_cursive_variations {
+    ($table:ident) => {
+        impl CollectVariationIndices for $table<'_> {
+            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+                let Ok(coverage) = self.coverage() else {
+                    return;
+                };
+
+                let font_data = self.offset_data();
+                let glyph_set = &plan.glyphset_gsub;
+                let entry_exit_records = self.entry_exit_record();
+                let record_idxes = intersected_coverage_indices(&coverage, glyph_set);
+                for i in record_idxes.iter() {
+                    let Some(rec) = entry_exit_records.get(i as usize) else {
+                        return;
+                    };
+                    if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
+                        entry_anchor.collect_variation_indices(plan, varidx_set);
+                    }
+                    if let Some(Ok(exit_anchor)) = rec.exit_anchor(font_data) {
+                        exit_anchor.collect_variation_indices(plan, varidx_set);
+                    }
+                }
+            }
+        }
+    };
+}
+collect_cursive_variations!(CursivePosFormat1);
+collect_cursive_variations!(CursivePosFormat2);
+
+impl<'a> SubsetTable<'a> for CursivePos<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        if self.coverage_offset().is_null() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(t) => t.subset(plan, s, args),
+            Self::Format2(t) => t.subset(plan, s, args),
         }
-        s.embed(self.pos_format())?;
-
-        //cov offset
-        let cov_offset_pos = s.embed(0_u16)?;
-
-        //entry exit count
-        let entryexit_count_pos = s.embed(0_u16)?;
-        let mut entry_exit_count = 0_u16;
-
-        let coverage = self
-            .coverage()
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-        let exit_records = self.entry_exit_record();
-        let font_data = self.offset_data();
-
-        let (glyphs, exit_record_idxes) =
-            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
-        if glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
-        let mut retained_glyphs = Vec::with_capacity(glyphs.len());
-        for (&gid, i) in glyphs.iter().zip(exit_record_idxes.iter()) {
-            let Some(exit_record) = exit_records.get(i as usize) else {
-                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-            };
-            if !exit_record.subset(plan, s, font_data).is_empty()? {
-                entry_exit_count += 1;
-                retained_glyphs.push(gid);
-            }
-        }
-
-        if retained_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        s.copy_assign(entryexit_count_pos, entry_exit_count);
-        Offset16::serialize_serialize::<CoverageTable>(s, &retained_glyphs, cov_offset_pos)
     }
 }
 
-impl<'a> SubsetTable<'a> for EntryExitRecord {
-    type ArgsForSubset = FontData<'a>;
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        font_data: FontData,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        if self.entry_anchor_offset().is_null() && self.exit_anchor_offset().is_null() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let entry_offset_pos = s.embed(0_u16)?;
-        if let Some(entry_anchor) = self
-            .entry_anchor(font_data)
-            .transpose()
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
-        {
-            Offset16::serialize_subset(&entry_anchor, s, plan, (), entry_offset_pos)?;
-        }
-
-        let exit_offset_pos = s.embed(0_u16)?;
-        if let Some(exit_anchor) = self
-            .exit_anchor(font_data)
-            .transpose()
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
-        {
-            Offset16::serialize_subset(&exit_anchor, s, plan, (), exit_offset_pos)?;
-        }
-        Ok(())
-    }
-}
-
-impl CollectVariationIndices for CursivePosFormat1<'_> {
+impl CollectVariationIndices for CursivePos<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        let Ok(coverage) = self.coverage() else {
-            return;
-        };
-
-        let font_data = self.offset_data();
-        let glyph_set = &plan.glyphset_gsub;
-        let entry_exit_records = self.entry_exit_record();
-        let record_idxes = intersected_coverage_indices(&coverage, glyph_set);
-        for i in record_idxes.iter() {
-            let Some(rec) = entry_exit_records.get(i as usize) else {
-                return;
-            };
-            if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
-                entry_anchor.collect_variation_indices(plan, varidx_set);
-            }
-            if let Some(Ok(exit_anchor)) = rec.exit_anchor(font_data) {
-                exit_anchor.collect_variation_indices(plan, varidx_set);
-            }
-        }
-    }
-}
-
-crate::layout::legacy_subset!(gpos, CursivePos, CursivePosFormat1);
-
-impl CollectVariationIndices for write_fonts::read::tables::gpos::CursivePos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        // Wide subtables are rejected by subset().
-        if let Self::Format1(t) = self {
-            t.collect_variation_indices(plan, varidx_set);
+        match self {
+            Self::Format1(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Format2(t) => t.collect_variation_indices(plan, varidx_set),
         }
     }
 }
