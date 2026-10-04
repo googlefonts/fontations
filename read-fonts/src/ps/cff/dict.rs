@@ -310,7 +310,24 @@ pub enum Entry {
 /// store is present, then `blend_state` must be provided.
 pub fn entries<'a>(
     dict_data: &'a [u8],
+    blend_state: Option<BlendState<'a>>,
+) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
+    entries_impl(dict_data, blend_state, false)
+}
+
+/// Reads only the fields needed by an unhinted Private DICT subfont, sharing
+/// tokenization, blend state, and special operand handling with the full reader.
+pub(crate) fn unhinted_private_entries<'a>(
+    dict_data: &'a [u8],
+    blend_state: Option<BlendState<'a>>,
+) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
+    entries_impl(dict_data, blend_state, true)
+}
+
+fn entries_impl<'a>(
+    dict_data: &'a [u8],
     mut blend_state: Option<BlendState<'a>>,
+    unhinted_private: bool,
 ) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
     let mut stack = Stack::new();
     let mut last_bcd_components = None;
@@ -394,6 +411,14 @@ pub fn entries<'a>(
                 }
             }
         }
+        let keep = !unhinted_private
+            || matches!(
+                op,
+                Operator::SubrsOffset
+                    | Operator::VariationStoreIndex
+                    | Operator::DefaultWidthX
+                    | Operator::NominalWidthX
+            );
         if op == Operator::BlueScale {
             // FreeType parses BlueScale using a scaling factor of
             // 1000, presumably to capture more precision in the
@@ -418,15 +443,19 @@ pub fn entries<'a>(
             let mut cursor = crate::FontData::new(dict_data).cursor();
             cursor.advance_by(cursor_pos);
             if let Some(matrix) = ScaledFontMatrix::parse(&mut cursor) {
-                return Some(Ok(Entry::FontMatrix(matrix)));
+                if keep {
+                    return Some(Ok(Entry::FontMatrix(matrix)));
+                }
             }
             continue;
         }
         last_bcd_components = None;
-        let entry = parse_entry(op, &mut stack);
+        let entry = keep.then(|| parse_entry(op, &mut stack));
         stack.clear();
         cursor_pos = cursor.position().unwrap_or_default();
-        return Some(entry);
+        if let Some(entry) = entry {
+            return Some(entry);
+        }
     })
 }
 
@@ -587,6 +616,63 @@ mod tests {
             VariationStoreOffset(16),
         ];
         assert_eq!(&entries, expected);
+    }
+
+    #[test]
+    fn unhinted_private_entries_preserve_blends() {
+        let data = &font_test_data::cff2::EXAMPLE[0x4f..=0xc0];
+        let store =
+            ItemVariationStore::read(FontData::new(&font_test_data::cff2::EXAMPLE[18..])).unwrap();
+        for coord in [-0.75, 0.0, 0.25, 0.75] {
+            let coords = [F2Dot14::from_f32(coord)];
+            let expected = entries(
+                data,
+                Some(BlendState::new(store.clone(), &coords, 0).unwrap()),
+            )
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                matches!(
+                    entry,
+                    Entry::SubrsOffset(_)
+                        | Entry::VariationStoreIndex(_)
+                        | Entry::DefaultWidthX(_)
+                        | Entry::NominalWidthX(_)
+                )
+            })
+            .collect::<Vec<_>>();
+            let actual = unhinted_private_entries(
+                data,
+                Some(BlendState::new(store.clone(), &coords, 0).unwrap()),
+            )
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn unhinted_private_entries_preserve_stack_and_special_operators() {
+        let data = [
+            142, 143, 6,  // ignored BlueValues
+            10, // ignored StdHW with a missing operand
+            30, 10, 0, 31, 12, 9, // BlueScale with its special BCD handling
+            28, 2, 88, 20, // default width 600
+            30, 10, 0, 31, 139, 139, 30, 10, 0, 31, 139, 139, 12, 7, // FontMatrix
+            140, 255, // unknown operator must clear its operand
+            159, 21, // nominal width 20
+            149, 19, // subrs offset 10
+        ];
+        let actual = unhinted_private_entries(&data, None)
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual,
+            [
+                Entry::DefaultWidthX(Fixed::from_i32(600)),
+                Entry::NominalWidthX(Fixed::from_i32(20)),
+                Entry::SubrsOffset(10),
+            ]
+        );
     }
 
     #[test]
