@@ -544,12 +544,13 @@ impl<'a> GlyphMetrics<'a> {
         // downward from the origin, so the height is the top less the
         // bottom, the reverse of the width.
         if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+            let scalars = self.font.gvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
                 |gid| {
                     // A glyph the table says nothing readable about does
                     // not move.
-                    gvar.phantom_point_deltas(glyf, loca, coords, gid)
+                    gvar.phantom_point_deltas_with_scalars(glyf, loca, coords, scalars, gid)
                         .map_or(F48Dot16::ZERO, |deltas| {
                             (deltas[2].y - deltas[3].y).to_f48dot16()
                         })
@@ -577,9 +578,13 @@ impl<'a> GlyphMetrics<'a> {
     ) {
         // Ask the table that answers directly, and stop there if it does.
         if let Some(hvar) = self.font.hvar() {
+            let scalars = self.font.hvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
-                |gid| hvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                |gid| {
+                    hvar.advance_delta_with_scalars(gid, coords, scalars)
+                        .unwrap_or(F48Dot16::ZERO)
+                },
                 convert,
                 glyphs,
             );
@@ -588,12 +593,13 @@ impl<'a> GlyphMetrics<'a> {
         // outline: an advance spans the two horizontal ones, so a change in
         // it is a change in that span.
         if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+            let scalars = self.font.gvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
                 |gid| {
                     // A glyph the table says nothing readable about does
                     // not move.
-                    gvar.phantom_point_deltas(glyf, loca, coords, gid)
+                    gvar.phantom_point_deltas_with_scalars(glyf, loca, coords, scalars, gid)
                         .map_or(F48Dot16::ZERO, |deltas| {
                             (deltas[1].x - deltas[0].x).to_f48dot16()
                         })

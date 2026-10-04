@@ -65,7 +65,11 @@ struct VariedInstance {
     feature_vars: FeatureVarsStorage,
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
+    gvar_scalars: Once<Box<[Fixed]>>,
+    hvar_scalars: Once<Box<[Fixed]>>,
 }
+
+const MAX_PRECOMPUTED_SCALARS: usize = 128;
 
 impl Font {
     /// Creates a font from the given source and font index, at its default
@@ -97,6 +101,8 @@ impl Font {
                 feature_vars: FeatureVarsStorage::new(),
                 metrics: Once::new(),
                 style_metrics: Once::new(),
+                gvar_scalars: Once::new(),
+                hvar_scalars: Once::new(),
             },
         }
     }
@@ -259,6 +265,49 @@ impl Font {
         self.shared().gvar()
     }
 
+    pub(crate) fn gvar_scalars(&self) -> &[Fixed] {
+        match &self.0 {
+            Repr::Default(_) => &[],
+            Repr::Varied(varied) => varied
+                .gvar_scalars
+                .get_or_init(|| {
+                    let Some(gvar) = varied.font.gvar() else {
+                        return Box::new([]);
+                    };
+                    let count = (gvar.shared_tuple_count() as usize).min(MAX_PRECOMPUTED_SCALARS);
+                    let mut scalars = alloc::vec![Fixed::ZERO; count];
+                    let count = gvar.compute_scalars(varied.coords.as_slice(), &mut scalars);
+                    scalars.truncate(count);
+                    scalars.into_boxed_slice()
+                })
+                .as_ref(),
+        }
+    }
+
+    pub(crate) fn hvar_scalars(&self) -> &[Fixed] {
+        match &self.0 {
+            Repr::Default(_) => &[],
+            Repr::Varied(varied) => varied
+                .hvar_scalars
+                .get_or_init(|| {
+                    let Some(hvar) = varied.font.hvar() else {
+                        return Box::new([]);
+                    };
+                    let count = hvar
+                        .item_variation_store()
+                        .ok()
+                        .and_then(|store| store.variation_region_list().ok())
+                        .map_or(0, |regions| regions.variation_regions().len())
+                        .min(MAX_PRECOMPUTED_SCALARS);
+                    let mut scalars = alloc::vec![Fixed::ZERO; count];
+                    let count = hvar.compute_scalars(varied.coords.as_slice(), &mut scalars);
+                    scalars.truncate(count);
+                    scalars.into_boxed_slice()
+                })
+                .as_ref(),
+        }
+    }
+
     /// Returns the charstring outlines.
     #[inline]
     pub(crate) fn cff(&self) -> Option<&CffFontRef<'_>> {
@@ -288,8 +337,17 @@ impl<'a> OutlineContext<'a> for &'a Font {
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
         let (glyf, loca) = self.glyf_loca()?;
-        self.gvar()?
-            .phantom_point_deltas(glyf, loca, self.normalized_coords(), glyph)
+        self.gvar()?.phantom_point_deltas_with_scalars(
+            glyf,
+            loca,
+            self.normalized_coords(),
+            self.gvar_scalars(),
+            glyph,
+        )
+    }
+
+    fn gvar_scalars(&self) -> &[Fixed] {
+        Font::gvar_scalars(self)
     }
 
     fn coords(&self) -> &[F2Dot14] {
@@ -1055,6 +1113,57 @@ mod tests {
     use super::*;
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn variation_scalars_are_lazy_bounded_and_shared() {
+        let font = Font::new(font_test_data::VAZIRMATN_VAR, 0).unwrap();
+        let instance = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(-0.75)])
+            .build();
+        let Repr::Varied(varied) = &instance.0 else {
+            panic!("expected a varied instance");
+        };
+        assert!(varied.gvar_scalars.get().is_none());
+        assert!(varied.hvar_scalars.get().is_none());
+
+        let gvar_scalars = instance.gvar_scalars();
+        assert!(!gvar_scalars.is_empty());
+        let gvar = instance.gvar().unwrap();
+        assert_eq!(
+            gvar_scalars.len(),
+            (gvar.shared_tuple_count() as usize).min(MAX_PRECOMPUTED_SCALARS)
+        );
+        assert!(varied.hvar_scalars.get().is_none());
+        let mut expected = alloc::vec![Fixed::ZERO; gvar_scalars.len()];
+        let count = gvar.compute_scalars(instance.normalized_coords(), &mut expected);
+        assert_eq!(gvar_scalars, &expected[..count]);
+
+        let hvar_scalars = instance.hvar_scalars();
+        assert!(!hvar_scalars.is_empty());
+        let hvar = instance.hvar().unwrap();
+        let regions = hvar
+            .item_variation_store()
+            .unwrap()
+            .variation_region_list()
+            .unwrap();
+        assert_eq!(
+            hvar_scalars.len(),
+            regions
+                .variation_regions()
+                .len()
+                .min(MAX_PRECOMPUTED_SCALARS)
+        );
+        expected.resize(hvar_scalars.len(), Fixed::ZERO);
+        let count = hvar.compute_scalars(instance.normalized_coords(), &mut expected);
+        assert_eq!(hvar_scalars, &expected[..count]);
+        let clone = instance.clone();
+        assert!(core::ptr::eq(gvar_scalars, clone.gvar_scalars()));
+        assert!(core::ptr::eq(hvar_scalars, clone.hvar_scalars()));
+        assert!(font.gvar_scalars().is_empty());
+        assert!(font.hvar_scalars().is_empty());
+    }
 
     #[test]
     fn font_outline_context_uses_stated_vertical_metrics() {
