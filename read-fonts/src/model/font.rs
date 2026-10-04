@@ -206,7 +206,7 @@ impl Font {
     /// Returns the layout feature variations this instance selects.
     pub fn feature_variations(&self) -> SelectedFeatureVariations {
         match &self.0 {
-            Repr::Default(_) => SelectedFeatureVariations::default(),
+            Repr::Default(font) => font.0.feature_vars.load(font, &[]),
             Repr::Varied(varied) => varied
                 .feature_vars
                 .load(&varied.font, varied.coords.as_slice()),
@@ -767,6 +767,7 @@ impl SharedFont {
             source,
             kind,
             shaping_data: Once::new(),
+            feature_vars: FeatureVarsStorage::new(),
             metrics: Once::new(),
             style_metrics: Once::new(),
             h_metrics: Once::new(),
@@ -1000,6 +1001,9 @@ struct SharedFontRepr {
     kind: KindRepr,
     // Storage cell for lazily loaded HarfRust shaping data.
     shaping_data: Once<Box<dyn Any + Send + Sync>>,
+    // Feature variation selection at the default location, shared by every
+    // default instance. Zero coordinates can still satisfy conditions.
+    feature_vars: FeatureVarsStorage,
     // Metrics that describe the font as a whole, at the default location,
     // read once rather than per query. Kept apart from `shaping_data`, which
     // holds one thing for one owner.
@@ -1195,6 +1199,54 @@ mod tests {
             let actual = [feature_vars.gsub, feature_vars.gpos];
             assert_eq!(actual, [gsub, gpos], "fill={fill}");
         }
+    }
+
+    #[test]
+    fn default_instance_evaluates_and_caches_feature_variations() {
+        let source = crate::FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        let tables = super::super::TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"GSUB") {
+                // GSUB 1.1 followed by one feature-variation record whose
+                // axis-zero range matches exactly the default location.
+                return Some(super::super::Blob::from(vec![
+                    0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 16,
+                    0, 0, 0, 0, 0, 1, 0, 0, 0, 6, 0, 1, 0, 0, 0, 0, 0, 0,
+                ]));
+            }
+            if tag == Tag::new(b"GPOS") {
+                return None;
+            }
+            source
+                .data_for_tag(tag)
+                .map(|data| super::super::Blob::from(data.as_bytes().to_vec()))
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        assert_eq!(
+            font.shared().0.feature_vars.gsub.load(Ordering::Acquire),
+            FeatureVarsStorage::UNCHECKED
+        );
+        let expected = SelectedFeatureVariations {
+            gsub: Some(0),
+            gpos: None,
+        };
+        assert_eq!(font.feature_variations(), expected);
+        assert_eq!(font.shared().0.feature_vars.gsub.load(Ordering::Acquire), 0);
+        assert_eq!(font.default_instance().feature_variations(), expected);
+        let default = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::ZERO; 4])
+            .build();
+        assert!(default.normalized_coords().is_empty());
+        assert_eq!(default.feature_variations(), expected);
+        let varied = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(0.5); 4])
+            .build();
+        assert_eq!(
+            varied.feature_variations(),
+            SelectedFeatureVariations::default()
+        );
+        assert_eq!(font.feature_variations(), expected);
     }
 
     #[test]
