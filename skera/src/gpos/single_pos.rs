@@ -114,7 +114,7 @@ fn compute_new_value_format(
     plan: &Plan,
     has_gdef_varstore: bool,
     font: &FontRef,
-    retained_rec_idxes: &IntSet<u16>,
+    retained_rec_idxes: &IntSet<u32>,
 ) -> Result<(), ReadError> {
     // TODO: support instancing
     let (value_format, records_offset, record_size, font_data, new_format) = (
@@ -245,7 +245,7 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
     type Args = (
         &'a [GlyphId],
         &'a SinglePosInfo<'a>,
-        &'a IntSet<u16>,
+        &'a IntSet<u32>,
         &'a Plan,
     );
     fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
@@ -339,7 +339,7 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
             for idx in glyph_set
                 .iter()
                 .filter_map(|g| coverage.get(g))
-                .filter(|idx| *idx < value_count)
+                .filter(|idx| *idx < u32::from(value_count))
             {
                 let offset = records_offset + idx as usize * record_size;
                 let value_record = ValueRecord::new(font_data, offset, value_format);
@@ -350,7 +350,7 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
                 .iter()
                 .take(value_count as usize)
                 .enumerate()
-                .filter_map(|(idx, g)| glyph_set.contains(GlyphId::from(g)).then_some(idx))
+                .filter_map(|(idx, g)| glyph_set.contains(g).then_some(idx))
             {
                 let offset = records_offset + i * record_size;
                 let value_record = ValueRecord::new(font_data, offset, value_format);

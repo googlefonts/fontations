@@ -134,7 +134,7 @@ pub(crate) struct Outlines<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct Outline {
     pub(crate) glyph_id: GlyphId,
-    pub(crate) coverage_index: u16,
+    pub(crate) coverage_index: u32,
     max_component_memory: usize,
 }
 
@@ -218,14 +218,14 @@ impl<'a> Outlines<'a> {
     }
 
     /// Lightweight coverage lookup without computing max_component_memory.
-    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, DrawError> {
+    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u32>, DrawError> {
         Ok(self.coverage.get(glyph_id))
     }
 
     fn compute_max_component_memory(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
     ) -> Result<usize, DrawError> {
         let mut stack = GlyphStack::new();
         let mut edges_left = MAX_COMPOSITE_EDGES;
@@ -235,7 +235,7 @@ impl<'a> Outlines<'a> {
     fn max_component_memory_for_glyph(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
         stack: &mut GlyphStack,
         edges_left: &mut usize,
     ) -> Result<usize, DrawError> {
@@ -331,7 +331,7 @@ impl<'a> Outlines<'a> {
     fn draw_glyph(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
         current_coords: &[F2Dot14],
         parent_matrix: Affine,
         ctx: &VarcSharedContext<'a, '_>,
@@ -1282,8 +1282,7 @@ mod tests {
         }
 
         let mut tested = 0usize;
-        for gid16 in coverage.iter() {
-            let gid: GlyphId = gid16.into();
+        for gid in coverage.iter() {
             let coverage_index = coverage.get(gid).unwrap() as usize;
             let glyph = outlines.varc.glyph(coverage_index).unwrap();
             for component in glyph.components() {
@@ -1705,9 +1704,8 @@ mod tests {
         );
     }
 
-    fn first_nested_varc_edge(outlines: &Outlines<'_>) -> Option<(GlyphId, u16)> {
-        for gid16 in outlines.coverage.iter() {
-            let gid: GlyphId = gid16.into();
+    fn first_nested_varc_edge(outlines: &Outlines<'_>) -> Option<(GlyphId, u32)> {
+        for gid in outlines.coverage.iter() {
             let coverage_index = outlines.coverage.get(gid)?;
             let glyph = outlines.varc.glyph(coverage_index as usize).ok()?;
             for component in glyph.components() {

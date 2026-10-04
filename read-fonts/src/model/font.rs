@@ -156,7 +156,7 @@ impl Font {
     /// Returns the layout feature variations this instance selects.
     pub fn feature_variations(&self) -> SelectedFeatureVariations {
         match &self.0 {
-            Repr::Default(_) => SelectedFeatureVariations::default(),
+            Repr::Default(font) => font.0.feature_vars.load(font, &[]),
             Repr::Varied(varied) => varied
                 .feature_vars
                 .load(&varied.font, varied.coords.as_slice()),

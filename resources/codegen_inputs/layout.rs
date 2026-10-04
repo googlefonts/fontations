@@ -174,6 +174,8 @@ record RangeRecord {
 format u16 CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
+    Format3(CoverageFormat3),
+    Format4(CoverageFormat4),
 }
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
@@ -219,6 +221,8 @@ record ClassRangeRecord {
 format u16 ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+    Format3(ClassDefFormat3),
+    Format4(ClassDefFormat4),
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
@@ -841,4 +845,79 @@ table CharacterVariantParams {
     /// feature provides glyph variants.
     #[count($char_count)]
     character: [Uint24],
+}
+
+/// ISO Open Font Format, fifth edition: CoverageFormat3.
+table CoverageFormat3 {
+    /// Format identifier — format = 3
+    #[format = 3]
+    coverage_format: u16,
+    /// Number of glyphs in the glyph array
+    #[compile(array_len($glyph_array))]
+    glyph_count: Uint24,
+    /// Array of glyph IDs — in numerical order
+    #[count($glyph_count)]
+    glyph_array: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: CoverageFormat4.
+table CoverageFormat4 {
+    /// Format identifier — format = 4
+    #[format = 4]
+    coverage_format: u16,
+    /// Number of RangeRecords
+    #[compile(array_len($range_records))]
+    range_count: Uint24,
+    /// Array of glyph ranges — ordered by startGlyphID.
+    #[count($range_count)]
+    range_records: [RangeRecord2],
+}
+
+/// ISO Open Font Format, fifth edition: RangeRecord2.
+record RangeRecord2 {
+    /// First glyph ID in the range
+    start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    end_glyph_id: GlyphId24,
+    /// Coverage Index of first glyph ID in range
+    start_coverage_index: Uint24,
+}
+
+/// ISO Open Font Format, fifth edition: ClassDefFormat3.
+table ClassDefFormat3 {
+    /// Format identifier — format = 3
+    #[format = 3]
+    class_format: u16,
+    /// First glyph ID of the classValueArray
+    start_glyph_id: GlyphId24,
+    /// Size of the classValueArray
+    #[compile(array_len($class_value_array))]
+    glyph_count: Uint24,
+    /// Array of Class Values — one per glyph ID
+    #[count($glyph_count)]
+    class_value_array: [Uint24],
+}
+
+/// ISO Open Font Format, fifth edition: ClassDefFormat4.
+table ClassDefFormat4 {
+    /// Format identifier — format = 4
+    #[format = 4]
+    class_format: u16,
+    /// Number of ClassRangeRecords
+    #[compile(array_len($class_range_records))]
+    class_range_count: Uint24,
+    /// Array of ClassRangeRecords — ordered by startGlyphID
+    #[count($class_range_count)]
+    class_range_records: [ClassRangeRecord2],
+}
+
+/// ISO Open Font Format, fifth edition: ClassRangeRecord2.
+record ClassRangeRecord2 {
+    /// First glyph ID in the range
+    #[validate(validate_glyph_range)]
+    start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    end_glyph_id: GlyphId24,
+    /// Applied to all glyphs in the range
+    class: u16,
 }
