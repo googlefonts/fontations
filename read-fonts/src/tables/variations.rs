@@ -1664,9 +1664,22 @@ impl ItemVariationStore<'_> {
         let mut accum = F48Dot16::ZERO;
         // The deltas and the region indices are parallel arrays sized by the
         // same header field, so they are walked together.
-        for (region_index, region_delta) in region_indices.iter().zip(data.delta_set(index.inner)) {
+        let mut deltas = data.delta_set_iter(index.inner);
+        for region_index in region_indices {
             let region_index = region_index.get() as usize;
-            let scalar = match get_scalar(region_index) {
+            let scalar = get_scalar(region_index);
+            // Most regions do not apply to a particular location. A cached
+            // zero lets us advance past the delta bytes without decoding them.
+            if scalar == Some(Fixed::ZERO) {
+                if deltas.skip_next().is_none() {
+                    break;
+                }
+                continue;
+            }
+            let Some(region_delta) = deltas.next() else {
+                break;
+            };
+            let scalar = match scalar {
                 Some(scalar) => scalar,
                 None => {
                     let regions = match &regions {
@@ -1783,6 +1796,10 @@ impl<'a> ItemVariationData<'a> {
     /// Returns an iterator over the per-region delta values for the specified
     /// inner index.
     pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = i32> + 'a + Clone {
+        self.delta_set_iter(inner_index)
+    }
+
+    fn delta_set_iter(&self, inner_index: u16) -> ItemDeltas<'a> {
         let word_delta_count = self.word_delta_count();
         let region_count = self.region_index_count();
         let bytes_per_row = Self::delta_row_len(word_delta_count, region_count);
@@ -1833,6 +1850,22 @@ struct ItemDeltas<'a> {
     long_words: bool,
     len: u16,
     pos: u16,
+}
+
+impl ItemDeltas<'_> {
+    fn skip_next(&mut self) -> Option<()> {
+        if self.pos >= self.len {
+            return None;
+        }
+        let size = if self.pos < self.word_delta_count {
+            2
+        } else {
+            1
+        } << self.long_words as usize;
+        self.pos += 1;
+        self.bytes.nth(size - 1)?;
+        Some(())
+    }
 }
 
 impl Iterator for ItemDeltas<'_> {
@@ -1947,6 +1980,54 @@ mod tests {
         cache.set(ScalarCache::MAX_LEN, Fixed::ONE);
         assert_eq!(cache.get(ScalarCache::MAX_LEN), None);
         assert_eq!(ScalarCache::new(0).get(0), None);
+    }
+
+    #[test]
+    fn skipped_item_deltas_preserve_word_boundaries() {
+        for long_words in [false, true] {
+            for word_count in 0..=3 {
+                let mut bytes = Vec::new();
+                let mut expected = Vec::new();
+                for i in 0..3 {
+                    let size = if i < word_count { 2 } else { 1 } << long_words as usize;
+                    let value: i32 = match size {
+                        4 => -100_000,
+                        2 => -1000,
+                        _ => -100,
+                    };
+                    bytes.extend_from_slice(&value.to_be_bytes()[4 - size..]);
+                    expected.push(value);
+                }
+                let deltas = ItemDeltas {
+                    bytes: bytes.iter(),
+                    word_delta_count: word_count,
+                    long_words,
+                    len: 3,
+                    pos: 0,
+                };
+                assert_eq!(deltas.clone().collect::<Vec<_>>(), expected);
+                for skip in 0..3 {
+                    let mut deltas = deltas.clone();
+                    for (i, expected) in expected.iter().enumerate() {
+                        if i == skip {
+                            assert_eq!(deltas.skip_next(), Some(()));
+                        } else {
+                            assert_eq!(deltas.next(), Some(*expected));
+                        }
+                    }
+                    assert_eq!(deltas.skip_next(), None);
+                    assert_eq!(deltas.next(), None);
+                }
+                // An incomplete delta must end the run rather than skip ahead.
+                let mut truncated = ItemDeltas {
+                    bytes: bytes[..bytes.len() - 1].iter(),
+                    ..deltas
+                };
+                assert_eq!(truncated.skip_next(), Some(()));
+                assert_eq!(truncated.skip_next(), Some(()));
+                assert_eq!(truncated.skip_next(), None);
+            }
+        }
     }
 
     #[test]
