@@ -327,7 +327,13 @@ impl<'a> GlyphMetrics<'a> {
         } else {
             self.font
                 .vvar()
-                .and_then(|vvar| vvar.v_origin_y_delta(glyph, self.coords))
+                .and_then(|vvar| {
+                    vvar.v_origin_y_delta_with_scalars(
+                        glyph,
+                        self.coords,
+                        self.font.vertical_scalars(),
+                    )
+                })
                 .unwrap_or(F48Dot16::ZERO)
         };
         Some(origin.saturating_add(delta))
@@ -374,10 +380,17 @@ impl<'a> GlyphMetrics<'a> {
             } else {
                 self.font.vvar()
             };
+            let scalars = if vvar.is_some() {
+                self.font.vertical_scalars()
+            } else {
+                &[]
+            };
             for (glyph, out) in glyphs {
                 let origin = F48Dot16::from_i32(vorg.vertical_origin_y(glyph) as i32);
                 let delta = vvar
-                    .and_then(|vvar| vvar.v_origin_y_delta(glyph, self.coords))
+                    .and_then(|vvar| {
+                        vvar.v_origin_y_delta_with_scalars(glyph, self.coords, scalars)
+                    })
                     .unwrap_or(F48Dot16::ZERO);
                 *out = convert(glyph, Some(origin.saturating_add(delta)));
             }
@@ -533,9 +546,13 @@ impl<'a> GlyphMetrics<'a> {
     ) {
         // Ask the table that answers directly, and stop there if it does.
         if let Some(vvar) = self.font.vvar() {
+            let scalars = self.font.vertical_scalars();
             return raw.run_varied(
                 self.num_glyphs,
-                |gid| vvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                |gid| {
+                    vvar.advance_delta_with_scalars(gid, coords, scalars)
+                        .unwrap_or(F48Dot16::ZERO)
+                },
                 convert,
                 glyphs,
             );

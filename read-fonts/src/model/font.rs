@@ -67,6 +67,8 @@ struct VariedInstance {
     style_metrics: Once<Box<StyleMetrics>>,
     gvar_scalars: Once<Box<[Fixed]>>,
     hvar_scalars: Once<Box<[Fixed]>>,
+    /// Shared by VVAR advances and VORG origins.
+    vertical_scalars: Once<Box<[Fixed]>>,
 }
 
 const MAX_PRECOMPUTED_SCALARS: usize = 128;
@@ -103,6 +105,7 @@ impl Font {
                 style_metrics: Once::new(),
                 gvar_scalars: Once::new(),
                 hvar_scalars: Once::new(),
+                vertical_scalars: Once::new(),
             },
         }
     }
@@ -301,6 +304,30 @@ impl Font {
                         .min(MAX_PRECOMPUTED_SCALARS);
                     let mut scalars = alloc::vec![Fixed::ZERO; count];
                     let count = hvar.compute_scalars(varied.coords.as_slice(), &mut scalars);
+                    scalars.truncate(count);
+                    scalars.into_boxed_slice()
+                })
+                .as_ref(),
+        }
+    }
+
+    pub(crate) fn vertical_scalars(&self) -> &[Fixed] {
+        match &self.0 {
+            Repr::Default(_) => &[],
+            Repr::Varied(varied) => varied
+                .vertical_scalars
+                .get_or_init(|| {
+                    let Some(vvar) = varied.font.vvar() else {
+                        return Box::new([]);
+                    };
+                    let count = vvar
+                        .item_variation_store()
+                        .ok()
+                        .and_then(|store| store.variation_region_list().ok())
+                        .map_or(0, |regions| regions.variation_regions().len())
+                        .min(MAX_PRECOMPUTED_SCALARS);
+                    let mut scalars = alloc::vec![Fixed::ZERO; count];
+                    let count = vvar.compute_scalars(varied.coords.as_slice(), &mut scalars);
                     scalars.truncate(count);
                     scalars.into_boxed_slice()
                 })
@@ -1163,6 +1190,41 @@ mod tests {
         assert!(core::ptr::eq(hvar_scalars, clone.hvar_scalars()));
         assert!(font.gvar_scalars().is_empty());
         assert!(font.hvar_scalars().is_empty());
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn vertical_scalars_are_lazy_bounded_and_shared() {
+        let font = Font::new(font_test_data::MPLUS1CODE_VERTICAL_SUBSET, 0).unwrap();
+        let instance = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(-0.75)])
+            .build();
+        let Repr::Varied(varied) = &instance.0 else {
+            panic!("expected a varied instance");
+        };
+        assert!(varied.vertical_scalars.get().is_none());
+
+        let scalars = instance.vertical_scalars();
+        assert!(!scalars.is_empty());
+        let vvar = instance.vvar().unwrap();
+        let regions = vvar
+            .item_variation_store()
+            .unwrap()
+            .variation_region_list()
+            .unwrap();
+        assert_eq!(
+            scalars.len(),
+            regions
+                .variation_regions()
+                .len()
+                .min(MAX_PRECOMPUTED_SCALARS)
+        );
+        let mut expected = alloc::vec![Fixed::ZERO; scalars.len()];
+        let count = vvar.compute_scalars(instance.normalized_coords(), &mut expected);
+        assert_eq!(scalars, &expected[..count]);
+        assert!(core::ptr::eq(scalars, instance.clone().vertical_scalars()));
+        assert!(font.vertical_scalars().is_empty());
     }
 
     #[test]
