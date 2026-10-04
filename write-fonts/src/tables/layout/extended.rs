@@ -1,7 +1,8 @@
 //! Regression tests for the ISO OFF extended layout formats.
 
 use super::*;
-use crate::{dump_table, read::FontRead};
+use crate::dump_table;
+use read_fonts::FontRead;
 
 #[test]
 fn wide_coverage_roundtrips_without_truncation() {
