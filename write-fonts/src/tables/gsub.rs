@@ -4,22 +4,14 @@
 
 include!("../../generated/generated_gsub.rs");
 
-impl ReadArgs for SubstitutionLookupList2 {
-    type Args = ();
-}
-
-impl<'a> FontRead<'a> for SubstitutionLookupList2 {
-    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        read_fonts::tables::gsub::SubstitutionLookupList2::read(data).map(|x| x.to_owned_table())
-    }
-}
-
 use super::layout::{
     ChainedSequenceContext, CoverageTable, FeatureList, FeatureVariations, Lookup, LookupList,
     LookupSubtable, LookupType, ScriptList, SequenceContext,
 };
 
 pub mod builders;
+#[cfg(test)]
+mod extended;
 #[cfg(test)]
 mod spec_tests;
 
@@ -109,5 +101,51 @@ impl<'a> FontRead<'a> for SubstitutionLookupList {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         read_fonts::tables::gsub::LegacySubstitutionLookupList::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+super::layout::lookup_type!(gsub, MultipleSubst, 2);
+super::layout::lookup_type!(gsub, MultipleSubstFormat2, 2);
+super::layout::legacy_lookup!(
+    SubstitutionLookup,
+    Multiple,
+    MultipleSubstFormat1,
+    MultipleSubst
+);
+
+super::layout::lookup_type!(gsub, AlternateSubst, 3);
+super::layout::lookup_type!(gsub, AlternateSubstFormat2, 3);
+super::layout::legacy_lookup!(
+    SubstitutionLookup,
+    Alternate,
+    AlternateSubstFormat1,
+    AlternateSubst
+);
+
+super::layout::lookup_type!(gsub, LigatureSubst, 4);
+super::layout::lookup_type!(gsub, LigatureSubstFormat2, 4);
+super::layout::legacy_lookup!(
+    SubstitutionLookup,
+    Ligature,
+    LigatureSubstFormat1,
+    LigatureSubst
+);
+
+super::layout::lookup_type!(gsub, ReverseChainSingleSubst, 8);
+super::layout::lookup_type!(gsub, ReverseChainSingleSubstFormat2, 8);
+super::layout::legacy_lookup!(
+    SubstitutionLookup,
+    Reverse,
+    ReverseChainSingleSubstFormat1,
+    ReverseChainSingleSubst
+);
+
+impl ReadArgs for SubstitutionLookupList2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SubstitutionLookupList2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        read_fonts::tables::gsub::SubstitutionLookupList2::read(data).map(|x| x.to_owned_table())
     }
 }

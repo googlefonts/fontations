@@ -414,6 +414,8 @@ impl GlyphClosure for SingleSubst<'_> {
         match self {
             SingleSubst::Format1(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
             SingleSubst::Format2(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.subst_format().into())),
         }
     }
 }
@@ -1156,6 +1158,8 @@ impl Intersect for SingleSubst<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.subst_format().into())),
         }
     }
 }
@@ -1268,6 +1272,94 @@ impl Intersect for ReverseChainSingleSubstFormat1<'_> {
             }
         }
         Ok(true)
+    }
+}
+
+impl GlyphClosure for super::MultipleSubst<'_> {
+    fn closure_glyphs(
+        &self,
+        ctx: &mut ClosureCtx,
+        lookup_list: &SubstitutionLookupList,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+impl Intersect for super::MultipleSubst<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+
+impl GlyphClosure for super::AlternateSubst<'_> {
+    fn closure_glyphs(
+        &self,
+        ctx: &mut ClosureCtx,
+        lookup_list: &SubstitutionLookupList,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+impl Intersect for super::AlternateSubst<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+
+impl GlyphClosure for super::LigatureSubst<'_> {
+    fn closure_glyphs(
+        &self,
+        ctx: &mut ClosureCtx,
+        lookup_list: &SubstitutionLookupList,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+impl Intersect for super::LigatureSubst<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+
+impl GlyphClosure for super::ReverseChainSingleSubst<'_> {
+    fn closure_glyphs(
+        &self,
+        ctx: &mut ClosureCtx,
+        lookup_list: &SubstitutionLookupList,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+impl Intersect for super::ReverseChainSingleSubst<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
     }
 }
 

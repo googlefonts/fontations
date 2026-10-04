@@ -343,7 +343,31 @@ impl ClusterShaper<'_> {
                             glyph.id = GlyphId::from((glyph.id.to_u32() as i32 + delta) as u16);
                             return true;
                         }
+                        SingleSubst::Format3(table) => {
+                            let Some(_) = table.coverage().ok().and_then(|cov| cov.get(glyph.id))
+                            else {
+                                continue;
+                            };
+                            let delta = table.delta_glyph_id().to_i32();
+                            glyph.id = GlyphId::from(
+                                (glyph.id.to_u32() as i32 + delta) as u32 & 0x00FF_FFFF,
+                            );
+                            return true;
+                        }
                         SingleSubst::Format2(table) => {
+                            let Some(cov_ix) =
+                                table.coverage().ok().and_then(|cov| cov.get(glyph.id))
+                            else {
+                                continue;
+                            };
+                            let Some(subst) = table.substitute_glyph_ids().get(cov_ix as usize)
+                            else {
+                                continue;
+                            };
+                            glyph.id = subst.get().into();
+                            return true;
+                        }
+                        SingleSubst::Format4(table) => {
                             let Some(cov_ix) =
                                 table.coverage().ok().and_then(|cov| cov.get(glyph.id))
                             else {
@@ -482,7 +506,33 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                                 self.check_blue_coverage(Some(coverage));
                             }
                         }
+                        SingleSubst::Format3(table) => {
+                            let Ok(coverage) = table.coverage() else {
+                                continue;
+                            };
+                            let delta = table.delta_glyph_id().to_i32();
+                            for gid in coverage.iter() {
+                                self.capture_glyph(
+                                    (gid.to_u32() as i32 + delta) as u32 & 0x00FF_FFFF,
+                                );
+                            }
+                            // Check input coverage for blue strings if
+                            // required and if we're not under a contextual
+                            // lookup
+                            if self.need_blue_substs && self.lookup_depth == 1 {
+                                self.check_blue_coverage(Some(coverage));
+                            }
+                        }
                         SingleSubst::Format2(table) => {
+                            for gid in table.substitute_glyph_ids() {
+                                self.capture_glyph(gid.get().to_u32());
+                            }
+                            // See above
+                            if self.need_blue_substs && self.lookup_depth == 1 {
+                                self.check_blue_coverage(table.coverage().ok());
+                            }
+                        }
+                        SingleSubst::Format4(table) => {
                             for gid in table.substitute_glyph_ids() {
                                 self.capture_glyph(gid.get().to_u32());
                             }
@@ -496,9 +546,20 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
             }
             SubstitutionSubtables::Multiple(tables) => {
                 for table in tables.iter().filter_map(|table| table.ok()) {
-                    for seq in table.sequences().iter().filter_map(|seq| seq.ok()) {
-                        for gid in seq.substitute_glyph_ids() {
-                            self.capture_glyph(gid.get().to_u32());
+                    match &table {
+                        read_fonts::tables::gsub::MultipleSubst::Format1(table) => {
+                            for seq in table.sequences().iter().filter_map(|seq| seq.ok()) {
+                                for gid in seq.substitute_glyph_ids() {
+                                    self.capture_glyph(gid.get().to_u32());
+                                }
+                            }
+                        }
+                        read_fonts::tables::gsub::MultipleSubst::Format2(table) => {
+                            for seq in table.sequences().iter().filter_map(|seq| seq.ok()) {
+                                for gid in seq.substitute_glyph_ids() {
+                                    self.capture_glyph(gid.get().to_u32());
+                                }
+                            }
                         }
                     }
                     // See above
@@ -509,18 +570,40 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
             }
             SubstitutionSubtables::Ligature(tables) => {
                 for table in tables.iter().filter_map(|table| table.ok()) {
-                    for set in table.ligature_sets().iter().filter_map(|set| set.ok()) {
-                        for lig in set.ligatures().iter().filter_map(|lig| lig.ok()) {
-                            self.capture_glyph(lig.ligature_glyph().to_u32());
+                    match &table {
+                        read_fonts::tables::gsub::LigatureSubst::Format1(table) => {
+                            for set in table.ligature_sets().iter().filter_map(|set| set.ok()) {
+                                for lig in set.ligatures().iter().filter_map(|lig| lig.ok()) {
+                                    self.capture_glyph(lig.ligature_glyph().to_u32());
+                                }
+                            }
+                        }
+                        read_fonts::tables::gsub::LigatureSubst::Format2(table) => {
+                            for set in table.ligature_sets().iter().filter_map(|set| set.ok()) {
+                                for lig in set.ligatures().iter().filter_map(|lig| lig.ok()) {
+                                    self.capture_glyph(lig.ligature_glyph().to_u32());
+                                }
+                            }
                         }
                     }
                 }
             }
             SubstitutionSubtables::Alternate(tables) => {
                 for table in tables.iter().filter_map(|table| table.ok()) {
-                    for set in table.alternate_sets().iter().filter_map(|set| set.ok()) {
-                        for gid in set.alternate_glyph_ids() {
-                            self.capture_glyph(gid.get().to_u32());
+                    match &table {
+                        read_fonts::tables::gsub::AlternateSubst::Format1(table) => {
+                            for set in table.alternate_sets().iter().filter_map(|set| set.ok()) {
+                                for gid in set.alternate_glyph_ids() {
+                                    self.capture_glyph(gid.get().to_u32());
+                                }
+                            }
+                        }
+                        read_fonts::tables::gsub::AlternateSubst::Format2(table) => {
+                            for set in table.alternate_sets().iter().filter_map(|set| set.ok()) {
+                                for gid in set.alternate_glyph_ids() {
+                                    self.capture_glyph(gid.get().to_u32());
+                                }
+                            }
                         }
                     }
                 }
@@ -674,8 +757,17 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
             }
             SubstitutionSubtables::Reverse(tables) => {
                 for table in tables.iter().filter_map(|table| table.ok()) {
-                    for gid in table.substitute_glyph_ids() {
-                        self.capture_glyph(gid.get().to_u32());
+                    match &table {
+                        read_fonts::tables::gsub::ReverseChainSingleSubst::Format1(table) => {
+                            for gid in table.substitute_glyph_ids() {
+                                self.capture_glyph(gid.get().to_u32());
+                            }
+                        }
+                        read_fonts::tables::gsub::ReverseChainSingleSubst::Format2(table) => {
+                            for gid in table.substitute_glyph_ids() {
+                                self.capture_glyph(gid.get().to_u32());
+                            }
+                        }
                     }
                 }
             }
@@ -803,6 +895,34 @@ mod tests {
         assert_eq!(cluster.len(), 1);
         // from ttx, gid 1 is "H"
         assert_eq!(cluster[0].id, GlyphId::new(1));
+    }
+
+    #[test]
+    fn extended_single_substitutions_preserve_and_wrap_24bit_ids() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
+        for (subtable, expected) in [
+            // SingleSubst3: gid 65536 plus -65537 wraps to 0xFFFFFF.
+            (vec![0, 3, 0, 0, 0, 9, 0xFE, 0xFF, 0xFF], 0xFFFFFF),
+            // SingleSubst4: one explicit 24-bit replacement.
+            (vec![0, 4, 0, 0, 0, 12, 0, 0, 1, 0x12, 0x34, 0x56], 0x123456),
+        ] {
+            // LookupList with a single type-1 lookup and one subtable.
+            let mut bytes = vec![0, 1, 0, 4, 0, 1, 0, 0, 0, 1, 0, 8];
+            bytes.extend(subtable);
+            bytes.extend([0, 3, 0, 0, 1, 1, 0, 0]); // Coverage3: gid 65536
+            let mut cluster_shaper = shaper.cluster_shaper(style);
+            cluster_shaper.lookup_list =
+                Some(SubstitutionLookupList::read(FontData::new(&bytes)).unwrap());
+            let mut cluster = ShapedCluster::new();
+            cluster.push(ShapedGlyph {
+                id: GlyphId::new(65536),
+                y_offset: 0,
+            });
+            assert!(cluster_shaper.apply_lookup(0, &mut cluster, 0, 0));
+            assert_eq!(cluster[0].id, GlyphId::new(expected));
+        }
     }
 
     #[test]

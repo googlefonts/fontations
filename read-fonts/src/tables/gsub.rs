@@ -107,12 +107,12 @@ type SubSubtables<'a, T> = Subtables<'a, T, ExtensionSubstFormat1<'a, T>>;
 /// away the distinction between extension and non-extension lookups.
 pub enum SubstitutionSubtables<'a> {
     Single(SubSubtables<'a, SingleSubst<'a>>),
-    Multiple(SubSubtables<'a, MultipleSubstFormat1<'a>>),
-    Alternate(SubSubtables<'a, AlternateSubstFormat1<'a>>),
-    Ligature(SubSubtables<'a, LigatureSubstFormat1<'a>>),
+    Multiple(SubSubtables<'a, MultipleSubst<'a>>),
+    Alternate(SubSubtables<'a, AlternateSubst<'a>>),
+    Ligature(SubSubtables<'a, LigatureSubst<'a>>),
     Contextual(SubSubtables<'a, SubstitutionSequenceContext<'a>>),
     ChainContextual(SubSubtables<'a, SubstitutionChainContext<'a>>),
-    Reverse(SubSubtables<'a, ReverseChainSingleSubstFormat1<'a>>),
+    Reverse(SubSubtables<'a, ReverseChainSingleSubst<'a>>),
     /// An extension lookup did not have any subtables
     EmptyExtension,
 }
@@ -198,6 +198,15 @@ impl<'a> SubstitutionLookup<'a> {
                 }
             }
             other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
+}
+
+impl<'a> MultipleSubst<'a> {
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        match self {
+            Self::Format1(t) => t.coverage(),
+            Self::Format2(t) => t.coverage(),
         }
     }
 }
