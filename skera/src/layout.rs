@@ -1,5 +1,7 @@
 //! impl subset() for layout common tables
 
+mod extended;
+
 use std::{cmp::Ordering, mem};
 
 use crate::fnv::FnvHashMap;
@@ -17,18 +19,18 @@ use write_fonts::{
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
                 ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                Feature, FeatureList, FeatureParams, FeatureRecord, FeatureTableSubstitution,
-                FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations,
-                Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
-                ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
+                CoverageFormat2, CoverageFormat3, CoverageFormat4, CoverageTable, DeltaFormat,
+                Device, DeviceOrVariationIndex, Feature, FeatureList, FeatureParams, FeatureRecord,
+                FeatureTableSubstitution, FeatureTableSubstitutionRecord, FeatureVariationRecord,
+                FeatureVariations, Intersect, LangSys, LangSysRecord, LookupList, RangeRecord,
+                Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
             },
             variations::NO_VARIATION_INDEX,
         },
         types::{GlyphId, GlyphId16, NameId},
         ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
-    types::{FixedSize, Offset16, Offset32, Tag},
+    types::{FixedSize, GlyphId24, Offset16, Offset32, Tag, Uint24},
 };
 
 const MAX_SCRIPTS: u16 = 500;
@@ -545,9 +547,7 @@ impl<'a> SubsetTable<'a> for CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.subset(plan, s, args),
             CoverageTable::Format2(sub) => sub.subset(plan, s, args),
-            Self::Format3(_) | Self::Format4(_) => {
-                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
-            }
+            Self::Format3(_) | Self::Format4(_) => extended::subset_coverage(self, plan, s),
         }
     }
 }
@@ -656,23 +656,36 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
         }
 
         let glyph_count = glyphs.len();
-        let mut num_ranges = 1_u16;
+        let mut num_ranges = 1_usize;
         let mut last = glyphs[0].to_u32();
+        let mut max_gid = last;
 
         for g in glyphs.iter().skip(1) {
             let gid = g.to_u32();
-            if last + 1 != gid {
+            if last.checked_add(1) != Some(gid) {
                 num_ranges += 1;
             }
 
             last = gid;
+            max_gid = max_gid.max(gid);
         }
 
         // TODO: add support for unsorted glyph list??
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/Common/Coverage.hh#L143>
-        if glyph_count <= num_ranges as usize * 3 {
+        if max_gid > Uint24::MAX.to_u32() {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW));
+        }
+        if max_gid > u16::MAX as u32 {
+            if glyph_count <= num_ranges * 3 {
+                return CoverageFormat3::serialize(s, glyphs);
+            }
+            return CoverageFormat4::serialize(s, (glyphs, num_ranges));
+        }
+        if glyph_count <= num_ranges * 3 && glyph_count <= u16::MAX as usize {
             CoverageFormat1::serialize(s, glyphs)
         } else {
+            let num_ranges = u16::try_from(num_ranges)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
             CoverageFormat2::serialize(s, (glyphs, num_ranges))
         }
     }
