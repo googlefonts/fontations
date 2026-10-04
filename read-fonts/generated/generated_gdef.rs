@@ -62,23 +62,11 @@ impl<'a> Gdef<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
-    pub fn glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = self.data;
-        self.glyph_class_def_offset().resolve(data)
-    }
-
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Nullable<Offset16> {
         let range = self.attach_list_offset_byte_range();
         self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
-    pub fn attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
-        let data = self.data;
-        self.attach_list_offset().resolve(data)
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
@@ -88,23 +76,11 @@ impl<'a> Gdef<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
-    pub fn lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
-        let data = self.data;
-        self.lig_caret_list_offset().resolve(data)
-    }
-
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.mark_attach_class_def_offset_byte_range();
         self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
-    pub fn mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = self.data;
-        self.mark_attach_class_def_offset().resolve(data)
     }
 
     /// Offset to the table of mark glyph set definitions, from
@@ -114,12 +90,6 @@ impl<'a> Gdef<'a> {
         (!range.is_empty())
             .then(|| self.data.read_at(range.start).ok())
             .flatten()
-    }
-
-    /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
-    pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
-        let data = self.data;
-        self.mark_glyph_sets_def_offset().map(|x| x.resolve(data))?
     }
 
     /// Offset to the Item Variation Store table, from beginning of
@@ -135,6 +105,78 @@ impl<'a> Gdef<'a> {
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.item_var_store_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset taking precedence over glyph_class_def_offset when nonzero.
+    pub fn glyph_class_def2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.glyph_class_def2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`glyph_class_def2_offset`][Self::glyph_class_def2_offset].
+    pub fn glyph_class_def2(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+        let data = self.data;
+        self.glyph_class_def2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset taking precedence over attach_list_offset when nonzero.
+    pub fn attach_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.attach_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`attach_list2_offset`][Self::attach_list2_offset].
+    pub fn attach_list2(&self) -> Option<Result<AttachList<'a>, ReadError>> {
+        let data = self.data;
+        self.attach_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset taking precedence over lig_caret_list_offset when nonzero.
+    pub fn lig_caret_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.lig_caret_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`lig_caret_list2_offset`][Self::lig_caret_list2_offset].
+    pub fn lig_caret_list2(&self) -> Option<Result<LigCaretList2<'a>, ReadError>> {
+        let data = self.data;
+        self.lig_caret_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset taking precedence over mark_attach_class_def_offset when nonzero.
+    pub fn mark_attach_class_def2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.mark_attach_class_def2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`mark_attach_class_def2_offset`][Self::mark_attach_class_def2_offset].
+    pub fn mark_attach_class_def2(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+        let data = self.data;
+        self.mark_attach_class_def2_offset()
+            .map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset taking precedence over mark_glyph_sets_def_offset when nonzero.
+    pub fn mark_glyph_sets_def2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.mark_glyph_sets_def2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`mark_glyph_sets_def2_offset`][Self::mark_glyph_sets_def2_offset].
+    pub fn mark_glyph_sets_def2(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
+        let data = self.data;
+        self.mark_glyph_sets_def2_offset()
+            .map(|x| x.resolve(data))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -180,6 +222,56 @@ impl<'a> Gdef<'a> {
     pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_glyph_sets_def_offset_byte_range().end;
         let end = if self.version().compatible((1u16, 3u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn glyph_class_def2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.item_var_store_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 4u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn attach_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_class_def2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 4u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn lig_caret_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.attach_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 4u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn mark_attach_class_def2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.lig_caret_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 4u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn mark_glyph_sets_def2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_attach_class_def2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 4u16)) {
             start + Offset32::RAW_BYTE_LEN
         } else {
             start
@@ -970,6 +1062,104 @@ impl Default for MarkGlyphSets<'_> {
     fn default() -> Self {
         Self {
             data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for LigCaretList2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.lig_glyph_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for LigCaretList2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigCaretList2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LigCaretList2.
+#[derive(Clone)]
+pub struct LigCaretList2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LigCaretList2<'a> {
+    pub const MIN_SIZE: usize = (Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Offset to Coverage table - from beginning of LigCaretList2 table
+    pub fn coverage_offset(&self) -> Offset32 {
+        let range = self.coverage_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.data;
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of ligature glyphs
+    pub fn lig_glyph_count(&self) -> Uint24 {
+        let range = self.lig_glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of offsets to LigGlyph tables, from beginning of
+    /// LigCaretList2 table —in Coverage Index order
+    pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.lig_glyph_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
+    pub fn lig_glyphs(&self) -> ArrayOfOffsets<'a, LigGlyph<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.lig_glyph_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lig_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
+        let lig_glyph_count = self.lig_glyph_count();
+        let start = self.lig_glyph_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(lig_glyph_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LigCaretList2::MIN_SIZE));
+
+impl Default for LigCaretList2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
         }
     }
 }
