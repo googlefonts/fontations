@@ -3,6 +3,7 @@
 #[cfg(feature = "std")]
 mod closure;
 
+mod condition;
 pub(crate) mod extended;
 mod feature;
 mod feature_variations;
@@ -11,6 +12,7 @@ mod script;
 
 use core::cmp::Ordering;
 
+pub use condition::ConditionError;
 pub use lookup_flag::LookupFlag;
 pub use script::{ScriptTags, SelectedScript, UNICODE_TO_NEW_OPENTYPE_SCRIPT_TAGS};
 
@@ -136,8 +138,23 @@ impl<'a> FontRead<'a> for FeatureParams<'a> {
 
 impl FeatureVariations<'_> {
     /// Returns the index of the first feature variation record that matches
-    /// the given coordinates.
+    /// the given coordinates. Format-2 conditions use their default values;
+    /// use [`Self::index_for_coords_with_delta`] to include variation deltas.
     pub fn index_for_coords(&self, coords: &[F2Dot14]) -> Option<u32> {
+        self.index_for_coords_with_delta(coords, |_| Ok::<_, core::convert::Infallible>(0.0))
+    }
+
+    /// Returns the first matching record, resolving format-2 variation deltas
+    /// with the caller's variation store. Records with invalid conditions are
+    /// skipped. See [`Condition::evaluate`] for evaluation behavior.
+    pub fn index_for_coords_with_delta<E>(
+        &self,
+        coords: &[F2Dot14],
+        mut delta: impl FnMut(u32) -> Result<f64, E>,
+    ) -> Option<u32> {
+        if self.version().major != 1 {
+            return None;
+        }
         for (index, rec) in self.feature_variation_records().iter().enumerate() {
             // If the ConditionSet offset is 0, this is treated as the
             // universal condition: all contexts are matched.
@@ -147,24 +164,7 @@ impl FeatureVariations<'_> {
             let Some(Ok(condition_set)) = rec.condition_set(self.offset_data()) else {
                 continue;
             };
-            // Otherwise, all conditions must be satisfied.
-            if condition_set
-                .conditions()
-                .iter()
-                // .. except we ignore errors
-                .filter_map(Result::ok)
-                .all(|cond| match cond {
-                    Condition::Format1AxisRange(format1) => {
-                        let coord = coords
-                            .get(format1.axis_index() as usize)
-                            .copied()
-                            .unwrap_or_default();
-                        coord >= format1.filter_range_min_value()
-                            && coord <= format1.filter_range_max_value()
-                    }
-                    _ => false,
-                })
-            {
+            if condition_set.evaluate(coords, &mut delta).ok() == Some(true) {
                 return Some(index as u32);
             }
         }
@@ -198,12 +198,43 @@ impl SelectedFeatureVariations {
                 .ok()
                 .and_then(|gpos| gpos.feature_variations()),
         ];
+        let store = feature_var_tables
+            .iter()
+            .any(|table| matches!(table, Some(Ok(_))))
+            .then(|| {
+                tables
+                    .gdef()
+                    .ok()?
+                    .item_var_store()
+                    .transpose()
+                    .ok()
+                    .flatten()
+            })
+            .flatten();
         let [gsub, gpos] = feature_var_tables.map(|feature_vars| {
             feature_vars
                 .transpose()
                 .ok()
                 .flatten()
-                .and_then(|feature_vars| feature_vars.index_for_coords(coords))
+                .and_then(|feature_vars| {
+                    feature_vars.index_for_coords_with_delta(coords, |index| {
+                        Ok::<_, core::convert::Infallible>(
+                            store
+                                .as_ref()
+                                .and_then(|store| {
+                                    store.compute_delta(
+                                        DeltaSetIndex {
+                                            outer: (index >> 16) as u16,
+                                            inner: index as u16,
+                                        },
+                                        coords,
+                                    )
+                                })
+                                .unwrap_or_default()
+                                .to_f64(),
+                        )
+                    })
+                })
         });
         Self { gsub, gpos }
     }
