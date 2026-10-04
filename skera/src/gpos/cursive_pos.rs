@@ -52,20 +52,22 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        for i in exit_record_idxes.iter() {
+        let mut retained_glyphs = Vec::with_capacity(glyphs.len());
+        for (&gid, i) in glyphs.iter().zip(exit_record_idxes.iter()) {
             let Some(exit_record) = exit_records.get(i as usize) else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };
             if !exit_record.subset(plan, s, font_data).is_empty()? {
                 entry_exit_count += 1;
+                retained_glyphs.push(gid);
             }
         }
 
-        if glyphs.is_empty() {
+        if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         s.copy_assign(entryexit_count_pos, entry_exit_count);
-        Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
+        Offset16::serialize_serialize::<CoverageTable>(s, &retained_glyphs, cov_offset_pos)
     }
 }
 
@@ -183,5 +185,58 @@ mod test {
         ];
 
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn cursive_subset_removes_empty_records_from_coverage() {
+        use font_test_data::bebuffer::BeBuffer;
+        use write_fonts::read::FontRead;
+        let bytes = BeBuffer::new()
+            .push(1u16)
+            .push(24u16)
+            .push(3u16)
+            .extend([0u16, 0, 18, 0, 0, 18])
+            .push(1u16)
+            .push(100i16)
+            .push(200i16)
+            .push(1u16)
+            .push(3u16)
+            .extend([10u16, 20, 30])
+            .to_vec();
+        let table = CursivePosFormat1::read(FontData::new(&bytes)).unwrap();
+        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
+        for keep in [vec![10u32, 20, 30], vec![10]] {
+            let mut plan = Plan {
+                glyph_map_gsub: vec![crate::INVALID_GID; 31],
+                ..Default::default()
+            };
+            for &gid in &keep {
+                plan.glyphset_gsub.insert(GlyphId::new(gid));
+                plan.glyph_map_gsub[gid as usize] = GlyphId::new(gid / 10);
+            }
+            let mut s = Serializer::new(1024);
+            s.start_serialize().unwrap();
+            let result = table.subset(
+                &plan,
+                &mut s,
+                (&SubsetState::default(), &font, &plan.gpos_lookups),
+            );
+            if keep.len() == 1 {
+                assert_eq!(result, Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY));
+                continue;
+            }
+            result.unwrap();
+            s.end_serialize();
+            let output = s.copy_bytes();
+            let table = CursivePosFormat1::read(FontData::new(&output)).unwrap();
+            assert_eq!(table.entry_exit_count(), 2);
+            assert_eq!(
+                table.coverage().unwrap().iter().collect::<Vec<_>>(),
+                [GlyphId::new(2), GlyphId::new(3)]
+            );
+            let records = table.entry_exit_record();
+            assert!(records[0].entry_anchor(table.offset_data()).is_some());
+            assert!(records[1].exit_anchor(table.offset_data()).is_some());
+        }
     }
 }
