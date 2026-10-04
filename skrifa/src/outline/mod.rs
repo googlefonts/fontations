@@ -106,7 +106,10 @@ use self::glyf::{FreeTypeScaler, HarfBuzzScaler};
 use super::instance::{LocationRef, NormalizedCoord, Size};
 use core::fmt::Debug;
 use pen::PathStyle;
-use read_fonts::{types::GlyphId, TableProvider};
+use read_fonts::{
+    types::{Fixed, GlyphId},
+    TableProvider,
+};
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
@@ -176,6 +179,7 @@ pub struct DrawSettings<'a> {
     instance: DrawInstance<'a>,
     memory: Option<&'a mut [u8]>,
     path_style: PathStyle,
+    gvar_scalars: &'a [Fixed],
 }
 
 impl<'a> DrawSettings<'a> {
@@ -186,6 +190,7 @@ impl<'a> DrawSettings<'a> {
             instance: DrawInstance::Unhinted(size, location.into()),
             memory: None,
             path_style: PathStyle::default(),
+            gvar_scalars: &[],
         }
     }
 
@@ -206,6 +211,7 @@ impl<'a> DrawSettings<'a> {
             },
             memory: None,
             path_style: PathStyle::default(),
+            gvar_scalars: &[],
         }
     }
 
@@ -226,6 +232,20 @@ impl<'a> DrawSettings<'a> {
     /// Meant for use when trying to match legacy code behavior in Rust.
     pub fn with_path_style(mut self, path_style: PathStyle) -> Self {
         self.path_style = path_style;
+        self
+    }
+
+    /// Reuses shared `gvar` tuple scalars when drawing unhinted TrueType
+    /// outlines.
+    ///
+    /// Compute these with [`Gvar::compute_scalars`](read_fonts::tables::gvar::Gvar::compute_scalars)
+    /// for the same font and normalized coordinates as this draw operation.
+    /// The slice may be empty or partial; missing scalars are computed while
+    /// drawing. This borrows the slice and adds no allocation.
+    ///
+    /// Hinted outlines, CFF/CFF2 outlines, and VARC outlines ignore this slice.
+    pub fn with_gvar_scalars(mut self, scalars: &'a [Fixed]) -> Self {
+        self.gvar_scalars = scalars;
         self
     }
 }
@@ -352,12 +372,22 @@ impl<'a> OutlineGlyph<'a> {
     ) -> Result<AdjustedMetrics, DrawError> {
         let settings: DrawSettings<'a> = settings.into();
         match (settings.instance, settings.path_style) {
-            (DrawInstance::Unhinted(size, location), PathStyle::FreeType) => {
-                self.draw_unhinted(size, location, settings.memory, settings.path_style, pen)
-            }
-            (DrawInstance::Unhinted(size, location), PathStyle::HarfBuzz) => {
-                self.draw_unhinted(size, location, settings.memory, settings.path_style, pen)
-            }
+            (DrawInstance::Unhinted(size, location), PathStyle::FreeType) => self.draw_unhinted(
+                size,
+                location,
+                settings.memory,
+                settings.path_style,
+                settings.gvar_scalars,
+                pen,
+            ),
+            (DrawInstance::Unhinted(size, location), PathStyle::HarfBuzz) => self.draw_unhinted(
+                size,
+                location,
+                settings.memory,
+                settings.path_style,
+                settings.gvar_scalars,
+                pen,
+            ),
             (
                 DrawInstance::Hinted {
                     instance: hinting_instance,
@@ -379,6 +409,7 @@ impl<'a> OutlineGlyph<'a> {
                         hinting_instance.location(),
                         settings.memory,
                         settings.path_style,
+                        &[],
                         pen,
                     )?;
                     // Round advance width when hinting is requested, even if
@@ -401,6 +432,7 @@ impl<'a> OutlineGlyph<'a> {
         location: impl Into<LocationRef<'a>>,
         user_memory: Option<&mut [u8]>,
         path_style: PathStyle,
+        gvar_scalars: &[Fixed],
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
         let ppem = size.ppem();
@@ -412,6 +444,7 @@ impl<'a> OutlineGlyph<'a> {
                         PathStyle::FreeType => {
                             let scaled_outline =
                                 FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
+                                    .with_gvar_scalars(gvar_scalars)
                                     .scale(&outline.glyph, outline.glyph_id)?;
                             scaled_outline.to_path(path_style, pen)?;
                             (
@@ -422,6 +455,7 @@ impl<'a> OutlineGlyph<'a> {
                         PathStyle::HarfBuzz => {
                             let scaled_outline =
                                 HarfBuzzScaler::unhinted(glyf, outline, buf, ppem, coords)?
+                                    .with_gvar_scalars(gvar_scalars)
                                     .scale(&outline.glyph, outline.glyph_id)?;
                             scaled_outline.to_path(path_style, pen)?;
                             (
@@ -807,6 +841,182 @@ mod tests {
             font_test_data::VAZIRMATN_VAR,
             font_test_data::VAZIRMATN_VAR_GLYPHS,
         );
+    }
+
+    #[test]
+    fn supplied_gvar_scalars_preserve_paths_and_metrics() {
+        // Exercise the empty-glyph phantom fallback without HVAR as well.
+        let mut without_hvar = font_test_data::VAZIRMATN_VAR.to_vec();
+        let table_count = u16::from_be_bytes(without_hvar[4..6].try_into().unwrap()) as usize;
+        for record in without_hvar[12..].chunks_exact_mut(16).take(table_count) {
+            if &record[..4] == b"HVAR" {
+                record[..4].copy_from_slice(b"HVAX");
+            }
+        }
+        assert!(FontRef::new(&without_hvar).unwrap().hvar().is_err());
+        for data in [
+            font_test_data::VAZIRMATN_VAR,
+            without_hvar.as_slice(),
+            font_test_data::COLRV0V1_VARIABLE,
+        ] {
+            let font = FontRef::new(data).unwrap();
+            let outlines = font.outline_glyphs();
+            let gvar = font.gvar().unwrap();
+            for coords in [
+                vec![],
+                vec![NormalizedCoord::from_f32(-0.75)],
+                vec![NormalizedCoord::from_f32(0.5)],
+            ] {
+                let mut scalars = vec![Fixed::ZERO; gvar.shared_tuple_count() as usize];
+                let count = gvar.compute_scalars(&coords, &mut scalars);
+                scalars.truncate(count);
+                for size in [Size::unscaled(), Size::new(13.5), Size::new(64.0)] {
+                    for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                        for gid in 0..font.maxp().unwrap().num_glyphs() {
+                            let glyph = outlines.get(GlyphId::from(gid)).unwrap();
+                            let mut expected = testing::Path::default();
+                            let metrics = glyph
+                                .draw(
+                                    DrawSettings::unhinted(size, coords.as_slice())
+                                        .with_path_style(style),
+                                    &mut expected,
+                                )
+                                .unwrap();
+                            for supplied in [&scalars[..], &scalars[..scalars.len() / 2], &[]] {
+                                let mut actual = testing::Path::default();
+                                let cached_metrics = glyph
+                                    .draw(
+                                        DrawSettings::unhinted(size, coords.as_slice())
+                                            .with_path_style(style)
+                                            .with_gvar_scalars(supplied),
+                                        &mut actual,
+                                    )
+                                    .unwrap();
+                                assert_eq!(
+                                    actual.elements, expected.elements,
+                                    "glyph {gid}, {style:?}, {coords:?}"
+                                );
+                                assert_eq!(cached_metrics.has_overlaps, metrics.has_overlaps);
+                                assert_eq!(cached_metrics.lsb, metrics.lsb);
+                                assert_eq!(cached_metrics.advance_width, metrics.advance_width);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn supplied_gvar_scalars_are_used_for_shared_tuples() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let coords = [NormalizedCoord::from_f32(1.0)];
+        // Deliberately supply the wrong scalars to prove they are consumed.
+        let scalars = vec![Fixed::ZERO; font.gvar().unwrap().shared_tuple_count() as usize];
+        let outlines = font.outline_glyphs();
+        let mut differed = false;
+        for gid in 0..font.maxp().unwrap().num_glyphs() {
+            let glyph = outlines.get(GlyphId::from(gid)).unwrap();
+            let mut expected = testing::Path::default();
+            glyph
+                .draw(
+                    DrawSettings::unhinted(Size::unscaled(), coords.as_slice()),
+                    &mut expected,
+                )
+                .unwrap();
+            let mut actual = testing::Path::default();
+            glyph
+                .draw(
+                    DrawSettings::unhinted(Size::unscaled(), coords.as_slice())
+                        .with_gvar_scalars(&scalars),
+                    &mut actual,
+                )
+                .unwrap();
+            differed |= actual.elements != expected.elements;
+        }
+        assert!(differed);
+    }
+
+    #[test]
+    fn supplied_gvar_scalars_do_not_affect_other_outline_formats() {
+        let coords = [NormalizedCoord::from_f32(0.5)];
+        let scalars = [Fixed::ONE; 128];
+        for data in [
+            font_test_data::CANTARELL_VF_TRIMMED,
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+            font_test_data::varc::CJK_6868,
+        ] {
+            let font = FontRef::new(data).unwrap();
+            let outlines = font.outline_glyphs();
+            for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                let mut checked = 0;
+                for gid in 0..font.maxp().unwrap().num_glyphs() {
+                    let glyph = outlines.get(GlyphId::from(gid)).unwrap();
+                    if glyph.format() == OutlineGlyphFormat::Glyf {
+                        continue;
+                    }
+                    checked += 1;
+                    let mut expected = testing::Path::default();
+                    let metrics = glyph
+                        .draw(
+                            DrawSettings::unhinted(Size::new(13.5), coords.as_slice())
+                                .with_path_style(style),
+                            &mut expected,
+                        )
+                        .unwrap();
+                    let mut actual = testing::Path::default();
+                    let supplied_metrics = glyph
+                        .draw(
+                            DrawSettings::unhinted(Size::new(13.5), coords.as_slice())
+                                .with_path_style(style)
+                                .with_gvar_scalars(&scalars),
+                            &mut actual,
+                        )
+                        .unwrap();
+                    assert_eq!(actual.elements, expected.elements);
+                    assert_eq!(supplied_metrics.lsb, metrics.lsb);
+                    assert_eq!(supplied_metrics.advance_width, metrics.advance_width);
+                }
+                assert!(checked > 0);
+            }
+        }
+    }
+
+    #[test]
+    fn supplied_gvar_scalars_do_not_affect_hinted_outlines() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let outlines = font.outline_glyphs();
+        let coords = [NormalizedCoord::from_f32(0.5)];
+        let scalars = [Fixed::ONE; 128];
+        for size in [Size::unscaled(), Size::new(16.0)] {
+            let hinting = HintingInstance::new(
+                &outlines,
+                size,
+                coords.as_slice(),
+                HintingOptions {
+                    engine: Engine::Interpreter,
+                    target: Target::default(),
+                },
+            )
+            .unwrap();
+            for gid in 0..font.maxp().unwrap().num_glyphs() {
+                let glyph = outlines.get(GlyphId::from(gid)).unwrap();
+                let mut expected = testing::Path::default();
+                let metrics = glyph
+                    .draw(DrawSettings::hinted(&hinting, false), &mut expected)
+                    .unwrap();
+                let mut actual = testing::Path::default();
+                let supplied_metrics = glyph
+                    .draw(
+                        DrawSettings::hinted(&hinting, false).with_gvar_scalars(&scalars),
+                        &mut actual,
+                    )
+                    .unwrap();
+                assert_eq!(actual.elements, expected.elements);
+                assert_eq!(supplied_metrics.lsb, metrics.lsb);
+                assert_eq!(supplied_metrics.advance_width, metrics.advance_width);
+            }
+        }
     }
 
     #[test]
