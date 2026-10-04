@@ -149,6 +149,8 @@ pub struct SimplePass<'a, 'v, S: Scale> {
     pub varies: bool,
     /// Normalized variation coordinates, empty for a static instance.
     pub coords: &'a [F2Dot14],
+    /// Cached shared tuple scalars at `coords`.
+    pub gvar_scalars: &'a [Fixed],
     /// True if the font has `HVAR`, which changes how FreeType rounds the
     /// deltas it applies to phantom points.
     pub has_hvar: bool,
@@ -287,6 +289,7 @@ impl Scale for Scale26Dot6 {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             has_hvar,
             is_hinted,
         } = pass;
@@ -298,6 +301,7 @@ impl Scale for Scale26Dot6 {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             unscaled,
             flags,
             contours,
@@ -491,6 +495,7 @@ impl Scale for ScaleF32 {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             ..
         } = pass;
         // `ScaleF32` works in place: the points start out as font
@@ -501,6 +506,7 @@ impl Scale for ScaleF32 {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             scaled,
             flags,
             contours,
@@ -645,6 +651,7 @@ impl Scale for Unscaled {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             ..
         } = pass;
         // The points are their own font unit copy, so this works in place.
@@ -654,6 +661,7 @@ impl Scale for Unscaled {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             scaled,
             flags,
             contours,
@@ -786,6 +794,7 @@ fn simple_deltas<C, D>(
     var_data: Option<GlyphVariationData<'_>>,
     varies: bool,
     coords: &[F2Dot14],
+    gvar_scalars: &[Fixed],
     points: &[Point<C>],
     flags: &mut [PointFlags],
     contours: &[u16],
@@ -797,7 +806,7 @@ where
 {
     match var_data {
         Some(var_data) => var_data
-            .simple_deltas(coords, points, flags, contours, buffers)
+            .simple_deltas_with_scalars(coords, gvar_scalars, points, flags, contours, buffers)
             .is_some(),
         None if varies => {
             for delta in buffers.deltas.iter_mut() {
