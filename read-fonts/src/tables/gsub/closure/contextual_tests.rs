@@ -297,3 +297,167 @@ fn coverage_context_closure_accepts_maximum_sequence_length() {
     assert_eq!(glyphs, [65536, 70001]);
     assert_eq!(lookups, [0, 1]);
 }
+
+fn class_context(chain: bool, primary_class: u32, records: &[(u16, u16)]) -> Vec<u8> {
+    let count = primary_class + 1;
+    let header_size = if chain { 20 } else { 13 };
+    let coverage_offset = header_size + count * 3;
+    let input_class_offset = coverage_offset + 8;
+    let input_class = BeBuffer::new()
+        .push(3u16)
+        .push(GlyphId24::new(65536))
+        .push(Uint24::new(4465))
+        .extend((0..4465).map(|i| {
+            Uint24::new(match i {
+                0 => primary_class,
+                4464 => 65535,
+                _ => 0,
+            })
+        }));
+    let backtrack_class_offset = input_class_offset + input_class.len() as u32;
+    let lookahead_class_offset = backtrack_class_offset + 11;
+    let set_offset = if chain {
+        lookahead_class_offset + 11
+    } else {
+        backtrack_class_offset
+    };
+    let mut bytes = BeBuffer::new().push(5u16).push(coverage_offset);
+    if chain {
+        bytes = bytes
+            .push(backtrack_class_offset)
+            .push(input_class_offset)
+            .push(lookahead_class_offset)
+            .push(count as u16);
+    } else {
+        bytes = bytes.push(input_class_offset).push(Uint24::new(count));
+    }
+    bytes = bytes
+        .extend((0..count).map(|i| Uint24::new(if i == primary_class { set_offset } else { 0 })))
+        .push(3u16)
+        .push(Uint24::new(1))
+        .push(GlyphId24::new(65536))
+        .extend(input_class.iter().copied());
+    if chain {
+        bytes = bytes
+            .push(3u16)
+            .push(GlyphId24::new(65535))
+            .push(Uint24::new(1))
+            .push(Uint24::new(3))
+            .push(3u16)
+            .push(GlyphId24::new(0xffffff))
+            .push(Uint24::new(1))
+            .push(Uint24::new(4));
+    }
+    bytes = bytes.push(1u16).push(Uint24::new(5));
+    if chain {
+        bytes = bytes
+            .push(1u16)
+            .push(3u16)
+            .push(2u16)
+            .push(65535u16)
+            .push(1u16)
+            .push(4u16)
+            .push(records.len() as u16);
+    } else {
+        bytes = bytes.push(2u16).push(records.len() as u16).push(65535u16);
+    }
+    for &(sequence, lookup) in records {
+        bytes = bytes.push(sequence).push(lookup);
+    }
+    bytes.to_vec()
+}
+
+#[test]
+fn wide_class_context_closure_restricts_nested_lookups_and_keeps_primary_classes() {
+    for (chain, kind, primary_class, inputs) in [
+        (false, 5, 65536, vec![65536, 70000]),
+        (true, 6, 32768, vec![65535, 65536, 70000, 0xffffff]),
+        (false, 5, 0, vec![65536, 70000]),
+        (true, 6, 0, vec![65535, 65536, 70000, 0xffffff]),
+    ] {
+        for (records, outputs) in [
+            (vec![(0, 1)], vec![70001]),
+            (vec![(1, 1)], vec![70002]),
+            (vec![(1, 1), (1, 1)], vec![70001, 70002]),
+        ] {
+            let bytes = class_context(chain, primary_class, &records);
+            let (glyphs, lookups) = close(kind, &bytes, &inputs).unwrap();
+            let mut expected = inputs.clone();
+            expected.extend(outputs);
+            expected.sort_unstable();
+            assert_eq!(glyphs, expected);
+            assert_eq!(lookups, [0, 1]);
+            for excluded in &inputs {
+                let inputs: Vec<_> = inputs
+                    .iter()
+                    .copied()
+                    .filter(|gid| gid != excluded)
+                    .collect();
+                let (glyphs, lookups) = close(kind, &bytes, &inputs).unwrap();
+                assert_eq!(glyphs, inputs);
+                assert!(lookups.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn wide_class_context_closure_handles_null_invalid_offsets_and_gpos() {
+    for (chain, kind, primary_class, inputs) in [
+        (false, 5, 65536, vec![65536, 70000]),
+        (true, 6, 32768, vec![65535, 65536, 70000, 0xffffff]),
+    ] {
+        let base = class_context(chain, primary_class, &[(1, 1)]);
+        let header = if chain { 20 } else { 13 };
+        let set_offset = if chain {
+            crate::tables::layout::ChainedSequenceContextFormat5::read(FontData::new(&base))
+                .unwrap()
+                .chained_class_seq_rule_set_offsets()[primary_class as usize]
+                .get()
+                .offset()
+                .to_u32() as usize
+        } else {
+            crate::tables::layout::SequenceContextFormat5::read(FontData::new(&base))
+                .unwrap()
+                .class_seq_rule_set_offsets()[primary_class as usize]
+                .get()
+                .offset()
+                .to_u32() as usize
+        };
+        let mut ranges = vec![
+            2..6,
+            6..10,
+            header + primary_class as usize * 3..header + primary_class as usize * 3 + 3,
+            set_offset + 2..set_offset + 5,
+        ];
+        if chain {
+            ranges.extend([10..14, 14..18]);
+        }
+        for range in ranges {
+            let mut bytes = base.clone();
+            bytes[range.clone()].fill(0);
+            let (glyphs, lookups) = close(kind, &bytes, &inputs).unwrap();
+            assert_eq!(glyphs, inputs);
+            assert!(lookups.is_empty());
+            bytes[range].fill(0xff);
+            assert!(close(kind, &bytes, &inputs).is_err());
+        }
+        let single = BeBuffer::new()
+            .push(1u16)
+            .push(8u16)
+            .push(4u16)
+            .push(10i16)
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(70000));
+        let bytes = layout_font(if chain { 8 } else { 7 }, &base, &single);
+        let gpos = crate::tables::gpos::Gpos::read(FontData::new(&bytes)).unwrap();
+        let mut lookups = [0].into_iter().collect();
+        gpos.closure_lookups(
+            &inputs.into_iter().map(GlyphId::new).collect(),
+            &mut lookups,
+        )
+        .unwrap();
+        assert_eq!(lookups.iter().collect::<Vec<_>>(), [0, 1]);
+    }
+}
