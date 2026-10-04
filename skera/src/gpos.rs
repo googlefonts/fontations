@@ -152,6 +152,10 @@ fn subset_gpos(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    // Extended headers and subtables are not yet supported by the subsetter.
+    if gpos.version() >= MajorMinor::new(1, 2) {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+    }
     let version_pos = s.embed(gpos.version())?;
     let mut c = SubsetLayoutContext::new(Gpos::TAG);
 

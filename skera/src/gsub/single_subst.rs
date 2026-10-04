@@ -30,6 +30,9 @@ impl<'a> SubsetTable<'a> for SingleSubst<'_> {
         match self {
             Self::Format1(item) => item.subset(plan, s, ()),
             Self::Format2(item) => item.subset(plan, s, ()),
+            Self::Format3(_) | Self::Format4(_) => {
+                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
         }
     }
 }

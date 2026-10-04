@@ -20,6 +20,10 @@ fn split_mark_to_base_subtable(graph: &mut Graph, subtable: ObjectId) -> Option<
                                + u16::RAW_BYTE_LEN // empty mark array table
                                + u16::RAW_BYTE_LEN; // empty base array table
     let data = &graph.objects[&subtable];
+    // This splitter only understands the format-1 field and offset widths.
+    if data.read_at::<u16>(0)? != 1 {
+        return None;
+    }
     let base_coverage_id = data.offsets[1].object;
     let base_coverage_size = graph.objects[&base_coverage_id].bytes.len();
     debug_assert!(data.reparse::<rgpos::MarkBasePosFormat1>().is_ok());
@@ -307,6 +311,24 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn extended_mark_to_base_is_not_reparsed_as_format1() {
+        use crate::tables::gpos::{
+            AnchorFormat1, BaseArray2, BaseRecord2, MarkArray2, MarkBasePosFormat2, MarkRecord2,
+        };
+        let coverage: CoverageTable = [font_types::GlyphId::new(65536)].into_iter().collect();
+        let anchor = AnchorFormat1::new(10, 20);
+        let table = MarkBasePosFormat2::new(
+            coverage.clone(),
+            coverage,
+            MarkArray2::new(vec![MarkRecord2::new(0, anchor.clone().into())]),
+            BaseArray2::new(vec![BaseRecord2::new(vec![Some(anchor.into())])]),
+        );
+        let mut graph = crate::write::TableWriter::make_graph(&table);
+        let root = graph.root;
+        assert!(split_mark_to_base_subtable(&mut graph, root).is_none());
+    }
+
     // too fancy, but:
     //
     // we want to create anchor tables for each glyph, and later check that
@@ -559,11 +581,11 @@ mod tests {
                 LookupFlag::empty(),
                 vec![ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
                     LookupType::MARK_TO_BASE,
-                    table,
+                    table.into(),
                 ))],
             ))
         } else {
-            PositionLookup::MarkToBase(Lookup::new(LookupFlag::empty(), vec![table]))
+            PositionLookup::MarkToBase(Lookup::new(LookupFlag::empty(), vec![table.into()]))
         };
         let lookup_list = LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookup_list).unwrap();
@@ -575,7 +597,13 @@ mod tests {
         }
 
         let subtables: Vec<_> = match lookup.subtables().unwrap() {
-            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            PositionSubtables::MarkToBase(subs) => subs
+                .iter()
+                .map(|sub| match sub.unwrap() {
+                    rgpos::MarkBasePos::Format1(t) => t,
+                    _ => panic!("wrong subtable format"),
+                })
+                .collect(),
             _ => panic!("wrong lookup type"),
         };
 

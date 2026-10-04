@@ -10,29 +10,59 @@ table Gdef {
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
     #[nullable]
+    #[offset_getter(glyph_class_def)]
+    #[to_owned(obj.legacy_glyph_class_def().to_owned_table())]
     glyph_class_def_offset: Offset16<ClassDef>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     #[nullable]
+    #[offset_getter(attach_list)]
+    #[to_owned(obj.legacy_attach_list().to_owned_table())]
     attach_list_offset: Offset16<AttachList>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
     #[nullable]
+    #[offset_getter(lig_caret_list)]
+    #[to_owned(obj.legacy_lig_caret_list().to_owned_table())]
     lig_caret_list_offset: Offset16<LigCaretList>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     #[nullable]
+    #[offset_getter(mark_attach_class_def)]
+    #[to_owned(obj.legacy_mark_attach_class_def().to_owned_table())]
     mark_attach_class_def_offset: Offset16<ClassDef>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
     #[since_version(1.2)]
     #[nullable]
+    #[offset_getter(mark_glyph_sets_def)]
+    #[to_owned(obj.legacy_mark_glyph_sets_def().to_owned_table())]
     mark_glyph_sets_def_offset: Offset16<MarkGlyphSets>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
     #[since_version(1.3)]
     #[nullable]
     item_var_store_offset: Offset32<ItemVariationStore>,
+    /// 32-bit offset taking precedence over glyph_class_def_offset when nonzero.
+    #[since_version(1.4)]
+    #[nullable]
+    glyph_class_def2_offset: Offset32<ClassDef>,
+    /// 32-bit offset taking precedence over attach_list_offset when nonzero.
+    #[since_version(1.4)]
+    #[nullable]
+    attach_list2_offset: Offset32<AttachList>,
+    /// 32-bit offset taking precedence over lig_caret_list_offset when nonzero.
+    #[since_version(1.4)]
+    #[nullable]
+    lig_caret_list2_offset: Offset32<LigCaretList2>,
+    /// 32-bit offset taking precedence over mark_attach_class_def_offset when nonzero.
+    #[since_version(1.4)]
+    #[nullable]
+    mark_attach_class_def2_offset: Offset32<ClassDef>,
+    /// 32-bit offset taking precedence over mark_glyph_sets_def_offset when nonzero.
+    #[since_version(1.4)]
+    #[nullable]
+    mark_glyph_sets_def2_offset: Offset32<MarkGlyphSets>,
 }
 
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
@@ -142,4 +172,17 @@ table MarkGlyphSets {
     /// start of the MarkGlyphSets table.
     #[count($mark_glyph_set_count)]
     coverage_offsets: [Offset32<CoverageTable>],
+}
+
+/// ISO Open Font Format, fifth edition: LigCaretList2.
+table LigCaretList2 {
+    /// Offset to Coverage table - from beginning of LigCaretList2 table
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of ligature glyphs
+    #[compile(array_len($lig_glyph_offsets))]
+    lig_glyph_count: Uint24,
+    /// Array of offsets to LigGlyph tables, from beginning of
+    /// LigCaretList2 table —in Coverage Index order
+    #[count($lig_glyph_count)]
+    lig_glyph_offsets: [Offset24<LigGlyph>],
 }

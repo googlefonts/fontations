@@ -36,6 +36,9 @@ impl<'a> SubsetTable<'a> for PairPos<'_> {
         match self {
             Self::Format1(item) => item.subset(plan, s, args),
             Self::Format2(item) => item.subset(plan, s, args),
+            Self::Format3(_) | Self::Format4(_) => {
+                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
         }
     }
 }
@@ -125,7 +128,7 @@ fn compute_effective_pair_formats_1(
         for idx in coverage
             .iter()
             .enumerate()
-            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
+            .filter_map(|(i, g)| glyph_set.contains(g).then_some(i))
         {
             let pair_set = match pair_sets.get(idx) {
                 Err(ReadError::NullOffset) => continue,
@@ -345,9 +348,11 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
                 }
             }
         } else {
-            for (i, g) in coverage.iter().enumerate().filter_map(|(i, g)| {
-                map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
-            }) {
+            for (i, g) in coverage
+                .iter()
+                .enumerate()
+                .filter_map(|(i, g)| map_gsub_glyph(glyph_map, g).map(|new_g| (i, new_g)))
+            {
                 if !pair_sets
                     .subset_offset(i, s, plan, &pair_set_info)
                     .is_empty()?
@@ -661,6 +666,7 @@ impl CollectVariationIndices for PairPos<'_> {
         match self {
             Self::Format1(item) => item.collect_variation_indices(plan, varidx_set),
             Self::Format2(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::Format3(_) | Self::Format4(_) => (), // rejected by subset()
         }
     }
 }
@@ -714,7 +720,7 @@ impl CollectVariationIndices for PairPosFormat1<'_> {
             for idx in coverage
                 .iter()
                 .enumerate()
-                .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
+                .filter_map(|(i, g)| glyph_set.contains(g).then_some(i))
             {
                 let pair_set = match pair_sets.get(idx) {
                     Ok(pair_set) => pair_set,

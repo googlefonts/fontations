@@ -17,7 +17,6 @@ use write_fonts::{
             },
             layout::CoverageTable,
         },
-        types::GlyphId,
         FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32},
@@ -46,6 +45,10 @@ fn subset_gdef(
     state: &mut SubsetState,
 ) -> Result<(), SerializeErrorFlags> {
     let version = gdef.version();
+    // Extended GDEF serialization is not yet implemented.
+    if version >= write_fonts::types::MajorMinor::new(1, 4) {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+    }
     // major version
     s.embed(version.major)?;
 
@@ -272,7 +275,7 @@ impl SubsetTable<'_> for AttachList<'_> {
             .enumerate()
             .take(plan.font_num_glyphs.min(src_glyph_count))
         {
-            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, glyph) else {
                 continue;
             };
 
@@ -336,7 +339,7 @@ impl SubsetTable<'_> for LigCaretList<'_> {
             .enumerate()
             .take(plan.font_num_glyphs.min(src_lig_glyph_count))
         {
-            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, glyph) else {
                 continue;
             };
 
@@ -541,7 +544,7 @@ impl CollectVariationIndices for LigCaretList<'_> {
             let Ok(lig_glyph) = lig_glyph else {
                 return;
             };
-            if !plan.glyphset_gsub.contains(GlyphId::from(gid)) {
+            if !plan.glyphset_gsub.contains(gid) {
                 continue;
             }
             lig_glyph.collect_variation_indices(plan, varidx_set);
@@ -597,6 +600,25 @@ impl CollectUsedMarkSets for MarkGlyphSets<'_> {
             if coverage.intersects(&plan.glyphset_gsub) {
                 used_mark_sets.insert(i as u16);
             }
+        }
+    }
+}
+
+impl SubsetTable<'_> for write_fonts::read::tables::gdef::LigCaretListTable<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(&self, plan: &Plan, s: &mut Serializer, _: ()) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Offset16(t) => t.subset(plan, s, ()),
+            Self::Offset24(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+        }
+    }
+}
+
+impl CollectVariationIndices for write_fonts::read::tables::gdef::LigCaretListTable<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if let Self::Offset16(t) = self {
+            t.collect_variation_indices(plan, varidx_set);
         }
     }
 }

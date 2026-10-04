@@ -174,6 +174,8 @@ record RangeRecord {
 format u16 CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
+    Format3(CoverageFormat3),
+    Format4(CoverageFormat4),
 }
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
@@ -219,6 +221,8 @@ record ClassRangeRecord {
 format u16 ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+    Format3(ClassDefFormat3),
+    Format4(ClassDefFormat4),
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
@@ -347,6 +351,9 @@ format u16 SequenceContext {
     Format1(SequenceContextFormat1),
     Format2(SequenceContextFormat2),
     Format3(SequenceContextFormat3),
+    Format4(SequenceContextFormat4),
+    Format5(SequenceContextFormat5),
+    Format6(SequenceContextFormat6),
 }
 
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
@@ -508,6 +515,8 @@ format u16 ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
     Format2(ChainedSequenceContextFormat2),
     Format3(ChainedSequenceContextFormat3),
+    Format4(ChainedSequenceContextFormat4),
+    Format5(ChainedSequenceContextFormat5),
 }
 
 /// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
@@ -841,4 +850,283 @@ table CharacterVariantParams {
     /// feature provides glyph variants.
     #[count($char_count)]
     character: [Uint24],
+}
+
+/// ISO Open Font Format, fifth edition: CoverageFormat3.
+table CoverageFormat3 {
+    /// Format identifier — format = 3
+    #[format = 3]
+    coverage_format: u16,
+    /// Number of glyphs in the glyph array
+    #[compile(array_len($glyph_array))]
+    glyph_count: Uint24,
+    /// Array of glyph IDs — in numerical order
+    #[count($glyph_count)]
+    glyph_array: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: CoverageFormat4.
+table CoverageFormat4 {
+    /// Format identifier — format = 4
+    #[format = 4]
+    coverage_format: u16,
+    /// Number of RangeRecords
+    #[compile(array_len($range_records))]
+    range_count: Uint24,
+    /// Array of glyph ranges — ordered by startGlyphID.
+    #[count($range_count)]
+    range_records: [RangeRecord2],
+}
+
+/// ISO Open Font Format, fifth edition: RangeRecord2.
+record RangeRecord2 {
+    /// First glyph ID in the range
+    start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    end_glyph_id: GlyphId24,
+    /// Coverage Index of first glyph ID in range
+    start_coverage_index: Uint24,
+}
+
+/// ISO Open Font Format, fifth edition: ClassDefFormat3.
+table ClassDefFormat3 {
+    /// Format identifier — format = 3
+    #[format = 3]
+    class_format: u16,
+    /// First glyph ID of the classValueArray
+    start_glyph_id: GlyphId24,
+    /// Size of the classValueArray
+    #[compile(array_len($class_value_array))]
+    glyph_count: Uint24,
+    /// Array of Class Values — one per glyph ID
+    #[count($glyph_count)]
+    class_value_array: [Uint24],
+}
+
+/// ISO Open Font Format, fifth edition: ClassDefFormat4.
+table ClassDefFormat4 {
+    /// Format identifier — format = 4
+    #[format = 4]
+    class_format: u16,
+    /// Number of ClassRangeRecords
+    #[compile(array_len($class_range_records))]
+    class_range_count: Uint24,
+    /// Array of ClassRangeRecords — ordered by startGlyphID
+    #[count($class_range_count)]
+    class_range_records: [ClassRangeRecord2],
+}
+
+/// ISO Open Font Format, fifth edition: ClassRangeRecord2.
+record ClassRangeRecord2 {
+    /// First glyph ID in the range
+    #[validate(validate_glyph_range)]
+    start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    end_glyph_id: GlyphId24,
+    /// Applied to all glyphs in the range
+    class: u16,
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat4.
+table SequenceContextFormat4 {
+    /// Format identifier: format = 4
+    #[format = 4]
+    format: u16,
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat4 table
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of SequenceRuleSet tables
+    #[compile(array_len($seq_rule_set_offsets))]
+    seq_rule_set_count: Uint24,
+    /// Array of offsets to SequenceRuleSet tables, from beginning of
+    /// SequenceContextFormat4 table (offsets may be NULL)
+    #[count($seq_rule_set_count)]
+    #[nullable]
+    seq_rule_set_offsets: [Offset24<SequenceRuleSet2>],
+}
+
+/// ISO Open Font Format, fifth edition: SequenceRuleSet2.
+table SequenceRuleSet2 {
+    /// Number of SequenceRule tables
+    #[compile(array_len($seq_rule_offsets))]
+    seq_rule_count: u16,
+    /// Array of offsets to SequenceRule tables, from beginning of the
+    /// SequenceRuleSet2 table
+    #[count($seq_rule_count)]
+    seq_rule_offsets: [Offset16<SequenceRule2>],
+}
+
+/// ISO Open Font Format, fifth edition: SequenceRule2.
+table SequenceRule2 {
+    /// Number of glyphs in the input glyph sequence
+    #[compile(plus_one($input_sequence.len()))]
+    glyph_count: u16,
+    /// Number of SequenceLookupRecords
+    #[compile(array_len($seq_lookup_records))]
+    seq_lookup_count: u16,
+    /// Array of input glyph IDs—starting with the second glyph
+    #[count(subtract($glyph_count, 1))]
+    input_sequence: [GlyphId24],
+    /// Array of Sequence lookup records
+    #[count($seq_lookup_count)]
+    seq_lookup_records: [SequenceLookupRecord],
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat5.
+table SequenceContextFormat5 {
+    /// Format identifier: format = 5
+    #[format = 5]
+    format: u16,
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat5 table
+    coverage_offset: Offset32<CoverageTable>,
+    /// Offset to ClassDef table, from beginning of
+    /// SequenceContextFormat5 table
+    class_def_offset: Offset32<ClassDef>,
+    /// Number of ClassSequenceRuleSet tables
+    #[compile(array_len($class_seq_rule_set_offsets))]
+    class_seq_rule_set_count: Uint24,
+    /// Array of offsets to ClassSequenceRuleSet tables, from beginning
+    /// of SequenceContextFormat5 table (may be NULL)
+    #[count($class_seq_rule_set_count)]
+    #[nullable]
+    class_seq_rule_set_offsets: [Offset24<ClassSequenceRuleSet2>],
+}
+
+/// ISO Open Font Format, fifth edition: ClassSequenceRuleSet2.
+table ClassSequenceRuleSet2 {
+    /// Number of ClassSequenceRule tables
+    #[compile(array_len($class_seq_rule_offsets))]
+    class_seq_rule_count: u16,
+    /// Array of offsets to ClassSequenceRule tables, from beginning of
+    /// ClassSequenceRuleSet2 table
+    #[count($class_seq_rule_count)]
+    class_seq_rule_offsets: [Offset24<ClassSequenceRule>],
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat6.
+table SequenceContextFormat6 {
+    /// Format identifier: format = 6
+    #[format = 6]
+    format: u16,
+    /// Number of glyphs in the input sequence
+    #[compile(array_len($coverage_offsets))]
+    glyph_count: u16,
+    /// Number of SequenceLookupRecords
+    #[compile(array_len($seq_lookup_records))]
+    seq_lookup_count: u16,
+    /// Array of offsets to Coverage tables, from beginning of
+    /// SequenceContextFormat6 subtable
+    #[count($glyph_count)]
+    coverage_offsets: [Offset24<CoverageTable>],
+    /// Array of SequenceLookupRecords
+    #[count($seq_lookup_count)]
+    seq_lookup_records: [SequenceLookupRecord],
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat4.
+table ChainedSequenceContextFormat4 {
+    /// Format identifier: format = 4
+    #[format = 4]
+    format: u16,
+    /// Offset to Coverage table, from beginning of
+    /// ChainSequenceContextFormat1 table
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of ChainedSequenceRuleSet tables
+    #[compile(array_len($chained_seq_rule_set_offsets))]
+    chained_seq_rule_set_count: Uint24,
+    /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
+    /// ChainedSequenceContextFormat4 table (may be NULL)
+    #[count($chained_seq_rule_set_count)]
+    #[nullable]
+    chained_seq_rule_set_offsets: [Offset24<ChainedSequenceRuleSet2>],
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceRuleSet2.
+table ChainedSequenceRuleSet2 {
+    /// Number of ChainedSequenceRule tables
+    #[compile(array_len($chained_seq_rule_offsets))]
+    chained_seq_rule_count: u16,
+    /// Array of offsets to ChainedSequenceRule tables, from beginning
+    /// of ChainedSequenceRuleSet2 table
+    #[count($chained_seq_rule_count)]
+    chained_seq_rule_offsets: [Offset24<ChainedSequenceRule2>],
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceRule2.
+table ChainedSequenceRule2 {
+    /// Number of glyphs in the backtrack sequence
+    #[compile(array_len($backtrack_sequence))]
+    backtrack_glyph_count: u16,
+    /// Array of backtrack glyph IDs
+    #[count($backtrack_glyph_count)]
+    backtrack_sequence: [GlyphId24],
+    /// Number of glyphs in the input sequence
+    #[compile(plus_one($input_sequence.len()))]
+    input_glyph_count: u16,
+    /// Array of input glyph IDs—start with second glyph
+    #[count(subtract($input_glyph_count, 1))]
+    input_sequence: [GlyphId24],
+    /// Number of glyphs in the lookahead sequence
+    #[compile(array_len($lookahead_sequence))]
+    lookahead_glyph_count: u16,
+    /// Array of lookahead glyph IDs
+    #[count($lookahead_glyph_count)]
+    lookahead_sequence: [GlyphId24],
+    /// Number of SequenceLookupRecords
+    #[compile(array_len($seq_lookup_records))]
+    seq_lookup_count: u16,
+    /// Array of SequenceLookupRecords
+    #[count($seq_lookup_count)]
+    seq_lookup_records: [SequenceLookupRecord],
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat5.
+table ChainedSequenceContextFormat5 {
+    /// Format identifier: format = 5
+    #[format = 5]
+    format: u16,
+    /// Offset to Coverage table, from beginning of
+    /// ChainedSequenceContextFormat5 table
+    coverage_offset: Offset32<CoverageTable>,
+    /// Offset to ClassDef table containing backtrack sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    backtrack_class_def_offset: Offset32<ClassDef>,
+    /// Offset to ClassDef table containing input sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    input_class_def_offset: Offset32<ClassDef>,
+    /// Offset to ClassDef table containing lookahead sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    lookahead_class_def_offset: Offset32<ClassDef>,
+    /// Number of ChainedClassSequenceRuleSet tables
+    #[compile(array_len($chained_class_seq_rule_set_offsets))]
+    chained_class_seq_rule_set_count: u16,
+    /// Array of offsets to ChainedClassSequenceRuleSet tables, from
+    /// beginning of ChainedSequenceContextFormat5 table (may be NULL)
+    #[count($chained_class_seq_rule_set_count)]
+    #[nullable]
+    chained_class_seq_rule_set_offsets: [Offset24<ChainedClassSequenceRuleSet2>],
+}
+
+/// ISO Open Font Format, fifth edition: ChainedClassSequenceRuleSet2.
+table ChainedClassSequenceRuleSet2 {
+    /// Number of ChainedClassSequenceRule tables
+    #[compile(array_len($chained_class_seq_rule_offsets))]
+    chained_class_seq_rule_count: u16,
+    /// Array of offsets to ChainedClassSequenceRule tables, from
+    /// beginning of ChainedClassSequenceRuleSet2
+    #[count($chained_class_seq_rule_count)]
+    chained_class_seq_rule_offsets: [Offset24<ChainedClassSequenceRule>],
+}
+
+/// ISO Open Font Format, fifth edition: LookupList2.
+#[generic_offset(T)]
+table LookupList2 {
+    /// Number of lookups in this table
+    #[compile(array_len($lookup_offsets))]
+    lookup_count: u16,
+    /// Array of offsets to Lookup tables, from beginning of LookupList2
+    /// — zero based (first lookup is Lookup index = 0)
+    #[count($lookup_count)]
+    lookup_offsets: [Offset32<T>],
 }

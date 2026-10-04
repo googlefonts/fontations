@@ -66,7 +66,7 @@ impl HintPlan {
         } else {
             shape::ShaperMode::Nominal
         };
-        let shaper = shape::Shaper::new(font, shaper_mode);
+        let shaper = shape::Shaper::new(font, shaper_mode).with_coords(coords);
         let metrics =
             metrics::compute_unscaled_style_metrics(&shaper, coords, style_class, QuirksMode::Aot);
 

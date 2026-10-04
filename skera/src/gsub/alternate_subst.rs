@@ -102,6 +102,8 @@ impl SubsetTable<'_> for AlternateSet<'_> {
     }
 }
 
+crate::layout::legacy_subset!(gsub, AlternateSubst, AlternateSubstFormat1);
+
 #[cfg(test)]
 mod test {
     use super::*;

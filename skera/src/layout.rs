@@ -176,6 +176,9 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
         match self {
             Self::Format1(item) => item.subset(plan, s, args),
             Self::Format2(item) => item.subset(plan, s, args),
+            Self::Format3(_) | Self::Format4(_) => {
+                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
         }
     }
 }
@@ -542,6 +545,9 @@ impl<'a> SubsetTable<'a> for CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.subset(plan, s, args),
             CoverageTable::Format2(sub) => sub.subset(plan, s, args),
+            Self::Format3(_) | Self::Format4(_) => {
+                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
         }
     }
 }
@@ -747,10 +753,12 @@ pub(crate) fn intersected_glyphs_and_indices(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
     glyph_map: &[GlyphId],
-) -> (Vec<GlyphId>, IntSet<u16>) {
+) -> (Vec<GlyphId>, IntSet<u32>) {
     let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
+        CoverageTable::Format1(t) => u32::from(t.glyph_count()),
+        CoverageTable::Format2(t) => u32::from(t.range_count()),
+        CoverageTable::Format3(t) => t.glyph_count().to_u32(),
+        CoverageTable::Format4(t) => t.range_count().to_u32(),
     };
     let num_bits = 32 - count.leading_zeros();
 
@@ -770,11 +778,13 @@ pub(crate) fn intersected_glyphs_and_indices(
             indices.insert(idx);
         }
     } else {
-        for (i, g) in coverage.iter().enumerate().filter_map(|(i, g)| {
-            map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
-        }) {
+        for (i, g) in coverage
+            .iter()
+            .enumerate()
+            .filter_map(|(i, g)| map_gsub_glyph(glyph_map, g).map(|new_g| (i, new_g)))
+        {
             glyphs.push(g);
-            indices.insert(i as u16);
+            indices.insert(i as u32);
         }
     }
     (glyphs, indices)
@@ -784,10 +794,12 @@ pub(crate) fn intersected_glyphs_and_indices(
 pub(crate) fn intersected_coverage_indices(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
-) -> IntSet<u16> {
+) -> IntSet<u32> {
     let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
+        CoverageTable::Format1(t) => u32::from(t.glyph_count()),
+        CoverageTable::Format2(t) => u32::from(t.range_count()),
+        CoverageTable::Format3(t) => t.glyph_count().to_u32(),
+        CoverageTable::Format4(t) => t.range_count().to_u32(),
     };
     let num_bits = 32 - count.leading_zeros();
 
@@ -800,7 +812,7 @@ pub(crate) fn intersected_coverage_indices(
         coverage
             .iter()
             .enumerate()
-            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i as u16))
+            .filter_map(|(i, g)| glyph_set.contains(g).then_some(i as u32))
             .collect()
     }
 }
@@ -1821,6 +1833,49 @@ where
         Ok(count)
     }
 }
+
+impl<
+        'a,
+        T: FontRead<'a, Args = ()>
+            + SubsetTable<
+                'a,
+                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            >,
+    > SubsetTable<'a> for write_fonts::read::tables::layout::LookupListTable<'a, T>
+{
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Offset16(t) => t.subset(plan, s, args),
+            Self::Offset32(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+        }
+    }
+}
+
+macro_rules! legacy_subset {
+    ($module:ident, $new:ident, $old:ident) => {
+        impl<'a, 'b> crate::SubsetTable<'a> for write_fonts::read::tables::$module::$new<'b> {
+            type ArgsForSubset = <write_fonts::read::tables::$module::$old<'b> as crate::SubsetTable<'a>>::ArgsForSubset;
+            type Output = <write_fonts::read::tables::$module::$old<'b> as crate::SubsetTable<'a>>::Output;
+            fn subset(&self, plan: &crate::Plan, s: &mut crate::serialize::Serializer, args: Self::ArgsForSubset)
+                -> Result<Self::Output, crate::serialize::SerializeErrorFlags> {
+                match self {
+                    Self::Format1(t) => t.subset(plan, s, args),
+                    Self::Format2(_) => Err(s.set_err(crate::serialize::SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+                }
+            }
+        }
+    };
+}
+
+pub(crate) use legacy_subset;
 
 #[cfg(test)]
 mod test {

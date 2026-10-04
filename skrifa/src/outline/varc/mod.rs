@@ -2,7 +2,7 @@
 
 use read_fonts::{
     tables::{
-        layout::Condition,
+        layout::{Condition, ConditionError},
         varc::{
             DecomposedTransform, MultiItemVariationStore, SparseVariationRegionList, Varc,
             VarcComponent, VarcFlags,
@@ -134,7 +134,7 @@ pub(crate) struct Outlines<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct Outline {
     pub(crate) glyph_id: GlyphId,
-    pub(crate) coverage_index: u16,
+    pub(crate) coverage_index: u32,
     max_component_memory: usize,
 }
 
@@ -218,14 +218,14 @@ impl<'a> Outlines<'a> {
     }
 
     /// Lightweight coverage lookup without computing max_component_memory.
-    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, DrawError> {
+    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u32>, DrawError> {
         Ok(self.coverage.get(glyph_id))
     }
 
     fn compute_max_component_memory(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
     ) -> Result<usize, DrawError> {
         let mut stack = GlyphStack::new();
         let mut edges_left = MAX_COMPOSITE_EDGES;
@@ -235,7 +235,7 @@ impl<'a> Outlines<'a> {
     fn max_component_memory_for_glyph(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
         stack: &mut GlyphStack,
         edges_left: &mut usize,
     ) -> Result<usize, DrawError> {
@@ -331,7 +331,7 @@ impl<'a> Outlines<'a> {
     fn draw_glyph(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
         current_coords: &[F2Dot14],
         parent_matrix: Affine,
         ctx: &VarcSharedContext<'a, '_>,
@@ -686,7 +686,7 @@ impl<'a> Outlines<'a> {
             .conditions()
             .get(condition_index as usize)
             .map_err(|_| DrawError::Malformed)?;
-        Self::eval_condition(&condition, coords, store_regions, scalar_cache, scratch, 0)
+        Self::eval_condition(&condition, coords, store_regions, scalar_cache, scratch)
     }
 
     fn eval_condition(
@@ -695,28 +695,9 @@ impl<'a> Outlines<'a> {
         store_regions: Option<(&MultiItemVariationStore<'a>, &SparseVariationRegionList<'a>)>,
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
-        depth: usize,
     ) -> Result<bool, DrawError> {
-        // Format 3/4/5 conditions nest child conditions by offset, and the tree
-        // is fully attacker-controlled. Bound the recursion so a deeply nested
-        // (or degenerate) condition tree returns an error instead of overflowing
-        // the stack, mirroring the component-recursion guard in `draw_glyph`.
-        if depth >= MAX_RECURSION_DEPTH {
-            return Err(DrawError::RecursionLimitExceeded(GlyphId::NOTDEF));
-        }
-        match condition {
-            Condition::Format1AxisRange(condition) => {
-                let axis_index = condition.axis_index() as usize;
-                let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
-                Ok(coord >= condition.filter_range_min_value()
-                    && coord <= condition.filter_range_max_value())
-            }
-            Condition::Format2VariableValue(condition) => {
-                let default_value = condition.default_value() as f64;
-                let var_idx = condition.var_index();
-                if var_idx == NO_VARIATION_INDEX {
-                    return Ok(default_value > 0.0);
-                }
+        condition
+            .evaluate(coords, |var_idx| {
                 let (var_store, regions) = store_regions.ok_or(DrawError::Malformed)?;
                 compute_tuple_deltas(
                     var_store,
@@ -727,68 +708,13 @@ impl<'a> Outlines<'a> {
                     scalar_cache,
                     &mut scratch.deltas,
                 )?;
-                let delta = scratch.deltas.first().copied().unwrap_or(0.0);
-                Ok(default_value + delta > 0.0)
-            }
-            Condition::Format3And(condition) => {
-                for (index, offset) in condition.condition_offsets().iter().enumerate() {
-                    if offset.get().is_null() {
-                        continue;
-                    }
-                    let nested = condition
-                        .conditions()
-                        .get(index)
-                        .map_err(|_| DrawError::Malformed)?;
-                    if !Self::eval_condition(
-                        &nested,
-                        coords,
-                        store_regions,
-                        scalar_cache,
-                        scratch,
-                        depth + 1,
-                    )? {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
-            }
-            Condition::Format4Or(condition) => {
-                for (index, offset) in condition.condition_offsets().iter().enumerate() {
-                    if offset.get().is_null() {
-                        return Ok(true);
-                    }
-                    let nested = condition
-                        .conditions()
-                        .get(index)
-                        .map_err(|_| DrawError::Malformed)?;
-                    if Self::eval_condition(
-                        &nested,
-                        coords,
-                        store_regions,
-                        scalar_cache,
-                        scratch,
-                        depth + 1,
-                    )? {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            }
-            Condition::Format5Negate(condition) => {
-                if condition.condition_offset().is_null() {
-                    return Ok(false);
-                }
-                let nested = condition.condition().map_err(|_| DrawError::Malformed)?;
-                Ok(!Self::eval_condition(
-                    &nested,
-                    coords,
-                    store_regions,
-                    scalar_cache,
-                    scratch,
-                    depth + 1,
-                )?)
-            }
-        }
+                Ok(scratch.deltas.first().copied().unwrap_or(0.0))
+            })
+            .map_err(|error| match error {
+                ConditionError::Read(_) => DrawError::Malformed,
+                ConditionError::LimitExceeded => DrawError::RecursionLimitExceeded(GlyphId::NOTDEF),
+                ConditionError::Delta(error) => error,
+            })
     }
 
     fn scalar_cache_from_store(
@@ -1282,8 +1208,7 @@ mod tests {
         }
 
         let mut tested = 0usize;
-        for gid16 in coverage.iter() {
-            let gid: GlyphId = gid16.into();
+        for gid in coverage.iter() {
             let coverage_index = coverage.get(gid).unwrap() as usize;
             let glyph = outlines.varc.glyph(coverage_index).unwrap();
             for component in glyph.components() {
@@ -1612,7 +1537,6 @@ mod tests {
             Some((&store, &regions)),
             &mut cache,
             &mut scratch,
-            0,
         );
         assert!(
             matches!(result, Err(DrawError::RecursionLimitExceeded(_))),
@@ -1637,7 +1561,6 @@ mod tests {
             Some((&store, &regions)),
             &mut cache,
             &mut scratch,
-            0,
         )
         .unwrap());
         assert!(!Outlines::eval_condition(
@@ -1646,7 +1569,6 @@ mod tests {
             Some((&store, &regions)),
             &mut cache,
             &mut scratch,
-            0,
         )
         .unwrap());
 
@@ -1661,7 +1583,6 @@ mod tests {
             Some((&store, &regions)),
             &mut cache,
             &mut scratch,
-            0,
         )
         .unwrap());
     }
@@ -1705,9 +1626,8 @@ mod tests {
         );
     }
 
-    fn first_nested_varc_edge(outlines: &Outlines<'_>) -> Option<(GlyphId, u16)> {
-        for gid16 in outlines.coverage.iter() {
-            let gid: GlyphId = gid16.into();
+    fn first_nested_varc_edge(outlines: &Outlines<'_>) -> Option<(GlyphId, u32)> {
+        for gid in outlines.coverage.iter() {
             let coverage_index = outlines.coverage.get(gid)?;
             let glyph = outlines.varc.glyph(coverage_index as usize).ok()?;
             for component in glyph.components() {

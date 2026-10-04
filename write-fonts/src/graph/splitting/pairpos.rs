@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use font_types::{FixedSize, GlyphId16, Offset16};
+use font_types::{FixedSize, GlyphId, Offset16};
 use read_fonts::tables::{
     gpos::{self as rgpos, ValueFormat},
     layout as rlayout,
@@ -261,7 +261,7 @@ fn split_off_ppf2(
             (start..end)
                 .contains(&(glyph_class as usize))
                 // classes are used as indexes, so adjust them
-                .then_some((gid, glyph_class.saturating_sub(start as u16)))
+                .then_some((gid, glyph_class.saturating_sub(start as u32)))
         })
         .collect::<HashMap<_, _>>();
 
@@ -375,9 +375,10 @@ fn copy_value_rec(
 }
 
 struct ClassDefSizeEstimator {
+    glyph_size: usize,
     consecutive_gids: bool,
-    num_ranges_per_class: HashMap<u16, u16>,
-    glyphs_per_class: HashMap<u16, BTreeSet<GlyphId16>>,
+    num_ranges_per_class: HashMap<u32, usize>,
+    glyphs_per_class: HashMap<u32, BTreeSet<GlyphId>>,
 }
 
 const GLYPH_SIZE: usize = std::mem::size_of::<u16>();
@@ -389,11 +390,11 @@ impl ClassDefSizeEstimator {
         let mut glyphs_per_class = HashMap::new();
         for (gid, class) in coverage.iter().map(|gid| (gid, classdef.get(gid))) {
             if let Some(last) = last_gid.take() {
-                if last + 1 != gid.to_u16() {
+                if last + 1 != gid.to_u32() {
                     consecutive_gids = false;
                 }
             }
-            last_gid = Some(gid.to_u16());
+            last_gid = Some(gid.to_u32());
             glyphs_per_class
                 .entry(class)
                 .or_insert(BTreeSet::default())
@@ -407,6 +408,15 @@ impl ClassDefSizeEstimator {
             num_ranges_per_class.insert(*class, num_ranges);
         }
         ClassDefSizeEstimator {
+            glyph_size: if glyphs_per_class
+                .values()
+                .flatten()
+                .any(|g| g.to_u32() > u16::MAX as u32)
+            {
+                3
+            } else {
+                GLYPH_SIZE
+            },
             consecutive_gids,
             num_ranges_per_class,
             glyphs_per_class,
@@ -415,41 +425,41 @@ impl ClassDefSizeEstimator {
 
     fn n_glyphs_in_class(&self, class: u16) -> usize {
         self.glyphs_per_class
-            .get(&class)
+            .get(&u32::from(class))
             .map(BTreeSet::len)
             .unwrap_or_default()
     }
 
     fn increment_coverage_size(&self, class: u16) -> usize {
-        GLYPH_SIZE * self.n_glyphs_in_class(class)
+        self.glyph_size * self.n_glyphs_in_class(class)
     }
 
     fn increment_class_def_size(&self, class: u16) -> usize {
         // classdef2 uses 6 bytes for each range (start, end, class)
-        const SIZE_PER_RANGE: usize = 6;
-        let class_def_2_size = SIZE_PER_RANGE
+        let size_per_range = self.glyph_size * 2 + 2;
+        let class_def_2_size = size_per_range
             * self
                 .num_ranges_per_class
-                .get(&class)
+                .get(&u32::from(class))
                 .copied()
-                .unwrap_or_default() as usize;
+                .unwrap_or_default();
         if self.consecutive_gids {
-            class_def_2_size.min(self.n_glyphs_in_class(class) * GLYPH_SIZE)
+            class_def_2_size.min(self.n_glyphs_in_class(class) * self.glyph_size)
         } else {
             class_def_2_size
         }
     }
 }
 
-fn count_num_ranges(glyphs: &BTreeSet<GlyphId16>) -> u16 {
+fn count_num_ranges(glyphs: &BTreeSet<GlyphId>) -> usize {
     let mut count = 0;
     let mut last = None;
     for gid in glyphs {
-        match (last.take(), gid.to_u16()) {
+        match (last.take(), gid.to_u32()) {
             (Some(prev), current) if current == prev + 1 => (), // in same range
             _ => count += 1, // first glyph or glyph that starts new range
         }
-        last = Some(gid.to_u16());
+        last = Some(gid.to_u32());
     }
     count
 }
@@ -486,6 +496,7 @@ fn size_of_value_record_children(
 
 #[cfg(test)]
 mod tests {
+    use font_types::GlyphId16;
     use std::collections::BTreeMap;
 
     use read_fonts::{
@@ -590,7 +601,7 @@ mod tests {
             .unwrap()
             .iter()
             .chain(sub2.coverage().unwrap().iter())
-            .map(GlyphId16::to_u16)
+            .map(GlyphId::to_u32)
             .collect::<Vec<_>>();
         assert_eq!(gids.len(), N_GLYPHS as _);
 
@@ -723,7 +734,7 @@ mod tests {
             .iter()
             .map(|sub| match sub.unwrap() {
                 rgpos::PairPos::Format1(sub) => sub.pair_set_count(),
-                rgpos::PairPos::Format2(_) => panic!("wrong subtable format"),
+                _ => panic!("wrong subtable format"),
             })
             .sum();
         assert!(subs.len() > 1, "expected the subtable to be split");
@@ -732,8 +743,8 @@ mod tests {
 
     #[test]
     fn count_glyph_ranges() {
-        fn make_input(glyphs: &[u16]) -> BTreeSet<GlyphId16> {
-            glyphs.iter().copied().map(GlyphId16::new).collect()
+        fn make_input(glyphs: &[u16]) -> BTreeSet<GlyphId> {
+            glyphs.iter().copied().map(GlyphId::from).collect()
         }
 
         assert_eq!(count_num_ranges(&make_input(&[])), 0);
@@ -794,8 +805,8 @@ mod tests {
         let class_def1 = dummy_class_def(CLASS1_COUNT, 4, 1);
         let class_def2 = dummy_class_def(CLASS2_COUNT, 3, 1);
 
-        assert_eq!(class_def1.class_count(), CLASS1_COUNT);
-        assert_eq!(class_def2.class_count(), CLASS2_COUNT);
+        assert_eq!(class_def1.class_count(), u32::from(CLASS1_COUNT));
+        assert_eq!(class_def2.class_count(), u32::from(CLASS2_COUNT));
         let coverage = class_def1
             .iter()
             .map(|(gid, _)| gid)
@@ -859,6 +870,7 @@ mod tests {
                         .iter()
                         .map(|c1rec| c1rec.class2_records.len())
                         .sum::<usize>(),
+                    _ => panic!("wrong subtable format"),
                 })
                 .sum::<usize>(),
             _ => panic!("wrong lookup type"),
@@ -876,7 +888,7 @@ mod tests {
         let subtables = match rlookup.subtables().unwrap() {
             PositionSubtables::Pair(subs) => subs.iter().map(|sub| match sub.unwrap() {
                 rgpos::PairPos::Format2(sub) => sub,
-                rgpos::PairPos::Format1(_) => panic!("wrong subtable type"),
+                _ => panic!("wrong subtable type"),
             }),
             _ => panic!("wrong lookup type"),
         };

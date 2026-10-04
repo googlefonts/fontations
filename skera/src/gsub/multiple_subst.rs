@@ -100,6 +100,8 @@ impl SubsetTable<'_> for Sequence<'_> {
     }
 }
 
+crate::layout::legacy_subset!(gsub, MultipleSubst, MultipleSubstFormat1);
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -816,6 +816,8 @@ impl FromObjRef<read_fonts::tables::layout::RangeRecord> for RangeRecord {
 pub enum CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
+    Format3(CoverageFormat3),
+    Format4(CoverageFormat4),
 }
 
 impl CoverageTable {
@@ -827,6 +829,16 @@ impl CoverageTable {
     /// Construct a new `CoverageFormat2` subtable
     pub fn format_2(range_records: Vec<RangeRecord>) -> Self {
         Self::Format2(CoverageFormat2::new(range_records))
+    }
+
+    /// Construct a new `CoverageFormat3` subtable
+    pub fn format_3(glyph_array: Vec<GlyphId24>) -> Self {
+        Self::Format3(CoverageFormat3::new(glyph_array))
+    }
+
+    /// Construct a new `CoverageFormat4` subtable
+    pub fn format_4(range_records: Vec<RangeRecord2>) -> Self {
+        Self::Format4(CoverageFormat4::new(range_records))
     }
 }
 
@@ -841,12 +853,16 @@ impl FontWrite for CoverageTable {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -856,6 +872,8 @@ impl Validate for CoverageTable {
         match self {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -866,6 +884,8 @@ impl FromObjRef<read_fonts::tables::layout::CoverageTable<'_>> for CoverageTable
         match obj {
             ObjRefType::Format1(item) => CoverageTable::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => CoverageTable::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => CoverageTable::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => CoverageTable::Format4(item.to_owned_table()),
         }
     }
 }
@@ -892,6 +912,18 @@ impl From<CoverageFormat1> for CoverageTable {
 impl From<CoverageFormat2> for CoverageTable {
     fn from(src: CoverageFormat2) -> CoverageTable {
         CoverageTable::Format2(src)
+    }
+}
+
+impl From<CoverageFormat3> for CoverageTable {
+    fn from(src: CoverageFormat3) -> CoverageTable {
+        CoverageTable::Format3(src)
+    }
+}
+
+impl From<CoverageFormat4> for CoverageTable {
+    fn from(src: CoverageFormat4) -> CoverageTable {
+        CoverageTable::Format4(src)
     }
 }
 
@@ -1089,6 +1121,8 @@ impl FromObjRef<read_fonts::tables::layout::ClassRangeRecord> for ClassRangeReco
 pub enum ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+    Format3(ClassDefFormat3),
+    Format4(ClassDefFormat4),
 }
 
 impl ClassDef {
@@ -1100,6 +1134,16 @@ impl ClassDef {
     /// Construct a new `ClassDefFormat2` subtable
     pub fn format_2(class_range_records: Vec<ClassRangeRecord>) -> Self {
         Self::Format2(ClassDefFormat2::new(class_range_records))
+    }
+
+    /// Construct a new `ClassDefFormat3` subtable
+    pub fn format_3(start_glyph_id: GlyphId24, class_value_array: Vec<Uint24>) -> Self {
+        Self::Format3(ClassDefFormat3::new(start_glyph_id, class_value_array))
+    }
+
+    /// Construct a new `ClassDefFormat4` subtable
+    pub fn format_4(class_range_records: Vec<ClassRangeRecord2>) -> Self {
+        Self::Format4(ClassDefFormat4::new(class_range_records))
     }
 }
 
@@ -1114,12 +1158,16 @@ impl FontWrite for ClassDef {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -1129,6 +1177,8 @@ impl Validate for ClassDef {
         match self {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -1139,6 +1189,8 @@ impl FromObjRef<read_fonts::tables::layout::ClassDef<'_>> for ClassDef {
         match obj {
             ObjRefType::Format1(item) => ClassDef::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => ClassDef::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => ClassDef::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => ClassDef::Format4(item.to_owned_table()),
         }
     }
 }
@@ -1164,6 +1216,18 @@ impl From<ClassDefFormat1> for ClassDef {
 impl From<ClassDefFormat2> for ClassDef {
     fn from(src: ClassDefFormat2) -> ClassDef {
         ClassDef::Format2(src)
+    }
+}
+
+impl From<ClassDefFormat3> for ClassDef {
+    fn from(src: ClassDefFormat3) -> ClassDef {
+        ClassDef::Format3(src)
+    }
+}
+
+impl From<ClassDefFormat4> for ClassDef {
+    fn from(src: ClassDefFormat4) -> ClassDef {
+        ClassDef::Format4(src)
     }
 }
 
@@ -1760,6 +1824,9 @@ pub enum SequenceContext {
     Format1(SequenceContextFormat1),
     Format2(SequenceContextFormat2),
     Format3(SequenceContextFormat3),
+    Format4(SequenceContextFormat4),
+    Format5(SequenceContextFormat5),
+    Format6(SequenceContextFormat6),
 }
 
 impl SequenceContext {
@@ -1788,6 +1855,32 @@ impl SequenceContext {
     ) -> Self {
         Self::Format3(SequenceContextFormat3::new(coverages, seq_lookup_records))
     }
+
+    /// Construct a new `SequenceContextFormat4` subtable
+    pub fn format_4(coverage: CoverageTable, seq_rule_sets: Vec<Option<SequenceRuleSet2>>) -> Self {
+        Self::Format4(SequenceContextFormat4::new(coverage, seq_rule_sets))
+    }
+
+    /// Construct a new `SequenceContextFormat5` subtable
+    pub fn format_5(
+        coverage: CoverageTable,
+        class_def: ClassDef,
+        class_seq_rule_sets: Vec<Option<ClassSequenceRuleSet2>>,
+    ) -> Self {
+        Self::Format5(SequenceContextFormat5::new(
+            coverage,
+            class_def,
+            class_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `SequenceContextFormat6` subtable
+    pub fn format_6(
+        coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self::Format6(SequenceContextFormat6::new(coverages, seq_lookup_records))
+    }
 }
 
 impl Default for SequenceContext {
@@ -1802,6 +1895,9 @@ impl FontWrite for SequenceContext {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
             Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
+            Self::Format5(item) => item.write_into(writer),
+            Self::Format6(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
@@ -1809,6 +1905,9 @@ impl FontWrite for SequenceContext {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
             Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
+            Self::Format5(item) => item.table_type(),
+            Self::Format6(item) => item.table_type(),
         }
     }
 }
@@ -1819,6 +1918,9 @@ impl Validate for SequenceContext {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
             Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
+            Self::Format5(item) => item.validate_impl(ctx),
+            Self::Format6(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -1830,6 +1932,9 @@ impl FromObjRef<read_fonts::tables::layout::SequenceContext<'_>> for SequenceCon
             ObjRefType::Format1(item) => SequenceContext::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SequenceContext::Format2(item.to_owned_table()),
             ObjRefType::Format3(item) => SequenceContext::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => SequenceContext::Format4(item.to_owned_table()),
+            ObjRefType::Format5(item) => SequenceContext::Format5(item.to_owned_table()),
+            ObjRefType::Format6(item) => SequenceContext::Format6(item.to_owned_table()),
         }
     }
 }
@@ -1862,6 +1967,24 @@ impl From<SequenceContextFormat2> for SequenceContext {
 impl From<SequenceContextFormat3> for SequenceContext {
     fn from(src: SequenceContextFormat3) -> SequenceContext {
         SequenceContext::Format3(src)
+    }
+}
+
+impl From<SequenceContextFormat4> for SequenceContext {
+    fn from(src: SequenceContextFormat4) -> SequenceContext {
+        SequenceContext::Format4(src)
+    }
+}
+
+impl From<SequenceContextFormat5> for SequenceContext {
+    fn from(src: SequenceContextFormat5) -> SequenceContext {
+        SequenceContext::Format5(src)
+    }
+}
+
+impl From<SequenceContextFormat6> for SequenceContext {
+    fn from(src: SequenceContextFormat6) -> SequenceContext {
+        SequenceContext::Format6(src)
     }
 }
 
@@ -2541,6 +2664,8 @@ pub enum ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
     Format2(ChainedSequenceContextFormat2),
     Format3(ChainedSequenceContextFormat3),
+    Format4(ChainedSequenceContextFormat4),
+    Format5(ChainedSequenceContextFormat5),
 }
 
 impl ChainedSequenceContext {
@@ -2586,6 +2711,34 @@ impl ChainedSequenceContext {
             seq_lookup_records,
         ))
     }
+
+    /// Construct a new `ChainedSequenceContextFormat4` subtable
+    pub fn format_4(
+        coverage: CoverageTable,
+        chained_seq_rule_sets: Vec<Option<ChainedSequenceRuleSet2>>,
+    ) -> Self {
+        Self::Format4(ChainedSequenceContextFormat4::new(
+            coverage,
+            chained_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `ChainedSequenceContextFormat5` subtable
+    pub fn format_5(
+        coverage: CoverageTable,
+        backtrack_class_def: ClassDef,
+        input_class_def: ClassDef,
+        lookahead_class_def: ClassDef,
+        chained_class_seq_rule_sets: Vec<Option<ChainedClassSequenceRuleSet2>>,
+    ) -> Self {
+        Self::Format5(ChainedSequenceContextFormat5::new(
+            coverage,
+            backtrack_class_def,
+            input_class_def,
+            lookahead_class_def,
+            chained_class_seq_rule_sets,
+        ))
+    }
 }
 
 impl Default for ChainedSequenceContext {
@@ -2600,6 +2753,8 @@ impl FontWrite for ChainedSequenceContext {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
             Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
+            Self::Format5(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
@@ -2607,6 +2762,8 @@ impl FontWrite for ChainedSequenceContext {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
             Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
+            Self::Format5(item) => item.table_type(),
         }
     }
 }
@@ -2617,6 +2774,8 @@ impl Validate for ChainedSequenceContext {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
             Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
+            Self::Format5(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -2628,6 +2787,8 @@ impl FromObjRef<read_fonts::tables::layout::ChainedSequenceContext<'_>> for Chai
             ObjRefType::Format1(item) => ChainedSequenceContext::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => ChainedSequenceContext::Format2(item.to_owned_table()),
             ObjRefType::Format3(item) => ChainedSequenceContext::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => ChainedSequenceContext::Format4(item.to_owned_table()),
+            ObjRefType::Format5(item) => ChainedSequenceContext::Format5(item.to_owned_table()),
         }
     }
 }
@@ -2663,6 +2824,18 @@ impl From<ChainedSequenceContextFormat2> for ChainedSequenceContext {
 impl From<ChainedSequenceContextFormat3> for ChainedSequenceContext {
     fn from(src: ChainedSequenceContextFormat3) -> ChainedSequenceContext {
         ChainedSequenceContext::Format3(src)
+    }
+}
+
+impl From<ChainedSequenceContextFormat4> for ChainedSequenceContext {
+    fn from(src: ChainedSequenceContextFormat4) -> ChainedSequenceContext {
+        ChainedSequenceContext::Format4(src)
+    }
+}
+
+impl From<ChainedSequenceContextFormat5> for ChainedSequenceContext {
+    fn from(src: ChainedSequenceContextFormat5) -> ChainedSequenceContext {
+        ChainedSequenceContext::Format5(src)
     }
 }
 
@@ -4245,4 +4418,1360 @@ impl<'a> FontRead<'a> for CharacterVariantParams {
         <read_fonts::tables::layout::CharacterVariantParams as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
+}
+
+/// ISO Open Font Format, fifth edition: CoverageFormat3.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CoverageFormat3 {
+    /// Array of glyph IDs — in numerical order
+    pub glyph_array: Vec<GlyphId24>,
+}
+
+impl CoverageFormat3 {
+    /// Construct a new `CoverageFormat3`
+    pub fn new(glyph_array: Vec<GlyphId24>) -> Self {
+        Self { glyph_array }
+    }
+}
+
+impl FontWrite for CoverageFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        (Uint24::try_from(array_len(&self.glyph_array)).unwrap()).write_into(writer);
+        self.glyph_array.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CoverageFormat3")
+    }
+}
+
+impl Validate for CoverageFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CoverageFormat3", |ctx| {
+            ctx.in_field("glyph_array", |ctx| {
+                if self.glyph_array.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat3<'a>> for CoverageFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageFormat3<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CoverageFormat3 {
+            glyph_array: obj.glyph_array().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat3<'a>> for CoverageFormat3 {}
+
+impl ReadArgs for CoverageFormat3 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for CoverageFormat3 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::CoverageFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: CoverageFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CoverageFormat4 {
+    /// Array of glyph ranges — ordered by startGlyphID.
+    pub range_records: Vec<RangeRecord2>,
+}
+
+impl CoverageFormat4 {
+    /// Construct a new `CoverageFormat4`
+    pub fn new(range_records: Vec<RangeRecord2>) -> Self {
+        Self { range_records }
+    }
+}
+
+impl FontWrite for CoverageFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        (Uint24::try_from(array_len(&self.range_records)).unwrap()).write_into(writer);
+        self.range_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CoverageFormat4")
+    }
+}
+
+impl Validate for CoverageFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CoverageFormat4", |ctx| {
+            ctx.in_field("range_records", |ctx| {
+                if self.range_records.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.range_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat4<'a>> for CoverageFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageFormat4<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CoverageFormat4 {
+            range_records: obj.range_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat4<'a>> for CoverageFormat4 {}
+
+impl ReadArgs for CoverageFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for CoverageFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::CoverageFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: RangeRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RangeRecord2 {
+    /// First glyph ID in the range
+    pub start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    pub end_glyph_id: GlyphId24,
+    /// Coverage Index of first glyph ID in range
+    pub start_coverage_index: Uint24,
+}
+
+impl RangeRecord2 {
+    /// Construct a new `RangeRecord2`
+    pub fn new(
+        start_glyph_id: GlyphId24,
+        end_glyph_id: GlyphId24,
+        start_coverage_index: Uint24,
+    ) -> Self {
+        Self {
+            start_glyph_id,
+            end_glyph_id,
+            start_coverage_index,
+        }
+    }
+}
+
+impl FontWrite for RangeRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.start_glyph_id.write_into(writer);
+        self.end_glyph_id.write_into(writer);
+        self.start_coverage_index.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("RangeRecord2")
+    }
+}
+
+impl Validate for RangeRecord2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::layout::RangeRecord2> for RangeRecord2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::RangeRecord2, _: FontData) -> Self {
+        RangeRecord2 {
+            start_glyph_id: obj.start_glyph_id(),
+            end_glyph_id: obj.end_glyph_id(),
+            start_coverage_index: obj.start_coverage_index(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ClassDefFormat3.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ClassDefFormat3 {
+    /// First glyph ID of the classValueArray
+    pub start_glyph_id: GlyphId24,
+    /// Array of Class Values — one per glyph ID
+    pub class_value_array: Vec<Uint24>,
+}
+
+impl ClassDefFormat3 {
+    /// Construct a new `ClassDefFormat3`
+    pub fn new(start_glyph_id: GlyphId24, class_value_array: Vec<Uint24>) -> Self {
+        Self {
+            start_glyph_id,
+            class_value_array,
+        }
+    }
+}
+
+impl FontWrite for ClassDefFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        self.start_glyph_id.write_into(writer);
+        (Uint24::try_from(array_len(&self.class_value_array)).unwrap()).write_into(writer);
+        self.class_value_array.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassDefFormat3")
+    }
+}
+
+impl Validate for ClassDefFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassDefFormat3", |ctx| {
+            ctx.in_field("class_value_array", |ctx| {
+                if self.class_value_array.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat3<'a>> for ClassDefFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassDefFormat3<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ClassDefFormat3 {
+            start_glyph_id: obj.start_glyph_id(),
+            class_value_array: obj.class_value_array().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat3<'a>> for ClassDefFormat3 {}
+
+impl ReadArgs for ClassDefFormat3 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ClassDefFormat3 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ClassDefFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ClassDefFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ClassDefFormat4 {
+    /// Array of ClassRangeRecords — ordered by startGlyphID
+    pub class_range_records: Vec<ClassRangeRecord2>,
+}
+
+impl ClassDefFormat4 {
+    /// Construct a new `ClassDefFormat4`
+    pub fn new(class_range_records: Vec<ClassRangeRecord2>) -> Self {
+        Self {
+            class_range_records,
+        }
+    }
+}
+
+impl FontWrite for ClassDefFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        (Uint24::try_from(array_len(&self.class_range_records)).unwrap()).write_into(writer);
+        self.class_range_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassDefFormat4")
+    }
+}
+
+impl Validate for ClassDefFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassDefFormat4", |ctx| {
+            ctx.in_field("class_range_records", |ctx| {
+                if self.class_range_records.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.class_range_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat4<'a>> for ClassDefFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassDefFormat4<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ClassDefFormat4 {
+            class_range_records: obj.class_range_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat4<'a>> for ClassDefFormat4 {}
+
+impl ReadArgs for ClassDefFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ClassDefFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ClassDefFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ClassRangeRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ClassRangeRecord2 {
+    /// First glyph ID in the range
+    pub start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    pub end_glyph_id: GlyphId24,
+    /// Applied to all glyphs in the range
+    pub class: u16,
+}
+
+impl ClassRangeRecord2 {
+    /// Construct a new `ClassRangeRecord2`
+    pub fn new(start_glyph_id: GlyphId24, end_glyph_id: GlyphId24, class: u16) -> Self {
+        Self {
+            start_glyph_id,
+            end_glyph_id,
+            class,
+        }
+    }
+}
+
+impl FontWrite for ClassRangeRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.start_glyph_id.write_into(writer);
+        self.end_glyph_id.write_into(writer);
+        self.class.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassRangeRecord2")
+    }
+}
+
+impl Validate for ClassRangeRecord2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassRangeRecord2", |ctx| {
+            ctx.in_field("start_glyph_id", |ctx| {
+                self.validate_glyph_range(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::layout::ClassRangeRecord2> for ClassRangeRecord2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassRangeRecord2, _: FontData) -> Self {
+        ClassRangeRecord2 {
+            start_glyph_id: obj.start_glyph_id(),
+            end_glyph_id: obj.end_glyph_id(),
+            class: obj.class(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SequenceContextFormat4 {
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat4 table
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to SequenceRuleSet tables, from beginning of
+    /// SequenceContextFormat4 table (offsets may be NULL)
+    pub seq_rule_sets: Vec<NullableOffsetMarker<SequenceRuleSet2, WIDTH_24>>,
+}
+
+impl SequenceContextFormat4 {
+    /// Construct a new `SequenceContextFormat4`
+    pub fn new(coverage: CoverageTable, seq_rule_sets: Vec<Option<SequenceRuleSet2>>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            seq_rule_sets: seq_rule_sets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for SequenceContextFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.seq_rule_sets)).unwrap()).write_into(writer);
+        self.seq_rule_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceContextFormat4")
+    }
+}
+
+impl Validate for SequenceContextFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceContextFormat4", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("seq_rule_sets", |ctx| {
+                if self.seq_rule_sets.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.seq_rule_sets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat4<'a>>
+    for SequenceContextFormat4
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::SequenceContextFormat4<'a>,
+        _: FontData,
+    ) -> Self {
+        SequenceContextFormat4 {
+            coverage: obj.coverage().to_owned_table(),
+            seq_rule_sets: obj.seq_rule_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat4<'a>>
+    for SequenceContextFormat4
+{
+}
+
+impl ReadArgs for SequenceContextFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceContextFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::SequenceContextFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceRuleSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SequenceRuleSet2 {
+    /// Array of offsets to SequenceRule tables, from beginning of the
+    /// SequenceRuleSet2 table
+    pub seq_rules: Vec<OffsetMarker<SequenceRule2>>,
+}
+
+impl SequenceRuleSet2 {
+    /// Construct a new `SequenceRuleSet2`
+    pub fn new(seq_rules: Vec<SequenceRule2>) -> Self {
+        Self {
+            seq_rules: seq_rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for SequenceRuleSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.seq_rules)).unwrap()).write_into(writer);
+        self.seq_rules.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceRuleSet2")
+    }
+}
+
+impl Validate for SequenceRuleSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceRuleSet2", |ctx| {
+            ctx.in_field("seq_rules", |ctx| {
+                if self.seq_rules.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.seq_rules.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRuleSet2<'a>> for SequenceRuleSet2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceRuleSet2<'a>, _: FontData) -> Self {
+        SequenceRuleSet2 {
+            seq_rules: obj.seq_rules().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRuleSet2<'a>> for SequenceRuleSet2 {}
+
+impl ReadArgs for SequenceRuleSet2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceRuleSet2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::SequenceRuleSet2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceRule2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SequenceRule2 {
+    /// Array of input glyph IDs—starting with the second glyph
+    pub input_sequence: Vec<GlyphId24>,
+    /// Array of Sequence lookup records
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl SequenceRule2 {
+    /// Construct a new `SequenceRule2`
+    pub fn new(
+        input_sequence: Vec<GlyphId24>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            input_sequence,
+            seq_lookup_records,
+        }
+    }
+}
+
+impl FontWrite for SequenceRule2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(plus_one(&self.input_sequence.len())).unwrap()).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
+        self.input_sequence.write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceRule2")
+    }
+}
+
+impl Validate for SequenceRule2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceRule2", |ctx| {
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRule2<'a>> for SequenceRule2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceRule2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SequenceRule2 {
+            input_sequence: obj.input_sequence().to_owned_obj(offset_data),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRule2<'a>> for SequenceRule2 {}
+
+impl ReadArgs for SequenceRule2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceRule2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::SequenceRule2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat5.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SequenceContextFormat5 {
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat5 table
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to ClassDef table, from beginning of
+    /// SequenceContextFormat5 table
+    pub class_def: OffsetMarker<ClassDef, WIDTH_32>,
+    /// Array of offsets to ClassSequenceRuleSet tables, from beginning
+    /// of SequenceContextFormat5 table (may be NULL)
+    pub class_seq_rule_sets: Vec<NullableOffsetMarker<ClassSequenceRuleSet2, WIDTH_24>>,
+}
+
+impl SequenceContextFormat5 {
+    /// Construct a new `SequenceContextFormat5`
+    pub fn new(
+        coverage: CoverageTable,
+        class_def: ClassDef,
+        class_seq_rule_sets: Vec<Option<ClassSequenceRuleSet2>>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            class_def: class_def.into(),
+            class_seq_rule_sets: class_seq_rule_sets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for SequenceContextFormat5 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (5 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        self.class_def.write_into(writer);
+        (Uint24::try_from(array_len(&self.class_seq_rule_sets)).unwrap()).write_into(writer);
+        self.class_seq_rule_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceContextFormat5")
+    }
+}
+
+impl Validate for SequenceContextFormat5 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceContextFormat5", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("class_def", |ctx| {
+                self.class_def.validate_impl(ctx);
+            });
+            ctx.in_field("class_seq_rule_sets", |ctx| {
+                if self.class_seq_rule_sets.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.class_seq_rule_sets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat5<'a>>
+    for SequenceContextFormat5
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::SequenceContextFormat5<'a>,
+        _: FontData,
+    ) -> Self {
+        SequenceContextFormat5 {
+            coverage: obj.coverage().to_owned_table(),
+            class_def: obj.class_def().to_owned_table(),
+            class_seq_rule_sets: obj.class_seq_rule_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat5<'a>>
+    for SequenceContextFormat5
+{
+}
+
+impl ReadArgs for SequenceContextFormat5 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceContextFormat5 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::SequenceContextFormat5 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ClassSequenceRuleSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ClassSequenceRuleSet2 {
+    /// Array of offsets to ClassSequenceRule tables, from beginning of
+    /// ClassSequenceRuleSet2 table
+    pub class_seq_rules: Vec<OffsetMarker<ClassSequenceRule, WIDTH_24>>,
+}
+
+impl ClassSequenceRuleSet2 {
+    /// Construct a new `ClassSequenceRuleSet2`
+    pub fn new(class_seq_rules: Vec<ClassSequenceRule>) -> Self {
+        Self {
+            class_seq_rules: class_seq_rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for ClassSequenceRuleSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.class_seq_rules)).unwrap()).write_into(writer);
+        self.class_seq_rules.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassSequenceRuleSet2")
+    }
+}
+
+impl Validate for ClassSequenceRuleSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassSequenceRuleSet2", |ctx| {
+            ctx.in_field("class_seq_rules", |ctx| {
+                if self.class_seq_rules.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.class_seq_rules.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRuleSet2<'a>>
+    for ClassSequenceRuleSet2
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ClassSequenceRuleSet2<'a>,
+        _: FontData,
+    ) -> Self {
+        ClassSequenceRuleSet2 {
+            class_seq_rules: obj.class_seq_rules().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRuleSet2<'a>>
+    for ClassSequenceRuleSet2
+{
+}
+
+impl ReadArgs for ClassSequenceRuleSet2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ClassSequenceRuleSet2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ClassSequenceRuleSet2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SequenceContextFormat6.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SequenceContextFormat6 {
+    /// Array of offsets to Coverage tables, from beginning of
+    /// SequenceContextFormat6 subtable
+    pub coverages: Vec<OffsetMarker<CoverageTable, WIDTH_24>>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl SequenceContextFormat6 {
+    /// Construct a new `SequenceContextFormat6`
+    pub fn new(
+        coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            coverages: coverages.into_iter().map(Into::into).collect(),
+            seq_lookup_records,
+        }
+    }
+}
+
+impl FontWrite for SequenceContextFormat6 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (6 as u16).write_into(writer);
+        (u16::try_from(array_len(&self.coverages)).unwrap()).write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
+        self.coverages.write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceContextFormat6")
+    }
+}
+
+impl Validate for SequenceContextFormat6 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceContextFormat6", |ctx| {
+            ctx.in_field("coverages", |ctx| {
+                if self.coverages.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.coverages.validate_impl(ctx);
+            });
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat6<'a>>
+    for SequenceContextFormat6
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::SequenceContextFormat6<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        SequenceContextFormat6 {
+            coverages: obj.coverages().to_owned_table(),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat6<'a>>
+    for SequenceContextFormat6
+{
+}
+
+impl ReadArgs for SequenceContextFormat6 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SequenceContextFormat6 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::SequenceContextFormat6 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ChainedSequenceContextFormat4 {
+    /// Offset to Coverage table, from beginning of
+    /// ChainSequenceContextFormat1 table
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
+    /// ChainedSequenceContextFormat4 table (may be NULL)
+    pub chained_seq_rule_sets: Vec<NullableOffsetMarker<ChainedSequenceRuleSet2, WIDTH_24>>,
+}
+
+impl ChainedSequenceContextFormat4 {
+    /// Construct a new `ChainedSequenceContextFormat4`
+    pub fn new(
+        coverage: CoverageTable,
+        chained_seq_rule_sets: Vec<Option<ChainedSequenceRuleSet2>>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            chained_seq_rule_sets: chained_seq_rule_sets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for ChainedSequenceContextFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.chained_seq_rule_sets)).unwrap()).write_into(writer);
+        self.chained_seq_rule_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceContextFormat4")
+    }
+}
+
+impl Validate for ChainedSequenceContextFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceContextFormat4", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("chained_seq_rule_sets", |ctx| {
+                if self.chained_seq_rule_sets.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.chained_seq_rule_sets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat4<'a>>
+    for ChainedSequenceContextFormat4
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedSequenceContextFormat4<'a>,
+        _: FontData,
+    ) -> Self {
+        ChainedSequenceContextFormat4 {
+            coverage: obj.coverage().to_owned_table(),
+            chained_seq_rule_sets: obj.chained_seq_rule_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat4<'a>>
+    for ChainedSequenceContextFormat4
+{
+}
+
+impl ReadArgs for ChainedSequenceContextFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ChainedSequenceContextFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceRuleSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ChainedSequenceRuleSet2 {
+    /// Array of offsets to ChainedSequenceRule tables, from beginning
+    /// of ChainedSequenceRuleSet2 table
+    pub chained_seq_rules: Vec<OffsetMarker<ChainedSequenceRule2, WIDTH_24>>,
+}
+
+impl ChainedSequenceRuleSet2 {
+    /// Construct a new `ChainedSequenceRuleSet2`
+    pub fn new(chained_seq_rules: Vec<ChainedSequenceRule2>) -> Self {
+        Self {
+            chained_seq_rules: chained_seq_rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for ChainedSequenceRuleSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.chained_seq_rules)).unwrap()).write_into(writer);
+        self.chained_seq_rules.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceRuleSet2")
+    }
+}
+
+impl Validate for ChainedSequenceRuleSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceRuleSet2", |ctx| {
+            ctx.in_field("chained_seq_rules", |ctx| {
+                if self.chained_seq_rules.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.chained_seq_rules.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRuleSet2<'a>>
+    for ChainedSequenceRuleSet2
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedSequenceRuleSet2<'a>,
+        _: FontData,
+    ) -> Self {
+        ChainedSequenceRuleSet2 {
+            chained_seq_rules: obj.chained_seq_rules().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRuleSet2<'a>>
+    for ChainedSequenceRuleSet2
+{
+}
+
+impl ReadArgs for ChainedSequenceRuleSet2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceRuleSet2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ChainedSequenceRuleSet2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceRule2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ChainedSequenceRule2 {
+    /// Array of backtrack glyph IDs
+    pub backtrack_sequence: Vec<GlyphId24>,
+    /// Array of input glyph IDs—start with second glyph
+    pub input_sequence: Vec<GlyphId24>,
+    /// Array of lookahead glyph IDs
+    pub lookahead_sequence: Vec<GlyphId24>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl ChainedSequenceRule2 {
+    /// Construct a new `ChainedSequenceRule2`
+    pub fn new(
+        backtrack_sequence: Vec<GlyphId24>,
+        input_sequence: Vec<GlyphId24>,
+        lookahead_sequence: Vec<GlyphId24>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            backtrack_sequence,
+            input_sequence,
+            lookahead_sequence,
+            seq_lookup_records,
+        }
+    }
+}
+
+impl FontWrite for ChainedSequenceRule2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.backtrack_sequence)).unwrap()).write_into(writer);
+        self.backtrack_sequence.write_into(writer);
+        (u16::try_from(plus_one(&self.input_sequence.len())).unwrap()).write_into(writer);
+        self.input_sequence.write_into(writer);
+        (u16::try_from(array_len(&self.lookahead_sequence)).unwrap()).write_into(writer);
+        self.lookahead_sequence.write_into(writer);
+        (u16::try_from(array_len(&self.seq_lookup_records)).unwrap()).write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceRule2")
+    }
+}
+
+impl Validate for ChainedSequenceRule2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceRule2", |ctx| {
+            ctx.in_field("backtrack_sequence", |ctx| {
+                if self.backtrack_sequence.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("lookahead_sequence", |ctx| {
+                if self.lookahead_sequence.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRule2<'a>> for ChainedSequenceRule2 {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedSequenceRule2<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        ChainedSequenceRule2 {
+            backtrack_sequence: obj.backtrack_sequence().to_owned_obj(offset_data),
+            input_sequence: obj.input_sequence().to_owned_obj(offset_data),
+            lookahead_sequence: obj.lookahead_sequence().to_owned_obj(offset_data),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRule2<'a>>
+    for ChainedSequenceRule2
+{
+}
+
+impl ReadArgs for ChainedSequenceRule2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceRule2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ChainedSequenceRule2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat5.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ChainedSequenceContextFormat5 {
+    /// Offset to Coverage table, from beginning of
+    /// ChainedSequenceContextFormat5 table
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to ClassDef table containing backtrack sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    pub backtrack_class_def: OffsetMarker<ClassDef, WIDTH_32>,
+    /// Offset to ClassDef table containing input sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    pub input_class_def: OffsetMarker<ClassDef, WIDTH_32>,
+    /// Offset to ClassDef table containing lookahead sequence context,
+    /// from beginning of ChainedSequenceContextFormat5 table
+    pub lookahead_class_def: OffsetMarker<ClassDef, WIDTH_32>,
+    /// Array of offsets to ChainedClassSequenceRuleSet tables, from
+    /// beginning of ChainedSequenceContextFormat5 table (may be NULL)
+    pub chained_class_seq_rule_sets:
+        Vec<NullableOffsetMarker<ChainedClassSequenceRuleSet2, WIDTH_24>>,
+}
+
+impl ChainedSequenceContextFormat5 {
+    /// Construct a new `ChainedSequenceContextFormat5`
+    pub fn new(
+        coverage: CoverageTable,
+        backtrack_class_def: ClassDef,
+        input_class_def: ClassDef,
+        lookahead_class_def: ClassDef,
+        chained_class_seq_rule_sets: Vec<Option<ChainedClassSequenceRuleSet2>>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            backtrack_class_def: backtrack_class_def.into(),
+            input_class_def: input_class_def.into(),
+            lookahead_class_def: lookahead_class_def.into(),
+            chained_class_seq_rule_sets: chained_class_seq_rule_sets
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+impl FontWrite for ChainedSequenceContextFormat5 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (5 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        self.backtrack_class_def.write_into(writer);
+        self.input_class_def.write_into(writer);
+        self.lookahead_class_def.write_into(writer);
+        (u16::try_from(array_len(&self.chained_class_seq_rule_sets)).unwrap()).write_into(writer);
+        self.chained_class_seq_rule_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceContextFormat5")
+    }
+}
+
+impl Validate for ChainedSequenceContextFormat5 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceContextFormat5", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("backtrack_class_def", |ctx| {
+                self.backtrack_class_def.validate_impl(ctx);
+            });
+            ctx.in_field("input_class_def", |ctx| {
+                self.input_class_def.validate_impl(ctx);
+            });
+            ctx.in_field("lookahead_class_def", |ctx| {
+                self.lookahead_class_def.validate_impl(ctx);
+            });
+            ctx.in_field("chained_class_seq_rule_sets", |ctx| {
+                if self.chained_class_seq_rule_sets.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.chained_class_seq_rule_sets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat5<'a>>
+    for ChainedSequenceContextFormat5
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedSequenceContextFormat5<'a>,
+        _: FontData,
+    ) -> Self {
+        ChainedSequenceContextFormat5 {
+            coverage: obj.coverage().to_owned_table(),
+            backtrack_class_def: obj.backtrack_class_def().to_owned_table(),
+            input_class_def: obj.input_class_def().to_owned_table(),
+            lookahead_class_def: obj.lookahead_class_def().to_owned_table(),
+            chained_class_seq_rule_sets: obj.chained_class_seq_rule_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat5<'a>>
+    for ChainedSequenceContextFormat5
+{
+}
+
+impl ReadArgs for ChainedSequenceContextFormat5 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat5 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ChainedSequenceContextFormat5 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ChainedClassSequenceRuleSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ChainedClassSequenceRuleSet2 {
+    /// Array of offsets to ChainedClassSequenceRule tables, from
+    /// beginning of ChainedClassSequenceRuleSet2
+    pub chained_class_seq_rules: Vec<OffsetMarker<ChainedClassSequenceRule, WIDTH_24>>,
+}
+
+impl ChainedClassSequenceRuleSet2 {
+    /// Construct a new `ChainedClassSequenceRuleSet2`
+    pub fn new(chained_class_seq_rules: Vec<ChainedClassSequenceRule>) -> Self {
+        Self {
+            chained_class_seq_rules: chained_class_seq_rules
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+impl FontWrite for ChainedClassSequenceRuleSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.chained_class_seq_rules)).unwrap()).write_into(writer);
+        self.chained_class_seq_rules.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedClassSequenceRuleSet2")
+    }
+}
+
+impl Validate for ChainedClassSequenceRuleSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedClassSequenceRuleSet2", |ctx| {
+            ctx.in_field("chained_class_seq_rules", |ctx| {
+                if self.chained_class_seq_rules.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.chained_class_seq_rules.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet2<'a>>
+    for ChainedClassSequenceRuleSet2
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedClassSequenceRuleSet2<'a>,
+        _: FontData,
+    ) -> Self {
+        ChainedClassSequenceRuleSet2 {
+            chained_class_seq_rules: obj.chained_class_seq_rules().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet2<'a>>
+    for ChainedClassSequenceRuleSet2
+{
+}
+
+impl ReadArgs for ChainedClassSequenceRuleSet2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ChainedClassSequenceRuleSet2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LookupList2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LookupList2<T> {
+    /// Array of offsets to Lookup tables, from beginning of LookupList2
+    /// — zero based (first lookup is Lookup index = 0)
+    pub lookups: Vec<OffsetMarker<T, WIDTH_32>>,
+}
+
+impl<T: Default> LookupList2<T> {
+    /// Construct a new `LookupList2`
+    pub fn new(lookups: Vec<T>) -> Self {
+        Self {
+            lookups: lookups.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl<T: FontWrite> FontWrite for LookupList2<T> {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.lookups)).unwrap()).write_into(writer);
+        self.lookups.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LookupList2")
+    }
+}
+
+impl<T: Validate> Validate for LookupList2<T> {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LookupList2", |ctx| {
+            ctx.in_field("lookups", |ctx| {
+                if self.lookups.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.lookups.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a, T, U> FromObjRef<read_fonts::tables::layout::LookupList2<'a, U>> for LookupList2<T>
+where
+    U: FontRead<'a, Args = ()>,
+    T: FromTableRef<U> + Default + 'static,
+{
+    fn from_obj_ref(obj: &read_fonts::tables::layout::LookupList2<'a, U>, _: FontData) -> Self {
+        LookupList2 {
+            lookups: obj.lookups().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a, T, U> FromTableRef<read_fonts::tables::layout::LookupList2<'a, U>> for LookupList2<T>
+where
+    U: FontRead<'a, Args = ()>,
+    T: FromTableRef<U> + Default + 'static,
+{
 }

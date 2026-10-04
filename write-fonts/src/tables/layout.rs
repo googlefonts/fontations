@@ -7,6 +7,8 @@ use read_fonts::FontRead;
 
 pub mod builders;
 #[cfg(test)]
+mod extended;
+#[cfg(test)]
 mod lookup_variations;
 #[cfg(test)]
 mod spec_tests;
@@ -54,6 +56,26 @@ macro_rules! lookup_type {
 ///
 /// We use this to ensure that shared lookup types (Sequence/Chain
 /// lookups) can be given different lookup ids for each of GSUB/GPOS.
+macro_rules! legacy_lookup {
+    ($group:ident, $variant:ident, $old:ty, $new:ty) => {
+        impl From<Lookup<$old>> for $group {
+            fn from(lookup: Lookup<$old>) -> Self {
+                Self::$variant(Lookup {
+                    lookup_flag: lookup.lookup_flag,
+                    subtables: lookup
+                        .subtables
+                        .into_iter()
+                        .map(|subtable| OffsetMarker::new(<$new>::from(subtable.into_inner())))
+                        .collect(),
+                    mark_filtering_set: lookup.mark_filtering_set,
+                })
+            }
+        }
+    };
+}
+
+pub(crate) use legacy_lookup;
+
 macro_rules! table_newtype {
     ($name:ident, $inner:ident, $read_type:path) => {
         /// A typed wrapper around a shared table.
@@ -294,10 +316,6 @@ impl ClassRangeRecord {
             ));
         }
     }
-
-    fn contains(&self, gid: GlyphId16) -> bool {
-        (self.start_glyph_id..=self.end_glyph_id).contains(&gid)
-    }
 }
 
 impl ClassDefFormat2 {
@@ -310,53 +328,96 @@ impl ClassDefFormat2 {
 }
 
 impl ClassDef {
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
-        let (one, two) = match self {
-            Self::Format1(table) => (Some(table.iter()), None),
-            Self::Format2(table) => (None, Some(table.iter())),
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u32)> + '_ {
+        let (one, two, three, four) = match self {
+            Self::Format1(t) => (
+                Some(t.iter().map(|(g, c)| (g.into(), u32::from(c)))),
+                None,
+                None,
+                None,
+            ),
+            Self::Format2(t) => (
+                None,
+                Some(t.iter().map(|(g, c)| (g.into(), u32::from(c)))),
+                None,
+                None,
+            ),
+            Self::Format3(t) => (
+                None,
+                None,
+                Some(
+                    t.class_value_array
+                        .iter()
+                        .enumerate()
+                        .filter_map(move |(i, c)| {
+                            let g = t.start_glyph_id.to_u32().checked_add(i as u32)?;
+                            (g <= Uint24::MAX.to_u32()).then_some((GlyphId::new(g), c.to_u32()))
+                        }),
+                ),
+                None,
+            ),
+            Self::Format4(t) => (
+                None,
+                None,
+                None,
+                Some(t.class_range_records.iter().flat_map(|r| {
+                    (r.start_glyph_id.to_u32()..=r.end_glyph_id.to_u32())
+                        .map(move |g| (GlyphId::new(g), u32::from(r.class)))
+                })),
+            ),
         };
-
-        one.into_iter().flatten().chain(two.into_iter().flatten())
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+            .chain(four.into_iter().flatten())
     }
 
-    /// Return the glyph class for the provided glyph.
-    ///
-    /// Glyphs which have not been assigned a class are given class 0
-    pub fn get(&self, glyph: GlyphId16) -> u16 {
-        self.get_raw(glyph).unwrap_or(0)
+    /// Returns the glyph's class, or zero if it has not been assigned one.
+    pub fn get(&self, glyph: impl Into<GlyphId>) -> u32 {
+        self.get_raw(glyph.into()).unwrap_or(0)
     }
 
-    // exposed for testing
-    fn get_raw(&self, glyph: GlyphId16) -> Option<u16> {
+    fn get_raw(&self, glyph: impl Into<GlyphId>) -> Option<u32> {
+        let glyph = glyph.into().to_u32();
         match self {
-            ClassDef::Format1(table) => glyph
-                .to_u16()
-                .checked_sub(table.start_glyph_id.to_u16())
-                .and_then(|idx| table.class_value_array.get(idx as usize))
-                .copied(),
-            ClassDef::Format2(table) => table
+            Self::Format1(t) => glyph
+                .checked_sub(t.start_glyph_id.to_u32())
+                .and_then(|i| t.class_value_array.get(i as usize))
+                .map(|c| u32::from(*c)),
+            Self::Format2(t) => t
                 .class_range_records
                 .iter()
-                .find_map(|rec| rec.contains(glyph).then_some(rec.class)),
+                .find(|r| (r.start_glyph_id.to_u32()..=r.end_glyph_id.to_u32()).contains(&glyph))
+                .map(|r| u32::from(r.class)),
+            Self::Format3(t) => glyph
+                .checked_sub(t.start_glyph_id.to_u32())
+                .filter(|_| glyph <= Uint24::MAX.to_u32())
+                .and_then(|i| t.class_value_array.get(i as usize))
+                .map(|c| c.to_u32()),
+            Self::Format4(t) => t
+                .class_range_records
+                .iter()
+                .find(|r| (r.start_glyph_id.to_u32()..=r.end_glyph_id.to_u32()).contains(&glyph))
+                .map(|r| u32::from(r.class)),
         }
     }
 
-    pub fn class_count(&self) -> u16 {
-        //TODO: implement a good integer set!!
+    pub fn class_count(&self) -> u32 {
         self.iter()
-            .map(|(_gid, cls)| cls)
+            .map(|(_, c)| c)
             .chain(std::iter::once(0))
             .collect::<HashSet<_>>()
-            .len()
-            .try_into()
-            .unwrap()
+            .len() as u32
     }
 
-    /// Returns `true` if no glyphs are explicitly assigned to a class in this table
+    /// Returns whether the table explicitly assigns no glyphs.
     pub fn is_empty(&self) -> bool {
         match self {
-            Self::Format1(table) => table.class_value_array.is_empty(),
-            Self::Format2(table) => table.class_range_records.is_empty(),
+            Self::Format1(t) => t.class_value_array.is_empty(),
+            Self::Format2(t) => t.class_range_records.is_empty(),
+            Self::Format3(t) => t.class_value_array.is_empty(),
+            Self::Format4(t) => t.class_range_records.is_empty(),
         }
     }
 }
@@ -392,19 +453,47 @@ impl CoverageFormat2 {
 }
 
 impl CoverageTable {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
-        let (one, two) = match self {
-            Self::Format1(table) => (Some(table.iter()), None),
-            Self::Format2(table) => (None, Some(table.iter())),
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        let (one, two, three, four) = match self {
+            Self::Format1(t) => (Some(t.iter().map(GlyphId::from)), None, None, None),
+            Self::Format2(t) => (None, Some(t.iter().map(GlyphId::from)), None, None),
+            Self::Format3(t) => (
+                None,
+                None,
+                Some(t.glyph_array.iter().copied().map(GlyphId::from)),
+                None,
+            ),
+            Self::Format4(t) => (
+                None,
+                None,
+                None,
+                Some(t.range_records.iter().flat_map(|r| {
+                    (r.start_glyph_id.to_u32()..=r.end_glyph_id.to_u32()).map(GlyphId::new)
+                })),
+            ),
         };
-
-        one.into_iter().flatten().chain(two.into_iter().flatten())
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+            .chain(four.into_iter().flatten())
     }
 
     pub fn len(&self) -> usize {
         match self {
-            Self::Format1(table) => table.len(),
-            Self::Format2(table) => table.len(),
+            Self::Format1(t) => t.len(),
+            Self::Format2(t) => t.len(),
+            Self::Format3(t) => t.glyph_array.len(),
+            Self::Format4(t) => t
+                .range_records
+                .iter()
+                .map(|r| {
+                    r.end_glyph_id
+                        .to_u32()
+                        .checked_sub(r.start_glyph_id.to_u32())
+                        .map_or(0, |n| n as usize + 1)
+                })
+                .sum(),
         }
     }
 
@@ -548,6 +637,74 @@ fn encode_chunk(chunk: &[i8], mask: u8, bits: usize) -> u16 {
 impl From<VariationIndex> for u32 {
     fn from(value: VariationIndex) -> Self {
         ((value.delta_set_outer_index as u32) << 16) | value.delta_set_inner_index as u32
+    }
+}
+
+impl ClassRangeRecord2 {
+    fn validate_glyph_range(&self, ctx: &mut ValidationCtx) {
+        if self.start_glyph_id > self.end_glyph_id {
+            ctx.report("start_glyph_id larger than end_glyph_id");
+        }
+    }
+}
+
+impl FromIterator<GlyphId> for CoverageTable {
+    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+        let mut glyphs: Vec<_> = iter.into_iter().collect();
+        glyphs.sort_unstable();
+        glyphs.dedup();
+        if glyphs.iter().all(|g| g.to_u32() <= u16::MAX as u32) {
+            return glyphs
+                .into_iter()
+                .map(|g| GlyphId16::new(g.to_u32() as u16))
+                .collect();
+        }
+        Self::Format3(CoverageFormat3::new(
+            glyphs
+                .into_iter()
+                .map(|g| GlyphId24::checked_new(g.to_u32()).expect("glyph ID exceeds 24 bits"))
+                .collect(),
+        ))
+    }
+}
+
+impl FromIterator<(GlyphId, u32)> for ClassDef {
+    fn from_iter<T: IntoIterator<Item = (GlyphId, u32)>>(iter: T) -> Self {
+        let items: std::collections::BTreeMap<_, _> = iter.into_iter().collect();
+        if items
+            .iter()
+            .all(|(g, c)| g.to_u32() <= u16::MAX as u32 && *c <= u16::MAX as u32)
+        {
+            return items
+                .into_iter()
+                .map(|(g, c)| (GlyphId16::new(g.to_u32() as u16), c as u16))
+                .collect();
+        }
+        if items.values().all(|c| *c <= u16::MAX as u32) {
+            let mut ranges: Vec<ClassRangeRecord2> = Vec::new();
+            for (g, c) in items {
+                let g = GlyphId24::checked_new(g.to_u32()).expect("glyph ID exceeds 24 bits");
+                if let Some(last) = ranges.last_mut() {
+                    if last.class == c as u16 && last.end_glyph_id.to_u32() + 1 == g.to_u32() {
+                        last.end_glyph_id = g;
+                        continue;
+                    }
+                }
+                ranges.push(ClassRangeRecord2::new(g, g, c as u16));
+            }
+            return Self::Format4(ClassDefFormat4::new(ranges));
+        }
+        let first = items.keys().next().unwrap().to_u32();
+        let last = items.keys().next_back().unwrap().to_u32();
+        let start = GlyphId24::checked_new(first).expect("glyph ID exceeds 24 bits");
+        assert!(last <= Uint24::MAX.to_u32(), "glyph ID exceeds 24 bits");
+        let values = (first..=last)
+            .map(|g| {
+                Uint24::checked_new(items.get(&GlyphId::new(g)).copied().unwrap_or(0))
+                    .expect("class exceeds 24 bits")
+            })
+            .collect();
+        Self::Format3(ClassDefFormat3::new(start, values))
     }
 }
 

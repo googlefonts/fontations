@@ -15,9 +15,29 @@ use super::{
 
 include!("../../generated/generated_gdef.rs");
 
+#[cfg(test)]
+mod extended;
+
+impl RemapVarStore<VariationIndex> for LigCaretList2 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.lig_glyphs.iter_mut().for_each(|lig| {
+            lig.caret_values
+                .iter_mut()
+                .for_each(|caret| caret.remap_variation_indices(key_map))
+        })
+    }
+}
+
 impl Gdef {
     fn compute_version(&self) -> MajorMinor {
-        if self.item_var_store.is_some() {
+        if self.glyph_class_def2.is_some()
+            || self.attach_list2.is_some()
+            || self.lig_caret_list2.is_some()
+            || self.mark_attach_class_def2.is_some()
+            || self.mark_glyph_sets_def2.is_some()
+        {
+            MajorMinor::new(1, 4)
+        } else if self.item_var_store.is_some() {
             MajorMinor::VERSION_1_3
         } else if self.mark_glyph_sets_def.is_some() {
             MajorMinor::VERSION_1_2
@@ -30,6 +50,9 @@ impl Gdef {
 impl RemapVarStore<VariationIndex> for Gdef {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         if let Some(ligs) = self.lig_caret_list.as_mut() {
+            ligs.remap_variation_indices(key_map);
+        }
+        if let Some(ligs) = self.lig_caret_list2.as_mut() {
             ligs.remap_variation_indices(key_map);
         }
     }

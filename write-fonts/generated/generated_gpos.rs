@@ -9,30 +9,34 @@ pub use read_fonts::tables::gpos::ValueFormat;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gpos {
     /// Offset to ScriptList table, from beginning of GPOS table
-    pub script_list: OffsetMarker<ScriptList>,
+    pub script_list: NullableOffsetMarker<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
-    pub feature_list: OffsetMarker<FeatureList>,
+    pub feature_list: NullableOffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    pub lookup_list: OffsetMarker<PositionLookupList>,
+    pub lookup_list: NullableOffsetMarker<LegacyPositionLookupList>,
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    pub script_list2: NullableOffsetMarker<ScriptList, WIDTH_32>,
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    pub feature_list2: NullableOffsetMarker<FeatureList, WIDTH_32>,
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    pub lookup_list2: NullableOffsetMarker<PositionLookupList2, WIDTH_32>,
 }
 
-impl Gpos {
-    /// Construct a new `Gpos`
-    pub fn new(
-        script_list: ScriptList,
-        feature_list: FeatureList,
-        lookup_list: PositionLookupList,
-    ) -> Self {
+impl Default for Gpos {
+    fn default() -> Self {
         Self {
-            script_list: script_list.into(),
-            feature_list: feature_list.into(),
-            lookup_list: lookup_list.into(),
-            ..Default::default()
+            script_list: Some(Default::default()).into(),
+            feature_list: Some(Default::default()).into(),
+            lookup_list: Some(Default::default()).into(),
+            feature_variations: Default::default(),
+            script_list2: Default::default(),
+            feature_list2: Default::default(),
+            lookup_list2: Default::default(),
         }
     }
 }
@@ -48,6 +52,15 @@ impl FontWrite for Gpos {
         version
             .compatible((1u16, 1u16))
             .then(|| self.feature_variations.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.script_list2.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.feature_list2.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.lookup_list2.write_into(writer));
     }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Gpos::TAG)
@@ -69,6 +82,15 @@ impl Validate for Gpos {
             ctx.in_field("feature_variations", |ctx| {
                 self.feature_variations.validate_impl(ctx);
             });
+            ctx.in_field("script_list2", |ctx| {
+                self.script_list2.validate_impl(ctx);
+            });
+            ctx.in_field("feature_list2", |ctx| {
+                self.feature_list2.validate_impl(ctx);
+            });
+            ctx.in_field("lookup_list2", |ctx| {
+                self.lookup_list2.validate_impl(ctx);
+            });
         })
     }
 }
@@ -80,10 +102,13 @@ impl TopLevelTable for Gpos {
 impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {
-            script_list: obj.script_list().to_owned_table(),
-            feature_list: obj.feature_list().to_owned_table(),
-            lookup_list: obj.lookup_list().to_owned_table(),
+            script_list: obj.legacy_script_list().to_owned_table(),
+            feature_list: obj.legacy_feature_list().to_owned_table(),
+            lookup_list: obj.legacy_lookup_list().to_owned_table(),
             feature_variations: obj.feature_variations().to_owned_table(),
+            script_list2: obj.script_list2().to_owned_table(),
+            feature_list2: obj.feature_list2().to_owned_table(),
+            lookup_list2: obj.lookup_list2().to_owned_table(),
         }
     }
 }
@@ -107,10 +132,10 @@ impl<'a> FontRead<'a> for Gpos {
 pub enum PositionLookup {
     Single(Lookup<SinglePos>),
     Pair(Lookup<PairPos>),
-    Cursive(Lookup<CursivePosFormat1>),
-    MarkToBase(Lookup<MarkBasePosFormat1>),
-    MarkToLig(Lookup<MarkLigPosFormat1>),
-    MarkToMark(Lookup<MarkMarkPosFormat1>),
+    Cursive(Lookup<CursivePos>),
+    MarkToBase(Lookup<MarkBasePos>),
+    MarkToLig(Lookup<MarkLigPos>),
+    MarkToMark(Lookup<MarkMarkPos>),
     Contextual(Lookup<PositionSequenceContext>),
     ChainContextual(Lookup<PositionChainContext>),
     Extension(Lookup<ExtensionSubtable>),
@@ -215,26 +240,26 @@ impl From<Lookup<PairPos>> for PositionLookup {
     }
 }
 
-impl From<Lookup<CursivePosFormat1>> for PositionLookup {
-    fn from(src: Lookup<CursivePosFormat1>) -> PositionLookup {
+impl From<Lookup<CursivePos>> for PositionLookup {
+    fn from(src: Lookup<CursivePos>) -> PositionLookup {
         PositionLookup::Cursive(src)
     }
 }
 
-impl From<Lookup<MarkBasePosFormat1>> for PositionLookup {
-    fn from(src: Lookup<MarkBasePosFormat1>) -> PositionLookup {
+impl From<Lookup<MarkBasePos>> for PositionLookup {
+    fn from(src: Lookup<MarkBasePos>) -> PositionLookup {
         PositionLookup::MarkToBase(src)
     }
 }
 
-impl From<Lookup<MarkLigPosFormat1>> for PositionLookup {
-    fn from(src: Lookup<MarkLigPosFormat1>) -> PositionLookup {
+impl From<Lookup<MarkLigPos>> for PositionLookup {
+    fn from(src: Lookup<MarkLigPos>) -> PositionLookup {
         PositionLookup::MarkToLig(src)
     }
 }
 
-impl From<Lookup<MarkMarkPosFormat1>> for PositionLookup {
-    fn from(src: Lookup<MarkMarkPosFormat1>) -> PositionLookup {
+impl From<Lookup<MarkMarkPos>> for PositionLookup {
+    fn from(src: Lookup<MarkMarkPos>) -> PositionLookup {
         PositionLookup::MarkToMark(src)
     }
 }
@@ -701,6 +726,8 @@ impl FromObjRef<read_fonts::tables::gpos::MarkRecord> for MarkRecord {
 pub enum SinglePos {
     Format1(SinglePosFormat1),
     Format2(SinglePosFormat2),
+    Format3(SinglePosFormat3),
+    Format4(SinglePosFormat4),
 }
 
 impl SinglePos {
@@ -712,6 +739,16 @@ impl SinglePos {
     /// Construct a new `SinglePosFormat2` subtable
     pub fn format_2(coverage: CoverageTable, value_records: Vec<ValueRecord>) -> Self {
         Self::Format2(SinglePosFormat2::new(coverage, value_records))
+    }
+
+    /// Construct a new `SinglePosFormat3` subtable
+    pub fn format_3(coverage: CoverageTable, value_record: ValueRecord) -> Self {
+        Self::Format3(SinglePosFormat3::new(coverage, value_record))
+    }
+
+    /// Construct a new `SinglePosFormat4` subtable
+    pub fn format_4(coverage: CoverageTable, value_records: Vec<ValueRecord>) -> Self {
+        Self::Format4(SinglePosFormat4::new(coverage, value_records))
     }
 }
 
@@ -726,12 +763,16 @@ impl FontWrite for SinglePos {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -741,6 +782,8 @@ impl Validate for SinglePos {
         match self {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -751,6 +794,8 @@ impl FromObjRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {
         match obj {
             ObjRefType::Format1(item) => SinglePos::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SinglePos::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => SinglePos::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => SinglePos::Format4(item.to_owned_table()),
         }
     }
 }
@@ -776,6 +821,18 @@ impl From<SinglePosFormat1> for SinglePos {
 impl From<SinglePosFormat2> for SinglePos {
     fn from(src: SinglePosFormat2) -> SinglePos {
         SinglePos::Format2(src)
+    }
+}
+
+impl From<SinglePosFormat3> for SinglePos {
+    fn from(src: SinglePosFormat3) -> SinglePos {
+        SinglePos::Format3(src)
+    }
+}
+
+impl From<SinglePosFormat4> for SinglePos {
+    fn from(src: SinglePosFormat4) -> SinglePos {
+        SinglePos::Format4(src)
     }
 }
 
@@ -931,6 +988,8 @@ impl<'a> FontRead<'a> for SinglePosFormat2 {
 pub enum PairPos {
     Format1(PairPosFormat1),
     Format2(PairPosFormat2),
+    Format3(PairPosFormat3),
+    Format4(PairPosFormat4),
 }
 
 impl PairPos {
@@ -953,6 +1012,26 @@ impl PairPos {
             class1_records,
         ))
     }
+
+    /// Construct a new `PairPosFormat3` subtable
+    pub fn format_3(coverage: CoverageTable, pair_sets: Vec<PairSet2>) -> Self {
+        Self::Format3(PairPosFormat3::new(coverage, pair_sets))
+    }
+
+    /// Construct a new `PairPosFormat4` subtable
+    pub fn format_4(
+        coverage: CoverageTable,
+        class_def1: ClassDef,
+        class_def2: ClassDef,
+        class1_records: Vec<Class1Record>,
+    ) -> Self {
+        Self::Format4(PairPosFormat4::new(
+            coverage,
+            class_def1,
+            class_def2,
+            class1_records,
+        ))
+    }
 }
 
 impl Default for PairPos {
@@ -966,12 +1045,16 @@ impl FontWrite for PairPos {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -981,6 +1064,8 @@ impl Validate for PairPos {
         match self {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -991,6 +1076,8 @@ impl FromObjRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {
         match obj {
             ObjRefType::Format1(item) => PairPos::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => PairPos::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => PairPos::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => PairPos::Format4(item.to_owned_table()),
         }
     }
 }
@@ -1016,6 +1103,18 @@ impl From<PairPosFormat1> for PairPos {
 impl From<PairPosFormat2> for PairPos {
     fn from(src: PairPosFormat2) -> PairPos {
         PairPos::Format2(src)
+    }
+}
+
+impl From<PairPosFormat3> for PairPos {
+    fn from(src: PairPosFormat3) -> PairPos {
+        PairPos::Format3(src)
+    }
+}
+
+impl From<PairPosFormat4> for PairPos {
+    fn from(src: PairPosFormat4) -> PairPos {
+        PairPos::Format4(src)
     }
 }
 
@@ -2248,10 +2347,10 @@ where
 pub enum ExtensionSubtable {
     Single(ExtensionPosFormat1<SinglePos>),
     Pair(ExtensionPosFormat1<PairPos>),
-    Cursive(ExtensionPosFormat1<CursivePosFormat1>),
-    MarkToBase(ExtensionPosFormat1<MarkBasePosFormat1>),
-    MarkToLig(ExtensionPosFormat1<MarkLigPosFormat1>),
-    MarkToMark(ExtensionPosFormat1<MarkMarkPosFormat1>),
+    Cursive(ExtensionPosFormat1<CursivePos>),
+    MarkToBase(ExtensionPosFormat1<MarkBasePos>),
+    MarkToLig(ExtensionPosFormat1<MarkLigPos>),
+    MarkToMark(ExtensionPosFormat1<MarkMarkPos>),
     Contextual(ExtensionPosFormat1<PositionSequenceContext>),
     ChainContextual(ExtensionPosFormat1<PositionChainContext>),
 }
@@ -2352,26 +2451,26 @@ impl From<ExtensionPosFormat1<PairPos>> for ExtensionSubtable {
     }
 }
 
-impl From<ExtensionPosFormat1<CursivePosFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionPosFormat1<CursivePosFormat1>) -> ExtensionSubtable {
+impl From<ExtensionPosFormat1<CursivePos>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<CursivePos>) -> ExtensionSubtable {
         ExtensionSubtable::Cursive(src)
     }
 }
 
-impl From<ExtensionPosFormat1<MarkBasePosFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionPosFormat1<MarkBasePosFormat1>) -> ExtensionSubtable {
+impl From<ExtensionPosFormat1<MarkBasePos>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<MarkBasePos>) -> ExtensionSubtable {
         ExtensionSubtable::MarkToBase(src)
     }
 }
 
-impl From<ExtensionPosFormat1<MarkLigPosFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionPosFormat1<MarkLigPosFormat1>) -> ExtensionSubtable {
+impl From<ExtensionPosFormat1<MarkLigPos>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<MarkLigPos>) -> ExtensionSubtable {
         ExtensionSubtable::MarkToLig(src)
     }
 }
 
-impl From<ExtensionPosFormat1<MarkMarkPosFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionPosFormat1<MarkMarkPosFormat1>) -> ExtensionSubtable {
+impl From<ExtensionPosFormat1<MarkMarkPos>> for ExtensionSubtable {
+    fn from(src: ExtensionPosFormat1<MarkMarkPos>) -> ExtensionSubtable {
         ExtensionSubtable::MarkToMark(src)
     }
 }
@@ -2385,5 +2484,1734 @@ impl From<ExtensionPosFormat1<PositionSequenceContext>> for ExtensionSubtable {
 impl From<ExtensionPosFormat1<PositionChainContext>> for ExtensionSubtable {
     fn from(src: ExtensionPosFormat1<PositionChainContext>) -> ExtensionSubtable {
         ExtensionSubtable::ChainContextual(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SinglePosFormat3.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SinglePosFormat3 {
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Defines positioning value(s) — applied to all glyphs in the
+    /// Coverage table.
+    pub value_record: ValueRecord,
+}
+
+impl SinglePosFormat3 {
+    /// Construct a new `SinglePosFormat3`
+    pub fn new(coverage: CoverageTable, value_record: ValueRecord) -> Self {
+        Self {
+            coverage: coverage.into(),
+            value_record,
+        }
+    }
+}
+
+impl FontWrite for SinglePosFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (self.compute_value_format() as ValueFormat).write_into(writer);
+        self.value_record.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SinglePosFormat3")
+    }
+}
+
+impl Validate for SinglePosFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SinglePosFormat3", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat3<'a>> for SinglePosFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::SinglePosFormat3<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SinglePosFormat3 {
+            coverage: obj.coverage().to_owned_table(),
+            value_record: obj.value_record().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat3<'a>> for SinglePosFormat3 {}
+
+impl ReadArgs for SinglePosFormat3 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SinglePosFormat3 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::SinglePosFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SinglePosFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SinglePosFormat4 {
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of ValueRecords — positioning values applied to glyphs.
+    pub value_records: Vec<ValueRecord>,
+}
+
+impl SinglePosFormat4 {
+    /// Construct a new `SinglePosFormat4`
+    pub fn new(coverage: CoverageTable, value_records: Vec<ValueRecord>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            value_records,
+        }
+    }
+}
+
+impl FontWrite for SinglePosFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (self.compute_value_format() as ValueFormat).write_into(writer);
+        (Uint24::try_from(array_len(&self.value_records)).unwrap()).write_into(writer);
+        self.value_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SinglePosFormat4")
+    }
+}
+
+impl Validate for SinglePosFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SinglePosFormat4", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("value_records", |ctx| {
+                if self.value_records.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.check_format_consistency(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat4<'a>> for SinglePosFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::SinglePosFormat4<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SinglePosFormat4 {
+            coverage: obj.coverage().to_owned_table(),
+            value_records: obj
+                .value_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat4<'a>> for SinglePosFormat4 {}
+
+impl ReadArgs for SinglePosFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SinglePosFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::SinglePosFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: PairPosFormat3.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PairPosFormat3 {
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to PairSet tables. Offsets are from beginning
+    /// of PairPos subtable, ordered by Coverage Index.
+    pub pair_sets: Vec<OffsetMarker<PairSet2, WIDTH_24>>,
+}
+
+impl PairPosFormat3 {
+    /// Construct a new `PairPosFormat3`
+    pub fn new(coverage: CoverageTable, pair_sets: Vec<PairSet2>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            pair_sets: pair_sets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for PairPosFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (self.compute_value_format1() as ValueFormat).write_into(writer);
+        (self.compute_value_format2() as ValueFormat).write_into(writer);
+        (Uint24::try_from(array_len(&self.pair_sets)).unwrap()).write_into(writer);
+        self.pair_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairPosFormat3")
+    }
+}
+
+impl Validate for PairPosFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PairPosFormat3", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("pair_sets", |ctx| {
+                if self.pair_sets.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.check_format_consistency(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat3<'a>> for PairPosFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPosFormat3<'a>, _: FontData) -> Self {
+        PairPosFormat3 {
+            coverage: obj.coverage().to_owned_table(),
+            pair_sets: obj.pair_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat3<'a>> for PairPosFormat3 {}
+
+impl ReadArgs for PairPosFormat3 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PairPosFormat3 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::PairPosFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: PairSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PairSet2 {
+    /// Array of PairValueRecords, ordered by glyph ID of the second
+    /// glyph.
+    pub pair_value_records: Vec<PairValueRecord2>,
+}
+
+impl PairSet2 {
+    /// Construct a new `PairSet2`
+    pub fn new(pair_value_records: Vec<PairValueRecord2>) -> Self {
+        Self { pair_value_records }
+    }
+}
+
+impl FontWrite for PairSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (Uint24::try_from(array_len(&self.pair_value_records)).unwrap()).write_into(writer);
+        self.pair_value_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairSet2")
+    }
+}
+
+impl Validate for PairSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PairSet2", |ctx| {
+            ctx.in_field("pair_value_records", |ctx| {
+                if self.pair_value_records.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.pair_value_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::PairSet2<'a>> for PairSet2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairSet2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        PairSet2 {
+            pair_value_records: obj
+                .pair_value_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::PairSet2<'a>> for PairSet2 {}
+
+/// ISO Open Font Format, fifth edition: PairValueRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PairValueRecord2 {
+    /// Glyph ID of second glyph in the pair (first glyph is listed in
+    /// the Coverage table).
+    pub second_glyph: GlyphId24,
+    /// Positioning data for the first glyph in the pair.
+    pub value_record1: ValueRecord,
+    /// Positioning data for the second glyph in the pair.
+    pub value_record2: ValueRecord,
+}
+
+impl PairValueRecord2 {
+    /// Construct a new `PairValueRecord2`
+    pub fn new(
+        second_glyph: GlyphId24,
+        value_record1: ValueRecord,
+        value_record2: ValueRecord,
+    ) -> Self {
+        Self {
+            second_glyph,
+            value_record1,
+            value_record2,
+        }
+    }
+}
+
+impl FontWrite for PairValueRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.second_glyph.write_into(writer);
+        self.value_record1.write_into(writer);
+        self.value_record2.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairValueRecord2")
+    }
+}
+
+impl Validate for PairValueRecord2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::gpos::PairValueRecord2<'_>> for PairValueRecord2 {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::gpos::PairValueRecord2,
+        offset_data: FontData,
+    ) -> Self {
+        PairValueRecord2 {
+            second_glyph: obj.second_glyph(),
+            value_record1: obj.value_record1().to_owned_obj(offset_data),
+            value_record2: obj.value_record2().to_owned_obj(offset_data),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: PairPosFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PairPosFormat4 {
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to ClassDef table, from beginning of PairPos subtable
+    /// — for the first glyph of the pair.
+    pub class_def1: OffsetMarker<ClassDef, WIDTH_32>,
+    /// Offset to ClassDef table, from beginning of PairPos subtable
+    /// — for the second glyph of the pair.
+    pub class_def2: OffsetMarker<ClassDef, WIDTH_32>,
+    /// Array of Class1 records, ordered by classes in classDef1.
+    pub class1_records: Vec<Class1Record>,
+}
+
+impl PairPosFormat4 {
+    /// Construct a new `PairPosFormat4`
+    pub fn new(
+        coverage: CoverageTable,
+        class_def1: ClassDef,
+        class_def2: ClassDef,
+        class1_records: Vec<Class1Record>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            class_def1: class_def1.into(),
+            class_def2: class_def2.into(),
+            class1_records,
+        }
+    }
+}
+
+impl FontWrite for PairPosFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (self.compute_value_format1() as ValueFormat).write_into(writer);
+        (self.compute_value_format2() as ValueFormat).write_into(writer);
+        self.class_def1.write_into(writer);
+        self.class_def2.write_into(writer);
+        (self.compute_class1_count() as u16).write_into(writer);
+        (self.compute_class2_count() as u16).write_into(writer);
+        self.class1_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairPosFormat4")
+    }
+}
+
+impl Validate for PairPosFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PairPosFormat4", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("class_def1", |ctx| {
+                self.class_def1.validate_impl(ctx);
+            });
+            ctx.in_field("class_def2", |ctx| {
+                self.class_def2.validate_impl(ctx);
+            });
+            ctx.in_field("class1_records", |ctx| {
+                if self.class1_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.class1_records.validate_impl(ctx);
+            });
+            self.check_length_and_format_conformance(ctx);
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat4<'a>> for PairPosFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPosFormat4<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        PairPosFormat4 {
+            coverage: obj.coverage().to_owned_table(),
+            class_def1: obj.class_def1().to_owned_table(),
+            class_def2: obj.class_def2().to_owned_table(),
+            class1_records: obj
+                .class1_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat4<'a>> for PairPosFormat4 {}
+
+impl ReadArgs for PairPosFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PairPosFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::PairPosFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: CursivePosFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CursivePosFormat2 {
+    /// Offset to Coverage table, from beginning of CursivePos subtable.
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of EntryExit records, in Coverage index order.
+    pub entry_exit_record: Vec<EntryExitRecord2>,
+}
+
+impl CursivePosFormat2 {
+    /// Construct a new `CursivePosFormat2`
+    pub fn new(coverage: CoverageTable, entry_exit_record: Vec<EntryExitRecord2>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            entry_exit_record,
+        }
+    }
+}
+
+impl FontWrite for CursivePosFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.entry_exit_record)).unwrap()).write_into(writer);
+        self.entry_exit_record.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CursivePosFormat2")
+    }
+}
+
+impl Validate for CursivePosFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CursivePosFormat2", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("entry_exit_record", |ctx| {
+                if self.entry_exit_record.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.entry_exit_record.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::CursivePosFormat2<'a>> for CursivePosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::CursivePosFormat2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CursivePosFormat2 {
+            coverage: obj.coverage().to_owned_table(),
+            entry_exit_record: obj.entry_exit_record().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::CursivePosFormat2<'a>> for CursivePosFormat2 {}
+
+impl ReadArgs for CursivePosFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for CursivePosFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::CursivePosFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: EntryExitRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct EntryExitRecord2 {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub entry_anchor: NullableOffsetMarker<AnchorTable, WIDTH_24>,
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub exit_anchor: NullableOffsetMarker<AnchorTable, WIDTH_24>,
+}
+
+impl EntryExitRecord2 {
+    /// Construct a new `EntryExitRecord2`
+    pub fn new(entry_anchor: Option<AnchorTable>, exit_anchor: Option<AnchorTable>) -> Self {
+        Self {
+            entry_anchor: entry_anchor.into(),
+            exit_anchor: exit_anchor.into(),
+        }
+    }
+}
+
+impl FontWrite for EntryExitRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.entry_anchor.write_into(writer);
+        self.exit_anchor.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("EntryExitRecord2")
+    }
+}
+
+impl Validate for EntryExitRecord2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("EntryExitRecord2", |ctx| {
+            ctx.in_field("entry_anchor", |ctx| {
+                self.entry_anchor.validate_impl(ctx);
+            });
+            ctx.in_field("exit_anchor", |ctx| {
+                self.exit_anchor.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::EntryExitRecord2> for EntryExitRecord2 {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::gpos::EntryExitRecord2,
+        offset_data: FontData,
+    ) -> Self {
+        EntryExitRecord2 {
+            entry_anchor: obj.entry_anchor(offset_data).to_owned_table(),
+            exit_anchor: obj.exit_anchor(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkBasePosFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MarkBasePosFormat2 {
+    /// Offset to markCoverage table, from beginning of MarkBasePos
+    /// subtable.
+    pub mark_coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to baseCoverage table, from beginning of MarkBasePos
+    /// subtable.
+    pub base_coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to MarkArray table, from beginning of MarkBasePos
+    /// subtable.
+    pub mark_array: OffsetMarker<MarkArray2, WIDTH_32>,
+    /// Offset to BaseArray table, from beginning of MarkBasePos
+    /// subtable.
+    pub base_array: OffsetMarker<BaseArray2, WIDTH_32>,
+}
+
+impl MarkBasePosFormat2 {
+    /// Construct a new `MarkBasePosFormat2`
+    pub fn new(
+        mark_coverage: CoverageTable,
+        base_coverage: CoverageTable,
+        mark_array: MarkArray2,
+        base_array: BaseArray2,
+    ) -> Self {
+        Self {
+            mark_coverage: mark_coverage.into(),
+            base_coverage: base_coverage.into(),
+            mark_array: mark_array.into(),
+            base_array: base_array.into(),
+        }
+    }
+}
+
+impl FontWrite for MarkBasePosFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.mark_coverage.write_into(writer);
+        self.base_coverage.write_into(writer);
+        (self.compute_mark_class_count() as u16).write_into(writer);
+        self.mark_array.write_into(writer);
+        self.base_array.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkBasePosFormat2")
+    }
+}
+
+impl Validate for MarkBasePosFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkBasePosFormat2", |ctx| {
+            ctx.in_field("mark_coverage", |ctx| {
+                self.mark_coverage.validate_impl(ctx);
+            });
+            ctx.in_field("base_coverage", |ctx| {
+                self.base_coverage.validate_impl(ctx);
+            });
+            ctx.in_field("mark_array", |ctx| {
+                self.mark_array.validate_impl(ctx);
+            });
+            ctx.in_field("base_array", |ctx| {
+                self.base_array.validate_impl(ctx);
+            });
+            self.check_class_dimensions(ctx);
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkBasePosFormat2<'a>> for MarkBasePosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkBasePosFormat2<'a>, _: FontData) -> Self {
+        MarkBasePosFormat2 {
+            mark_coverage: obj.mark_coverage().to_owned_table(),
+            base_coverage: obj.base_coverage().to_owned_table(),
+            mark_array: obj.mark_array().to_owned_table(),
+            base_array: obj.base_array().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkBasePosFormat2<'a>> for MarkBasePosFormat2 {}
+
+impl ReadArgs for MarkBasePosFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkBasePosFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkBasePosFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: BaseArray2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BaseArray2 {
+    /// Array of BaseRecords, in order of baseCoverage Index.
+    pub base_records: Vec<BaseRecord2>,
+}
+
+impl BaseArray2 {
+    /// Construct a new `BaseArray2`
+    pub fn new(base_records: Vec<BaseRecord2>) -> Self {
+        Self { base_records }
+    }
+}
+
+impl FontWrite for BaseArray2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (Uint24::try_from(array_len(&self.base_records)).unwrap()).write_into(writer);
+        self.base_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseArray2")
+    }
+}
+
+impl Validate for BaseArray2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("BaseArray2", |ctx| {
+            ctx.in_field("base_records", |ctx| {
+                if self.base_records.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.base_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::BaseArray2<'a>> for BaseArray2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::BaseArray2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        BaseArray2 {
+            base_records: obj
+                .base_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::BaseArray2<'a>> for BaseArray2 {}
+
+/// ISO Open Font Format, fifth edition: BaseRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BaseRecord2 {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub base_anchors: Vec<NullableOffsetMarker<AnchorTable, WIDTH_24>>,
+}
+
+impl BaseRecord2 {
+    /// Construct a new `BaseRecord2`
+    pub fn new(base_anchors: Vec<Option<AnchorTable>>) -> Self {
+        Self {
+            base_anchors: base_anchors.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for BaseRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.base_anchors.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseRecord2")
+    }
+}
+
+impl Validate for BaseRecord2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("BaseRecord2", |ctx| {
+            ctx.in_field("base_anchors", |ctx| {
+                if self.base_anchors.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.base_anchors.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::BaseRecord2<'_>> for BaseRecord2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::BaseRecord2, offset_data: FontData) -> Self {
+        BaseRecord2 {
+            base_anchors: obj.base_anchors(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkLigPosFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MarkLigPosFormat2 {
+    /// Offset to markCoverage table, from beginning of MarkLigPos
+    /// subtable.
+    pub mark_coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to ligatureCoverage table, from beginning of MarkLigPos
+    /// subtable.
+    pub ligature_coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to MarkArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub mark_array: OffsetMarker<MarkArray2, WIDTH_32>,
+    /// Offset to LigatureArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub ligature_array: OffsetMarker<LigatureArray2, WIDTH_32>,
+}
+
+impl MarkLigPosFormat2 {
+    /// Construct a new `MarkLigPosFormat2`
+    pub fn new(
+        mark_coverage: CoverageTable,
+        ligature_coverage: CoverageTable,
+        mark_array: MarkArray2,
+        ligature_array: LigatureArray2,
+    ) -> Self {
+        Self {
+            mark_coverage: mark_coverage.into(),
+            ligature_coverage: ligature_coverage.into(),
+            mark_array: mark_array.into(),
+            ligature_array: ligature_array.into(),
+        }
+    }
+}
+
+impl FontWrite for MarkLigPosFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.mark_coverage.write_into(writer);
+        self.ligature_coverage.write_into(writer);
+        (self.compute_mark_class_count() as u16).write_into(writer);
+        self.mark_array.write_into(writer);
+        self.ligature_array.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkLigPosFormat2")
+    }
+}
+
+impl Validate for MarkLigPosFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkLigPosFormat2", |ctx| {
+            ctx.in_field("mark_coverage", |ctx| {
+                self.mark_coverage.validate_impl(ctx);
+            });
+            ctx.in_field("ligature_coverage", |ctx| {
+                self.ligature_coverage.validate_impl(ctx);
+            });
+            ctx.in_field("mark_array", |ctx| {
+                self.mark_array.validate_impl(ctx);
+            });
+            ctx.in_field("ligature_array", |ctx| {
+                self.ligature_array.validate_impl(ctx);
+            });
+            self.check_class_dimensions(ctx);
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkLigPosFormat2<'a>> for MarkLigPosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkLigPosFormat2<'a>, _: FontData) -> Self {
+        MarkLigPosFormat2 {
+            mark_coverage: obj.mark_coverage().to_owned_table(),
+            ligature_coverage: obj.ligature_coverage().to_owned_table(),
+            mark_array: obj.mark_array().to_owned_table(),
+            ligature_array: obj.ligature_array().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkLigPosFormat2<'a>> for MarkLigPosFormat2 {}
+
+impl ReadArgs for MarkLigPosFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkLigPosFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkLigPosFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LigatureArray2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LigatureArray2 {
+    /// Array of offsets to LigatureAttach tables. Offsets are from
+    /// beginning of LigatureArray2 table, ordered by ligatureCoverage
+    /// index.
+    pub ligature_attaches: Vec<OffsetMarker<LigatureAttach2, WIDTH_24>>,
+}
+
+impl LigatureArray2 {
+    /// Construct a new `LigatureArray2`
+    pub fn new(ligature_attaches: Vec<LigatureAttach2>) -> Self {
+        Self {
+            ligature_attaches: ligature_attaches.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for LigatureArray2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (Uint24::try_from(array_len(&self.ligature_attaches)).unwrap()).write_into(writer);
+        self.ligature_attaches.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureArray2")
+    }
+}
+
+impl Validate for LigatureArray2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigatureArray2", |ctx| {
+            ctx.in_field("ligature_attaches", |ctx| {
+                if self.ligature_attaches.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.ligature_attaches.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureArray2<'a>> for LigatureArray2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::LigatureArray2<'a>, _: FontData) -> Self {
+        LigatureArray2 {
+            ligature_attaches: obj.ligature_attaches().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureArray2<'a>> for LigatureArray2 {}
+
+/// ISO Open Font Format, fifth edition: LigatureAttach2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LigatureAttach2 {
+    /// Array of Component records, ordered in writing direction.
+    pub component_records: Vec<ComponentRecord2>,
+}
+
+impl LigatureAttach2 {
+    /// Construct a new `LigatureAttach2`
+    pub fn new(component_records: Vec<ComponentRecord2>) -> Self {
+        Self { component_records }
+    }
+}
+
+impl FontWrite for LigatureAttach2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.component_records)).unwrap()).write_into(writer);
+        self.component_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureAttach2")
+    }
+}
+
+impl Validate for LigatureAttach2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigatureAttach2", |ctx| {
+            ctx.in_field("component_records", |ctx| {
+                if self.component_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.component_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureAttach2<'a>> for LigatureAttach2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::LigatureAttach2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        LigatureAttach2 {
+            component_records: obj
+                .component_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureAttach2<'a>> for LigatureAttach2 {}
+
+/// ISO Open Font Format, fifth edition: ComponentRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ComponentRecord2 {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub ligature_anchors: Vec<NullableOffsetMarker<AnchorTable, WIDTH_24>>,
+}
+
+impl ComponentRecord2 {
+    /// Construct a new `ComponentRecord2`
+    pub fn new(ligature_anchors: Vec<Option<AnchorTable>>) -> Self {
+        Self {
+            ligature_anchors: ligature_anchors.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for ComponentRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.ligature_anchors.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ComponentRecord2")
+    }
+}
+
+impl Validate for ComponentRecord2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ComponentRecord2", |ctx| {
+            ctx.in_field("ligature_anchors", |ctx| {
+                if self.ligature_anchors.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.ligature_anchors.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::ComponentRecord2<'_>> for ComponentRecord2 {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::gpos::ComponentRecord2,
+        offset_data: FontData,
+    ) -> Self {
+        ComponentRecord2 {
+            ligature_anchors: obj.ligature_anchors(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkMarkPosFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MarkMarkPosFormat2 {
+    /// Offset to Combining Mark Coverage table, from beginning of
+    /// MarkMarkPos subtable.
+    pub mark1_coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to Base Mark Coverage table, from beginning of
+    /// MarkMarkPos subtable.
+    pub mark2_coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Offset to MarkArray table for mark1, from beginning of
+    /// MarkMarkPos subtable.
+    pub mark1_array: OffsetMarker<MarkArray2, WIDTH_32>,
+    /// Offset to Mark2Array table for mark2, from beginning of
+    /// MarkMarkPos subtable.
+    pub mark2_array: OffsetMarker<Mark2Array2, WIDTH_32>,
+}
+
+impl MarkMarkPosFormat2 {
+    /// Construct a new `MarkMarkPosFormat2`
+    pub fn new(
+        mark1_coverage: CoverageTable,
+        mark2_coverage: CoverageTable,
+        mark1_array: MarkArray2,
+        mark2_array: Mark2Array2,
+    ) -> Self {
+        Self {
+            mark1_coverage: mark1_coverage.into(),
+            mark2_coverage: mark2_coverage.into(),
+            mark1_array: mark1_array.into(),
+            mark2_array: mark2_array.into(),
+        }
+    }
+}
+
+impl FontWrite for MarkMarkPosFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.mark1_coverage.write_into(writer);
+        self.mark2_coverage.write_into(writer);
+        (self.compute_mark_class_count() as u16).write_into(writer);
+        self.mark1_array.write_into(writer);
+        self.mark2_array.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkMarkPosFormat2")
+    }
+}
+
+impl Validate for MarkMarkPosFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkMarkPosFormat2", |ctx| {
+            ctx.in_field("mark1_coverage", |ctx| {
+                self.mark1_coverage.validate_impl(ctx);
+            });
+            ctx.in_field("mark2_coverage", |ctx| {
+                self.mark2_coverage.validate_impl(ctx);
+            });
+            ctx.in_field("mark1_array", |ctx| {
+                self.mark1_array.validate_impl(ctx);
+            });
+            ctx.in_field("mark2_array", |ctx| {
+                self.mark2_array.validate_impl(ctx);
+            });
+            self.check_class_dimensions(ctx);
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkMarkPosFormat2<'a>> for MarkMarkPosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkMarkPosFormat2<'a>, _: FontData) -> Self {
+        MarkMarkPosFormat2 {
+            mark1_coverage: obj.mark1_coverage().to_owned_table(),
+            mark2_coverage: obj.mark2_coverage().to_owned_table(),
+            mark1_array: obj.mark1_array().to_owned_table(),
+            mark2_array: obj.mark2_array().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkMarkPosFormat2<'a>> for MarkMarkPosFormat2 {}
+
+impl ReadArgs for MarkMarkPosFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkMarkPosFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkMarkPosFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: Mark2Array2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Mark2Array2 {
+    /// Array of Mark2Records, in Coverage order.
+    pub mark2_records: Vec<Mark2Record2>,
+}
+
+impl Mark2Array2 {
+    /// Construct a new `Mark2Array2`
+    pub fn new(mark2_records: Vec<Mark2Record2>) -> Self {
+        Self { mark2_records }
+    }
+}
+
+impl FontWrite for Mark2Array2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.mark2_records)).unwrap()).write_into(writer);
+        self.mark2_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Mark2Array2")
+    }
+}
+
+impl Validate for Mark2Array2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Mark2Array2", |ctx| {
+            ctx.in_field("mark2_records", |ctx| {
+                if self.mark2_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.mark2_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::Mark2Array2<'a>> for Mark2Array2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Mark2Array2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Mark2Array2 {
+            mark2_records: obj
+                .mark2_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::Mark2Array2<'a>> for Mark2Array2 {}
+
+/// ISO Open Font Format, fifth edition: Mark2Record2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Mark2Record2 {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub mark2_anchors: Vec<NullableOffsetMarker<AnchorTable, WIDTH_24>>,
+}
+
+impl Mark2Record2 {
+    /// Construct a new `Mark2Record2`
+    pub fn new(mark2_anchors: Vec<Option<AnchorTable>>) -> Self {
+        Self {
+            mark2_anchors: mark2_anchors.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for Mark2Record2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.mark2_anchors.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Mark2Record2")
+    }
+}
+
+impl Validate for Mark2Record2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Mark2Record2", |ctx| {
+            ctx.in_field("mark2_anchors", |ctx| {
+                if self.mark2_anchors.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.mark2_anchors.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::Mark2Record2<'_>> for Mark2Record2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Mark2Record2, offset_data: FontData) -> Self {
+        Mark2Record2 {
+            mark2_anchors: obj.mark2_anchors(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkArray2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MarkArray2 {
+    /// Array of MarkRecords, ordered by corresponding glyphs in the
+    /// associated mark Coverage table.
+    pub mark_records: Vec<MarkRecord2>,
+}
+
+impl MarkArray2 {
+    /// Construct a new `MarkArray2`
+    pub fn new(mark_records: Vec<MarkRecord2>) -> Self {
+        Self { mark_records }
+    }
+}
+
+impl FontWrite for MarkArray2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (Uint24::try_from(array_len(&self.mark_records)).unwrap()).write_into(writer);
+        self.mark_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkArray2")
+    }
+}
+
+impl Validate for MarkArray2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkArray2", |ctx| {
+            ctx.in_field("mark_records", |ctx| {
+                if self.mark_records.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.mark_records.validate_impl(ctx);
+            });
+            self.check_class_count(ctx);
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkArray2<'a>> for MarkArray2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkArray2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        MarkArray2 {
+            mark_records: obj.mark_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkArray2<'a>> for MarkArray2 {}
+
+impl ReadArgs for MarkArray2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkArray2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkArray2 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkRecord2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MarkRecord2 {
+    /// Class defined for the associated mark.
+    pub mark_class: u16,
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub mark_anchor: OffsetMarker<AnchorTable, WIDTH_24>,
+}
+
+impl MarkRecord2 {
+    /// Construct a new `MarkRecord2`
+    pub fn new(mark_class: u16, mark_anchor: AnchorTable) -> Self {
+        Self {
+            mark_class,
+            mark_anchor: mark_anchor.into(),
+        }
+    }
+}
+
+impl FontWrite for MarkRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.mark_class.write_into(writer);
+        self.mark_anchor.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkRecord2")
+    }
+}
+
+impl Validate for MarkRecord2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkRecord2", |ctx| {
+            ctx.in_field("mark_anchor", |ctx| {
+                self.mark_anchor.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::MarkRecord2> for MarkRecord2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkRecord2, offset_data: FontData) -> Self {
+        MarkRecord2 {
+            mark_class: obj.mark_class(),
+            mark_anchor: obj.mark_anchor(offset_data).to_owned_table(),
+        }
+    }
+}
+
+/// ISO Open Font Format, fifth edition: CursivePos.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CursivePos {
+    Format1(CursivePosFormat1),
+    Format2(CursivePosFormat2),
+}
+
+impl CursivePos {
+    /// Construct a new `CursivePosFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, entry_exit_record: Vec<EntryExitRecord>) -> Self {
+        Self::Format1(CursivePosFormat1::new(coverage, entry_exit_record))
+    }
+
+    /// Construct a new `CursivePosFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, entry_exit_record: Vec<EntryExitRecord2>) -> Self {
+        Self::Format2(CursivePosFormat2::new(coverage, entry_exit_record))
+    }
+}
+
+impl Default for CursivePos {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for CursivePos {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for CursivePos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::CursivePos<'_>> for CursivePos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::CursivePos, _: FontData) -> Self {
+        use read_fonts::tables::gpos::CursivePos as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => CursivePos::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => CursivePos::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gpos::CursivePos<'_>> for CursivePos {}
+
+impl ReadArgs for CursivePos {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for CursivePos {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::CursivePos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<CursivePosFormat1> for CursivePos {
+    fn from(src: CursivePosFormat1) -> CursivePos {
+        CursivePos::Format1(src)
+    }
+}
+
+impl From<CursivePosFormat2> for CursivePos {
+    fn from(src: CursivePosFormat2) -> CursivePos {
+        CursivePos::Format2(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkBasePos.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MarkBasePos {
+    Format1(MarkBasePosFormat1),
+    Format2(MarkBasePosFormat2),
+}
+
+impl MarkBasePos {
+    /// Construct a new `MarkBasePosFormat1` subtable
+    pub fn format_1(
+        mark_coverage: CoverageTable,
+        base_coverage: CoverageTable,
+        mark_array: MarkArray,
+        base_array: BaseArray,
+    ) -> Self {
+        Self::Format1(MarkBasePosFormat1::new(
+            mark_coverage,
+            base_coverage,
+            mark_array,
+            base_array,
+        ))
+    }
+
+    /// Construct a new `MarkBasePosFormat2` subtable
+    pub fn format_2(
+        mark_coverage: CoverageTable,
+        base_coverage: CoverageTable,
+        mark_array: MarkArray2,
+        base_array: BaseArray2,
+    ) -> Self {
+        Self::Format2(MarkBasePosFormat2::new(
+            mark_coverage,
+            base_coverage,
+            mark_array,
+            base_array,
+        ))
+    }
+}
+
+impl Default for MarkBasePos {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for MarkBasePos {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for MarkBasePos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::MarkBasePos<'_>> for MarkBasePos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkBasePos, _: FontData) -> Self {
+        use read_fonts::tables::gpos::MarkBasePos as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => MarkBasePos::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => MarkBasePos::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gpos::MarkBasePos<'_>> for MarkBasePos {}
+
+impl ReadArgs for MarkBasePos {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkBasePos {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkBasePos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<MarkBasePosFormat1> for MarkBasePos {
+    fn from(src: MarkBasePosFormat1) -> MarkBasePos {
+        MarkBasePos::Format1(src)
+    }
+}
+
+impl From<MarkBasePosFormat2> for MarkBasePos {
+    fn from(src: MarkBasePosFormat2) -> MarkBasePos {
+        MarkBasePos::Format2(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkLigPos.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MarkLigPos {
+    Format1(MarkLigPosFormat1),
+    Format2(MarkLigPosFormat2),
+}
+
+impl MarkLigPos {
+    /// Construct a new `MarkLigPosFormat1` subtable
+    pub fn format_1(
+        mark_coverage: CoverageTable,
+        ligature_coverage: CoverageTable,
+        mark_array: MarkArray,
+        ligature_array: LigatureArray,
+    ) -> Self {
+        Self::Format1(MarkLigPosFormat1::new(
+            mark_coverage,
+            ligature_coverage,
+            mark_array,
+            ligature_array,
+        ))
+    }
+
+    /// Construct a new `MarkLigPosFormat2` subtable
+    pub fn format_2(
+        mark_coverage: CoverageTable,
+        ligature_coverage: CoverageTable,
+        mark_array: MarkArray2,
+        ligature_array: LigatureArray2,
+    ) -> Self {
+        Self::Format2(MarkLigPosFormat2::new(
+            mark_coverage,
+            ligature_coverage,
+            mark_array,
+            ligature_array,
+        ))
+    }
+}
+
+impl Default for MarkLigPos {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for MarkLigPos {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for MarkLigPos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::MarkLigPos<'_>> for MarkLigPos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkLigPos, _: FontData) -> Self {
+        use read_fonts::tables::gpos::MarkLigPos as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => MarkLigPos::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => MarkLigPos::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gpos::MarkLigPos<'_>> for MarkLigPos {}
+
+impl ReadArgs for MarkLigPos {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkLigPos {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkLigPos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<MarkLigPosFormat1> for MarkLigPos {
+    fn from(src: MarkLigPosFormat1) -> MarkLigPos {
+        MarkLigPos::Format1(src)
+    }
+}
+
+impl From<MarkLigPosFormat2> for MarkLigPos {
+    fn from(src: MarkLigPosFormat2) -> MarkLigPos {
+        MarkLigPos::Format2(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MarkMarkPos.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MarkMarkPos {
+    Format1(MarkMarkPosFormat1),
+    Format2(MarkMarkPosFormat2),
+}
+
+impl MarkMarkPos {
+    /// Construct a new `MarkMarkPosFormat1` subtable
+    pub fn format_1(
+        mark1_coverage: CoverageTable,
+        mark2_coverage: CoverageTable,
+        mark1_array: MarkArray,
+        mark2_array: Mark2Array,
+    ) -> Self {
+        Self::Format1(MarkMarkPosFormat1::new(
+            mark1_coverage,
+            mark2_coverage,
+            mark1_array,
+            mark2_array,
+        ))
+    }
+
+    /// Construct a new `MarkMarkPosFormat2` subtable
+    pub fn format_2(
+        mark1_coverage: CoverageTable,
+        mark2_coverage: CoverageTable,
+        mark1_array: MarkArray2,
+        mark2_array: Mark2Array2,
+    ) -> Self {
+        Self::Format2(MarkMarkPosFormat2::new(
+            mark1_coverage,
+            mark2_coverage,
+            mark1_array,
+            mark2_array,
+        ))
+    }
+}
+
+impl Default for MarkMarkPos {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for MarkMarkPos {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for MarkMarkPos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gpos::MarkMarkPos<'_>> for MarkMarkPos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkMarkPos, _: FontData) -> Self {
+        use read_fonts::tables::gpos::MarkMarkPos as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => MarkMarkPos::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => MarkMarkPos::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gpos::MarkMarkPos<'_>> for MarkMarkPos {}
+
+impl ReadArgs for MarkMarkPos {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkMarkPos {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gpos::MarkMarkPos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<MarkMarkPosFormat1> for MarkMarkPos {
+    fn from(src: MarkMarkPosFormat1) -> MarkMarkPos {
+        MarkMarkPos::Format1(src)
+    }
+}
+
+impl From<MarkMarkPosFormat2> for MarkMarkPos {
+    fn from(src: MarkMarkPosFormat2) -> MarkMarkPos {
+        MarkMarkPos::Format2(src)
     }
 }

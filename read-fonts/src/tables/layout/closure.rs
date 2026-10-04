@@ -387,6 +387,10 @@ impl Intersect for ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersects(glyph_set),
             ClassDef::Format2(table) => table.intersects(glyph_set),
+            _ => Ok(self
+                .intersect_classes(glyph_set)
+                .iter()
+                .any(|class| class != 0)),
         }
     }
 }
@@ -764,7 +768,7 @@ fn intersects_class(
 ) -> bool {
     *cache
         .entry(class)
-        .or_insert_with(|| class_def.intersects_class_glyphs(glyphs, class))
+        .or_insert_with(|| class_def.intersects_class_glyphs(glyphs, u32::from(class)))
 }
 impl ClassSequenceRule<'_> {
     fn intersects(
@@ -884,7 +888,7 @@ impl Intersect for ContextFormat1<'_> {
         for rule_set in coverage
             .iter()
             .zip(self.rule_sets())
-            .filter_map(|(g, rule_set)| rule_set.filter(|_| glyph_set.contains(GlyphId::from(g))))
+            .filter_map(|(g, rule_set)| rule_set.filter(|_| glyph_set.contains(g)))
         {
             for rule in rule_set?.rules() {
                 let Some(rule) = rule.transpose()? else {
@@ -910,7 +914,7 @@ impl LookupClosure for ContextFormat1<'_> {
             .zip(self.rule_sets())
             .filter_map(|(g, rule_set)| rule_set.map(|rs| (g, rs)))
         {
-            if !c.glyphs().contains(GlyphId::from(g)) {
+            if !c.glyphs().contains(g) {
                 continue;
             }
             if c.lookup_limit_exceed() {
@@ -966,7 +970,7 @@ impl Intersect for ContextFormat2<'_> {
         let mut seq_cache = SeqCache::default();
         for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
             input_class_def
-                .intersects_class_glyphs(&retained_coverage_glyphs, c as u16)
+                .intersects_class_glyphs(&retained_coverage_glyphs, u32::from(c as u16))
                 .then_some(rule_set)
                 .flatten()
         }) {
@@ -1026,7 +1030,7 @@ impl LookupClosure for ContextFormat2<'_> {
         let mut seq_cache = SeqCache::default();
         for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
             input_class_def
-                .intersects_class_glyphs(&retained_coverage_glyphs, c as u16)
+                .intersects_class_glyphs(&retained_coverage_glyphs, u32::from(c as u16))
                 .then_some(rule_set)
                 .flatten()
         }) {
@@ -1089,6 +1093,8 @@ impl Intersect for SequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -1099,6 +1105,8 @@ impl LookupClosure for SequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).closure_lookups(c, arg),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -1109,6 +1117,8 @@ impl Intersect for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }
@@ -1119,6 +1129,8 @@ impl LookupClosure for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).closure_lookups(c, arg),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
     }
 }

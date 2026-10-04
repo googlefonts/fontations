@@ -153,7 +153,7 @@ impl<'a> SubsetTable<'a> for MarkBasePosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for BaseArray<'_> {
-    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FnvHashMap<u16, u16>);
     type Output = Vec<GlyphId>;
     fn subset(
         &self,
@@ -225,6 +225,17 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         Ok(())
+    }
+}
+
+crate::layout::legacy_subset!(gpos, MarkBasePos, MarkBasePosFormat1);
+
+impl CollectVariationIndices for write_fonts::read::tables::gpos::MarkBasePos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        // Wide subtables are rejected by subset().
+        if let Self::Format1(t) = self {
+            t.collect_variation_indices(plan, varidx_set);
+        }
     }
 }
 

@@ -366,6 +366,8 @@ impl Builder for SinglePosBuilder {
         output.sort_unstable_by_key(|table| match table {
             SinglePos::Format1(table) => cmp_coverage_key(&table.coverage),
             SinglePos::Format2(table) => cmp_coverage_key(&table.coverage),
+            SinglePos::Format3(table) => cmp_coverage_key(&table.coverage),
+            SinglePos::Format4(table) => cmp_coverage_key(&table.coverage),
         });
         output
     }
