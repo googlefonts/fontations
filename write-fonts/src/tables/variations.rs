@@ -157,14 +157,14 @@ pub(crate) fn compute_tuple_variation_count(
 /// Compute data offset for a tuple variation store.
 ///
 /// `header_prefix_len` is the number of bytes before `tupleVariationHeaders`.
-pub(crate) fn compute_tuple_variation_data_offset(
+pub(crate) fn compute_tuple_variation_data_offset<T: TryFrom<usize>>(
     headers: &[TupleVariationHeader],
     header_prefix_len: usize,
-) -> u16 {
+) -> T {
     let header_len = headers.iter().fold(0usize, |acc, header| {
-        acc.checked_add(header.compute_size() as usize).unwrap()
+        acc.checked_add(header.compute_size_wide()).unwrap()
     });
-    (header_prefix_len + header_len).try_into().unwrap()
+    (header_prefix_len + header_len).try_into().ok().unwrap()
 }
 
 impl TupleVariationHeader {
@@ -204,11 +204,14 @@ impl TupleVariationHeader {
 
     /// Return the number of bytes required to encode this header
     pub fn compute_size(&self) -> u16 {
-        let len: usize = 2 + 2 // variationDataSize, tupleIndex
+        self.compute_size_wide().try_into().unwrap()
+    }
+
+    pub(crate) fn compute_size_wide(&self) -> usize {
+        2 + 2 // variationDataSize, tupleIndex
         + self.peak_tuple.len() * F2Dot14::RAW_BYTE_LEN
         + self.intermediate_start_tuple.len()  * F2Dot14::RAW_BYTE_LEN
-        + self.intermediate_end_tuple.len()  * F2Dot14::RAW_BYTE_LEN;
-        len.try_into().unwrap()
+        + self.intermediate_end_tuple.len()  * F2Dot14::RAW_BYTE_LEN
     }
 }
 

@@ -60,6 +60,7 @@ fn do_we_even_serde() {
         gpos: gpos::Gpos,
         gsub: gsub::Gsub,
         gvar: gvar::Gvar,
+        gvar_extended: gvar::GvarExtended,
         head: head::Head,
         hhea: hhea::Hhea,
         hhea_extended: hhea::HheaExtended,

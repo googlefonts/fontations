@@ -1506,6 +1506,64 @@ mod tests {
         assert_eq!(pen.as_ref(), "M0.0,0.0 L10.0,0.0 L10.0,10.0 Z");
     }
 
+    #[test]
+    fn extended_gvar_draws_high_glyphs_and_varies_metrics() {
+        use font_test_data::extended::variable_outlines_font;
+        for long_offsets in [false, true] {
+            for (extended, legacy) in [(true, false), (true, true), (false, true), (false, false)] {
+                let bytes = variable_outlines_font(extended, legacy, long_offsets);
+                let font = FontRef::new(&bytes).unwrap();
+                let glyphs = font.outline_glyphs();
+                for coord in [0.0, 0.5, 1.0] {
+                    let coords = [NormalizedCoord::from_f32(coord)];
+                    let location = LocationRef::new(&coords);
+                    let metrics = font.glyph_metrics(Size::unscaled(), location);
+                    for gid in [65536, 1] {
+                        let shift = if gid == 1 {
+                            (if extended { 40.0 } else { 0.0 })
+                                + if extended || legacy { 20.0 } else { 0.0 }
+                        } else if extended {
+                            40.0
+                        } else {
+                            0.0
+                        } * coord;
+                        let advance_delta = if gid == 1 && (extended || legacy) {
+                            60.0
+                        } else if gid == 65536 && extended {
+                            100.0
+                        } else {
+                            0.0
+                        } * coord;
+                        let right = shift + 80.0;
+                        let expected = format!(
+                            "M{shift:.1},40.0 C{shift:.1},0.0 {right:.1},0.0 {right:.1},40.0 C{right:.1},80.0 {shift:.1},80.0 {shift:.1},40.0 Z"
+                        );
+                        let id = GlyphId::new(gid);
+                        assert_eq!(metrics.advance_width(id), Some(1000.0 + advance_delta));
+                        for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                            let mut pen = SvgPen::with_precision(1);
+                            let adjusted = glyphs
+                                .get(id)
+                                .unwrap()
+                                .draw(
+                                    DrawSettings::unhinted(Size::unscaled(), location)
+                                        .with_path_style(style),
+                                    &mut pen,
+                                )
+                                .unwrap();
+                            assert_eq!(
+                                pen.as_ref(),
+                                expected,
+                                "gid {gid}, coord {coord}, {style:?}"
+                            );
+                            assert_eq!(adjusted.advance_width, Some(1000.0 + advance_delta));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Case where a font subset caused hinting to fail because execution
     /// budget was derived from glyph count.
     /// <https://github.com/googlefonts/fontations/issues/936>

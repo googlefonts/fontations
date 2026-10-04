@@ -206,3 +206,119 @@ pub fn outlines_font(
         .collect();
     font(&tables)
 }
+
+/// Builds glyph variations for glyph 1 and the last glyph, sharing one peak tuple.
+/// The last glyph has four outline points and four phantom points.
+pub fn gvar(count: u32, extended: bool, long_offsets: bool, wide_data_offset: bool) -> Vec<u8> {
+    assert!(!wide_data_offset || extended);
+    let header_size = if extended { 21 } else { 20 };
+    let shared_offset = header_size + (count + 1) * if long_offsets { 4 } else { 2 };
+    let mut body = Vec::new();
+    let mut offsets = Vec::new();
+    for gid in 0..count {
+        offsets.push(body.len() as u32);
+        let (x, y): (&[i8], &[i8]) = if gid == 1 {
+            (&[20, 0, 60, 0, 0], &[0; 5])
+        } else if gid == count - 1 {
+            (
+                &[40, 40, 40, 40, 0, 100, 0, 0],
+                &[0, 0, 0, 0, 0, 0, 40, -20],
+            )
+        } else {
+            continue;
+        };
+        let mut glyph = 1u16.to_be_bytes().to_vec();
+        let data_offset = if wide_data_offset && gid == count - 1 {
+            65537u32
+        } else if extended {
+            9
+        } else {
+            8
+        };
+        if extended {
+            glyph.extend_from_slice(&data_offset.to_be_bytes()[1..]);
+        } else {
+            glyph.extend_from_slice(&(data_offset as u16).to_be_bytes());
+        }
+        glyph.extend_from_slice(&((x.len() + y.len() + 3) as u16).to_be_bytes());
+        glyph.extend_from_slice(&0x2000u16.to_be_bytes()); // Shared peak 0, private points.
+        glyph.resize(data_offset as usize, 0);
+        glyph.push(0); // Deltas for all points.
+        for values in [x, y] {
+            glyph.push((values.len() - 1) as u8); // Byte delta run.
+            glyph.extend(values.iter().map(|value| *value as u8));
+        }
+        body.extend(glyph);
+        if !long_offsets {
+            body.resize((body.len() + 1) & !1, 0);
+        }
+    }
+    offsets.push(body.len() as u32);
+    let mut data = 0x00010000u32.to_be_bytes().to_vec();
+    data.extend_from_slice(&1u16.to_be_bytes()); // Axis count.
+    data.extend_from_slice(&1u16.to_be_bytes()); // Shared tuple count.
+    data.extend_from_slice(&shared_offset.to_be_bytes());
+    if extended {
+        data.extend_from_slice(&count.to_be_bytes()[1..]);
+    } else {
+        data.extend_from_slice(&(count as u16).to_be_bytes());
+    }
+    data.extend_from_slice(&(long_offsets as u16).to_be_bytes());
+    data.extend_from_slice(&(shared_offset + 2).to_be_bytes());
+    for offset in offsets {
+        if long_offsets {
+            data.extend_from_slice(&offset.to_be_bytes());
+        } else {
+            data.extend_from_slice(&((offset / 2) as u16).to_be_bytes());
+        }
+    }
+    data.extend_from_slice(&0x4000u16.to_be_bytes()); // Shared peak +1.
+    data.extend(body);
+    data
+}
+
+/// Builds a one-axis variable CAPS font, optionally also carrying legacy gvar.
+pub fn variable_outlines_font(extended: bool, legacy: bool, long_offsets: bool) -> Vec<u8> {
+    let base = outlines_font(true, true, true, true);
+    let count = u16::from_be_bytes(base[4..6].try_into().unwrap()) as usize;
+    let mut tables: Vec<([u8; 4], Vec<u8>)> = base[12..]
+        .chunks_exact(16)
+        .take(count)
+        .map(|record| {
+            let tag = record[..4].try_into().unwrap();
+            let offset = u32::from_be_bytes(record[8..12].try_into().unwrap()) as usize;
+            let len = u32::from_be_bytes(record[12..16].try_into().unwrap()) as usize;
+            (tag, base[offset..offset + len].to_vec())
+        })
+        .collect();
+    if extended {
+        tables.push((*b"GVAR", gvar(65537, true, long_offsets, false)));
+    }
+    if legacy {
+        tables.push((*b"gvar", gvar(3, false, long_offsets, false)));
+    }
+    let mut fvar = 0x00010000u32.to_be_bytes().to_vec();
+    for value in [16u16, 2, 1, 20, 0, 8] {
+        fvar.extend_from_slice(&value.to_be_bytes());
+    }
+    fvar.extend_from_slice(b"wght");
+    for value in [100i32, 400, 900] {
+        fvar.extend_from_slice(&(value << 16).to_be_bytes());
+    }
+    fvar.extend_from_slice(&0u16.to_be_bytes());
+    fvar.extend_from_slice(&256u16.to_be_bytes());
+    tables.extend([
+        (*b"fvar", fvar),
+        (*b"VHEA", metric_header(1, true, true)),
+        (*b"VMTX", {
+            let mut metrics = vec![0; 4 + 65536 * 2];
+            metrics[..2].copy_from_slice(&1200u16.to_be_bytes());
+            metrics
+        }),
+    ]);
+    let tables: Vec<_> = tables
+        .iter()
+        .map(|(tag, bytes)| (*tag, bytes.as_slice()))
+        .collect();
+    font(&tables)
+}
