@@ -704,6 +704,111 @@ mod tests {
     }
 
     #[test]
+    fn dmap_and_cmap15_agree_across_public_charmaps_at_boundaries() {
+        use font_test_data::cmap::{font_with_cmaps, format12, format15, table};
+        use read_fonts::model::Font;
+
+        let selector = 0xe0100;
+        let base = table(&[
+            (
+                3,
+                10,
+                &format12(&[(0x20000, 1), (0x20001, 2), (0x20002, 2), (0x10ffff, 4)]),
+            ),
+            (
+                0,
+                5,
+                &format15(
+                    selector,
+                    &[],
+                    &[
+                        (0x20000, 3),
+                        (0x20001, 4),
+                        (0x20002, 65536),
+                        (0x10ffff, 65535),
+                    ],
+                ),
+            ),
+        ]);
+        let delta = table(&[
+            (
+                3,
+                10,
+                &format12(&[(0x20000, 3), (0x20001, 4), (0x20002, 0), (0x10ffff, 5)]),
+            ),
+            (
+                0,
+                5,
+                &format15(selector, &[0x20000], &[(0x20001, 0xffffff)]),
+            ),
+        ]);
+        let bytes = font_with_cmaps(Some(&base), Some(&delta));
+        let font = FontRef::new(&bytes).unwrap();
+        let cached = Font::new(bytes.clone(), 0).unwrap();
+        let index = MappingIndex::new(&font);
+        let nominal = [(0x20000, 3), (0x20001, 4), (0x20002, 2), (0x10ffff, 5)]
+            .map(|(ch, gid)| (ch, GlyphId::new(gid)));
+        let variants = [
+            (0x20000, 3),
+            (0x20001, 0xffffff),
+            (0x20002, 65536),
+            (0x10ffff, 65535),
+        ]
+        .map(|(ch, gid)| (ch, selector, GlyphId::new(gid)));
+        for charmap in [font.charmap(), index.charmap(&font)] {
+            let mut mappings: Vec<_> = charmap.mappings().collect();
+            mappings.sort_unstable();
+            assert_eq!(mappings, nominal);
+            let mut resolved: Vec<_> = charmap
+                .variant_mappings()
+                .map(|(ch, vs, variant)| {
+                    let glyph = match variant {
+                        MapVariant::UseDefault => charmap.map(ch).unwrap(),
+                        MapVariant::Variant(glyph) => glyph,
+                    };
+                    (ch, vs, glyph)
+                })
+                .collect();
+            resolved.sort_unstable();
+            assert_eq!(resolved, variants);
+            for (ch, glyph) in nominal {
+                assert_eq!(charmap.map(ch), Some(glyph));
+            }
+            for (ch, vs, glyph) in variants {
+                let variant = charmap.map_variant(ch, vs).unwrap();
+                assert_eq!(
+                    match variant {
+                        MapVariant::UseDefault => charmap.map(ch).unwrap(),
+                        MapVariant::Variant(glyph) => glyph,
+                    },
+                    glyph
+                );
+            }
+            assert_eq!(charmap.map_variant(0x20000u32, selector + 1), None);
+            assert_eq!(charmap.map(0x20003u32), None);
+        }
+        for instance in [
+            &cached,
+            &cached.default_instance(),
+            &cached.instance_builder().build(),
+        ] {
+            let charmap = instance.charmap();
+            let mut mappings: Vec<_> = charmap.iter_unicodes().collect();
+            mappings.sort_unstable();
+            assert_eq!(mappings, nominal);
+            let mut resolved: Vec<_> = charmap.iter_unicode_variants().collect();
+            resolved.sort_unstable();
+            assert_eq!(resolved, variants);
+            for (ch, glyph) in nominal {
+                assert_eq!(charmap.map_unicode(ch), Some(glyph));
+            }
+            for (ch, vs, glyph) in variants {
+                assert_eq!(charmap.map_unicode_variant(ch, vs), Some(glyph));
+            }
+        }
+    }
+
+    #[test]
     fn choose_format_13_over_4() {
         let font = FontRef::new(font_test_data::TOFU).unwrap();
         let charmap = font.charmap();
