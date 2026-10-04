@@ -228,6 +228,17 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
     }
 }
 
+crate::layout::legacy_subset!(gpos, MarkBasePos, MarkBasePosFormat1);
+
+impl CollectVariationIndices for write_fonts::read::tables::gpos::MarkBasePos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        // Wide subtables are rejected by subset().
+        if let Self::Format1(t) = self {
+            t.collect_variation_indices(plan, varidx_set);
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

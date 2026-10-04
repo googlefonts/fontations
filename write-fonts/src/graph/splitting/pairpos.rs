@@ -870,6 +870,7 @@ mod tests {
                         .iter()
                         .map(|c1rec| c1rec.class2_records.len())
                         .sum::<usize>(),
+                    _ => panic!("wrong subtable format"),
                 })
                 .sum::<usize>(),
             _ => panic!("wrong lookup type"),

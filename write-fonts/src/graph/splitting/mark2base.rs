@@ -559,11 +559,11 @@ mod tests {
                 LookupFlag::empty(),
                 vec![ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
                     LookupType::MARK_TO_BASE,
-                    table,
+                    table.into(),
                 ))],
             ))
         } else {
-            PositionLookup::MarkToBase(Lookup::new(LookupFlag::empty(), vec![table]))
+            PositionLookup::MarkToBase(Lookup::new(LookupFlag::empty(), vec![table.into()]))
         };
         let lookup_list = LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookup_list).unwrap();
@@ -575,7 +575,13 @@ mod tests {
         }
 
         let subtables: Vec<_> = match lookup.subtables().unwrap() {
-            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            PositionSubtables::MarkToBase(subs) => subs
+                .iter()
+                .map(|sub| match sub.unwrap() {
+                    rgpos::MarkBasePos::Format1(t) => t,
+                    _ => panic!("wrong subtable format"),
+                })
+                .collect(),
             _ => panic!("wrong lookup type"),
         };
 

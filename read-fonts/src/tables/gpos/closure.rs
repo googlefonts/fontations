@@ -188,6 +188,8 @@ impl Intersect for SinglePos<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.pos_format().into())),
         }
     }
 }
@@ -215,6 +217,8 @@ impl Intersect for PairPos<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
+            // Closure/subsetting of the extended formats is deferred.
+            _ => Err(ReadError::InvalidFormat(self.pos_format().into())),
         }
     }
 }
@@ -319,5 +323,41 @@ impl Intersect for MarkMarkPosFormat1<'_> {
         }
         Ok(self.mark1_coverage()?.intersects(glyph_set)
             && self.mark2_coverage()?.intersects(glyph_set))
+    }
+}
+
+impl Intersect for super::CursivePos<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+
+impl Intersect for super::MarkBasePos<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+
+impl Intersect for super::MarkLigPos<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
+    }
+}
+
+impl Intersect for super::MarkMarkPos<'_> {
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            Self::Format1(table) => table.intersects(glyphs),
+            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+        }
     }
 }

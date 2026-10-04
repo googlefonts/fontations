@@ -225,6 +225,17 @@ impl<'a> SubsetTable<'a> for Mark2Record<'_> {
     }
 }
 
+crate::layout::legacy_subset!(gpos, MarkMarkPos, MarkMarkPosFormat1);
+
+impl CollectVariationIndices for write_fonts::read::tables::gpos::MarkMarkPos<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        // Wide subtables are rejected by subset().
+        if let Self::Format1(t) = self {
+            t.collect_variation_indices(plan, varidx_set);
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

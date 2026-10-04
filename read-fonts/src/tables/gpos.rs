@@ -134,10 +134,10 @@ type PosSubtables<'a, T> = Subtables<'a, T, ExtensionPosFormat1<'a, T>>;
 pub enum PositionSubtables<'a> {
     Single(PosSubtables<'a, SinglePos<'a>>),
     Pair(PosSubtables<'a, PairPos<'a>>),
-    Cursive(PosSubtables<'a, CursivePosFormat1<'a>>),
-    MarkToBase(PosSubtables<'a, MarkBasePosFormat1<'a>>),
-    MarkToLig(PosSubtables<'a, MarkLigPosFormat1<'a>>),
-    MarkToMark(PosSubtables<'a, MarkMarkPosFormat1<'a>>),
+    Cursive(PosSubtables<'a, CursivePos<'a>>),
+    MarkToBase(PosSubtables<'a, MarkBasePos<'a>>),
+    MarkToLig(PosSubtables<'a, MarkLigPos<'a>>),
+    MarkToMark(PosSubtables<'a, MarkMarkPos<'a>>),
     Contextual(PosSubtables<'a, PositionSequenceContext<'a>>),
     ChainContextual(PosSubtables<'a, PositionChainContext<'a>>),
     /// An extension lookup did not have any subtables
