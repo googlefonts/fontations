@@ -470,7 +470,7 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
                 coverage
                     .iter()
                     .zip(subs_glyphs)
-                    .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
+                    .filter(|&(g, _)| glyph_set.contains(g))
                     .map(|(_, &new_g)| GlyphId::from(new_g.get())),
             );
         }
@@ -515,7 +515,7 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
                     .zip(sequences.iter_as_nullable())
                     .filter_map(|(g, seq)| {
                         glyph_set
-                            .contains(GlyphId::from(g))
+                            .contains(g)
                             .then(|| seq.transpose().ok().flatten())
                             .flatten()
                     })
@@ -567,7 +567,7 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
                     .zip(alts.iter_as_nullable())
                     .filter_map(|(g, alt_set)| {
                         glyph_set
-                            .contains(GlyphId::from(g))
+                            .contains(g)
                             .then(|| alt_set.transpose().ok().flatten())
                             .flatten()
                     })
@@ -624,7 +624,7 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
             for idx in coverage
                 .iter()
                 .enumerate()
-                .filter(|&(_idx, g)| glyph_set.contains(GlyphId::from(g)))
+                .filter(|&(_idx, g)| glyph_set.contains(g))
                 .map(|(idx, _)| idx)
             {
                 let lig_set = match ligs.get(idx) {
@@ -679,7 +679,7 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
             for i in coverage
                 .iter()
                 .enumerate()
-                .filter(|&(_idx, g)| glyph_set.contains(GlyphId::from(g)))
+                .filter(|&(_idx, g)| glyph_set.contains(g))
                 .map(|(idx, _)| idx)
             {
                 let Some(g) = sub_glyphs.get(i) else {
@@ -754,7 +754,7 @@ impl GlyphClosure for ContextFormat1<'_> {
             .zip(self.rule_sets())
             .filter_map(|(g, rule_set)| rule_set.map(|rs| (g, rs)))
         {
-            if !ctx.parent_active_glyphs().contains(GlyphId::from(gid)) {
+            if !ctx.parent_active_glyphs().contains(gid) {
                 continue;
             }
             if ctx.lookup_limit_exceed() {
@@ -801,7 +801,7 @@ impl GlyphClosure for ContextFormat1<'_> {
                         // it with the full current glyph set
                         active_glyphs.extend(ctx.glyphs().iter());
                     } else if sequence_idx == 0 {
-                        active_glyphs.insert(GlyphId::from(gid));
+                        active_glyphs.insert(gid);
                     } else {
                         let g = input_seq[sequence_idx as usize - 1].get();
                         active_glyphs.insert(GlyphId::from(g));
@@ -833,7 +833,7 @@ fn intersected_class_glyphs(
         return cached_set.clone();
     }
 
-    let out = class_def.intersected_class_glyphs(glyphs, class);
+    let out = class_def.intersected_class_glyphs(glyphs, u32::from(class));
     cache.insert(class, out.clone());
     out
 }
@@ -889,7 +889,7 @@ impl GlyphClosure for ContextFormat2<'_> {
             .enumerate()
             .filter_map(|(class, rs)| rs.map(|rs| (class as u16, rs)))
             .filter(|&(class, _)| {
-                input_class_def.intersects_class_glyphs(&cov_active_glyphs, class)
+                input_class_def.intersects_class_glyphs(&cov_active_glyphs, u32::from(class))
             })
         {
             if ctx.lookup_limit_exceed() {
@@ -1172,7 +1172,7 @@ impl Intersect for LigatureSubstFormat1<'_> {
         for lig_set in coverage
             .iter()
             .zip(lig_sets.iter_as_nullable())
-            .filter_map(|(g, lig_set)| glyph_set.contains(GlyphId::from(g)).then_some(lig_set))
+            .filter_map(|(g, lig_set)| glyph_set.contains(g).then_some(lig_set))
         {
             let Some(lig_set) = lig_set.transpose()? else {
                 continue;

@@ -285,12 +285,12 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
         let rule_sets = self.class_seq_rule_sets();
         let n = self
             .class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap());
+            .min(cov_classes.last().unwrap().min(u16::MAX as u32) as u16);
 
         let mut snap = s.snapshot();
         for (i, c) in (0..=n).filter(|c| class_map.contains_key(c)).enumerate() {
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            if !cov_classes.contains(c) {
+            if !cov_classes.contains(u32::from(c)) {
                 continue;
             }
             match rule_sets.get(c as usize) {
@@ -708,7 +708,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
         let rule_sets = self.chained_class_seq_rule_sets();
         let n = self
             .chained_class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap());
+            .min(cov_classes.last().unwrap().min(u16::MAX as u32) as u16);
 
         let mut snap = s.snapshot();
         let subset_struct = ChainedContextSubsetStruct {
@@ -722,7 +722,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             .enumerate()
         {
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            if !cov_classes.contains(c) {
+            if !cov_classes.contains(u32::from(c)) {
                 continue;
             }
             match rule_sets.get(c as usize) {

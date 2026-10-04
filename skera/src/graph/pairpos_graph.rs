@@ -751,10 +751,13 @@ fn get_glyph_classes(
     let class_def = ClassDef::read(write_fonts::read::FontData::new(class_def_data))
         .map_err(|_| RepackError::ErrorReadTable)?;
 
-    Ok(coverage_table
+    coverage_table
         .iter()
-        .map(|g| (GlyphId::from(g), class_def.get(g)))
-        .collect())
+        .map(|g| {
+            let class = u16::try_from(class_def.get(g)).map_err(|_| RepackError::ErrorReadTable)?;
+            Ok((g, class))
+        })
+        .collect()
 }
 
 struct PairPosFormat1<'a>(DataBytes<'a>);

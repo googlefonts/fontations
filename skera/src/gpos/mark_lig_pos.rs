@@ -162,7 +162,7 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for LigatureArray<'_> {
-    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FnvHashMap<u16, u16>);
     type Output = Vec<GlyphId>;
     fn subset(
         &self,

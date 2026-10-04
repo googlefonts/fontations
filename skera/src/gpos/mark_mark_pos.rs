@@ -150,7 +150,7 @@ impl<'a> SubsetTable<'a> for MarkMarkPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for Mark2Array<'_> {
-    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FnvHashMap<u16, u16>);
     type Output = Vec<GlyphId>;
     fn subset(
         &self,

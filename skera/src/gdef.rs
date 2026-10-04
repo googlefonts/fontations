@@ -17,7 +17,6 @@ use write_fonts::{
             },
             layout::CoverageTable,
         },
-        types::GlyphId,
         FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32},
@@ -272,7 +271,7 @@ impl SubsetTable<'_> for AttachList<'_> {
             .enumerate()
             .take(plan.font_num_glyphs.min(src_glyph_count))
         {
-            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, glyph) else {
                 continue;
             };
 
@@ -336,7 +335,7 @@ impl SubsetTable<'_> for LigCaretList<'_> {
             .enumerate()
             .take(plan.font_num_glyphs.min(src_lig_glyph_count))
         {
-            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, glyph) else {
                 continue;
             };
 
@@ -541,7 +540,7 @@ impl CollectVariationIndices for LigCaretList<'_> {
             let Ok(lig_glyph) = lig_glyph else {
                 return;
             };
-            if !plan.glyphset_gsub.contains(GlyphId::from(gid)) {
+            if !plan.glyphset_gsub.contains(gid) {
                 continue;
             }
             lig_glyph.collect_variation_indices(plan, varidx_set);

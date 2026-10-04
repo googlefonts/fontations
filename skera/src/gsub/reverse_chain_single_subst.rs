@@ -49,7 +49,7 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
             .iter()
             .zip(sub_glyphs)
             .filter_map(|(cov_g, sub_g)| {
-                let new_cov_g = map_gsub_glyph(glyph_map, GlyphId::from(cov_g))?;
+                let new_cov_g = map_gsub_glyph(glyph_map, cov_g)?;
                 let new_sub_g = map_gsub_glyph(glyph_map, GlyphId::from(sub_g.get()))?;
                 Some((new_cov_g, new_sub_g))
             })

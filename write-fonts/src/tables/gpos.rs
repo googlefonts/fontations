@@ -152,16 +152,19 @@ impl PairPosFormat2 {
     }
 
     fn compute_class1_count(&self) -> u16 {
-        self.class_def1.class_count()
+        self.class_def1.class_count().try_into().unwrap_or(0)
     }
 
     fn compute_class2_count(&self) -> u16 {
-        self.class_def2.class_count()
+        self.class_def2.class_count().try_into().unwrap_or(0)
     }
 
     fn check_length_and_format_conformance(&self, ctx: &mut ValidationCtx) {
         let n_class_1s = self.class_def1.class_count();
         let n_class_2s = self.class_def2.class_count();
+        if n_class_1s > u16::MAX as u32 || n_class_2s > u16::MAX as u32 {
+            ctx.report("pair positioning class counts must fit in 16 bits");
+        }
         let format_1 = self.compute_value_format1();
         let format_2 = self.compute_value_format2();
         if self.class1_records.len() != n_class_1s as usize {
