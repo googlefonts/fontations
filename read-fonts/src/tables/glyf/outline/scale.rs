@@ -300,8 +300,7 @@ impl Scale for Scale26Dot6 {
         let have_deltas = simple_deltas(
             var_data,
             varies,
-            coords,
-            gvar_scalars,
+            (coords, gvar_scalars),
             unscaled,
             flags,
             contours,
@@ -505,8 +504,7 @@ impl Scale for ScaleF32 {
         if simple_deltas(
             var_data,
             varies,
-            coords,
-            gvar_scalars,
+            (coords, gvar_scalars),
             scaled,
             flags,
             contours,
@@ -660,8 +658,7 @@ impl Scale for Unscaled {
         let have_deltas = simple_deltas(
             var_data,
             varies,
-            coords,
-            gvar_scalars,
+            (coords, gvar_scalars),
             scaled,
             flags,
             contours,
@@ -793,8 +790,7 @@ fn hypot_fixed(a: Fixed, b: Fixed) -> Fixed {
 fn simple_deltas<C, D>(
     var_data: Option<GlyphVariationData<'_>>,
     varies: bool,
-    coords: &[F2Dot14],
-    gvar_scalars: &[Fixed],
+    (coords, gvar_scalars): (&[F2Dot14], &[Fixed]),
     points: &[Point<C>],
     flags: &mut [PointFlags],
     contours: &[u16],
