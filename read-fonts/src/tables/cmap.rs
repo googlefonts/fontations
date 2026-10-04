@@ -605,13 +605,14 @@ fn cmap1213_iter_group<T: AnyMapGroup>(
     let end_code = if let Some(limits) = limits {
         // Set our end code to the minimum of our character and glyph
         // count limit
+        let char_limit = limits.max_char as u64 + 1;
         if T::IS_CONSTANT {
-            end_code.min(limits.max_char as u64)
+            end_code.min(char_limit)
         } else {
             (limits.glyph_count as u64)
                 .saturating_sub(start_glyph_id as u64)
                 .saturating_add(start_code as u64)
-                .min(end_code.min(limits.max_char as u64))
+                .min(end_code.min(char_limit))
         }
     } else {
         end_code
@@ -1603,6 +1604,30 @@ mod tests {
                 // We always return one less than glyph count limit because
                 // notdef is not mapped
                 (glyph_count as usize).saturating_sub(1)
+            );
+        }
+    }
+
+    #[test]
+    fn cmap12_and_13_iter_include_the_maximum_character() {
+        for max_char in [0, 1, char::MAX as u32, u32::MAX] {
+            let mut bytes = font_test_data::cmap::format12(&[(max_char, 1)]);
+            let limits = CmapIterLimits {
+                max_char,
+                glyph_count: 2,
+            };
+            let table = Cmap12::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(table.map_codepoint(max_char), Some(GlyphId::new(1)));
+            assert_eq!(
+                table.iter_with_limits(limits).collect::<Vec<_>>(),
+                [(max_char, GlyphId::new(1))]
+            );
+            bytes[..2].copy_from_slice(&13u16.to_be_bytes());
+            let table = Cmap13::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(table.map_codepoint(max_char), Some(GlyphId::new(1)));
+            assert_eq!(
+                table.iter_with_limits(limits).collect::<Vec<_>>(),
+                [(max_char, GlyphId::new(1))]
             );
         }
     }
