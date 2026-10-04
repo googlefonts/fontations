@@ -1,15 +1,17 @@
 //! Support Layout Closure
 
-use types::{BigEndian, GlyphId16, Offset16};
+use types::{BigEndian, GlyphId16, GlyphId24, Offset16};
 
 use super::{
     ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
-    ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassDefFormat1, ClassDefFormat2,
+    ChainedSequenceContextFormat4, ChainedSequenceRule, ChainedSequenceRule2,
+    ChainedSequenceRuleSet, ChainedSequenceRuleSet2, ClassDef, ClassDefFormat1, ClassDefFormat2,
     ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, Feature, FeatureList,
     FeatureVariations, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
-    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
-    SequenceRule, SequenceRuleSet, Subtables, Tag,
+    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4,
+    SequenceLookupRecord, SequenceRule, SequenceRule2, SequenceRuleSet, SequenceRuleSet2,
+    Subtables, Tag,
 };
 use crate::{
     collections::{FnvHashMap, IntSet},
@@ -488,19 +490,25 @@ where
 pub(crate) enum ContextFormat1<'a> {
     Plain(SequenceContextFormat1<'a>),
     Chain(ChainedSequenceContextFormat1<'a>),
+    PlainWide(SequenceContextFormat4<'a>),
+    ChainWide(ChainedSequenceContextFormat4<'a>),
 }
 
 pub(crate) enum Format1RuleSet<'a> {
     Plain(SequenceRuleSet<'a>),
     Chain(ChainedSequenceRuleSet<'a>),
+    PlainWide(SequenceRuleSet2<'a>),
+    ChainWide(ChainedSequenceRuleSet2<'a>),
 }
 
 pub(crate) enum Format1Rule<'a> {
     Plain(SequenceRule<'a>),
     Chain(ChainedSequenceRule<'a>),
+    PlainWide(SequenceRule2<'a>),
+    ChainWide(ChainedSequenceRule2<'a>),
 }
 
-impl ContextFormat1<'_> {
+impl<'a> ContextFormat1<'a> {
     pub(crate) fn coverage(&self) -> Option<Result<CoverageTable<'_>, ReadError>> {
         match self {
             ContextFormat1::Plain(table) if !table.coverage_offset().is_null() => {
@@ -509,72 +517,90 @@ impl ContextFormat1<'_> {
             ContextFormat1::Chain(table) if !table.coverage_offset().is_null() => {
                 Some(table.coverage())
             }
+            ContextFormat1::PlainWide(table) if !table.coverage_offset().is_null() => {
+                Some(table.coverage())
+            }
+            ContextFormat1::ChainWide(table) if !table.coverage_offset().is_null() => {
+                Some(table.coverage())
+            }
             _ => None,
         }
     }
 
     pub(crate) fn rule_sets(
         &self,
-    ) -> impl Iterator<Item = Option<Result<Format1RuleSet<'_>, ReadError>>> {
-        let (left, right) = match self {
-            ContextFormat1::Plain(table) => (
-                Some(
-                    table
-                        .seq_rule_sets()
-                        .iter()
-                        .map(|rs| rs.map(|rs| rs.map(Format1RuleSet::Plain))),
-                ),
-                None,
-            ),
-            ContextFormat1::Chain(table) => (
-                None,
-                Some(
-                    table
-                        .chained_seq_rule_sets()
-                        .iter()
-                        .map(|rs| rs.map(|rs| rs.map(Format1RuleSet::Chain))),
-                ),
-            ),
+    ) -> impl Iterator<Item = Option<Result<Format1RuleSet<'a>, ReadError>>> + '_ {
+        let count = match self {
+            Self::Plain(table) => table.seq_rule_sets().len(),
+            Self::Chain(table) => table.chained_seq_rule_sets().len(),
+            Self::PlainWide(table) => table.seq_rule_sets().len(),
+            Self::ChainWide(table) => table.chained_seq_rule_sets().len(),
         };
-        left.into_iter()
-            .flatten()
-            .chain(right.into_iter().flatten())
+        (0..count).map(move |index| match self {
+            Self::Plain(table) => table
+                .seq_rule_sets()
+                .get(index)
+                .map(|rs| rs.map(Format1RuleSet::Plain)),
+            Self::Chain(table) => table
+                .chained_seq_rule_sets()
+                .get(index)
+                .map(|rs| rs.map(Format1RuleSet::Chain)),
+            Self::PlainWide(table) => table
+                .seq_rule_sets()
+                .get(index)
+                .map(|rs| rs.map(Format1RuleSet::PlainWide)),
+            Self::ChainWide(table) => table
+                .chained_seq_rule_sets()
+                .get(index)
+                .map(|rs| rs.map(Format1RuleSet::ChainWide)),
+        })
     }
 }
 
-impl Format1RuleSet<'_> {
-    pub(crate) fn rules(&self) -> impl Iterator<Item = Option<Result<Format1Rule<'_>, ReadError>>> {
-        let (left, right) = match self {
-            Self::Plain(table) => (
-                Some(
-                    table
-                        .seq_rules()
-                        .iter_as_nullable()
-                        .map(|rule| rule.map(|r| r.map(Format1Rule::Plain))),
-                ),
-                None,
-            ),
-            Self::Chain(table) => (
-                None,
-                Some(
-                    table
-                        .chained_seq_rules()
-                        .iter_as_nullable()
-                        .map(|rule| rule.map(|r| r.map(Format1Rule::Chain))),
-                ),
-            ),
+impl<'a> Format1RuleSet<'a> {
+    pub(crate) fn rules(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<Format1Rule<'a>, ReadError>>> + '_ {
+        let count = match self {
+            Self::Plain(table) => table.seq_rules().len(),
+            Self::Chain(table) => table.chained_seq_rules().len(),
+            Self::PlainWide(table) => table.seq_rules().len(),
+            Self::ChainWide(table) => table.chained_seq_rules().len(),
         };
-        left.into_iter()
-            .flatten()
-            .chain(right.into_iter().flatten())
+        (0..count).map(move |index| {
+            let rule = match self {
+                Self::Plain(table) => table.seq_rules().get(index).map(Format1Rule::Plain),
+                Self::Chain(table) => table.chained_seq_rules().get(index).map(Format1Rule::Chain),
+                Self::PlainWide(table) => table.seq_rules().get(index).map(Format1Rule::PlainWide),
+                Self::ChainWide(table) => table
+                    .chained_seq_rules()
+                    .get(index)
+                    .map(Format1Rule::ChainWide),
+            };
+            match rule {
+                Err(ReadError::NullOffset) => None,
+                other => Some(other),
+            }
+        })
     }
 }
 
 impl Format1Rule<'_> {
-    pub(crate) fn input_sequence(&self) -> &[BigEndian<GlyphId16>] {
+    pub(crate) fn input_count(&self) -> usize {
         match self {
-            Self::Plain(table) => table.input_sequence(),
-            Self::Chain(table) => table.input_sequence(),
+            Self::Plain(table) => table.input_sequence().len() + 1,
+            Self::Chain(table) => table.input_sequence().len() + 1,
+            Self::PlainWide(table) => table.input_sequence().len() + 1,
+            Self::ChainWide(table) => table.input_sequence().len() + 1,
+        }
+    }
+
+    pub(crate) fn input_glyph(&self, index: usize) -> Option<GlyphId> {
+        match self {
+            Self::Plain(table) => table.input_sequence().get(index).map(|g| g.get().into()),
+            Self::Chain(table) => table.input_sequence().get(index).map(|g| g.get().into()),
+            Self::PlainWide(table) => table.input_sequence().get(index).map(|g| g.get().into()),
+            Self::ChainWide(table) => table.input_sequence().get(index).map(|g| g.get().into()),
         }
     }
 
@@ -582,6 +608,8 @@ impl Format1Rule<'_> {
         match self {
             Self::Plain(table) => table.seq_lookup_records(),
             Self::Chain(table) => table.seq_lookup_records(),
+            Self::PlainWide(table) => table.seq_lookup_records(),
+            Self::ChainWide(table) => table.seq_lookup_records(),
         }
     }
 }
@@ -594,11 +622,23 @@ impl Intersect for &[BigEndian<GlyphId16>] {
     }
 }
 
+impl Intersect for &[BigEndian<GlyphId24>] {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        Ok(self
+            .iter()
+            .all(|g| glyph_set.contains(GlyphId::from(g.get()))))
+    }
+}
+
 impl Intersect for Format1Rule<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Plain(table) => table.input_sequence().intersects(glyph_set),
             Self::Chain(table) => Ok(table.backtrack_sequence().intersects(glyph_set)?
+                && table.input_sequence().intersects(glyph_set)?
+                && table.lookahead_sequence().intersects(glyph_set)?),
+            Self::PlainWide(table) => table.input_sequence().intersects(glyph_set),
+            Self::ChainWide(table) => Ok(table.backtrack_sequence().intersects(glyph_set)?
                 && table.input_sequence().intersects(glyph_set)?
                 && table.lookahead_sequence().intersects(glyph_set)?),
         }
@@ -1093,6 +1133,7 @@ impl Intersect for SequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).intersects(glyph_set),
+            Self::Format4(table) => ContextFormat1::PlainWide(table.clone()).intersects(glyph_set),
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -1105,6 +1146,9 @@ impl LookupClosure for SequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format2(table) => ContextFormat2::Plain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Plain(table.clone()).closure_lookups(c, arg),
+            Self::Format4(table) => {
+                ContextFormat1::PlainWide(table.clone()).closure_lookups(c, arg)
+            }
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -1117,6 +1161,7 @@ impl Intersect for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).intersects(glyph_set),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).intersects(glyph_set),
+            Self::Format4(table) => ContextFormat1::ChainWide(table.clone()).intersects(glyph_set),
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -1129,6 +1174,9 @@ impl LookupClosure for ChainedSequenceContext<'_> {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).closure_lookups(c, arg),
+            Self::Format4(table) => {
+                ContextFormat1::ChainWide(table.clone()).closure_lookups(c, arg)
+            }
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }

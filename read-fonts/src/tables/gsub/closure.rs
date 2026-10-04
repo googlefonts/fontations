@@ -4,6 +4,9 @@
 //! reachable from those glyphs via substitution, recursively.
 mod extended;
 
+#[cfg(test)]
+mod contextual_tests;
+
 use font_types::GlyphId;
 
 use crate::{
@@ -744,6 +747,11 @@ impl GlyphClosure for SequenceContext<'_> {
             Self::Format3(table) => {
                 ContextFormat3::Plain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            Self::Format4(table) => ContextFormat1::PlainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -767,6 +775,11 @@ impl GlyphClosure for ChainedSequenceContext<'_> {
             Self::Format3(table) => {
                 ContextFormat3::Chain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            Self::Format4(table) => ContextFormat1::ChainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             // Closure/subsetting of the extended formats is deferred.
             _ => Err(ReadError::InvalidFormat(self.format().into())),
         }
@@ -810,8 +823,7 @@ impl GlyphClosure for ContextFormat1<'_> {
                     continue;
                 }
 
-                let input_seq = rule.input_sequence();
-                let input_count = input_seq.len() + 1;
+                let input_count = rule.input_count();
                 // python calls this 'chaos'. Basically: if there are multiple
                 // lookups applied at a single position they can interact, and
                 // we can no longer trivially determine the state of the context
@@ -841,8 +853,10 @@ impl GlyphClosure for ContextFormat1<'_> {
                     } else if sequence_idx == 0 {
                         active_glyphs.insert(gid);
                     } else {
-                        let g = input_seq[sequence_idx as usize - 1].get();
-                        active_glyphs.insert(GlyphId::from(g));
+                        let Some(g) = rule.input_glyph(sequence_idx as usize - 1) else {
+                            continue;
+                        };
+                        active_glyphs.insert(g);
                     };
 
                     ctx.recurse(
