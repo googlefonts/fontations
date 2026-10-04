@@ -17,7 +17,7 @@ use crate::{
         },
         gvar::DeltaBuffers,
     },
-    types::{F2Dot14, GlyphId, Point},
+    types::{F2Dot14, Fixed, GlyphId, Point},
 };
 
 /// Builds the outline a plan describes.
@@ -39,6 +39,7 @@ pub(super) fn load<'a, 's, 'buf, S: Scale>(
         scale,
         varies,
         coords,
+        gvar_scalars: if varies { context.gvar_scalars() } else { &[] },
         has_hvar: context.has_hvar(),
         buffers,
         point_count: 0,
@@ -85,6 +86,7 @@ struct Pass<'a, 's, 'buf, 'hint, S: Scale> {
     scale: &'s S,
     varies: bool,
     coords: &'s [F2Dot14],
+    gvar_scalars: &'s [Fixed],
     has_hvar: bool,
     buffers: Buffers<'buf, S>,
     point_count: usize,
@@ -255,6 +257,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
             var_data,
             varies: self.varies,
             coords,
+            gvar_scalars: self.gvar_scalars,
             has_hvar,
             is_hinted,
         })?;
@@ -398,7 +401,10 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
                 .buffers
                 .composite_deltas
                 .try_mut(delta_base..delta_base + count)?;
-            if var_data.composite_deltas(self.coords, deltas).is_some() {
+            if var_data
+                .composite_deltas_with_scalars(self.coords, self.gvar_scalars, deltas)
+                .is_some()
+            {
                 for (phantom, delta) in self
                     .phantom
                     .iter_mut()
