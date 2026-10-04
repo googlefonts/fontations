@@ -10,6 +10,7 @@ impl Hvar<'_> {
         ScalarCache::from_store(self.item_variation_store())
     }
 
+    #[inline]
     pub(crate) fn advance_delta_with_cache(
         &self,
         glyph_id: GlyphId,

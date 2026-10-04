@@ -1634,6 +1634,7 @@ impl ItemVariationStore<'_> {
         self.compute_delta_impl::<true>(index, coords, |i| scalars.get(i).copied(), |_, _| {})
     }
 
+    #[inline]
     pub(crate) fn compute_delta_with_cache(
         &self,
         index: DeltaSetIndex,
