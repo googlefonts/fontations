@@ -102,7 +102,21 @@ impl SubsetTable<'_> for AlternateSet<'_> {
     }
 }
 
-crate::layout::legacy_subset!(gsub, AlternateSubst, AlternateSubstFormat1);
+impl<'a> SubsetTable<'a> for write_fonts::read::tables::gsub::AlternateSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
