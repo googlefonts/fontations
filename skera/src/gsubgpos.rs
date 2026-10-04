@@ -1,5 +1,7 @@
 //! impl subset() for Sequence Context/Chained Sequence Context tables
-use crate::FastHashMap;
+mod extended;
+
+use crate::fnv::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph, ClassDefSubsetStruct, ClassMap},
     offset::{SerializeSerialize, SerializeSubset},
@@ -34,7 +36,8 @@ impl<'a> SubsetTable<'a> for SequenceContext<'_> {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
             Self::Format2(item) => item.subset(plan, s, lookup_map),
             Self::Format3(item) => item.subset(plan, s, lookup_map),
-            Self::Format4(_) | Self::Format5(_) | Self::Format6(_) => {
+            Self::Format4(item) => item.subset(plan, s, lookup_map),
+            Self::Format5(_) | Self::Format6(_) => {
                 Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
             }
         }
@@ -144,7 +147,9 @@ fn serialize_glyph_sequence(
     for g in sequence {
         let new_g = map_gsub_glyph(glyph_map, GlyphId::from(g.get()))
             .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)?;
-        s.embed(new_g.to_u32() as u16)?;
+        let new_g = u16::try_from(new_g.to_u32())
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+        s.embed(new_g)?;
     }
     Ok(())
 }
@@ -473,9 +478,8 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
             Self::Format2(item) => item.subset(plan, s, lookup_map),
             Self::Format3(item) => item.subset(plan, s, lookup_map),
-            Self::Format4(_) | Self::Format5(_) => {
-                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
-            }
+            Self::Format4(item) => item.subset(plan, s, lookup_map),
+            Self::Format5(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
         }
     }
 }
