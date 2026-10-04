@@ -187,9 +187,13 @@ impl<'a> OutlineContext<'a> for OutlineTables<'a> {
     }
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
-        self.gvar
-            .as_ref()?
-            .phantom_point_deltas(&self.glyf, &self.loca, self.coords, glyph)
+        self.gvar.as_ref()?.phantom_point_deltas_with_scalars(
+            &self.glyf,
+            &self.loca,
+            self.coords,
+            self.gvar_scalars,
+            glyph,
+        )
     }
 
     fn coords(&self) -> &[F2Dot14] {
