@@ -1230,6 +1230,7 @@ enum Operator {
 }
 
 impl Operator {
+    #[inline]
     fn read(cursor: &mut Cursor, b0: u8) -> Option<Self> {
         // Escape opcode for accessing two byte operators
         const ESCAPE: u8 = 12;

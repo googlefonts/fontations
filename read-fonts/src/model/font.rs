@@ -29,6 +29,7 @@ use crate::tables::{
     hvar::Hvar,
     layout::SelectedFeatureVariations,
     loca::Loca,
+    variations::ScalarCache,
     vorg::Vorg,
     vvar::Vvar,
 };
@@ -65,6 +66,9 @@ struct VariedInstance {
     feature_vars: FeatureVarsStorage,
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
+    hvar_scalars: Once<ScalarCache>,
+    vvar_scalars: Once<ScalarCache>,
+    gvar_scalars: Once<Box<[Fixed]>>,
 }
 
 impl Font {
@@ -97,6 +101,9 @@ impl Font {
                 feature_vars: FeatureVarsStorage::new(),
                 metrics: Once::new(),
                 style_metrics: Once::new(),
+                hvar_scalars: Once::new(),
+                vvar_scalars: Once::new(),
+                gvar_scalars: Once::new(),
             },
         }
     }
@@ -215,16 +222,8 @@ impl Font {
 }
 
 impl Font {
-    pub(crate) fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
-        self.shared().unicode_charmap()
-    }
-
-    pub(crate) fn encoding_tables(&self) -> Option<&EncodingTables<'_>> {
-        self.shared().encodings()
-    }
-
     /// The state every instance of this font shares.
-    fn shared(&self) -> &SharedFont {
+    pub(super) fn shared(&self) -> &SharedFont {
         match &self.0 {
             Repr::Default(font) => font,
             Repr::Varied(varied) => &varied.font,
@@ -255,16 +254,53 @@ impl Font {
         self.shared().hvar()
     }
 
+    pub(crate) fn hvar_scalar_cache(&self, hvar: &Hvar<'_>) -> Option<&ScalarCache> {
+        match &self.0 {
+            Repr::Varied(instance) => {
+                Some(instance.hvar_scalars.get_or_init(|| hvar.scalar_cache()))
+            }
+            Repr::Default(_) => None,
+        }
+    }
+
     /// Returns `VVAR`.
     #[inline]
     pub(crate) fn vvar(&self) -> Option<&Vvar<'_>> {
         self.shared().vvar()
     }
 
+    pub(crate) fn vvar_scalar_cache(&self, vvar: &Vvar<'_>) -> Option<&ScalarCache> {
+        match &self.0 {
+            Repr::Varied(instance) => {
+                Some(instance.vvar_scalars.get_or_init(|| vvar.scalar_cache()))
+            }
+            Repr::Default(_) => None,
+        }
+    }
+
     /// Returns `gvar`.
     #[inline]
     pub(crate) fn gvar(&self) -> Option<&Gvar<'_>> {
         self.shared().gvar()
+    }
+
+    pub(crate) fn gvar_scalar_cache(&self) -> &[Fixed] {
+        let Repr::Varied(instance) = &self.0 else {
+            return &[];
+        };
+        let Some(gvar) = self.gvar() else {
+            return &[];
+        };
+        instance.gvar_scalars.get_or_init(|| {
+            let count = (gvar.shared_tuple_count() as usize).min(ScalarCache::MAX_LEN);
+            let mut scalars = Vec::new();
+            if scalars.try_reserve_exact(count).is_ok() {
+                scalars.resize(count, Fixed::ZERO);
+                let written = gvar.compute_scalars(instance.coords.as_slice(), &mut scalars);
+                scalars.truncate(written);
+            }
+            scalars.into_boxed_slice()
+        })
     }
 
     /// Returns the charstring outlines.
@@ -296,12 +332,21 @@ impl<'a> OutlineContext<'a> for &'a Font {
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
         let (glyf, loca) = self.glyf_loca()?;
-        self.gvar()?
-            .phantom_point_deltas(glyf, loca, self.normalized_coords(), glyph)
+        self.gvar()?.phantom_point_deltas_with_scalars(
+            glyf,
+            loca,
+            self.normalized_coords(),
+            self.gvar_scalar_cache(),
+            glyph,
+        )
     }
 
     fn coords(&self) -> &[F2Dot14] {
         self.normalized_coords()
+    }
+
+    fn gvar_scalars(&self) -> &[Fixed] {
+        self.gvar_scalar_cache()
     }
 
     fn units_per_em(&self) -> u16 {
@@ -746,7 +791,7 @@ impl FeatureVarsStorage {
 /// Reference counted internally: cloning it costs no more than the count,
 /// and it is thread safe.
 #[derive(Clone)]
-struct SharedFont(Arc<SharedFontRepr>);
+pub(super) struct SharedFont(Arc<SharedFontRepr>);
 
 impl SharedFont {
     /// Creates a new font from the given source and font index.
@@ -797,7 +842,7 @@ impl SharedFont {
     }
 
     /// Returns the underlying kind of the font.
-    fn kind(&self) -> Kind<'_> {
+    pub(super) fn kind(&self) -> Kind<'_> {
         match &self.0.kind {
             KindRepr::Sfnt(tables, index) => Kind::Sfnt(tables, *index),
             KindRepr::Type1(font) => Kind::Type1(font),
@@ -831,7 +876,7 @@ impl SharedFont {
     ///
     /// Fixed for the font: no location varies it.
     #[inline]
-    fn num_glyphs(&self) -> u32 {
+    pub(super) fn num_glyphs(&self) -> u32 {
         self.metrics().num_glyphs
     }
 
@@ -852,7 +897,7 @@ impl SharedFont {
     }
 
     /// Returns the selected character maps, parsed once for the font.
-    fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
+    pub(super) fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
         let tables = self.tables_arc()?;
         Some(
             self.0
@@ -865,7 +910,7 @@ impl SharedFont {
     }
 
     /// Returns all selectable cmap subtables, parsed on first use.
-    fn encodings(&self) -> Option<&EncodingTables<'_>> {
+    pub(super) fn encodings(&self) -> Option<&EncodingTables<'_>> {
         let tables = self.tables_arc()?;
         Some(
             self.0
@@ -1064,6 +1109,61 @@ mod tests {
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
 
+    #[test]
+    fn shared_tuple_cache_tracks_instances_and_is_thread_safe() {
+        let data = font_test_data::VAZIRMATN_VAR;
+        let raw = crate::FontRef::new(data).unwrap();
+        let gvar = raw.gvar().unwrap();
+        let glyf = raw.glyf().unwrap();
+        let loca = raw.loca(None).unwrap();
+        let font = Font::new(data, 0).unwrap();
+        assert!(font.gvar_scalar_cache().is_empty());
+        for coord in [-0.75, 0.25, 0.75] {
+            let instance = font
+                .instance_builder()
+                .normalized_coords([NormalizedCoord::from_f32(coord)])
+                .build();
+            let mut expected = alloc::vec![Fixed::ZERO; ScalarCache::MAX_LEN];
+            let written = gvar.compute_scalars(instance.normalized_coords(), &mut expected);
+            let expected = &expected[..written];
+            assert!(!expected.is_empty());
+            std::thread::scope(|scope| {
+                for _ in 0..8 {
+                    let clone = instance.clone();
+                    let instance = &instance;
+                    let (gvar, glyf, loca) = (&gvar, &glyf, &loca);
+                    scope.spawn(move || {
+                        assert_eq!(clone.gvar_scalar_cache(), expected);
+                        assert!(core::ptr::eq(
+                            clone.gvar_scalar_cache(),
+                            instance.gvar_scalar_cache(),
+                        ));
+                        for gid in (0..instance.num_glyphs().min(16)).map(GlyphId::new) {
+                            let context = &clone;
+                            assert_eq!(
+                                context.phantom_point_deltas(gid),
+                                gvar.phantom_point_deltas(
+                                    glyf,
+                                    loca,
+                                    clone.normalized_coords(),
+                                    gid,
+                                )
+                            );
+                        }
+                    });
+                }
+            });
+            let derived = instance
+                .instance_builder()
+                .normalized_coords([NormalizedCoord::from_f32(-coord)])
+                .build();
+            assert!(!core::ptr::eq(
+                instance.gvar_scalar_cache(),
+                derived.gvar_scalar_cache(),
+            ));
+            assert!(derived.gvar_scalar_cache().len() <= ScalarCache::MAX_LEN);
+        }
+    }
     #[test]
     fn font_outline_context_uses_stated_vertical_metrics() {
         let data = font_test_data::MPLUS1CODE_VERTICAL_SUBSET;

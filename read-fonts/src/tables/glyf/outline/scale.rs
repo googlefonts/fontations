@@ -149,6 +149,9 @@ pub struct SimplePass<'a, 'v, S: Scale> {
     pub varies: bool,
     /// Normalized variation coordinates, empty for a static instance.
     pub coords: &'a [F2Dot14],
+    /// Scalars for the shared gvar tuples at `coords`. Missing entries are
+    /// computed from the coordinates.
+    pub gvar_scalars: &'a [Fixed],
     /// True if the font has `HVAR`, which changes how FreeType rounds the
     /// deltas it applies to phantom points.
     pub has_hvar: bool,
@@ -287,6 +290,7 @@ impl Scale for Scale26Dot6 {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             has_hvar,
             is_hinted,
         } = pass;
@@ -297,7 +301,7 @@ impl Scale for Scale26Dot6 {
         let have_deltas = simple_deltas(
             var_data,
             varies,
-            coords,
+            (coords, gvar_scalars),
             unscaled,
             flags,
             contours,
@@ -491,6 +495,7 @@ impl Scale for ScaleF32 {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             ..
         } = pass;
         // `ScaleF32` works in place: the points start out as font
@@ -500,7 +505,7 @@ impl Scale for ScaleF32 {
         if simple_deltas(
             var_data,
             varies,
-            coords,
+            (coords, gvar_scalars),
             scaled,
             flags,
             contours,
@@ -645,6 +650,7 @@ impl Scale for Unscaled {
             var_data,
             varies,
             coords,
+            gvar_scalars,
             ..
         } = pass;
         // The points are their own font unit copy, so this works in place.
@@ -653,7 +659,7 @@ impl Scale for Unscaled {
         let have_deltas = simple_deltas(
             var_data,
             varies,
-            coords,
+            (coords, gvar_scalars),
             scaled,
             flags,
             contours,
@@ -785,7 +791,7 @@ fn hypot_fixed(a: Fixed, b: Fixed) -> Fixed {
 fn simple_deltas<C, D>(
     var_data: Option<GlyphVariationData<'_>>,
     varies: bool,
-    coords: &[F2Dot14],
+    (coords, scalars): (&[F2Dot14], &[Fixed]),
     points: &[Point<C>],
     flags: &mut [PointFlags],
     contours: &[u16],
@@ -797,7 +803,7 @@ where
 {
     match var_data {
         Some(var_data) => var_data
-            .simple_deltas(coords, points, flags, contours, buffers)
+            .simple_deltas_with_scalars(coords, scalars, points, flags, contours, buffers)
             .is_some(),
         None if varies => {
             for delta in buffers.deltas.iter_mut() {
@@ -812,11 +818,51 @@ where
 #[cfg(test)]
 mod tests {
     use super::super::testing::build;
-    use super::super::{OutlineContext, OutlinePlan, OutlineTables};
+    use super::super::{Outline, OutlineContext, OutlinePlan, OutlineTables};
     use super::*;
     use crate::tables::loca::LocaGlyph;
-    use crate::{tables::glyf::Glyph, types::GlyphId, FontRef};
+    use crate::{tables::glyf::Glyph, types::GlyphId, FontRef, TableProvider};
     use alloc::{vec, vec::Vec};
+
+    fn check_shared_scalars<S: Scale>(data: &'static [u8], scale: &S)
+    where
+        S::Coord: core::fmt::Debug,
+    {
+        let font = FontRef::new(data).unwrap();
+        let tables = OutlineTables::new(&font).unwrap();
+        let gvar = font.gvar().unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        let mut plain = Outline::<S>::new();
+        let mut cached = Outline::<S>::new();
+        for coord in [-0.75, 0.25, 1.0] {
+            let coords = [F2Dot14::from_f32(coord)];
+            let mut scalars = vec![Fixed::ZERO; gvar.shared_tuple_count() as usize];
+            let count = gvar.compute_scalars(&coords, &mut scalars);
+            let plain_tables = tables.clone().at(&coords, &[]);
+            for scalars in [&scalars[..count], &scalars[..count / 2], &[][..]] {
+                let cached_tables = tables.clone().at(&coords, scalars);
+                for gid in (0..glyph_count).map(GlyphId::from) {
+                    let a = plain.load_with(&plain_tables, gid, scale, None).unwrap();
+                    let b = cached.load_with(&cached_tables, gid, scale, None).unwrap();
+                    assert_eq!(a.points(), b.points(), "glyph {gid} at {coord}");
+                    assert_eq!(a.contours(), b.contours());
+                    assert_eq!(a.phantom_points(), b.phantom_points());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn shared_scalars_preserve_outlines_in_every_scale() {
+        for data in [
+            font_test_data::VAZIRMATN_VAR,
+            font_test_data::MATERIAL_SYMBOLS_SUBSET,
+        ] {
+            check_shared_scalars(data, &Scale26Dot6::new(Some(16.0), 1000));
+            check_shared_scalars(data, &ScaleF32::new(Some(16.0), 1000));
+            check_shared_scalars(data, &Unscaled);
+        }
+    }
 
     /// At no size [`Scale26Dot6`] returns font units shifted left by six.
     #[test]

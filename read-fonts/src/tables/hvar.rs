@@ -1,11 +1,31 @@
 //! The [HVAR (Horizontal Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 
-use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
+use super::variations::{self, DeltaSetIndexMap, ItemVariationStore, ScalarCache};
 use types::F48Dot16;
 
 include!("../../generated/generated_hvar.rs");
 
 impl Hvar<'_> {
+    pub(crate) fn scalar_cache(&self) -> ScalarCache {
+        ScalarCache::from_store(self.item_variation_store())
+    }
+
+    #[inline]
+    pub(crate) fn advance_delta_with_cache(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        cache: &ScalarCache,
+    ) -> Option<F48Dot16> {
+        variations::advance_delta_with_cache(
+            self.advance_width_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+            cache,
+        )
+    }
+
     /// Computes the scalar for each variation region at `coords`, in table
     /// order, and returns how many were written.
     ///
