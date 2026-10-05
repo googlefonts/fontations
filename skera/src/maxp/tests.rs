@@ -130,3 +130,27 @@ fn planner_selects_extended_maximum_profile() {
         Uint24::new(2)
     );
 }
+
+#[test]
+fn planner_maps_more_than_65535_retained_glyphs() {
+    let bytes = font(true, Version16Dot16::VERSION_1_0);
+    let font = FontRef::new(&bytes).unwrap();
+    for count in [65535u32, 65536, 70001] {
+        let gids = (0..count).map(GlyphId::new).collect();
+        let plan = Plan::new(
+            &gids,
+            &Default::default(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_DEFAULT,
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+        );
+        assert_eq!(plan.num_output_glyphs, count as usize);
+        assert_eq!(plan.glyph_map.len(), count as usize);
+        let last = GlyphId::new(count - 1);
+        assert_eq!(plan.glyph_map.get(&last), Some(&last));
+    }
+}

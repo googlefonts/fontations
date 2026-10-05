@@ -622,7 +622,7 @@ impl Plan {
             self.new_to_old_gid_list.extend(
                 self.glyphset
                     .iter()
-                    .zip(0u16..)
+                    .zip(0u32..)
                     .map(|x| (GlyphId::from(x.1), x.0)),
             );
             self.num_output_glyphs = self.new_to_old_gid_list.len();
