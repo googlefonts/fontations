@@ -5,6 +5,9 @@ mod extended;
 #[cfg(test)]
 mod lig_caret_tests;
 
+#[cfg(test)]
+mod attach_tests;
+
 use crate::{
     layout::{map_gsub_glyph, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
@@ -307,7 +310,11 @@ impl SubsetTable<'_> for AttachPoint<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        s.embed_bytes(self.min_table_bytes()).map(|_| ())
+        let bytes = self.min_table_bytes();
+        if bytes.is_empty() {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
+        s.embed_bytes(bytes).map(|_| ())
     }
 }
 
