@@ -601,7 +601,7 @@ impl Graph {
         self.vertices.get_mut(obj_idx)
     }
 
-    fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
+    pub(crate) fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
         let v = self.vertex(obj_idx)?;
         self.data.get(v.head..v.tail)
     }
@@ -922,6 +922,15 @@ impl Graph {
 
     pub(crate) fn assign_spaces(&mut self) -> Result<bool, RepackError> {
         self.update_parents()?;
+        // Extension promotion changes the graph; discard earlier packing attempts.
+        for vertex in &mut self.vertices {
+            vertex.space = 0;
+            vertex.priority = 0;
+        }
+        self.num_roots_for_space.clear();
+        self.num_roots_for_space.push(1);
+        self.distance_invalid = true;
+        self.positions_invalid = true;
         let (mut roots, mut visited) = self.find_space_roots()?;
         if roots.is_empty() {
             return Ok(false);
