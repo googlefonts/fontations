@@ -80,7 +80,7 @@ use write_fonts::{
             hmtx::Hmtx,
             hvar::Hvar,
             loca::Loca,
-            maxp::Maxp,
+            maxp::{Maxp, MaxpExtended},
             name::Name,
             os2::Os2,
             post::Post,
@@ -969,8 +969,13 @@ fn remove_invalid_gids(gids: &mut IntSet<GlyphId>, num_glyphs: usize) {
 }
 
 fn get_font_num_glyphs(font: &FontRef) -> usize {
-    let ret = font.loca(None).map(|loca| loca.len()).unwrap_or_default();
-    let maxp = font.maxp().expect("Error reading maxp table");
+    let ret = font
+        .glyf_loca(None)
+        .map(|(_, loca)| loca.len())
+        .unwrap_or_default();
+    let maxp = font
+        .maxp_table()
+        .expect("Error reading maximum profile table");
     ret.max(maxp.num_glyphs() as usize)
 }
 
@@ -1384,9 +1389,22 @@ fn subset_table<'a>(
         //Skip, handled by glyf
         Loca::TAG => Ok(()),
 
+        // Hybrid output is not maintained: MAXP describes the retained glyph space.
+        Maxp::TAG
+            if font.data_for_tag(MaxpExtended::TAG).is_some()
+                && !plan.drop_tables.contains(MaxpExtended::TAG) =>
+        {
+            Ok(())
+        }
+
         Maxp::TAG => font
             .maxp()
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?
+            .subset(plan, font, s, builder),
+
+        MaxpExtended::TAG => font
+            .maxp_extended()
+            .map_err(|_| SubsetError::SubsetTableError(MaxpExtended::TAG))?
             .subset(plan, font, s, builder),
 
         Name::TAG => font
