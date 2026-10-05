@@ -10,7 +10,7 @@ use crate::{
 };
 use write_fonts::{
     read::collections::IntSet,
-    types::{FixedSize, GlyphId, Offset16},
+    types::{FixedSize, GlyphId, Offset16, Scalar},
 };
 
 // output only contains new subtable indices
@@ -19,6 +19,15 @@ pub(crate) fn split_ligature_subst(
     graph: &mut Graph,
     table_idx: ObjIdx,
 ) -> Result<Vec<ObjIdx>, RepackError> {
+    let bytes = graph
+        .vertex_data(table_idx)
+        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+    let format = u16::read(bytes.get(..2).ok_or(RepackError::ErrorReadTable)?)
+        .ok_or(RepackError::ErrorReadTable)?;
+    // Format 2 widens these offsets; do not interpret it as a legacy table.
+    if format != 1 {
+        return Ok(Vec::new());
+    }
     let Some(coverage_idx) =
         graph.index_for_position(table_idx, LigatureSubstFormat1::COVERAGE_OFFSET_POS)
     else {
@@ -598,5 +607,49 @@ impl<'a> LigatureSet<'a> {
 
     fn reset_lig_count(&mut self, lig_count: u16) {
         self.0.write_at(lig_count, Self::LIGATURE_COUNT_POS);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        graph::test::{add_24_offset, add_object, add_wide_offset},
+        serialize::Serializer,
+        Serialize,
+    };
+    use font_test_data::bebuffer::BeBuffer;
+    use write_fonts::{
+        read::tables::layout::CoverageTable,
+        types::{GlyphId24, Uint24},
+    };
+
+    #[test]
+    fn extended_ligatures_are_not_read_as_legacy_graph_tables() {
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        s.push().unwrap();
+        CoverageTable::serialize(&mut s, &[GlyphId::new(65536)]).unwrap();
+        let coverage = s.pop_pack(false).unwrap();
+        let bytes = BeBuffer::new()
+            .push(GlyphId24::new(70000))
+            .push(2u16)
+            .push(GlyphId24::new(65537));
+        let ligature = add_object(&mut s, &bytes, bytes.len(), false);
+        s.push().unwrap();
+        s.embed(1u16).unwrap();
+        add_24_offset(&mut s, ligature);
+        let set = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        s.embed(2u16).unwrap();
+        add_wide_offset(&mut s, coverage);
+        s.embed(Uint24::new(1)).unwrap();
+        add_24_offset(&mut s, set);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        assert!(!s.in_error());
+        let mut graph = Graph::from_serializer(&s).unwrap();
+        let root = graph.root_idx();
+        assert!(split_ligature_subst(&mut graph, root).unwrap().is_empty());
     }
 }
