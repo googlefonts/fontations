@@ -911,7 +911,9 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             flags &= 0b11111110;
         }
 
-        let max_new_size = orig_size + offsets.data.len();
+        // The offsets array is counted in full since it grows past the original one
+        // when the offset type is widened.
+        let max_new_size = orig_size + offsets.offset_array.len() + offsets.data.len();
 
         // part 1 and 2 - write gvar header and offsets
         let mut serializer = Serializer::new(max_new_size);
@@ -1101,7 +1103,7 @@ pub(crate) mod tests {
         tables::{
             cff2::Cff2,
             glyf::Glyf,
-            gvar::Gvar,
+            gvar::{Gvar, GvarFlags},
             ift::{CompatibilityId, GlyphKeyedPatch, IFTX_TAG, IFT_TAG},
             loca::Loca,
         },
@@ -1801,6 +1803,55 @@ pub(crate) mod tests {
         );
 
         assert!(new_gvar.data_for_gid(GlyphId::new(9)).unwrap().is_none());
+    }
+
+    #[test]
+    fn glyph_keyed_gvar_offset_type_switch_with_small_base() {
+        // The patch carries more gvar data than short offsets can address,
+        // while the base gvar data is smaller than the growth of the
+        // offsets array.
+        let gid8_data = vec![b'r'; 131_071];
+        let mut payload =
+            glyf_and_gvar_u16_glyph_patches().extend(iter::repeat_n(b'r', gid8_data.len() - 1));
+        payload.write_at("end_offset", payload.len() as u32);
+
+        let patch = assemble_glyph_keyed_patch(glyph_keyed_patch_header(), payload);
+        let patch: &[u8] = &patch;
+        let patch = GlyphKeyedPatch::read(FontData::new(patch)).unwrap();
+        let patch_info = patch_info(IFT_TAG, 0);
+
+        let gvar = short_gvar_with_shared_tuples();
+
+        let font = test_font_for_patching_with_loca_mod(
+            true,
+            |_| {},
+            HashMap::from([
+                (Gvar::TAG, gvar.as_slice()),
+                (Tag::new(b"IFT "), vec![0, 0, 0, 0].as_slice()),
+            ]),
+        );
+        let font = FontRef::new(&font).unwrap();
+
+        let patched =
+            apply_glyph_keyed_patches(&[(&patch_info, patch)], &font, &BuiltInBrotliDecoder)
+                .unwrap();
+        let patched = FontRef::new(&patched).unwrap();
+
+        let new_gvar: &[u8] = patched.table_data(Gvar::TAG).unwrap().as_bytes();
+        let new_gvar = Gvar::read(FontData::new(new_gvar)).unwrap();
+        assert!(new_gvar.flags().contains(GvarFlags::LONG_OFFSETS));
+
+        let data_for = |gid: u32| {
+            new_gvar
+                .data_for_gid(GlyphId::new(gid))
+                .unwrap()
+                .map(|data| data.as_bytes())
+        };
+        assert_eq!(data_for(0), Some([1, 2, 3, 4u8].as_slice()));
+        assert_eq!(data_for(2), Some(b"mn".as_slice()));
+        assert_eq!(data_for(7), Some(b"opq".as_slice()));
+        assert_eq!(data_for(8), Some(gid8_data.as_slice()));
+        assert_eq!(data_for(9), None);
     }
 
     #[test]
