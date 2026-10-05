@@ -1456,9 +1456,8 @@ impl Graph {
             }
         }
 
-        if !self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())? {
-            return Ok(false);
-        }
+        // An already isolated subgraph can still need its own packing space.
+        self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())?;
         self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
@@ -2517,6 +2516,38 @@ pub(crate) mod test {
         let count = graph.vertices.len();
         assert!(graph.assign_spaces().unwrap());
         assert_eq!(graph.vertices.len(), count);
+        graph.sort_shortest_distance().unwrap();
+        graph.is_fully_connected().unwrap();
+    }
+
+    #[test]
+    fn already_isolated_subgraph_can_move_to_a_new_space() {
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"cc", 2, false);
+        s.push().unwrap();
+        let offset = s.embed(0u16).unwrap();
+        s.add_link(offset..offset + 2, child, OffsetWhence::Head, 0, false)
+            .unwrap();
+        let a = s.pop_pack(false).unwrap();
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_wide_offset(&mut s, a);
+        add_wide_offset(&mut s, b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(&s).unwrap();
+        graph.update_parents().unwrap();
+        graph.vertices[a].space = 1;
+        graph.vertices[b].space = 1;
+        graph.num_roots_for_space = vec![1, 2];
+        let count = graph.vertices.len();
+        let overflow = Overflow(((a as u64) << 32) | child as u64);
+        assert!(graph.try_isolating_subgraphs(&[overflow]).unwrap());
+        assert_eq!(graph.vertices.len(), count);
+        assert_eq!(graph.vertices[a].space, 2);
+        assert_eq!(graph.vertices[b].space, 1);
+        assert_eq!(graph.num_roots_for_space, vec![1, 1, 1]);
         graph.sort_shortest_distance().unwrap();
         graph.is_fully_connected().unwrap();
     }
