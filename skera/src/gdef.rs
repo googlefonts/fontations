@@ -1,5 +1,7 @@
 //! impl subset() for GDEF
 
+mod extended;
+
 #[cfg(test)]
 mod lig_caret_tests;
 
@@ -48,9 +50,8 @@ fn subset_gdef(
     state: &mut SubsetState,
 ) -> Result<(), SerializeErrorFlags> {
     let version = gdef.version();
-    // Extended GDEF serialization is not yet implemented.
     if version >= write_fonts::types::MajorMinor::new(1, 4) {
-        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        return extended::subset_extended_gdef(gdef, plan, s, state);
     }
     // major version
     s.embed(version.major)?;
