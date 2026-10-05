@@ -63,7 +63,7 @@ use write_fonts::{
             cblc::Cblc,
             cff::Cff,
             cff2::Cff2,
-            cmap::{Cmap, CmapSubtable, PlatformId},
+            cmap::{Cmap, VariationSubtable},
             colr::Colr,
             cpal::Cpal,
             cvar::Cvar,
@@ -520,31 +520,25 @@ impl Plan {
     }
 
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
-        if let Ok(cmap) = font.cmap() {
-            let encoding_records = cmap.encoding_records();
-            if let Ok(i) = encoding_records.binary_search_by(|r| {
-                if r.platform_id() != PlatformId::Unicode {
-                    r.platform_id().cmp(&PlatformId::Unicode)
-                } else if r.encoding_id() != 5 {
-                    r.encoding_id().cmp(&5)
-                } else {
-                    std::cmp::Ordering::Equal
-                }
-            }) {
-                if let Ok(CmapSubtable::Format14(cmap14)) = encoding_records
-                    .get(i)
-                    .unwrap()
-                    .subtable(cmap.offset_data())
-                {
-                    self.unicodes.extend(
-                        cmap14
-                            .var_selector()
-                            .iter()
-                            .map(|s| s.var_selector().to_u32())
-                            .filter(|v| input_unicodes.contains(*v)),
-                    );
-                }
-            }
+        let Some((_, subtable)) = font.cmap().ok().and_then(|cmap| cmap.variation_subtable())
+        else {
+            return;
+        };
+        match subtable {
+            VariationSubtable::Format14(table) => self.unicodes.extend(
+                table
+                    .var_selector()
+                    .iter()
+                    .map(|s| s.var_selector().to_u32())
+                    .filter(|v| input_unicodes.contains(*v)),
+            ),
+            VariationSubtable::Format15(table) => self.unicodes.extend(
+                table
+                    .var_selector()
+                    .iter()
+                    .map(|s| s.var_selector().to_u32())
+                    .filter(|v| input_unicodes.contains(*v)),
+            ),
         }
     }
 

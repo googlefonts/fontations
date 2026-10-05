@@ -13,8 +13,9 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::cmap::{
-            Cmap, Cmap12, Cmap14, Cmap4, CmapSubtable, DefaultUvs, EncodingRecord, NonDefaultUvs,
-            PlatformId, SequentialMapGroup, UvsMapping, VariationSelector,
+            Cmap, Cmap12, Cmap14, Cmap15, Cmap4, CmapSubtable, DefaultUvs, EncodingRecord,
+            NonDefaultUvs, NonDefaultUvs24, PlatformId, SequentialMapGroup, VariationSelector,
+            VariationSelector15,
         },
         types::{FixedSize, GlyphId},
         FontRef, TopLevelTable,
@@ -88,7 +89,7 @@ fn retain_encoding_record_for_subset(record: &EncodingRecord, cmap: &Cmap) -> bo
         || (record.platform_id() == PlatformId::Windows && record.encoding_id() == 10)
         || record
             .subtable(cmap.offset_data())
-            .is_ok_and(|t| t.format() == 14)
+            .is_ok_and(|t| matches!(t.format(), 14 | 15))
 }
 
 fn can_drop_format12(
@@ -158,6 +159,7 @@ fn serialize_cmap(
     let mut format4_objidx = None;
     let mut format12_objidx = None;
     let mut format14_objidx = None;
+    let mut format15_objidx = None;
     //TODO: add support for cmap_cache in plan accelerator
     let mut unicodes_cache =
         SubtableUnicodeCache::new(cmap.offset_data().as_bytes().as_ptr() as usize);
@@ -171,7 +173,7 @@ fn serialize_cmap(
         };
 
         let format = subtable.format();
-        if format != 4 && format != 12 && format != 14 {
+        if !matches!(format, 4 | 12 | 14 | 15) {
             continue;
         }
 
@@ -242,14 +244,19 @@ fn serialize_cmap(
                 plan,
                 format12_objidx,
             )?;
-        } else if format == 14 {
-            format14_objidx = serialize_encoding_record(
+        } else if format == 14 || format == 15 {
+            let objidx = if format == 14 {
+                &mut format14_objidx
+            } else {
+                &mut format15_objidx
+            };
+            *objidx = serialize_encoding_record(
                 record,
                 &subtable,
                 s,
                 &plan.unicode_to_new_gid_list,
                 plan,
-                format14_objidx,
+                *objidx,
             )?;
         }
     }
@@ -345,6 +352,7 @@ impl Serialize for CmapSubtable<'_> {
             Self::Format4(item) => item.serialize(s, plan, cp_to_new_gid_list),
             Self::Format12(item) => item.serialize(s, plan, cp_to_new_gid_list),
             Self::Format14(item) => item.serialize(s, plan, cp_to_new_gid_list),
+            Self::Format15(item) => item.serialize(s, plan, cp_to_new_gid_list),
             _ => Ok(()),
         }
     }
@@ -746,106 +754,125 @@ impl Serialize for Cmap12<'_> {
 }
 
 // reference: <https://github.com/qxliu76/harfbuzz/blob/1c249be96e27eafd15eb86d832b67fbc3751634b/src/hb-ot-cmap-table.hh#L1369>
-impl Serialize for Cmap14<'_> {
-    fn serialize(
-        &self,
-        s: &mut Serializer,
-        plan: &Plan,
-        _cp_to_new_gid_list: &[(u32, GlyphId)],
-    ) -> Result<(), SerializeErrorFlags> {
-        let snap = s.snapshot();
-        let init_len = s.length();
-        let init_tail = s.tail();
-        //copy header format
-        s.embed(self.format())?;
-        // length, initialized to 0, update later
-        let length_pos = s.embed(0_u32)?;
-        // numVarSelectorRecords, initialized to 0, update later
-        let num_records_pos = s.embed(0_u32)?;
+macro_rules! serialize_uvs {
+    ($table:ident, $selector:ident, $copy_tables:ident) => {
+        impl Serialize for $table<'_> {
+            fn serialize(
+                &self,
+                s: &mut Serializer,
+                plan: &Plan,
+                _cp_to_new_gid_list: &[(u32, GlyphId)],
+            ) -> Result<(), SerializeErrorFlags> {
+                let snap = s.snapshot();
+                let init_len = s.length();
+                let init_tail = s.tail();
+                //copy header format
+                s.embed(self.format())?;
+                // length, initialized to 0, update later
+                let length_pos = s.embed(0_u32)?;
+                // numVarSelectorRecords, initialized to 0, update later
+                let num_records_pos = s.embed(0_u32)?;
 
-        let retained_records: Vec<&VariationSelector> = self
-            .var_selector()
-            .iter()
-            .filter(|r| plan.unicodes.contains(r.var_selector().to_u32()))
-            .collect();
-
-        let mut obj_indices = Vec::with_capacity(retained_records.len());
-        // serializer UVS tables for each variation selector record in reverse order
-        // see here for reason: <https://github.com/harfbuzz/harfbuzz/blob/40ef6c05775885241dd3f4d69f08fa4e7e1e451c/src/hb-ot-cmap-table.hh#L1385>
-        for record in retained_records.iter().rev() {
-            obj_indices.push(copy_var_selector_record_uvs_tables(record, self, s, plan)?);
-        }
-
-        let mut offset_pos = Vec::with_capacity(obj_indices.len());
-        // copy variation selector headers
-        for (record, _) in retained_records
-            .iter()
-            .zip(obj_indices.iter().rev())
-            .filter(|(_, (a_idx, b_idx))| a_idx.is_some() || b_idx.is_some())
-        {
-            let (default_pos, non_default_pos) = copy_var_selector_record_header(record, s)?;
-            offset_pos.push((default_pos, non_default_pos));
-        }
-
-        // subsetted to empty, return
-        // 10 is header size of Cmap14
-        if s.length() - init_len == 10 {
-            s.revert_snapshot(snap);
-            return Ok(());
-        }
-
-        let tail_len = init_tail - s.tail();
-        s.check_assign::<u32>(
-            length_pos,
-            s.length() - init_len + tail_len,
-            SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        )?;
-        let num_records = (s.length() - init_len - 10) / VariationSelector::RAW_BYTE_LEN;
-        s.check_assign::<u32>(
-            num_records_pos,
-            num_records,
-            SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        )?;
-
-        // add links to variation records
-        for ((default_pos, non_default_pos), (default_obj_idx, non_default_obj_idx)) in
-            offset_pos.iter().zip(
-                obj_indices
+                if self.var_selector().len() as u64 != self.num_var_selector_records() as u64 {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                let retained_records: Vec<&$selector> = self
+                    .var_selector()
                     .iter()
-                    .rev()
-                    .filter(|(a_idx, b_idx)| a_idx.is_some() || b_idx.is_some()),
-            )
-        {
-            if let Some(obj_idx) = default_obj_idx {
-                s.add_link(
-                    *default_pos..*default_pos + 4,
-                    *obj_idx,
-                    OffsetWhence::Head,
-                    0,
-                    false,
-                )?;
-            }
+                    .filter(|r| plan.unicodes.contains(r.var_selector().to_u32()))
+                    .collect();
 
-            if let Some(obj_idx) = non_default_obj_idx {
-                s.add_link(
-                    *non_default_pos..*non_default_pos + 4,
-                    *obj_idx,
-                    OffsetWhence::Head,
-                    0,
-                    false,
+                let mut obj_indices = Vec::with_capacity(retained_records.len());
+                // serializer UVS tables for each variation selector record in reverse order
+                // see here for reason: <https://github.com/harfbuzz/harfbuzz/blob/40ef6c05775885241dd3f4d69f08fa4e7e1e451c/src/hb-ot-cmap-table.hh#L1385>
+                for record in retained_records.iter().rev() {
+                    obj_indices.push($copy_tables(record, self, s, plan)?);
+                }
+
+                let mut offset_pos = Vec::with_capacity(obj_indices.len());
+                // copy variation selector headers
+                for (record, _) in retained_records
+                    .iter()
+                    .zip(obj_indices.iter().rev())
+                    .filter(|(_, (a_idx, b_idx))| a_idx.is_some() || b_idx.is_some())
+                {
+                    let (default_pos, non_default_pos) =
+                        copy_var_selector_record_header(record.var_selector(), s)?;
+                    offset_pos.push((default_pos, non_default_pos));
+                }
+
+                // subsetted to empty, return
+                // 10 is header size of Cmap14
+                if s.length() - init_len == 10 {
+                    s.revert_snapshot(snap);
+                    return Ok(());
+                }
+
+                let tail_len = init_tail - s.tail();
+                s.check_assign::<u32>(
+                    length_pos,
+                    s.length() - init_len + tail_len,
+                    SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
                 )?;
+                let num_records = (s.length() - init_len - 10) / $selector::RAW_BYTE_LEN;
+                s.check_assign::<u32>(
+                    num_records_pos,
+                    num_records,
+                    SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
+                )?;
+
+                // add links to variation records
+                for ((default_pos, non_default_pos), (default_obj_idx, non_default_obj_idx)) in
+                    offset_pos.iter().zip(
+                        obj_indices
+                            .iter()
+                            .rev()
+                            .filter(|(a_idx, b_idx)| a_idx.is_some() || b_idx.is_some()),
+                    )
+                {
+                    if let Some(obj_idx) = default_obj_idx {
+                        s.add_link(
+                            *default_pos..*default_pos + 4,
+                            *obj_idx,
+                            OffsetWhence::Head,
+                            0,
+                            false,
+                        )?;
+                    }
+
+                    if let Some(obj_idx) = non_default_obj_idx {
+                        s.add_link(
+                            *non_default_pos..*non_default_pos + 4,
+                            *obj_idx,
+                            OffsetWhence::Head,
+                            0,
+                            false,
+                        )?;
+                    }
+                }
+                Ok(())
             }
         }
-        Ok(())
-    }
+    };
 }
 
+serialize_uvs!(
+    Cmap14,
+    VariationSelector,
+    copy_var_selector_record_uvs_tables
+);
+serialize_uvs!(
+    Cmap15,
+    VariationSelector15,
+    copy_var_selector_record_uvs_tables24
+);
+
 fn copy_var_selector_record_header(
-    record: &VariationSelector,
+    selector: Uint24,
     s: &mut Serializer,
 ) -> Result<(usize, usize), SerializeErrorFlags> {
     //copy var_selector
-    s.embed(record.var_selector())?;
+    s.embed(selector)?;
     // offset to default UVS, initialized to 0
     let default_pos = s.embed(0_u32)?;
     // offset to non-default UVS, initialized to 0
@@ -853,84 +880,120 @@ fn copy_var_selector_record_header(
     Ok((default_pos, non_default_pos))
 }
 
-fn copy_var_selector_record_uvs_tables(
-    record: &VariationSelector,
-    cmap14: &Cmap14,
-    s: &mut Serializer,
-    plan: &Plan,
-) -> Result<(Option<ObjIdx>, Option<ObjIdx>), SerializeErrorFlags> {
-    let mut non_default_uvs_obj_idx = None;
-    if let Some(non_default_uvs) = record
-        .non_default_uvs(cmap14.offset_data())
-        .transpose()
-        .ok()
-        .flatten()
-    {
-        s.push()?;
-        let num = copy_non_default_uvs(&non_default_uvs, s, plan)?;
-        if num == 0 {
-            s.pop_discard();
-        } else {
-            non_default_uvs_obj_idx = s.pop_pack(true);
-        }
-    }
+macro_rules! copy_uvs_tables {
+    ($name:ident, $selector:ident, $table:ident, $copy_non_default:ident) => {
+        fn $name(
+            record: &$selector,
+            cmap: &$table,
+            s: &mut Serializer,
+            plan: &Plan,
+        ) -> Result<(Option<ObjIdx>, Option<ObjIdx>), SerializeErrorFlags> {
+            let mut non_default_uvs_obj_idx = None;
+            if let Some(non_default_uvs) = record
+                .non_default_uvs(cmap.offset_data())
+                .transpose()
+                .ok()
+                .flatten()
+            {
+                s.push()?;
+                let num = $copy_non_default(&non_default_uvs, s, plan)?;
+                if num == 0 {
+                    s.pop_discard();
+                } else {
+                    non_default_uvs_obj_idx = s.pop_pack(true);
+                }
+            }
 
-    let mut default_uvs_obj_idx = None;
-    if let Some(default_uvs) = record
-        .default_uvs(cmap14.offset_data())
-        .transpose()
-        .ok()
-        .flatten()
-    {
-        s.push()?;
-        let num = copy_default_uvs(&default_uvs, s, plan)?;
-        if num == 0 {
-            s.pop_discard();
-        } else {
-            default_uvs_obj_idx = s.pop_pack(true);
+            let mut default_uvs_obj_idx = None;
+            if let Some(default_uvs) = record
+                .default_uvs(cmap.offset_data())
+                .transpose()
+                .ok()
+                .flatten()
+            {
+                s.push()?;
+                let num = copy_default_uvs(&default_uvs, s, plan)?;
+                if num == 0 {
+                    s.pop_discard();
+                } else {
+                    default_uvs_obj_idx = s.pop_pack(true);
+                }
+            }
+            Ok((default_uvs_obj_idx, non_default_uvs_obj_idx))
         }
-    }
-    Ok((default_uvs_obj_idx, non_default_uvs_obj_idx))
+    };
 }
 
-fn copy_non_default_uvs(
-    non_default_uvs: &NonDefaultUvs,
-    s: &mut Serializer,
-    plan: &Plan,
-) -> Result<u32, SerializeErrorFlags> {
-    // num_uvs_mapping, initialized to 0
-    let num_pos = s.embed(0_u32)?;
-    let mut num: u32 = 0;
-    for uvs_mapping in non_default_uvs.uvs_mapping().iter() {
-        if !plan.unicodes.contains(uvs_mapping.unicode_value().to_u32())
-            && !plan
-                .glyphs_requested
-                .contains(GlyphId::from(uvs_mapping.glyph_id()))
-        {
-            continue;
-        }
-        copy_uvs_mapping(uvs_mapping, s, plan)?;
-        num += 1;
-    }
+copy_uvs_tables!(
+    copy_var_selector_record_uvs_tables,
+    VariationSelector,
+    Cmap14,
+    copy_non_default_uvs
+);
+copy_uvs_tables!(
+    copy_var_selector_record_uvs_tables24,
+    VariationSelector15,
+    Cmap15,
+    copy_non_default_uvs24
+);
 
-    if num == 0 {
-        return Ok(num);
-    }
-    s.copy_assign(num_pos, num);
-    Ok(num)
+macro_rules! copy_non_default_uvs {
+    ($name:ident, $table:ident, $wide:expr) => {
+        fn $name(
+            non_default_uvs: &$table,
+            s: &mut Serializer,
+            plan: &Plan,
+        ) -> Result<u32, SerializeErrorFlags> {
+            // num_uvs_mapping, initialized to 0
+            let num_pos = s.embed(0_u32)?;
+            let mut num: u32 = 0;
+            if non_default_uvs.uvs_mapping().len() as u64
+                != non_default_uvs.num_uvs_mappings() as u64
+            {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+            }
+            for uvs_mapping in non_default_uvs.uvs_mapping().iter() {
+                let old_gid = GlyphId::new(uvs_mapping.glyph_id().into());
+                if !plan.unicodes.contains(uvs_mapping.unicode_value().to_u32())
+                    && !plan.glyphs_requested.contains(old_gid)
+                {
+                    continue;
+                }
+                let Some(new_gid) = plan.glyph_map.get(&old_gid) else {
+                    continue;
+                };
+                copy_uvs_mapping(uvs_mapping.unicode_value(), *new_gid, $wide, s)?;
+                num += 1;
+            }
+
+            if num == 0 {
+                return Ok(num);
+            }
+            s.copy_assign(num_pos, num);
+            Ok(num)
+        }
+    };
 }
+
+copy_non_default_uvs!(copy_non_default_uvs, NonDefaultUvs, false);
+copy_non_default_uvs!(copy_non_default_uvs24, NonDefaultUvs24, true);
 
 fn copy_uvs_mapping(
-    uvs_mapping: &UvsMapping,
+    unicode_value: Uint24,
+    glyph_id: GlyphId,
+    wide: bool,
     s: &mut Serializer,
-    plan: &Plan,
 ) -> Result<(), SerializeErrorFlags> {
-    s.embed(uvs_mapping.unicode_value())?;
-    let glyph_id = plan
-        .glyph_map
-        .get(&GlyphId::from(uvs_mapping.glyph_id()))
-        .unwrap();
-    s.embed(glyph_id.to_u32() as u16)?;
+    s.embed(unicode_value)?;
+    if wide {
+        let glyph_id = Uint24::try_from(glyph_id.to_u32() as usize)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+        s.embed(glyph_id)?;
+    } else {
+        let glyph_id = u16::try_from(glyph_id.to_u32())
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+        s.embed(glyph_id)?;
+    }
     Ok(())
 }
 
@@ -1157,3 +1220,7 @@ impl CollectUnicodes for Cmap12<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "cmap/uvs_tests.rs"]
+mod uvs_tests;
