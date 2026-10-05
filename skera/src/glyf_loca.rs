@@ -1,6 +1,9 @@
 //! impl subset() for glyf and loca
+#[cfg(test)]
+mod extended_tests;
+
 use crate::{
-    serialize::Serializer,
+    serialize::{SerializeErrorFlags, Serializer},
     Plan, Subset,
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
@@ -16,11 +19,14 @@ use write_fonts::{
             head::Head,
             loca::Loca,
         },
-        types::GlyphId,
+        types::{GlyphId, Scalar, Tag, Uint24},
         FontRef, TableProvider, TopLevelTable,
     },
     FontBuilder,
 };
+
+pub(crate) const GLYF: Tag = Tag::new(b"GLYF");
+pub(crate) const LOCA: Tag = Tag::new(b"LOCA");
 
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
@@ -32,50 +38,87 @@ impl Subset for Glyf<'_> {
         s: &mut Serializer,
         builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
-        let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
+        subset_glyf(self, plan, font, s, builder, false)
+    }
+}
 
-        let mut subset_glyphs = Vec::with_capacity(plan.new_to_old_gid_list.len());
-        let mut max_offset: u32 = 0;
+pub(crate) fn subset_glyf(
+    glyf: &Glyf<'_>,
+    plan: &Plan,
+    font: &FontRef,
+    s: &mut Serializer,
+    builder: &mut FontBuilder,
+    extended: bool,
+) -> Result<(), SubsetError> {
+    let result = subset_glyf_inner(glyf, plan, font, s, builder, extended);
+    if result.is_err() {
+        s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+    }
+    result
+}
 
-        for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-            match loca.get(*old_gid, self) {
-                Some(g) => {
-                    if *old_gid == GlyphId::NOTDEF
-                        && *new_gid == GlyphId::NOTDEF
-                        && !plan
-                            .subset_flags
-                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
-                    {
-                        subset_glyphs.push(SubsetGlyph::Empty);
-                        continue;
-                    }
+fn subset_glyf_inner(
+    glyf: &Glyf<'_>,
+    plan: &Plan,
+    font: &FontRef,
+    s: &mut Serializer,
+    builder: &mut FontBuilder,
+    extended: bool,
+) -> Result<(), SubsetError> {
+    let loca_tag = if extended { LOCA } else { Loca::TAG };
+    let loca = if extended {
+        font.loca_extended(None)
+    } else {
+        font.loca(None)
+    }
+    .or(Err(SubsetTableError(loca_tag)))?;
+    let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
 
-                    let Some(glyph) = g.into_glyph() else {
-                        subset_glyphs.push(SubsetGlyph::Empty);
-                        continue;
-                    };
-                    let subset_glyph = SubsetGlyph::new(&glyph, plan);
-                    let trimmed_len = subset_glyph.len();
-                    max_offset += padded_size(trimmed_len) as u32;
-                    subset_glyphs.push(subset_glyph);
+    let mut subset_glyphs = Vec::with_capacity(plan.new_to_old_gid_list.len());
+    let mut max_offset: u32 = 0;
+
+    for (new_gid, old_gid) in &plan.new_to_old_gid_list {
+        match loca.get(*old_gid, glyf) {
+            Some(g) => {
+                if *old_gid == GlyphId::NOTDEF
+                    && *new_gid == GlyphId::NOTDEF
+                    && !plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+                {
+                    subset_glyphs.push(SubsetGlyph::Empty);
+                    continue;
                 }
-                None => {
-                    return Err(SubsetTableError(Glyf::TAG));
-                }
+
+                let Some(glyph) = g.into_glyph() else {
+                    subset_glyphs.push(SubsetGlyph::Empty);
+                    continue;
+                };
+                let subset_glyph = SubsetGlyph::new(&glyph, plan);
+                let trimmed_len = subset_glyph.len();
+                max_offset = max_offset
+                    .checked_add(
+                        u32::try_from(padded_size(trimmed_len))
+                            .map_err(|_| SubsetTableError(Glyf::TAG))?,
+                    )
+                    .ok_or(SubsetTableError(Glyf::TAG))?;
+                subset_glyphs.push(subset_glyph);
+            }
+            None => {
+                return Err(SubsetTableError(Glyf::TAG));
             }
         }
-
-        //TODO: support force_long_loca in the plan
-        let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
-        let loca_out = write_glyf_loca(plan, s, loca_format, &subset_glyphs)?;
-
-        let head_out = subset_head(&head, loca_format);
-
-        builder.add_raw(Loca::TAG, loca_out);
-        builder.add_raw(Head::TAG, head_out);
-        Ok(())
     }
+
+    //TODO: support force_long_loca in the plan
+    let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
+    let loca_out = write_glyf_loca(plan, s, loca_format, &subset_glyphs)?;
+
+    let head_out = subset_head(&head, loca_format);
+
+    builder.add_raw(loca_tag, loca_out);
+    builder.add_raw(Head::TAG, head_out);
+    Ok(())
 }
 
 fn padded_size(len: usize) -> usize {
@@ -301,12 +344,12 @@ fn trim_composite_glyph<'a>(g: &CompositeGlyph<'a>, plan: &Plan) -> Option<&'a [
             we_have_instructions = true;
         }
 
-        let old_gid = GlyphId::from(u16::from_be_bytes([glyph_bytes[i + 2], glyph_bytes[i + 3]]));
+        let (old_gid, gid_len) = component_gid(glyph_bytes.get(i + 2..)?, flags)?;
         if !plan.glyph_map.contains_key(&old_gid) {
             return None;
         }
 
-        i += 4;
+        i += 2 + gid_len;
 
         if flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS) {
             i += 4;
@@ -386,16 +429,24 @@ fn serialize_composite_glyph(
             out[i..i + 2].copy_from_slice(&flags.to_be_bytes());
         }
 
-        let old_gid = GlyphId::from(u16::from_be_bytes([out[i + 2], out[i + 3]]));
+        let comp_flags = CompositeGlyphFlags::from_bits_truncate(orig_flags);
+        let (old_gid, gid_len) =
+            component_gid(&out[i + 2..], comp_flags).ok_or(SubsetTableError(Glyf::TAG))?;
         let new_gid = plan
             .glyph_map
             .get(&old_gid)
             .ok_or(SubsetTableError(Glyf::TAG))?
-            .to_u32() as u16;
-        out[i + 2..i + 4].copy_from_slice(&new_gid.to_be_bytes());
+            .to_u32();
+        if gid_len == 3 {
+            let new_gid =
+                Uint24::try_from(new_gid as usize).map_err(|_| SubsetTableError(Glyf::TAG))?;
+            out[i + 2..i + 5].copy_from_slice(&new_gid.to_be_bytes());
+        } else {
+            let new_gid = u16::try_from(new_gid).map_err(|_| SubsetTableError(Glyf::TAG))?;
+            out[i + 2..i + 4].copy_from_slice(&new_gid.to_be_bytes());
+        }
 
-        let comp_flags = CompositeGlyphFlags::from_bits_truncate(orig_flags);
-        i += 4;
+        i += 2 + gid_len;
 
         if comp_flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS) {
             i += 4;
@@ -415,6 +466,14 @@ fn serialize_composite_glyph(
     }
 
     Ok(())
+}
+
+fn component_gid(bytes: &[u8], flags: CompositeGlyphFlags) -> Option<(GlyphId, usize)> {
+    if flags.contains(CompositeGlyphFlags::GID_IS_24_BIT) {
+        Some((GlyphId::new(Uint24::read(bytes.get(..3)?)?.to_u32()), 3))
+    } else {
+        Some((GlyphId::new(u32::from(u16::read(bytes.get(..2)?)?)), 2))
+    }
 }
 
 const COORD_BYTES: [u8; 256] = {

@@ -572,8 +572,7 @@ impl Plan {
         }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
-        if let Ok(loca) = font.loca(None) {
-            let glyf = font.glyf().expect("Error reading glyf table");
+        if let Ok((glyf, loca)) = font.glyf_loca(None) {
             let operation_count =
                 self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
             for gid in self.glyphset_colred.iter() {
@@ -1324,10 +1323,25 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
+        Glyf::TAG
+            if font.data_for_tag(glyf_loca::GLYF).is_some()
+                && !plan.drop_tables.contains(glyf_loca::GLYF) =>
+        {
+            Ok(())
+        }
+
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
             .subset(plan, font, s, builder),
+
+        glyf_loca::GLYF => {
+            let glyf = font.glyf_extended().map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(glyf_loca::GLYF)
+            })?;
+            glyf_loca::subset_glyf(&glyf, plan, font, s, builder, true)
+        }
 
         Gpos::TAG => font
             .gpos()
@@ -1350,7 +1364,7 @@ fn subset_table<'a>(
             .subset(plan, font, s, builder),
 
         //handled by glyf table if exists
-        Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
+        Head::TAG => font.glyf_loca(None).map(|_| ()).or_else(|_| {
             font.head()
                 .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
                 .subset(plan, font, s, builder)
@@ -1387,7 +1401,7 @@ fn subset_table<'a>(
         MVAR | CVT => passthrough_table(tag, font, s),
 
         //Skip, handled by glyf
-        Loca::TAG => Ok(()),
+        Loca::TAG | glyf_loca::LOCA => Ok(()),
 
         // Hybrid output is not maintained: MAXP describes the retained glyph space.
         Maxp::TAG
