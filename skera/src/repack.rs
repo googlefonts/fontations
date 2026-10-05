@@ -18,9 +18,9 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::{gpos::Gpos, gsub::Gsub},
-        TopLevelTable,
+        FontData, TopLevelTable,
     },
-    types::{FixedSize, Offset16, Tag},
+    types::{FixedSize, MajorMinor, Offset16, Tag},
 };
 
 const MAX_ITERATIONS: u16 = 500;
@@ -53,10 +53,10 @@ pub(crate) fn resolve_graph_overflows(
 
     if tag == Gsub::TAG || tag == Gpos::TAG {
         if always_recalculate_extensions {
-            let (lookup_list_idx, lookup_indices) = find_lookup_indices(graph)?;
+            let (lookup_list_idx, lookup_indices, wide) = find_lookup_indices(graph)?;
             let mut visited = FnvHashMap::default();
             presplit_subtables_if_needed(graph, tag, &lookup_indices, &mut visited)?;
-            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
+            promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag, wide)?;
 
             // an additional sorting is needed before assign_spaces (),
             // which requires correct topological ordering to find space roots
@@ -209,6 +209,7 @@ fn promote_extensions_if_needed(
     lookup_list_idx: ObjIdx,
     lookups: &FnvHashMap<ObjIdx, u32>,
     table_tag: Tag,
+    wide: bool,
 ) -> Result<(), RepackError> {
     struct LookupSize {
         obj_idx: ObjIdx,
@@ -288,6 +289,20 @@ fn promote_extensions_if_needed(
             continue;
         }
 
+        if wide {
+            // LookupList2 separates lookup subgraphs with 32-bit offsets.
+            if l.subgraph_size < MAX_SIZE {
+                continue;
+            }
+            graph.make_extension(
+                l.obj_idx,
+                l.lookup_type,
+                extension_type(table_tag),
+                &mut idx_map,
+            )?;
+            continue;
+        }
+
         if !layers_full {
             let lookup_size = l.lookup_size;
             visited.clear();
@@ -330,16 +345,33 @@ fn extension_type(table_tag: Tag) -> Option<u16> {
     }
 }
 
-fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, FnvHashMap<ObjIdx, u32>), RepackError> {
-    // pos=8: lookup list position in GSUB/GPOS table
-    let lookup_list_idx = graph
-        .index_for_position(graph.root_idx(), 8)
+fn find_lookup_indices(
+    graph: &Graph,
+) -> Result<(ObjIdx, FnvHashMap<ObjIdx, u32>, bool), RepackError> {
+    let root = graph.root_idx();
+    let bytes = graph
+        .vertex_data(root)
+        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+    let version = FontData::new(bytes)
+        .read_at::<MajorMinor>(0)
+        .map_err(|_| RepackError::ErrorReadTable)?;
+    let wide_list = if version.major == 1 && version.minor >= 2 {
+        graph.index_for_position(root, 22)
+    } else {
+        None
+    };
+    let lookup_list_idx = wide_list
+        .or_else(|| graph.index_for_position(root, 8))
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
     let lookup_list_v = graph
         .vertex(lookup_list_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    Ok((lookup_list_idx, lookup_list_v.child_idxes()))
+    Ok((
+        lookup_list_idx,
+        lookup_list_v.child_idxes(),
+        wide_list.is_some(),
+    ))
 }
 
 #[cfg(test)]
@@ -355,6 +387,113 @@ pub(crate) mod test {
         },
         Serialize,
     };
+
+    fn extended_header(s: &mut Serializer, legacy: Option<ObjIdx>, wide: Option<ObjIdx>) {
+        s.push().unwrap();
+        s.embed(1u16).unwrap();
+        s.embed(2u16).unwrap();
+        s.embed(0u16).unwrap();
+        s.embed(0u16).unwrap();
+        if let Some(list) = legacy {
+            add_offset(s, list);
+        } else {
+            s.embed(0u16).unwrap();
+        }
+        s.embed(0u32).unwrap();
+        s.embed(0u32).unwrap();
+        s.embed(0u32).unwrap();
+        if let Some(list) = wide {
+            add_wide_offset(s, list);
+        } else {
+            s.embed(0u32).unwrap();
+        }
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+    }
+
+    #[test]
+    fn extended_lookup_list_repacker_uses_preferred_header_offset() {
+        for (legacy, wide) in [(true, false), (false, true), (true, true)] {
+            let mut s = Serializer::new(1024);
+            s.start_serialize().unwrap();
+            let old = add_object(&mut s, &[0, 0], 2, false);
+            let new = add_object(&mut s, &[0, 0], 2, false);
+            extended_header(&mut s, legacy.then_some(old), wide.then_some(new));
+            let graph = Graph::from_serializer(&s).unwrap();
+            let (list, _, is_wide) = find_lookup_indices(&graph).unwrap();
+            assert_eq!(is_wide, wide);
+            assert_eq!(
+                list,
+                graph
+                    .index_for_position(graph.root_idx(), if wide { 22 } else { 8 })
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn extended_lookup_list_repacker_promotes_overflowing_subtables() {
+        use write_fonts::read::{FontData, FontRead};
+        let mut s = Serializer::new(200000);
+        s.start_serialize().unwrap();
+        let bytes = vec![0; 40000];
+        let subtables: Vec<_> = (0..3)
+            .map(|_| add_object(&mut s, &bytes, bytes.len(), false))
+            .collect();
+        start_lookup(&mut s, 5, 3);
+        for subtable in subtables {
+            add_offset(&mut s, subtable);
+        }
+        let lookup = finish_lookup(&mut s);
+        s.push().unwrap();
+        s.embed(1u16).unwrap();
+        add_wide_offset(&mut s, lookup);
+        let list = s.pop_pack(false).unwrap();
+        extended_header(&mut s, None, Some(list));
+        let output = resolve_overflows(&s, Gsub::TAG, 32).unwrap();
+        let table = Gsub::read(FontData::new(&output)).unwrap();
+        let list = table.lookup_list().unwrap();
+        let lookup = list.lookups().get(0).unwrap();
+        assert_eq!(lookup.lookup_type(), 7);
+        let write_fonts::read::tables::gsub::SubstitutionLookup::Extension(lookup) = lookup else {
+            panic!()
+        };
+        assert_eq!(lookup.sub_table_count(), 3);
+    }
+
+    #[test]
+    fn extended_lookup_list_repacker_does_not_limit_all_lookups_to_64k() {
+        let mut s = Serializer::new(200000);
+        s.start_serialize().unwrap();
+        let mut lookups = Vec::new();
+        for i in 0..9000u16 {
+            let subtable = add_object(&mut s, &i.to_be_bytes(), 2, false);
+            start_lookup(&mut s, 5, 1);
+            add_offset(&mut s, subtable);
+            lookups.push(finish_lookup(&mut s));
+        }
+        s.push().unwrap();
+        s.embed(lookups.len() as u16).unwrap();
+        for lookup in lookups {
+            add_wide_offset(&mut s, lookup);
+        }
+        let list = s.pop_pack(false).unwrap();
+        extended_header(&mut s, None, Some(list));
+        let mut graph = Graph::from_serializer(&s).unwrap();
+        let (list, lookups, wide) = find_lookup_indices(&graph).unwrap();
+        assert!(wide);
+        promote_extensions_if_needed(&mut graph, list, &lookups, Gsub::TAG, wide).unwrap();
+        for lookup in lookups.keys() {
+            assert_eq!(
+                Lookup::from_graph(&mut graph, *lookup)
+                    .unwrap()
+                    .lookup_type(),
+                5
+            );
+        }
+        resolve_graph_overflows(&mut graph, Gsub::TAG, 32, true).unwrap();
+        assert!(!graph.has_overflows());
+    }
 
     fn populate_serializer_spaces(s: &mut Serializer, with_overflow: bool) {
         let large_string = [b'a'; 70000];

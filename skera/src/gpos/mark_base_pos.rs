@@ -1,4 +1,8 @@
 //! impl subset() for MarkBasePos subtable
+
+#[cfg(test)]
+mod extended_tests;
+
 use crate::fnv::FnvHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
@@ -11,187 +15,271 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::{
-            gpos::{BaseArray, BaseRecord, MarkBasePosFormat1},
+            gpos::{
+                BaseArray, BaseArray2, BaseRecord, BaseRecord2, MarkBasePos, MarkBasePosFormat1,
+                MarkBasePosFormat2,
+            },
             layout::CoverageTable,
         },
-        FontData, FontRef,
+        FontData, FontRef, MinByteRange,
     },
-    types::{GlyphId, Offset16},
+    types::{FixedSize, GlyphId, Offset16, Offset24, Offset32, Uint24},
 };
 
-impl CollectVariationIndices for MarkBasePosFormat1<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        let Ok(mark_coverage) = self.mark_coverage() else {
-            return;
-        };
-        let Ok(mark_array) = self.mark_array() else {
-            return;
-        };
+macro_rules! collect_mark_base_variations {
+    ($table:ident) => {
+        impl CollectVariationIndices for $table<'_> {
+            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+                let Ok(mark_coverage) = self.mark_coverage() else {
+                    return;
+                };
+                let Ok(mark_array) = self.mark_array() else {
+                    return;
+                };
 
-        let glyph_set = &plan.glyphset_gsub;
-        let mark_array_data = mark_array.offset_data();
-        let mark_records = mark_array.mark_records();
+                let glyph_set = &plan.glyphset_gsub;
+                let mark_array_data = mark_array.offset_data();
+                let mark_records = mark_array.mark_records();
 
-        let mark_record_idxes = intersected_coverage_indices(&mark_coverage, glyph_set);
-        let mut retained_mark_classes = IntSet::empty();
-        for i in mark_record_idxes.iter() {
-            let Some(mark_record) = mark_records.get(i as usize) else {
-                return;
-            };
-            let class = mark_record.mark_class();
-            collect_mark_record_varidx(mark_record, plan, varidx_set, mark_array_data);
-            retained_mark_classes.insert(class);
-        }
+                let mark_record_idxes = intersected_coverage_indices(&mark_coverage, glyph_set);
+                let mut retained_mark_classes = IntSet::empty();
+                for i in mark_record_idxes.iter() {
+                    let Some(mark_record) = mark_records.get(i as usize) else {
+                        return;
+                    };
+                    let class = mark_record.mark_class();
+                    collect_mark_record_varidx(mark_record, plan, varidx_set, mark_array_data);
+                    retained_mark_classes.insert(class);
+                }
 
-        let Ok(base_coverage) = self.base_coverage() else {
-            return;
-        };
-        let Ok(base_array) = self.base_array() else {
-            return;
-        };
-        let base_array_data = base_array.offset_data();
-        let base_records = base_array.base_records();
-        let base_record_idxes = intersected_coverage_indices(&base_coverage, glyph_set);
-        for i in base_record_idxes.iter() {
-            let Ok(base_record) = base_records.get(i as usize) else {
-                return;
-            };
+                let Ok(base_coverage) = self.base_coverage() else {
+                    return;
+                };
+                let Ok(base_array) = self.base_array() else {
+                    return;
+                };
+                let base_array_data = base_array.offset_data();
+                let base_records = base_array.base_records();
+                let base_record_idxes = intersected_coverage_indices(&base_coverage, glyph_set);
+                for i in base_record_idxes.iter() {
+                    let Ok(base_record) = base_records.get(i as usize) else {
+                        return;
+                    };
 
-            let base_anchors = base_record.base_anchors(base_array_data);
-            for j in retained_mark_classes.iter() {
-                if let Some(Ok(anchor)) = base_anchors.get(j as usize) {
-                    anchor.collect_variation_indices(plan, varidx_set);
+                    let base_anchors = base_record.base_anchors(base_array_data);
+                    for j in retained_mark_classes.iter() {
+                        if let Some(Ok(anchor)) = base_anchors.get(j as usize) {
+                            anchor.collect_variation_indices(plan, varidx_set);
+                        }
+                    }
                 }
             }
         }
-    }
+    };
 }
+collect_mark_base_variations!(MarkBasePosFormat1);
+collect_mark_base_variations!(MarkBasePosFormat2);
 
-impl<'a> SubsetTable<'a> for MarkBasePosFormat1<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        if self.mark_coverage_offset().is_null()
-            || self.mark_array_offset().is_null()
-            || self.base_coverage_offset().is_null()
-            || self.base_array_offset().is_null()
-        {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let mark_coverage = self
-            .mark_coverage()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+macro_rules! subset_mark_base {
+    ($table:ident, $offset:ident) => {
+        impl<'a> SubsetTable<'a> for $table<'_> {
+            type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                _args: Self::ArgsForSubset,
+            ) -> Result<Self::Output, SerializeErrorFlags> {
+                if self.mark_coverage_offset().is_null()
+                    || self.mark_array_offset().is_null()
+                    || self.base_coverage_offset().is_null()
+                    || self.base_array_offset().is_null()
+                {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                let mark_coverage = self
+                    .mark_coverage()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let mark_array = self
-            .mark_array()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                let mark_array = self
+                    .mark_array()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let glyph_set = &plan.glyphset_gsub;
-        let glyph_map = &plan.glyph_map_gsub;
-        let mark_class_map = get_mark_class_map(&mark_coverage, &mark_array, glyph_set);
-        if mark_class_map.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
+                let glyph_set = &plan.glyphset_gsub;
+                let glyph_map = &plan.glyph_map_gsub;
+                let mark_class_map =
+                    get_mark_class_map(&mark_coverage, mark_array.mark_records(), glyph_set);
+                if mark_class_map.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
 
-        // format
-        s.embed(self.pos_format())?;
+                if mark_array.min_table_bytes().is_empty()
+                    || mark_class_map
+                        .keys()
+                        .any(|class| *class >= self.mark_class_count())
+                {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                // format
+                s.embed(self.pos_format())?;
 
-        // mark coverage offset
-        let mark_cov_offset_pos = s.embed(0_u16)?;
+                // mark coverage offset
+                let mark_cov_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
 
-        // base coverage offset
-        let base_cov_offset_pos = s.embed(0_u16)?;
+                // base coverage offset
+                let base_cov_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
 
-        // mark class count
-        let mark_class_count = mark_class_map.len() as u16;
-        s.embed(mark_class_count)?;
+                // mark class count
+                let mark_class_count = u16::try_from(mark_class_map.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                s.embed(mark_class_count)?;
 
-        // mark array offset
-        let mark_array_offset_pos = s.embed(0_u16)?;
-        let (mark_glyphs, mark_record_idxes) =
-            intersected_glyphs_and_indices(&mark_coverage, glyph_set, glyph_map);
+                // mark array offset
+                let mark_array_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                let (mark_glyphs, mark_record_idxes) =
+                    intersected_glyphs_and_indices(&mark_coverage, glyph_set, glyph_map);
 
-        Offset16::serialize_serialize::<CoverageTable>(s, &mark_glyphs, mark_cov_offset_pos)?;
-        Offset16::serialize_subset(
-            &mark_array,
-            s,
-            plan,
-            (&mark_record_idxes, &mark_class_map),
-            mark_array_offset_pos,
-        )?;
+                $offset::serialize_serialize::<CoverageTable>(
+                    s,
+                    &mark_glyphs,
+                    mark_cov_offset_pos,
+                )?;
+                $offset::serialize_subset(
+                    &mark_array,
+                    s,
+                    plan,
+                    (&mark_record_idxes, &mark_class_map),
+                    mark_array_offset_pos,
+                )?;
 
-        // base array offset
-        let base_array_offset_pos = s.embed(0_u16)?;
+                // base array offset
+                let base_array_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
 
-        let base_coverage = self
-            .base_coverage()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let base_array = self
-            .base_array()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                let base_coverage = self
+                    .base_coverage()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                let base_array = self
+                    .base_array()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (base_glyphs, base_record_idxes) =
-            intersected_glyphs_and_indices(&base_coverage, glyph_set, glyph_map);
-        if base_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
+                let (base_glyphs, base_record_idxes) =
+                    intersected_glyphs_and_indices(&base_coverage, glyph_set, glyph_map);
+                if base_glyphs.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
 
-        let base_glyphs = Offset16::serialize_subset(
-            &base_array,
-            s,
-            plan,
-            (&base_glyphs, &base_record_idxes, &mark_class_map),
-            base_array_offset_pos,
-        )?;
-        Offset16::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)
-    }
-}
-
-impl<'a> SubsetTable<'a> for BaseArray<'_> {
-    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FnvHashMap<u16, u16>);
-    type Output = Vec<GlyphId>;
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<Vec<GlyphId>, SerializeErrorFlags> {
-        let (base_glyphs, base_record_idxes, mark_class_map) = args;
-        let mut retained_base_glyphs = Vec::with_capacity(base_glyphs.len());
-        // base count
-        let base_count_pos = s.embed(0_u16)?;
-
-        let font_data = self.offset_data();
-        let base_records = self.base_records();
-        for (g, i) in base_glyphs.iter().zip(base_record_idxes.iter()) {
-            let base_record = base_records
-                .get(i as usize)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
-            if !base_record
-                .subset(plan, s, (mark_class_map, font_data))
-                .is_empty()?
-            {
-                retained_base_glyphs.push(*g);
+                let base_glyphs = $offset::serialize_subset(
+                    &base_array,
+                    s,
+                    plan,
+                    (&base_glyphs, &base_record_idxes, &mark_class_map),
+                    base_array_offset_pos,
+                )?;
+                $offset::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)
             }
         }
-
-        let base_count = retained_base_glyphs.len() as u16;
-        if base_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        s.copy_assign(base_count_pos, base_count);
-        Ok(retained_base_glyphs)
-    }
+    };
 }
+subset_mark_base!(MarkBasePosFormat1, Offset16);
+subset_mark_base!(MarkBasePosFormat2, Offset32);
 
-impl<'a> SubsetTable<'a> for BaseRecord<'_> {
-    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, FontData<'a>);
+macro_rules! subset_base_array {
+    ($table:ident, $count:ident) => {
+        impl<'a> SubsetTable<'a> for $table<'_> {
+            type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FnvHashMap<u16, u16>);
+            type Output = Vec<GlyphId>;
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<Vec<GlyphId>, SerializeErrorFlags> {
+                if self.min_table_bytes().is_empty() {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                let (base_glyphs, base_record_idxes, mark_class_map) = args;
+                let mut retained_base_glyphs = Vec::with_capacity(base_glyphs.len());
+                // base count
+                let base_count_pos = s.allocate_size($count::RAW_BYTE_LEN, true)?;
+
+                let font_data = self.offset_data();
+                let base_records = self.base_records();
+                for (g, i) in base_glyphs.iter().zip(base_record_idxes.iter()) {
+                    let base_record = base_records
+                        .get(i as usize)
+                        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+                    if !base_record
+                        .subset(plan, s, (mark_class_map, font_data))
+                        .is_empty()?
+                    {
+                        retained_base_glyphs.push(*g);
+                    }
+                }
+
+                if retained_base_glyphs.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                let base_count = $count::try_from(retained_base_glyphs.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                s.copy_assign(base_count_pos, base_count);
+                Ok(retained_base_glyphs)
+            }
+        }
+    };
+}
+subset_base_array!(BaseArray, u16);
+subset_base_array!(BaseArray2, Uint24);
+
+macro_rules! subset_base_record {
+    ($record:ident, $offset:ident) => {
+        impl<'a> SubsetTable<'a> for $record<'_> {
+            type ArgsForSubset = (&'a FnvHashMap<u16, u16>, FontData<'a>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<(), SerializeErrorFlags> {
+                let (mark_class_map, font_data) = args;
+                let base_anchors = self.base_anchors(font_data);
+                let orig_mark_class_count = base_anchors.len() as u16;
+
+                let mut has_effective_anchors = false;
+                let snap = s.snapshot();
+                for i in
+                    (0..orig_mark_class_count).filter(|class| mark_class_map.contains_key(class))
+                {
+                    let anchor_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                    let Some(base_anchor) = base_anchors
+                        .get(i as usize)
+                        .transpose()
+                        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+                    else {
+                        continue;
+                    };
+                    $offset::serialize_subset(&base_anchor, s, plan, (), anchor_offset_pos)?;
+                    if !has_effective_anchors {
+                        has_effective_anchors = true;
+                    }
+                }
+
+                if !has_effective_anchors {
+                    s.revert_snapshot(snap);
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                Ok(())
+            }
+        }
+    };
+}
+subset_base_record!(BaseRecord, Offset16);
+subset_base_record!(BaseRecord2, Offset24);
+
+impl<'a> SubsetTable<'a> for MarkBasePos<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -199,42 +287,18 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let (mark_class_map, font_data) = args;
-        let base_anchors = self.base_anchors(font_data);
-        let orig_mark_class_count = base_anchors.len() as u16;
-
-        let mut has_effective_anchors = false;
-        let snap = s.snapshot();
-        for i in (0..orig_mark_class_count).filter(|class| mark_class_map.contains_key(class)) {
-            let anchor_offset_pos = s.embed(0_u16)?;
-            let Some(base_anchor) = base_anchors
-                .get(i as usize)
-                .transpose()
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-            else {
-                continue;
-            };
-            Offset16::serialize_subset(&base_anchor, s, plan, (), anchor_offset_pos)?;
-            if !has_effective_anchors {
-                has_effective_anchors = true;
-            }
+        match self {
+            Self::Format1(t) => t.subset(plan, s, args),
+            Self::Format2(t) => t.subset(plan, s, args),
         }
-
-        if !has_effective_anchors {
-            s.revert_snapshot(snap);
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        Ok(())
     }
 }
 
-crate::layout::legacy_subset!(gpos, MarkBasePos, MarkBasePosFormat1);
-
-impl CollectVariationIndices for write_fonts::read::tables::gpos::MarkBasePos<'_> {
+impl CollectVariationIndices for MarkBasePos<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        // Wide subtables are rejected by subset().
-        if let Self::Format1(t) = self {
-            t.collect_variation_indices(plan, varidx_set);
+        match self {
+            Self::Format1(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Format2(t) => t.collect_variation_indices(plan, varidx_set),
         }
     }
 }

@@ -20,6 +20,9 @@ use write_fonts::{
     types::{FixedSize, GlyphId, Offset16, Scalar},
 };
 
+#[cfg(test)]
+mod extended_tests;
+
 // output only contains new subtable indices
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/708bf4a0c80b9f323c9a1c8ec00ff9c2cb429b1f/src/graph/pairpos-graph.hh#L607>
 pub(crate) fn split_pairpos(
@@ -34,7 +37,7 @@ pub(crate) fn split_pairpos(
     let format = u16::read(format_bytes).ok_or(RepackError::ErrorReadTable)?;
     match format {
         1 => split_format1(graph, table_idx),
-        2 => split_format2(graph, table_idx),
+        2 | 4 => split_format2(graph, table_idx),
         _ => Ok(Vec::new()),
     }
 }
@@ -193,7 +196,51 @@ fn shrink_format1(
     )
 }
 
+#[derive(Clone, Copy)]
+struct ClassPairLayout {
+    format: u16,
+    header_size: usize,
+    value_format1_pos: usize,
+    value_format2_pos: usize,
+    class_def1_pos: u32,
+    class_def2_pos: u32,
+    class1_count_pos: usize,
+    class2_count_pos: usize,
+    offset_width: LinkWidth,
+}
+
+impl ClassPairLayout {
+    fn for_format(format: u16) -> Option<Self> {
+        match format {
+            2 => Some(Self {
+                format,
+                header_size: 16,
+                value_format1_pos: 4,
+                value_format2_pos: 6,
+                class_def1_pos: 8,
+                class_def2_pos: 10,
+                class1_count_pos: 12,
+                class2_count_pos: 14,
+                offset_width: LinkWidth::Two,
+            }),
+            4 => Some(Self {
+                format,
+                header_size: 22,
+                value_format1_pos: 6,
+                value_format2_pos: 8,
+                class_def1_pos: 10,
+                class_def2_pos: 14,
+                class1_count_pos: 18,
+                class2_count_pos: 20,
+                offset_width: LinkWidth::Four,
+            }),
+            _ => None,
+        }
+    }
+}
+
 struct Format2TableInfo {
+    layout: ClassPairLayout,
     table_idx: ObjIdx,
     coverage_idx: ObjIdx,
     value_format1: u16,
@@ -237,15 +284,18 @@ fn split_format2(graph: &mut Graph, table_idx: ObjIdx) -> Result<Vec<ObjIdx>, Re
 }
 
 fn get_table_info(graph: &mut Graph, table_idx: ObjIdx) -> Option<Format2TableInfo> {
+    let format = u16::read(graph.vertex_data(table_idx)?.get(..2)?)?;
+    let layout = ClassPairLayout::for_format(format)?;
     let mut coverage_idx = None;
     let mut class_def1_idx = None;
     let mut class_def2_idx = None;
     for l in graph.vertex(table_idx)?.real_links() {
-        match l.position() {
-            PairPosFormat2::COVERAGE_OFFSET_POS => coverage_idx = Some(l.obj_idx()),
-            PairPosFormat2::CLASS_DEF1_OFFSET_POS => class_def1_idx = Some(l.obj_idx()),
-            PairPosFormat2::CLASS_DEF2_OFFSET_POS => class_def2_idx = Some(l.obj_idx()),
-            _ => (),
+        if l.position() == 2 {
+            coverage_idx = Some(l.obj_idx());
+        } else if l.position() == layout.class_def1_pos {
+            class_def1_idx = Some(l.obj_idx());
+        } else if l.position() == layout.class_def2_pos {
+            class_def2_idx = Some(l.obj_idx());
         }
         if coverage_idx.is_some() && class_def1_idx.is_some() && class_def2_idx.is_some() {
             break;
@@ -256,7 +306,7 @@ fn get_table_info(graph: &mut Graph, table_idx: ObjIdx) -> Option<Format2TableIn
     let class_def1_idx = class_def1_idx?;
     let class_def2_idx = class_def2_idx?;
 
-    let format2_table = PairPosFormat2::from_graph(graph, table_idx).ok()?;
+    let format2_table = ClassPairPos::from_graph(graph, table_idx, layout).ok()?;
     let value_format1 = format2_table.value_format1();
     let value_format2 = format2_table.value_format2();
     let class1_count = format2_table.class1_count();
@@ -272,6 +322,7 @@ fn get_table_info(graph: &mut Graph, table_idx: ObjIdx) -> Option<Format2TableIn
     let glyph_classes = get_glyph_classes(graph, coverage_idx, class_def1_idx).ok()?;
 
     Some(Format2TableInfo {
+        layout,
         table_idx,
         coverage_idx,
         value_format1,
@@ -311,8 +362,11 @@ fn compute_format2_split_points(
 
     let has_device_tables =
         !format1_device_indices.is_empty() || !format2_device_indices.is_empty();
+    if table_info.layout.format == 4 && !has_device_tables {
+        return Ok(Vec::new());
+    }
 
-    let mut accumulated = PairPosFormat2::MIN_SIZE;
+    let mut accumulated = table_info.layout.header_size;
     let mut split_points = Vec::new();
     let mut visited = IntSet::empty();
 
@@ -332,6 +386,7 @@ fn compute_format2_split_points(
                     graph,
                     table_real_links,
                     format1_device_indices,
+                    table_info.layout.header_size,
                     value1_index,
                     &mut visited,
                     &mut queue,
@@ -340,6 +395,7 @@ fn compute_format2_split_points(
                     graph,
                     table_real_links,
                     format2_device_indices,
+                    table_info.layout.header_size,
                     value2_index,
                     &mut visited,
                     &mut queue,
@@ -350,12 +406,19 @@ fn compute_format2_split_points(
         accumulated += accumulated_delta;
         // The largest object will pack last and can exceed the size limit.
         // ref: >https://github.com/harfbuzz/harfbuzz/blob/5b6645dabbc5374ad031f8730c1f1f71e096a6a6/src/graph/pairpos-graph.hh#L274>
-        let total = accumulated + coverage_size + class_def_1_size + class_def_2_size
-            - coverage_size.max(class_def_1_size.max(class_def_2_size));
+        let total = if table_info.layout.format == 4 {
+            accumulated
+        } else {
+            accumulated + coverage_size + class_def_1_size + class_def_2_size
+                - coverage_size.max(class_def_1_size.max(class_def_2_size))
+        };
 
         if total >= (1 << 16) {
+            if i == 0 && table_info.layout.format == 4 {
+                return Err(RepackError::ErrorSplitSubtable);
+            }
             split_points.push(i);
-            accumulated = PairPosFormat2::MIN_SIZE + accumulated_delta;
+            accumulated = table_info.layout.header_size + accumulated_delta;
             estimator.reset();
             estimator.add_class_def_size(i);
             visited.clear();
@@ -373,11 +436,11 @@ fn clone_range_format2(
 ) -> Result<ObjIdx, RepackError> {
     let num_new_class1 = end - start;
     let new_table_size =
-        PairPosFormat2::MIN_SIZE + (num_new_class1 as usize) * table_info.class1_record_size;
+        table_info.layout.header_size + (num_new_class1 as usize) * table_info.class1_record_size;
     let new_table_idx = graph.new_vertex(new_table_size)?;
 
-    let mut new_table = PairPosFormat2::from_graph(graph, new_table_idx)?;
-    new_table.set_format(2);
+    let mut new_table = ClassPairPos::from_graph(graph, new_table_idx, table_info.layout)?;
+    new_table.set_format(table_info.layout.format);
     new_table.set_value_format1(table_info.value_format1);
     new_table.set_value_format2(table_info.value_format2);
     new_table.set_class1_count(num_new_class1);
@@ -395,30 +458,31 @@ fn clone_range_format2(
         .filter(|(_, c)| *c >= start && *c < end)
     {
         new_cov_glyphs.push(g);
-        gid_and_new_classes.push((g.to_u32() as u16, class - start));
+        gid_and_new_classes.push((g.to_u32(), u32::from(class - start)));
     }
 
     add_new_coverage(
         graph,
         &new_cov_glyphs,
         new_table_idx,
-        LinkWidth::Two,
-        PairPosFormat2::COVERAGE_OFFSET_POS,
+        table_info.layout.offset_width,
+        2,
     )?;
 
     add_new_class_def(
         graph,
         new_table_idx,
         &gid_and_new_classes,
-        PairPosFormat2::CLASS_DEF1_OFFSET_POS,
+        table_info.layout.class_def1_pos,
+        table_info.layout.offset_width,
     )?;
 
     // Link ClassDef2
     graph.add_parent_child_link(
         new_table_idx,
         table_info.class_def2_idx,
-        LinkWidth::Two,
-        PairPosFormat2::CLASS_DEF2_OFFSET_POS,
+        table_info.layout.offset_width,
+        table_info.layout.class_def2_pos,
         false,
     )?;
 
@@ -434,7 +498,8 @@ fn shrink_format2(
         return Ok(());
     }
 
-    PairPosFormat2::from_graph(graph, table_info.table_idx)?.set_class1_count(shrink_point);
+    ClassPairPos::from_graph(graph, table_info.table_idx, table_info.layout)?
+        .set_class1_count(shrink_point);
     let table_v = graph.mut_vertex(table_info.table_idx).unwrap();
     table_v.tail -=
         (table_info.class1_count - shrink_point) as usize * table_info.class1_record_size;
@@ -449,14 +514,14 @@ fn shrink_format2(
         .filter(|(_, c)| *c < shrink_point)
     {
         new_cov_glyphs.push(g);
-        gid_and_new_classes.push((g.to_u32() as u16, class));
+        gid_and_new_classes.push((g.to_u32(), u32::from(class)));
     }
 
     make_coverage(
         graph,
         table_info.table_idx,
         table_info.coverage_idx,
-        PairPosFormat2::COVERAGE_OFFSET_POS,
+        2,
         &new_cov_glyphs,
         0..new_cov_glyphs.len(),
     )?;
@@ -465,7 +530,7 @@ fn shrink_format2(
         graph,
         table_info.table_idx,
         table_info.class_def1_idx,
-        PairPosFormat2::CLASS_DEF1_OFFSET_POS,
+        table_info.layout.class_def1_pos,
         &gid_and_new_classes,
     )
 }
@@ -625,12 +690,13 @@ fn size_of_value_record_children(
     graph: &Graph,
     links: &RealLinks,
     device_table_indices: &[u8],
+    header_size: usize,
     value_record_index: u32,
     visited: &mut IntSet<u32>,
     queue: &mut Vec<usize>,
 ) -> Result<usize, RepackError> {
     let mut size = 0;
-    let record_start_pos = PairPosFormat2::MIN_SIZE as u32 + value_record_index * 2;
+    let record_start_pos = header_size as u32 + value_record_index * 2;
     for &i in device_table_indices {
         let pos = record_start_pos + i as u32 * 2;
         if let Some(obj_idx) = links.link_index_at_position(pos) {
@@ -668,14 +734,14 @@ fn clone_class_records(
         .vertex(table_info.table_idx)
         .ok_or(RepackError::ErrorSplitSubtable)?
         .head
-        + PairPosFormat2::MIN_SIZE
+        + table_info.layout.header_size
         + start as usize * table_info.class1_record_size;
 
     let new_pos = graph
         .vertex(new_table_idx)
         .ok_or(RepackError::ErrorSplitSubtable)?
         .head
-        + PairPosFormat2::MIN_SIZE;
+        + table_info.layout.header_size;
 
     graph
         .data
@@ -687,14 +753,16 @@ fn clone_class_records(
     // Handle device tables
     for i in start..end {
         for j in 0..class2_count {
-            let old_value_record_index = total_value_len * (class2_count * i + j) as u32;
-            let new_value_record_index =
-                old_value_record_index - total_value_len * (class2_count * start) as u32;
+            let old_value_record_index =
+                total_value_len * (u32::from(class2_count) * u32::from(i) + u32::from(j));
+            let new_value_record_index = old_value_record_index
+                - total_value_len * (u32::from(class2_count) * u32::from(start));
             transfer_device_tables(
                 graph,
                 table_idx,
                 new_table_idx,
                 format1_device_indices,
+                table_info.layout.header_size,
                 old_value_record_index,
                 new_value_record_index,
             )?;
@@ -703,6 +771,7 @@ fn clone_class_records(
                 table_idx,
                 new_table_idx,
                 format2_device_indices,
+                table_info.layout.header_size,
                 old_value_record_index + v1_len,
                 new_value_record_index + v1_len,
             )?;
@@ -716,12 +785,13 @@ fn transfer_device_tables(
     old_table_idx: ObjIdx,
     new_table_idx: ObjIdx,
     device_table_indices: &[u8],
+    header_size: usize,
     old_value_record_index: u32,
     new_value_record_index: u32,
 ) -> Result<(), RepackError> {
     for &i in device_table_indices {
-        let old_pos = PairPosFormat2::MIN_SIZE as u32 + (old_value_record_index + i as u32) * 2;
-        let new_pos = PairPosFormat2::MIN_SIZE as u32 + (new_value_record_index + i as u32) * 2;
+        let old_pos = header_size as u32 + (old_value_record_index + i as u32) * 2;
+        let new_pos = header_size as u32 + (new_value_record_index + i as u32) * 2;
         graph.move_child(
             old_table_idx,
             old_pos,
@@ -812,22 +882,18 @@ impl<'a> PairPosFormat1<'a> {
     }
 }
 
-struct PairPosFormat2<'a>(DataBytes<'a>);
+struct ClassPairPos<'a>(DataBytes<'a>, ClassPairLayout);
 
-impl<'a> PairPosFormat2<'a> {
-    const MIN_SIZE: usize = 16;
+impl<'a> ClassPairPos<'a> {
     const FORMAT_POS: usize = 0;
-    const COVERAGE_OFFSET_POS: u32 = 2;
-    const VALUE_FORMAT1_POS: usize = 4;
-    const VALUE_FORMAT2_POS: usize = 6;
-    const CLASS_DEF1_OFFSET_POS: u32 = 8;
-    const CLASS_DEF2_OFFSET_POS: u32 = 10;
-    const CLASS1_COUNT_POS: usize = 12;
-    const CLASS2_COUNT_POS: usize = 14;
 
-    fn from_graph(graph: &'a mut Graph, obj_idx: ObjIdx) -> Result<Self, RepackError> {
+    fn from_graph(
+        graph: &'a mut Graph,
+        obj_idx: ObjIdx,
+        layout: ClassPairLayout,
+    ) -> Result<Self, RepackError> {
         let data_bytes = DataBytes::from_graph(graph, obj_idx)?;
-        let table = Self(data_bytes);
+        let table = Self(data_bytes, layout);
         if !table.sanitize() {
             return Err(RepackError::ErrorReadTable);
         }
@@ -835,7 +901,13 @@ impl<'a> PairPosFormat2<'a> {
     }
 
     fn sanitize(&self) -> bool {
-        self.0.len() >= Self::MIN_SIZE
+        if self.0.len() < self.1.header_size {
+            return false;
+        }
+        let record_size =
+            (self.value_format1() & 0xff).count_ones() + (self.value_format2() & 0xff).count_ones();
+        u64::from(self.class1_count()) * u64::from(self.class2_count()) * u64::from(record_size) * 2
+            <= (self.0.len() - self.1.header_size) as u64
     }
 
     fn set_format(&mut self, format: u16) {
@@ -843,35 +915,35 @@ impl<'a> PairPosFormat2<'a> {
     }
 
     fn value_format1(&self) -> u16 {
-        self.0.read_at::<u16>(Self::VALUE_FORMAT1_POS)
+        self.0.read_at::<u16>(self.1.value_format1_pos)
     }
 
     fn set_value_format1(&mut self, val: u16) {
-        self.0.write_at(val, Self::VALUE_FORMAT1_POS);
+        self.0.write_at(val, self.1.value_format1_pos);
     }
 
     fn value_format2(&self) -> u16 {
-        self.0.read_at::<u16>(Self::VALUE_FORMAT2_POS)
+        self.0.read_at::<u16>(self.1.value_format2_pos)
     }
 
     fn set_value_format2(&mut self, val: u16) {
-        self.0.write_at(val, Self::VALUE_FORMAT2_POS);
+        self.0.write_at(val, self.1.value_format2_pos);
     }
 
     fn class1_count(&self) -> u16 {
-        self.0.read_at::<u16>(Self::CLASS1_COUNT_POS)
+        self.0.read_at::<u16>(self.1.class1_count_pos)
     }
 
     fn set_class1_count(&mut self, count: u16) {
-        self.0.write_at(count, Self::CLASS1_COUNT_POS);
+        self.0.write_at(count, self.1.class1_count_pos);
     }
 
     fn class2_count(&self) -> u16 {
-        self.0.read_at::<u16>(Self::CLASS2_COUNT_POS)
+        self.0.read_at::<u16>(self.1.class2_count_pos)
     }
 
     fn set_class2_count(&mut self, count: u16) {
-        self.0.write_at(count, Self::CLASS2_COUNT_POS);
+        self.0.write_at(count, self.1.class2_count_pos);
     }
 }
 
@@ -881,10 +953,10 @@ fn make_class_def(
     parent_idx: ObjIdx,
     dest_idx: ObjIdx,
     pos: u32,
-    glyph_classes: &[(u16, u16)],
+    glyph_classes: &[(u32, u32)],
 ) -> Result<(), RepackError> {
     let dest_idx = graph.unshared_child(parent_idx, dest_idx, pos)?;
-    let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
+    let mut s = Serializer::new(glyph_classes.len() * 8 + 8);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -898,11 +970,12 @@ fn make_class_def(
 fn add_new_class_def(
     graph: &mut Graph,
     parent_idx: ObjIdx,
-    glyph_classes: &[(u16, u16)],
+    glyph_classes: &[(u32, u32)],
     position: u32,
+    width: LinkWidth,
 ) -> Result<ObjIdx, RepackError> {
     let new_class_def_idx = graph.new_vertex(0)?;
-    let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
+    let mut s = Serializer::new(glyph_classes.len() * 8 + 8);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -912,13 +985,7 @@ fn add_new_class_def(
     let classdef_data = s.copy_bytes();
     graph.update_vertex_data(new_class_def_idx, &classdef_data)?;
 
-    graph.add_parent_child_link(
-        parent_idx,
-        new_class_def_idx,
-        LinkWidth::Two,
-        position,
-        false,
-    )?;
+    graph.add_parent_child_link(parent_idx, new_class_def_idx, width, position, false)?;
     Ok(new_class_def_idx)
 }
 
@@ -926,7 +993,7 @@ fn add_new_class_def(
 pub(crate) mod test {
     use super::*;
 
-    fn actual_class_def_size(glyph_and_classes: &[(u16, u16)]) -> usize {
+    fn actual_class_def_size(glyph_and_classes: &[(u32, u32)]) -> usize {
         let mut s = Serializer::new(100);
         s.start_serialize().unwrap();
         ClassDef::serialize(&mut s, glyph_and_classes).unwrap();
@@ -951,7 +1018,7 @@ pub(crate) mod test {
         let mut filtered_glyph_classes = Vec::new();
         let mut filtered_glyphs = Vec::new();
         for &(g, class) in glyph_and_classes.iter().filter(|(_, c)| *c == class) {
-            filtered_glyph_classes.push((g.to_u32() as u16, class));
+            filtered_glyph_classes.push((g.to_u32(), u32::from(class)));
             filtered_glyphs.push(g);
         }
         let actual_class_def_size = actual_class_def_size(&filtered_glyph_classes);
@@ -976,7 +1043,7 @@ pub(crate) mod test {
             .iter()
             .filter(|(_, c)| classes.contains(*c))
         {
-            filtered_glyph_classes.push((g.to_u32() as u16, class));
+            filtered_glyph_classes.push((g.to_u32(), u32::from(class)));
             filtered_glyphs.push(g);
         }
 

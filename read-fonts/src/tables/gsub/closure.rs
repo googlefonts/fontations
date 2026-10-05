@@ -2,6 +2,11 @@
 //!
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
+mod extended;
+
+#[cfg(test)]
+mod contextual_tests;
+
 use font_types::GlyphId;
 
 use crate::{
@@ -414,8 +419,8 @@ impl GlyphClosure for SingleSubst<'_> {
         match self {
             SingleSubst::Format1(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
             SingleSubst::Format2(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.subst_format().into())),
+            SingleSubst::Format3(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
+            SingleSubst::Format4(t) => t.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -739,11 +744,24 @@ impl GlyphClosure for SequenceContext<'_> {
             Self::Format2(table) => {
                 ContextFormat2::Plain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            Self::Format5(table) => ContextFormat2::PlainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             Self::Format3(table) => {
                 ContextFormat3::Plain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.format().into())),
+            Self::Format4(table) => ContextFormat1::PlainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
+            Self::Format6(table) => ContextFormat3::PlainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
         }
     }
 }
@@ -762,11 +780,19 @@ impl GlyphClosure for ChainedSequenceContext<'_> {
             Self::Format2(table) => {
                 ContextFormat2::Chain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            Self::Format5(table) => ContextFormat2::ChainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
             Self::Format3(table) => {
                 ContextFormat3::Chain(table.clone()).closure_glyphs(ctx, lookup_list, lookup_index)
             }
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.format().into())),
+            Self::Format4(table) => ContextFormat1::ChainWide(table.clone()).closure_glyphs(
+                ctx,
+                lookup_list,
+                lookup_index,
+            ),
         }
     }
 }
@@ -808,8 +834,7 @@ impl GlyphClosure for ContextFormat1<'_> {
                     continue;
                 }
 
-                let input_seq = rule.input_sequence();
-                let input_count = input_seq.len() + 1;
+                let input_count = rule.input_count();
                 // python calls this 'chaos'. Basically: if there are multiple
                 // lookups applied at a single position they can interact, and
                 // we can no longer trivially determine the state of the context
@@ -839,8 +864,10 @@ impl GlyphClosure for ContextFormat1<'_> {
                     } else if sequence_idx == 0 {
                         active_glyphs.insert(gid);
                     } else {
-                        let g = input_seq[sequence_idx as usize - 1].get();
-                        active_glyphs.insert(GlyphId::from(g));
+                        let Some(g) = rule.input_glyph(sequence_idx as usize - 1) else {
+                            continue;
+                        };
+                        active_glyphs.insert(g);
                     };
 
                     ctx.recurse(
@@ -862,14 +889,14 @@ impl GlyphClosure for ContextFormat1<'_> {
 fn intersected_class_glyphs(
     class_def: &ClassDef,
     glyphs: &IntSet<GlyphId>,
-    class: u16,
-    cache: &mut FnvHashMap<u16, IntSet<GlyphId>>,
+    class: u32,
+    cache: &mut FnvHashMap<u32, IntSet<GlyphId>>,
 ) -> IntSet<GlyphId> {
     if let Some(cached_set) = cache.get(&class) {
         return cached_set.clone();
     }
 
-    let out = class_def.intersected_class_glyphs(glyphs, u32::from(class));
+    let out = class_def.intersected_class_glyphs(glyphs, class);
     cache.insert(class, out.clone());
     out
 }
@@ -894,27 +921,10 @@ impl GlyphClosure for ContextFormat2<'_> {
             return Ok(());
         }
         let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
-        let backtrack_class_def = match self {
-            Self::Plain(_) => None,
-            Self::Chain(table) => {
-                if table.backtrack_class_def_offset().is_null() {
-                    None
-                } else {
-                    Some(table.backtrack_class_def()?)
-                }
-            }
-        };
-        let lookahead_class_def = match self {
-            Self::Plain(_) => None,
-            Self::Chain(table) => {
-                if table.lookahead_class_def_offset().is_null() {
-                    None
-                } else {
-                    Some(table.lookahead_class_def()?)
-                }
-            }
-        };
+        let backtrack_class_def = self.backtrack_class_def().transpose()?;
+        let lookahead_class_def = self.lookahead_class_def().transpose()?;
 
+        let primary_classes = input_class_def.intersect_classes(&cov_active_glyphs);
         let lookups = lookup_list.lookups();
         let mut seen_sequence_indices = IntSet::new();
 
@@ -923,10 +933,8 @@ impl GlyphClosure for ContextFormat2<'_> {
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
-            .filter_map(|(class, rs)| rs.map(|rs| (class as u16, rs)))
-            .filter(|&(class, _)| {
-                input_class_def.intersects_class_glyphs(&cov_active_glyphs, u32::from(class))
-            })
+            .filter_map(|(class, rs)| rs.map(|rs| (class as u32, rs)))
+            .filter(|&(class, _)| primary_classes.contains(class))
         {
             if ctx.lookup_limit_exceed() {
                 return Ok(());
@@ -980,7 +988,7 @@ impl GlyphClosure for ContextFormat2<'_> {
                         intersected_class_glyphs(
                             &input_class_def,
                             ctx.glyphs(),
-                            c,
+                            u32::from(c),
                             &mut intersected_class_cache,
                         )
                     };
@@ -1013,8 +1021,7 @@ impl GlyphClosure for ContextFormat3<'_> {
         }
 
         let mut seen_sequence_indices = IntSet::new();
-        let input_coverages = self.coverages();
-        let input_count = input_coverages.len();
+        let input_count = self.input_count();
         let lookups = lookup_list.lookups();
         for record in self.lookup_records() {
             let lookup_index = record.lookup_list_index();
@@ -1031,10 +1038,10 @@ impl GlyphClosure for ContextFormat3<'_> {
             let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
                 ctx.glyphs().clone()
             } else if seq_idx == 0 {
-                let cov = input_coverages.get(0)?;
+                let cov = self.coverage(0)?;
                 cov.intersect_set(ctx.parent_active_glyphs())
             } else {
-                let cov = input_coverages.get(seq_idx as usize)?;
+                let cov = self.coverage(seq_idx as usize)?;
                 cov.intersect_set(ctx.glyphs())
             };
 
@@ -1045,7 +1052,8 @@ impl GlyphClosure for ContextFormat3<'_> {
                 active_glyphs,
                 &mut seen_sequence_indices,
                 seq_idx,
-                input_count as u16 + 1,
+                // Coverage arrays already include the first input glyph.
+                input_count as u16,
             )?;
         }
         Ok(())
@@ -1158,8 +1166,8 @@ impl Intersect for SingleSubst<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.subst_format().into())),
+            Self::Format3(item) => item.intersects(glyph_set),
+            Self::Format4(item) => item.intersects(glyph_set),
         }
     }
 }
@@ -1284,7 +1292,7 @@ impl GlyphClosure for super::MultipleSubst<'_> {
     ) -> Result<(), ReadError> {
         match self {
             Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -1292,7 +1300,7 @@ impl Intersect for super::MultipleSubst<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
@@ -1306,7 +1314,7 @@ impl GlyphClosure for super::AlternateSubst<'_> {
     ) -> Result<(), ReadError> {
         match self {
             Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -1314,7 +1322,7 @@ impl Intersect for super::AlternateSubst<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
@@ -1328,7 +1336,7 @@ impl GlyphClosure for super::LigatureSubst<'_> {
     ) -> Result<(), ReadError> {
         match self {
             Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -1336,7 +1344,7 @@ impl Intersect for super::LigatureSubst<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
@@ -1350,7 +1358,7 @@ impl GlyphClosure for super::ReverseChainSingleSubst<'_> {
     ) -> Result<(), ReadError> {
         match self {
             Self::Format1(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.closure_glyphs(ctx, lookup_list, lookup_index),
         }
     }
 }
@@ -1358,7 +1366,7 @@ impl Intersect for super::ReverseChainSingleSubst<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }

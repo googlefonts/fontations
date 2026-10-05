@@ -1,5 +1,15 @@
 //! impl subset() for layout common tables
 
+mod classdef;
+mod condition;
+pub(crate) use condition::collect_feature_variation_condition_indices;
+mod extended;
+pub(crate) mod header;
+mod lookup_variations;
+pub(crate) use lookup_variations::protect_lookup_variation_features;
+#[cfg(test)]
+mod lookup_list_tests;
+
 use std::{cmp::Ordering, mem};
 
 use crate::fnv::FnvHashMap;
@@ -16,19 +26,20 @@ use write_fonts::{
             gsub::Gsub,
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
-                ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                Feature, FeatureList, FeatureParams, FeatureRecord, FeatureTableSubstitution,
-                FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations,
-                Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
-                ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
+                ClassDefFormat3, ClassDefFormat4, Condition, ConditionFormat1, ConditionSet,
+                CoverageFormat1, CoverageFormat2, CoverageFormat3, CoverageFormat4, CoverageTable,
+                DeltaFormat, Device, DeviceOrVariationIndex, Feature, FeatureList, FeatureParams,
+                FeatureRecord, FeatureTableSubstitution, FeatureTableSubstitutionRecord,
+                FeatureVariationRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
+                LookupList, LookupList2, RangeRecord, Script, ScriptList, ScriptRecord, SizeParams,
+                StylisticSetParams, VariationIndex,
             },
             variations::NO_VARIATION_INDEX,
         },
-        types::{GlyphId, GlyphId16, NameId},
+        types::{GlyphId, NameId},
         ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
-    types::{FixedSize, Offset16, Offset32, Tag},
+    types::{FixedSize, GlyphId24, Offset16, Offset32, Tag, Uint24},
 };
 
 const MAX_SCRIPTS: u16 = 500;
@@ -156,381 +167,13 @@ impl CollectVariationIndices for VariationIndex<'_> {
     }
 }
 
+pub(crate) type ClassMap = FnvHashMap<u32, u32>;
+
 pub(crate) struct ClassDefSubsetStruct<'a> {
     pub(crate) remap_class: bool,
     pub(crate) keep_empty_table: bool,
     pub(crate) use_class_zero: bool,
     pub(crate) glyph_filter: Option<&'a CoverageTable<'a>>,
-}
-
-impl<'a> SubsetTable<'a> for ClassDef<'a> {
-    type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
-    // class_map: Option<FnvHashMap<u16, u16>>
-    type Output = Option<FnvHashMap<u16, u16>>;
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        match self {
-            Self::Format1(item) => item.subset(plan, s, args),
-            Self::Format2(item) => item.subset(plan, s, args),
-            Self::Format3(_) | Self::Format4(_) => {
-                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
-            }
-        }
-    }
-}
-
-impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
-    type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
-    // class_map: Option<FnvHashMap<u16, u16>>
-    type Output = Option<FnvHashMap<u16, u16>>;
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        let glyph_map = &plan.glyph_map_gsub;
-        let glyph_set = &plan.glyphset_gsub;
-
-        let start = self.start_glyph_id().to_u32();
-        // Exclusive end, so that an empty ClassDef (glyph_count == 0) yields an
-        // empty range. Computing an inclusive `start + glyph_count - 1` would
-        // underflow when start is 0.
-        let end = (start + self.glyph_count() as u32)
-            .min(glyph_set.last().unwrap().to_u32().saturating_add(1));
-
-        let class_values = self.class_value_array();
-        let mut retained_classes = IntSet::empty();
-
-        let cap = (glyph_set.len() as usize).min(self.glyph_count() as usize);
-        let mut new_gid_classes = Vec::with_capacity(cap);
-
-        for g in start..end {
-            let gid = GlyphId::from(g);
-            let Some(new_gid) = map_gsub_glyph(glyph_map, gid) else {
-                continue;
-            };
-
-            if let Some(glyph_filter) = args.glyph_filter {
-                if glyph_filter.get(gid).is_none() {
-                    continue;
-                }
-            }
-
-            let Some(class) = class_values.get((g - start) as usize) else {
-                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-            };
-
-            let class = class.get();
-            if class == 0 {
-                continue;
-            }
-
-            retained_classes.insert(class);
-            new_gid_classes.push((new_gid.to_u32() as u16, class));
-        }
-
-        let use_class_zero = if args.use_class_zero {
-            let glyph_count = if let Some(glyph_filter) = args.glyph_filter {
-                glyph_set
-                    .iter()
-                    .filter(|&g| glyph_filter.get(g).is_some())
-                    .count()
-            } else {
-                glyph_set.len() as usize
-            };
-            glyph_count <= new_gid_classes.len()
-        } else {
-            false
-        };
-
-        if !args.keep_empty_table && new_gid_classes.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
-        classdef_remap_and_serialize(
-            args.remap_class,
-            &retained_classes,
-            use_class_zero,
-            &mut new_gid_classes,
-            s,
-        )
-    }
-}
-
-impl<'a> SubsetTable<'a> for ClassDefFormat2<'a> {
-    type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
-    // class_map: Option<FnvHashMap<u16, u16>>
-    type Output = Option<FnvHashMap<u16, u16>>;
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        let glyph_map = &plan.glyph_map_gsub;
-        let glyph_set = &plan.glyphset_gsub;
-
-        let mut retained_classes = IntSet::empty();
-
-        let population = self.population();
-        let cap = (glyph_set.len() as usize).min(population);
-        let mut new_gid_classes = Vec::with_capacity(cap);
-
-        let num_bits = 16 - self.class_range_count().leading_zeros() as u64;
-        if population as u64 > glyph_set.len() * num_bits {
-            for g in glyph_set.iter() {
-                let Some(new_gid) = map_gsub_glyph(glyph_map, g) else {
-                    continue;
-                };
-                if let Some(glyph_filter) = args.glyph_filter {
-                    if glyph_filter.get(g).is_none() {
-                        continue;
-                    }
-                }
-
-                let class = self.get(GlyphId16::from(g.to_u32() as u16));
-                if class == 0 {
-                    continue;
-                }
-
-                retained_classes.insert(class);
-                new_gid_classes.push((new_gid.to_u32() as u16, class));
-            }
-        } else {
-            for record in self.class_range_records() {
-                let class = record.class();
-                if class == 0 {
-                    continue;
-                }
-
-                let start = record.start_glyph_id().to_u32();
-                let end = record
-                    .end_glyph_id()
-                    .to_u32()
-                    .min(glyph_set.last().unwrap().to_u32());
-                for g in start..=end {
-                    let gid = GlyphId::from(g);
-                    let Some(new_gid) = map_gsub_glyph(glyph_map, gid) else {
-                        continue;
-                    };
-                    if let Some(glyph_filter) = args.glyph_filter {
-                        if glyph_filter.get(gid).is_none() {
-                            continue;
-                        }
-                    }
-
-                    retained_classes.insert(class);
-                    new_gid_classes.push((new_gid.to_u32() as u16, class));
-                }
-            }
-        }
-
-        new_gid_classes.sort_by(|a, b| a.0.cmp(&b.0));
-        let use_class_zero = if args.use_class_zero {
-            let glyph_count = if let Some(glyph_filter) = args.glyph_filter {
-                glyph_set
-                    .iter()
-                    .filter(|&g| glyph_filter.get(g).is_some())
-                    .count()
-            } else {
-                glyph_set.len() as usize
-            };
-            glyph_count <= new_gid_classes.len()
-        } else {
-            false
-        };
-
-        if !args.keep_empty_table && new_gid_classes.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
-        classdef_remap_and_serialize(
-            args.remap_class,
-            &retained_classes,
-            use_class_zero,
-            &mut new_gid_classes,
-            s,
-        )
-    }
-}
-
-fn classdef_remap_and_serialize(
-    remap_class: bool,
-    retained_classes: &IntSet<u16>,
-    use_class_zero: bool,
-    new_gid_classes: &mut [(u16, u16)],
-    s: &mut Serializer,
-) -> Result<Option<FnvHashMap<u16, u16>>, SerializeErrorFlags> {
-    if !remap_class {
-        return ClassDef::serialize(s, new_gid_classes).map(|()| None);
-    }
-
-    let mut class_map = FnvHashMap::default();
-    if !use_class_zero {
-        class_map.insert(0_u16, 0_u16);
-    }
-
-    let mut new_idx = if use_class_zero { 0_u16 } else { 1 };
-    for class in retained_classes.iter() {
-        class_map.insert(class, new_idx);
-        new_idx += 1;
-    }
-
-    for (_, class) in new_gid_classes.iter_mut() {
-        let Some(new_class) = class_map.get(class) else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-        };
-        *class = *new_class;
-    }
-    ClassDef::serialize(s, new_gid_classes).map(|()| Some(class_map))
-}
-
-impl<'a> Serialize<'a> for ClassDef<'a> {
-    type Args = &'a [(u16, u16)];
-    fn serialize(
-        s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
-    ) -> Result<(), SerializeErrorFlags> {
-        let mut glyph_min = 0;
-        let mut glyph_max = 0;
-        let mut prev_g = 0;
-        let mut prev_class = 0;
-
-        let mut num_glyphs = 0_u16;
-        let mut num_ranges = 1_u16;
-        for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
-            num_glyphs += 1;
-            if num_glyphs == 1 {
-                glyph_min = *g;
-                glyph_max = *g;
-                prev_g = *g;
-                prev_class = *class;
-                continue;
-            }
-
-            glyph_max = glyph_max.max(*g);
-            if *g != prev_g + 1 || *class != prev_class {
-                num_ranges += 1;
-            }
-
-            prev_g = *g;
-            prev_class = *class;
-        }
-
-        if num_glyphs > 0 && (glyph_max - glyph_min + 1) < num_ranges * 3 {
-            ClassDefFormat1::serialize(s, new_gid_classes)
-        } else {
-            ClassDefFormat2::serialize(s, new_gid_classes)
-        }
-    }
-}
-
-impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
-    type Args = &'a [(u16, u16)];
-    fn serialize(
-        s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
-    ) -> Result<(), SerializeErrorFlags> {
-        // format 1
-        s.embed(1_u16)?;
-        // start_glyph
-        let start_glyph_pos = s.embed(0_u16)?;
-        // glyph count
-        let glyph_count_pos = s.embed(0_u16)?;
-
-        let mut num = 0;
-        let mut glyph_min = 0;
-        let mut glyph_max = 0;
-        for (g, _) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
-            if num == 0 {
-                glyph_min = *g;
-                glyph_max = *g;
-            } else {
-                glyph_max = *g.max(&glyph_max);
-            }
-            num += 1;
-        }
-
-        if num == 0 {
-            return Ok(());
-        }
-
-        s.copy_assign(start_glyph_pos, glyph_min);
-
-        let glyph_count = glyph_max - glyph_min + 1;
-        s.copy_assign(glyph_count_pos, glyph_count);
-
-        let pos = s.allocate_size((glyph_count as usize) * 2, true)?;
-        for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
-            let idx = (*g - glyph_min) as usize;
-            s.copy_assign(pos + idx * 2, *class);
-        }
-        Ok(())
-    }
-}
-
-impl<'a> Serialize<'a> for ClassDefFormat2<'a> {
-    type Args = &'a [(u16, u16)];
-    fn serialize(
-        s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
-    ) -> Result<(), SerializeErrorFlags> {
-        // format 2
-        s.embed(2_u16)?;
-        //classRange count
-        let range_count_pos = s.embed(0_u16)?;
-
-        let mut num = 0_u16;
-        let mut prev_g = 0;
-        let mut prev_class = 0;
-
-        let mut num_ranges = 0_u16;
-        let mut pos = 0;
-        for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
-            num += 1;
-            if num == 1 {
-                prev_g = *g;
-                prev_class = *class;
-
-                pos = s.allocate_size(ClassRangeRecord::RAW_BYTE_LEN, true)?;
-                s.copy_assign(pos, prev_g);
-                s.copy_assign(pos + 2, prev_g);
-                s.copy_assign(pos + 4, prev_class);
-
-                num_ranges += 1;
-                continue;
-            }
-
-            if *g != prev_g + 1 || *class != prev_class {
-                num_ranges += 1;
-                // update last_gid of previous record
-                s.copy_assign(pos + 2, prev_g);
-
-                pos = s.allocate_size(ClassRangeRecord::RAW_BYTE_LEN, true)?;
-                s.copy_assign(pos, *g);
-                s.copy_assign(pos + 2, *g);
-                s.copy_assign(pos + 4, *class);
-            }
-
-            prev_class = *class;
-            prev_g = *g;
-        }
-
-        if num == 0 {
-            return Ok(());
-        }
-
-        // update end glyph of the last record
-        s.copy_assign(pos + 2, prev_g);
-        // update range count
-        s.copy_assign(range_count_pos, num_ranges);
-        Ok(())
-    }
 }
 
 impl<'a> SubsetTable<'a> for CoverageTable<'a> {
@@ -545,9 +188,7 @@ impl<'a> SubsetTable<'a> for CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.subset(plan, s, args),
             CoverageTable::Format2(sub) => sub.subset(plan, s, args),
-            Self::Format3(_) | Self::Format4(_) => {
-                Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
-            }
+            Self::Format3(_) | Self::Format4(_) => extended::subset_coverage(self, plan, s),
         }
     }
 }
@@ -656,23 +297,36 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
         }
 
         let glyph_count = glyphs.len();
-        let mut num_ranges = 1_u16;
+        let mut num_ranges = 1_usize;
         let mut last = glyphs[0].to_u32();
+        let mut max_gid = last;
 
         for g in glyphs.iter().skip(1) {
             let gid = g.to_u32();
-            if last + 1 != gid {
+            if last.checked_add(1) != Some(gid) {
                 num_ranges += 1;
             }
 
             last = gid;
+            max_gid = max_gid.max(gid);
         }
 
         // TODO: add support for unsorted glyph list??
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/Common/Coverage.hh#L143>
-        if glyph_count <= num_ranges as usize * 3 {
+        if max_gid > Uint24::MAX.to_u32() {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW));
+        }
+        if max_gid > u16::MAX as u32 {
+            if glyph_count <= num_ranges * 3 {
+                return CoverageFormat3::serialize(s, glyphs);
+            }
+            return CoverageFormat4::serialize(s, (glyphs, num_ranges));
+        }
+        if glyph_count <= num_ranges * 3 && glyph_count <= u16::MAX as usize {
             CoverageFormat1::serialize(s, glyphs)
         } else {
+            let num_ranges = u16::try_from(num_ranges)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
             CoverageFormat2::serialize(s, (glyphs, num_ranges))
         }
     }
@@ -847,6 +501,10 @@ pub(crate) fn collect_features_with_retained_subs(
             out.insert(rec.feature_index());
         }
     }
+    out.union(&lookup_variations::features_with_retained_lookups(
+        feature_variations,
+        lookup_indices,
+    ));
     out
 }
 
@@ -1534,34 +1192,52 @@ impl SubsetTable<'_> for FeatureParams<'_> {
     }
 }
 
-impl<
-        'a,
-        T: FontRead<'a, Args = ()>
-            + SubsetTable<
+macro_rules! subset_lookup_list {
+    ($table:ident) => {
+        impl<
                 'a,
-                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
-            >,
-    > SubsetTable<'a> for LookupList<'a, T>
-{
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let lookup_index_map = args.2;
-        let lookup_count = lookup_index_map.len() as u16;
-        s.embed(lookup_count)?;
+                T: FontRead<'a, Args = ()>
+                    + SubsetTable<
+                        'a,
+                        ArgsForSubset = (
+                            &'a SubsetState,
+                            &'a FontRef<'a>,
+                            &'a FnvHashMap<u16, u16>,
+                        ),
+                    >,
+            > SubsetTable<'a> for $table<'a, T>
+        {
+            type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<(), SerializeErrorFlags> {
+                let lookup_index_map = args.2;
+                let lookup_count = u16::try_from(lookup_index_map.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                if self.min_table_bytes().is_empty()
+                    || lookup_index_map
+                        .keys()
+                        .any(|idx| *idx >= self.lookup_count())
+                {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                s.embed(lookup_count)?;
 
-        let lookup_offsets = self.lookups();
-        for i in (0..self.lookup_count()).filter(|idx| lookup_index_map.contains_key(idx)) {
-            lookup_offsets.subset_offset(i as usize, s, plan, args)?;
+                let lookup_offsets = self.lookups();
+                for i in (0..self.lookup_count()).filter(|idx| lookup_index_map.contains_key(idx)) {
+                    lookup_offsets.subset_offset(i as usize, s, plan, args)?;
+                }
+                Ok(())
+            }
         }
-        Ok(())
-    }
+    };
 }
+subset_lookup_list!(LookupList);
+subset_lookup_list!(LookupList2);
 
 impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
     type ArgsForSubset = &'a mut SubsetLayoutContext;
@@ -1572,13 +1248,40 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         s: &mut Serializer,
         c: &mut SubsetLayoutContext,
     ) -> Result<(), SerializeErrorFlags> {
+        if !matches!(
+            self.version(),
+            write_fonts::types::MajorMinor {
+                major: 1,
+                minor: 0 | 1
+            }
+        ) {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        }
         let feature_index_map = if c.table_tag == Gsub::TAG {
             &plan.gsub_features_w_duplicates
         } else {
             &plan.gpos_features_w_duplicates
         };
-        let num_retained_records = num_variation_record_to_retain(self, feature_index_map, s)?;
-        if num_retained_records == 0 {
+        let num_retained_records = num_variation_record_to_retain(self, feature_index_map)
+            .map_err(|error| s.set_err(error))?;
+        let lookup_records = if self.version().minor == 1 {
+            Some(
+                self.lookup_variation_records()
+                    .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?,
+            )
+        } else {
+            None
+        };
+        let num_lookup_records = lookup_records.map_or(0, |records| {
+            records
+                .iter()
+                .filter(|record| {
+                    feature_index_map.contains_key(&record.feature_index())
+                        && !record.feature_lookups_offset().is_null()
+                })
+                .count()
+        });
+        if num_retained_records == 0 && num_lookup_records == 0 {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
@@ -1591,6 +1294,21 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         for i in 0..num_retained_records {
             variation_records[i as usize].subset(plan, s, (font_data, feature_index_map, c))?;
         }
+        if let Some(records) = lookup_records {
+            let count = u32::try_from(num_lookup_records)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+            s.embed(count)?;
+            let lookup_map = if c.table_tag == Gsub::TAG {
+                &plan.gsub_lookups
+            } else {
+                &plan.gpos_lookups
+            };
+            for record in records {
+                record
+                    .subset(plan, s, (font_data, feature_index_map, lookup_map))
+                    .is_empty()?;
+            }
+        }
         Ok(())
     }
 }
@@ -1600,9 +1318,12 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 fn num_variation_record_to_retain(
     feature_variations: &FeatureVariations,
     feature_index_map: &FnvHashMap<u16, u16>,
-    s: &mut Serializer,
 ) -> Result<u32, SerializeErrorFlags> {
     let num_records = feature_variations.feature_variation_record_count();
+    if u64::from(num_records) * 8 > feature_variations.offset_data().len().saturating_sub(8) as u64
+    {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+    }
     let variation_records = feature_variations.feature_variation_records();
     let font_data = feature_variations.offset_data();
 
@@ -1610,7 +1331,7 @@ fn num_variation_record_to_retain(
         let Some(feature_substitution) = variation_records[i as usize]
             .feature_table_substitution(font_data)
             .transpose()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         else {
             continue;
         };
@@ -1665,63 +1386,6 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
         }
 
         Ok(())
-    }
-}
-
-impl SubsetTable<'_> for ConditionSet<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        let count_pos = s.embed(0_u16)?;
-        let mut count = 0_u16;
-
-        let conditions = self.conditions();
-        let condition_count = self.condition_count() as usize;
-        for i in 0..condition_count {
-            if !conditions.subset_offset(i, s, plan, ()).is_empty()? {
-                count += 1;
-            }
-        }
-
-        if count != 0 {
-            s.copy_assign(count_pos, count);
-        }
-        Ok(())
-    }
-}
-
-impl SubsetTable<'_> for Condition<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        match self {
-            Self::Format1AxisRange(item) => item.subset(plan, s, ()),
-            // TODO: support other formats
-            _ => Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
-        }
-    }
-}
-
-impl SubsetTable<'_> for ConditionFormat1<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        _plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        s.embed_bytes(self.min_table_bytes()).map(|_| ())
     }
 }
 
@@ -1854,28 +1518,10 @@ impl<
     ) -> Result<(), SerializeErrorFlags> {
         match self {
             Self::Offset16(t) => t.subset(plan, s, args),
-            Self::Offset32(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+            Self::Offset32(t) => t.subset(plan, s, args),
         }
     }
 }
-
-macro_rules! legacy_subset {
-    ($module:ident, $new:ident, $old:ident) => {
-        impl<'a, 'b> crate::SubsetTable<'a> for write_fonts::read::tables::$module::$new<'b> {
-            type ArgsForSubset = <write_fonts::read::tables::$module::$old<'b> as crate::SubsetTable<'a>>::ArgsForSubset;
-            type Output = <write_fonts::read::tables::$module::$old<'b> as crate::SubsetTable<'a>>::Output;
-            fn subset(&self, plan: &crate::Plan, s: &mut crate::serialize::Serializer, args: Self::ArgsForSubset)
-                -> Result<Self::Output, crate::serialize::SerializeErrorFlags> {
-                match self {
-                    Self::Format1(t) => t.subset(plan, s, args),
-                    Self::Format2(_) => Err(s.set_err(crate::serialize::SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
-                }
-            }
-        }
-    };
-}
-
-pub(crate) use legacy_subset;
 
 #[cfg(test)]
 mod test {

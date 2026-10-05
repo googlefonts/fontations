@@ -1,4 +1,5 @@
 //! support closure for GPOS
+mod extended;
 
 use super::{
     CursivePosFormat1, ExtensionPosFormat1, ExtensionSubtable, Gpos, MarkBasePosFormat1,
@@ -188,8 +189,8 @@ impl Intersect for SinglePos<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.pos_format().into())),
+            Self::Format3(item) => item.intersects(glyph_set),
+            Self::Format4(item) => item.intersects(glyph_set),
         }
     }
 }
@@ -217,8 +218,8 @@ impl Intersect for PairPos<'_> {
         match self {
             Self::Format1(item) => item.intersects(glyph_set),
             Self::Format2(item) => item.intersects(glyph_set),
-            // Closure/subsetting of the extended formats is deferred.
-            _ => Err(ReadError::InvalidFormat(self.pos_format().into())),
+            Self::Format3(item) => item.intersects(glyph_set),
+            Self::Format4(item) => item.intersects(glyph_set),
         }
     }
 }
@@ -228,38 +229,12 @@ impl Intersect for PairPosFormat1<'_> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
-        let coverage = self.coverage()?;
-        let pair_sets = self.pair_sets();
-
-        let num_pair_sets = self.pair_set_count();
-        let num_bits = 16 - num_pair_sets.leading_zeros();
-        if num_pair_sets as u64 > glyph_set.len() * num_bits as u64 {
-            for g in glyph_set.iter() {
-                let Some(i) = coverage.get(g) else {
-                    continue;
-                };
-                let pair_set = match pair_sets.get(i as usize) {
-                    Err(ReadError::NullOffset) => continue,
-                    other => other,
-                }?;
-                if pair_set.intersects(glyph_set)? {
-                    return Ok(true);
-                }
-            }
-        } else {
-            for (g, pair_set) in coverage.iter().zip(pair_sets.iter_as_nullable()) {
-                if !glyph_set.contains(g) {
-                    continue;
-                }
-                let Some(pair_set) = pair_set.transpose()? else {
-                    continue;
-                };
-                if pair_set.intersects(glyph_set)? {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
+        extended::pair_pos_intersects(
+            &self.coverage()?,
+            self.pair_sets(),
+            u32::from(self.pair_set_count()),
+            glyph_set,
+        )
     }
 }
 
@@ -330,7 +305,7 @@ impl Intersect for super::CursivePos<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
@@ -339,7 +314,7 @@ impl Intersect for super::MarkBasePos<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
@@ -348,7 +323,7 @@ impl Intersect for super::MarkLigPos<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
@@ -357,7 +332,7 @@ impl Intersect for super::MarkMarkPos<'_> {
     fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(_) => Err(ReadError::InvalidFormat(2)),
+            Self::Format2(table) => table.intersects(glyphs),
         }
     }
 }
