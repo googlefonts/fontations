@@ -1199,8 +1199,11 @@ impl Graph {
 
         let mut parents = IntSet::empty();
         let mut subgraph_map = FnvHashMap::default();
+        // Seed every root before traversal can count edges into another root.
         for root_idx in roots.iter() {
             subgraph_map.insert(root_idx, self.wide_parents(root_idx as usize, &mut parents));
+        }
+        for root_idx in roots.iter() {
             self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map)?;
         }
 
@@ -2491,5 +2494,30 @@ pub(crate) mod test {
         assert_eq!(roots2.len(), 1);
         assert!(roots2.contains(a as u32));
         assert!(!roots2.contains(b as u32));
+    }
+
+    #[test]
+    fn connected_space_roots_preserve_all_incoming_edges() {
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let a = add_object(&mut s, &[0u8; 2], 2, false);
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_wide_offset(&mut s, a);
+        add_wide_offset(&mut s, b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(&s).unwrap();
+        // A later-created child models the forward edges introduced by
+        // extension promotion or duplication during repacking.
+        graph
+            .add_parent_child_link(a, b, LinkWidth::Two, 0, false)
+            .unwrap();
+        graph.sort_shortest_distance().unwrap();
+        let count = graph.vertices.len();
+        assert!(graph.assign_spaces().unwrap());
+        assert_eq!(graph.vertices.len(), count);
+        graph.sort_shortest_distance().unwrap();
+        graph.is_fully_connected().unwrap();
     }
 }
