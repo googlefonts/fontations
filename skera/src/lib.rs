@@ -21,6 +21,7 @@ mod hvar;
 mod inc_bimap;
 mod layout;
 mod maxp;
+mod metrics;
 mod name;
 mod offset;
 mod offset_array;
@@ -76,8 +77,8 @@ use write_fonts::{
             gvar::Gvar,
             hdmx::Hdmx,
             head::Head,
-            hhea::Hhea,
-            hmtx::Hmtx,
+            hhea::{Hhea, HheaExtended},
+            hmtx::{Hmtx, HmtxExtended},
             hvar::Hvar,
             loca::Loca,
             maxp::{Maxp, MaxpExtended},
@@ -87,8 +88,8 @@ use write_fonts::{
             sbix::Sbix,
             stat::Stat,
             variations::NO_VARIATION_INDEX,
-            vhea::Vhea,
-            vmtx::Vmtx,
+            vhea::{Vhea, VheaExtended},
+            vmtx::{Vmtx, VmtxExtended},
             vorg::Vorg,
             vvar::Vvar,
         },
@@ -1371,19 +1372,39 @@ fn subset_table<'a>(
         }),
 
         //Skip, handled by Hmtx
-        Hhea::TAG => Ok(()),
+        Hhea::TAG | HheaExtended::TAG => Ok(()),
+
+        Hmtx::TAG if font.data_for_tag(HmtxExtended::TAG).is_some() => Ok(()),
 
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
             .subset(plan, font, s, builder),
 
+        HmtxExtended::TAG => font
+            .hmtx_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(HmtxExtended::TAG)
+            })?
+            .subset(plan, font, s, builder),
+
         //Skip, handled by Vmtx
-        Vhea::TAG => Ok(()),
+        Vhea::TAG | VheaExtended::TAG => Ok(()),
+
+        Vmtx::TAG if font.data_for_tag(VmtxExtended::TAG).is_some() => Ok(()),
 
         Vmtx::TAG => font
             .vmtx()
             .map_err(|_| SubsetError::SubsetTableError(Vmtx::TAG))?
+            .subset(plan, font, s, builder),
+
+        VmtxExtended::TAG => font
+            .vmtx_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(VmtxExtended::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Hvar::TAG => font
