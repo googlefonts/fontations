@@ -152,9 +152,8 @@ fn subset_gsub(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
-    // Extended headers and subtables are not yet supported by the subsetter.
     if gsub.version() >= MajorMinor::new(1, 2) {
-        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        return subset_extended_layout(gsub, plan, font, state, s);
     }
     let version_pos = s.embed(gsub.version())?;
     let mut c = SubsetLayoutContext::new(Gsub::TAG);
@@ -222,6 +221,8 @@ fn subset_gsub(
 
     Ok(())
 }
+
+crate::layout::header::subset_extended_layout!(Gsub, gsub_lookups);
 
 impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
