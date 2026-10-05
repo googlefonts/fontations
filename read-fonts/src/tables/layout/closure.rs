@@ -1,6 +1,6 @@
 //! Support Layout Closure
 
-use types::{BigEndian, GlyphId16, GlyphId24, Offset16};
+use types::{BigEndian, Compatible, GlyphId16, GlyphId24, Offset16};
 
 use super::{
     ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet,
@@ -17,7 +17,7 @@ use super::{
 use crate::{
     collections::{FnvHashMap, IntSet},
     tables::{gpos::PositionLookupList, gsub::SubstitutionLookupList},
-    FontRead,
+    FontRead, MinByteRange,
 };
 
 const MAX_SCRIPTS: u16 = 500;
@@ -264,6 +264,11 @@ impl FeatureVariations<'_> {
         feature_indices: &IntSet<u16>,
     ) -> Result<IntSet<u16>, ReadError> {
         let mut out = IntSet::empty();
+        if u64::from(self.feature_variation_record_count()) * 8
+            > self.offset_data().len().saturating_sub(8) as u64
+        {
+            return Err(ReadError::OutOfBounds);
+        }
 
         for variation_rec in self.feature_variation_records() {
             let Some(subs) = variation_rec
@@ -283,6 +288,36 @@ impl FeatureVariations<'_> {
                 }
                 let sub_f = sub_record.alternate_feature(subs.offset_data())?;
                 out.extend_unsorted(sub_f.lookup_list_indices().iter().map(|i| i.get()));
+            }
+        }
+        if self.version().compatible((1, 1)) {
+            let records = self
+                .lookup_variation_records()
+                .ok_or(ReadError::OutOfBounds)?;
+            for record in records
+                .iter()
+                .filter(|rec| feature_indices.contains(rec.feature_index()))
+            {
+                if record.feature_lookups_offset().is_null() {
+                    continue;
+                }
+                let lookups = record.feature_lookups(self.offset_data())?;
+                if u64::from(lookups.lookup_condition_count()) * 8
+                    > lookups.offset_data().len().saturating_sub(10) as u64
+                {
+                    return Err(ReadError::OutOfBounds);
+                }
+                for record in lookups.lookup_condition_records() {
+                    if record.lookup_index_list_offset().is_null() {
+                        continue;
+                    }
+                    let indices = record.lookup_index_list(lookups.offset_data())?;
+                    if indices.min_table_bytes().is_empty() {
+                        return Err(ReadError::OutOfBounds);
+                    }
+                    // Closure includes every design-space branch; do not evaluate conditions.
+                    out.extend_unsorted(indices.lookup_indices().iter().map(|i| i.get()));
+                }
             }
         }
         Ok(out)
@@ -1214,6 +1249,9 @@ impl LookupClosure for ChainedSequenceContext<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod lookup_variations_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,10 @@
 //! Access to the lookup-oriented feature variations added in ISO OFF fifth edition.
 
 use super::{FeatureLookups, FeatureVariations, LookupVariationRecord};
-use crate::{types::Compatible, ReadError};
+use crate::{
+    types::{Compatible, FixedSize},
+    ReadError,
+};
 
 impl<'a> FeatureVariations<'a> {
     /// Lookup variations, sorted by feature index; absent in version 1.0.
@@ -9,11 +12,17 @@ impl<'a> FeatureVariations<'a> {
         if !self.version().compatible((1, 1)) {
             return None;
         }
+        let data = self.offset_data();
+        if u64::from(self.feature_variation_record_count()) * 8
+            > data.len().saturating_sub(8) as u64
+        {
+            return None;
+        }
         // A present, empty version-1.1 array is distinct from an absent field.
-        self.lookup_variation_record_count()?;
-        self.offset_data()
-            .read_array(self.lookup_variation_records_byte_range())
-            .ok()
+        let count = usize::try_from(self.lookup_variation_record_count()?).ok()?;
+        let start = self.lookup_variation_record_count_byte_range().end;
+        let end = start.checked_add(count.checked_mul(LookupVariationRecord::RAW_BYTE_LEN)?)?;
+        data.read_array(start..end).ok()
     }
 
     /// Returns the conditional lookup table for a feature, if present.
