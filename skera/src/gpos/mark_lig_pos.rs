@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod extended_tests;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -144,8 +144,12 @@ macro_rules! subset_mark_lig {
 
                 // mark array offset
                 let mark_array_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
-                let (mark_glyphs, mark_record_idxes) =
-                    intersected_glyphs_and_indices(&mark_coverage, glyph_set, glyph_map);
+                let (mark_glyphs, mark_record_idxes) = intersected_glyphs_and_indices(
+                    &mark_coverage,
+                    glyph_set,
+                    glyph_map,
+                    mark_array.mark_count(),
+                );
 
                 $offset::serialize_serialize::<CoverageTable>(
                     s,
@@ -170,8 +174,12 @@ macro_rules! subset_mark_lig {
                     .ligature_array()
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-                let (lig_glyphs, lig_attach_idxes) =
-                    intersected_glyphs_and_indices(&lig_coverage, glyph_set, glyph_map);
+                let (lig_glyphs, lig_attach_idxes) = intersected_glyphs_and_indices(
+                    &lig_coverage,
+                    glyph_set,
+                    glyph_map,
+                    lig_array.ligature_count(),
+                );
                 if lig_glyphs.is_empty() {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
                 }

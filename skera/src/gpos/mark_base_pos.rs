@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod extended_tests;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},

@@ -22,8 +22,12 @@ impl SubsetTable<'_> for ReverseChainSingleSubstFormat2<'_> {
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let (glyphs, indices) =
-            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
+        let (glyphs, indices) = intersected_glyphs_and_indices(
+            &coverage,
+            &plan.glyphset_gsub,
+            &plan.glyph_map_gsub,
+            self.substitute_glyph_ids().len() as u32,
+        );
         s.embed(2u16)?;
         let coverage_pos = s.embed(0u32)?;
         s.embed(self.backtrack_glyph_count())?;

@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod extended_tests;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},

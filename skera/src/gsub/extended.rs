@@ -25,8 +25,12 @@ fn subset_array_sets<'a, T>(
 where
     T: FontRead<'a, Args = ()> + SubsetTable<'a, ArgsForSubset = (), Output = ()>,
 {
-    let (glyphs, indices) =
-        intersected_glyphs_and_indices(coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
+    let (glyphs, indices) = intersected_glyphs_and_indices(
+        coverage,
+        &plan.glyphset_gsub,
+        &plan.glyph_map_gsub,
+        sets.len() as u32,
+    );
     if glyphs.is_empty() {
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }

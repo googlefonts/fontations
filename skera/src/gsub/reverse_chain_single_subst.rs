@@ -1,7 +1,7 @@
 //! impl subset() for ReverseChainSingleSubst subtable
 mod extended;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::map_gsub_glyph,
     offset::SerializeSerialize,

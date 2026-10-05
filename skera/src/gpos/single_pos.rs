@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod extended_tests;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     gpos::value_record::{compute_effective_format, compute_record_len},
     layout::{intersected_glyphs_and_indices, map_gsub_glyph},

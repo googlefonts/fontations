@@ -31,6 +31,7 @@ macro_rules! subset_glyph_context {
                     &coverage,
                     &plan.glyphset_gsub,
                     &plan.glyph_map_gsub,
+                    self.$sets().len() as u32,
                 );
                 if glyphs.is_empty() {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);

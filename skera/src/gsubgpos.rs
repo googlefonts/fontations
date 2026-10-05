@@ -2,7 +2,7 @@
 mod class_context;
 mod extended;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph, ClassDefSubsetStruct, ClassMap},
     offset::{SerializeSerialize, SerializeSubset},

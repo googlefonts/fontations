@@ -1043,6 +1043,18 @@ impl Graph {
     }
 
     fn find_space_roots(&self) -> Result<(IntSet<u32>, IntSet<u32>), RepackError> {
+        let (roots, visited) = self.find_space_roots_with_nested(true)?;
+        if roots.len() < MAX_SPACES as u64 {
+            return Ok((roots, visited));
+        }
+        // Keep the coarser outer 32-bit spaces if refinement exceeds the budget.
+        self.find_space_roots_with_nested(false)
+    }
+
+    fn find_space_roots_with_nested(
+        &self,
+        prefer_inner: bool,
+    ) -> Result<(IntSet<u32>, IntSet<u32>), RepackError> {
         let root_idx = self.root_idx();
         let mut visited = IntSet::empty();
         let mut roots = IntSet::empty();
@@ -1061,8 +1073,10 @@ impl Graph {
                 }
 
                 match l.link_width() {
-                    LinkWidth::Three => {
-                        if *i == root_idx {
+                    LinkWidth::Three | LinkWidth::Four
+                        if prefer_inner || l.link_width() == LinkWidth::Three =>
+                    {
+                        if *i == root_idx && l.link_width() == LinkWidth::Three {
                             continue;
                         }
                         let mut sub_roots = IntSet::empty();
@@ -2570,5 +2584,38 @@ pub(crate) mod test {
         vertex.priority = 0;
         vertex.distance = u64::MAX / 2;
         assert_eq!(vertex.modified_distance(0), (i64::MAX >> 18) << 18);
+    }
+
+    #[test]
+    fn nested_wide_offsets_form_spaces_within_the_budget() {
+        for count in [2, MAX_SPACES] {
+            let mut s = Serializer::new(count * 16 + 1024);
+            s.start_serialize().unwrap();
+            let leaves: Vec<_> = (0..count)
+                .map(|i| add_object(&mut s, &(i as u32).to_be_bytes(), 4, false))
+                .collect();
+            s.push().unwrap();
+            for leaf in &leaves {
+                add_wide_offset(&mut s, *leaf);
+            }
+            let list = s.pop_pack(false).unwrap();
+            s.push().unwrap();
+            add_wide_offset(&mut s, list);
+            s.pop_pack(false).unwrap();
+            s.end_serialize();
+            let mut graph = Graph::from_serializer(&s).unwrap();
+            let (roots, _) = graph.find_space_roots().unwrap();
+            if count < MAX_SPACES {
+                assert_eq!(roots.len(), count as u64);
+                assert!(leaves.iter().all(|idx| roots.contains(*idx as u32)));
+            } else {
+                assert_eq!(roots.len(), 1);
+                assert!(roots.contains(list as u32));
+            }
+            assert!(graph.assign_spaces().unwrap());
+            assert!(graph.num_roots_for_space.len() < MAX_SPACES);
+            graph.sort_shortest_distance().unwrap();
+            graph.is_fully_connected().unwrap();
+        }
     }
 }

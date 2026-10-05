@@ -1,7 +1,7 @@
 //! impl subset() for SingleSubst subtable
 mod extended;
 
-use crate::fnv::FastHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph},
     offset::SerializeSerialize,
@@ -70,7 +70,7 @@ impl SubsetTable<'_> for SingleSubstFormat1<'_> {
             .map(|g| {
                 (
                     g,
-                    GlyphId::from(g.to_u32().wrapping_add_signed(delta) & 0xffff),
+                    GlyphId::from(g.to_u32().wrapping_add_signed(delta as i32) & 0xffff),
                 )
             })
             .filter_map(|(g, sub_g)| {

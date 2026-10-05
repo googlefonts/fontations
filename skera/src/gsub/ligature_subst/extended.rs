@@ -29,8 +29,12 @@ impl SubsetTable<'_> for LigatureSubstFormat2<'_> {
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let (glyphs, indices) =
-            intersected_glyphs_and_indices(&coverage, &plan.glyphset_gsub, &plan.glyph_map_gsub);
+        let (glyphs, indices) = intersected_glyphs_and_indices(
+            &coverage,
+            &plan.glyphset_gsub,
+            &plan.glyph_map_gsub,
+            self.ligature_sets().len() as u32,
+        );
         let sets = self.ligature_sets();
         let mut retained_glyphs = Vec::with_capacity(glyphs.len());
         let mut retained_indices = Vec::with_capacity(glyphs.len());
