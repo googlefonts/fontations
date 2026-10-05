@@ -1248,6 +1248,15 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         s: &mut Serializer,
         c: &mut SubsetLayoutContext,
     ) -> Result<(), SerializeErrorFlags> {
+        if !matches!(
+            self.version(),
+            write_fonts::types::MajorMinor {
+                major: 1,
+                minor: 0 | 1
+            }
+        ) {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        }
         let feature_index_map = if c.table_tag == Gsub::TAG {
             &plan.gsub_features_w_duplicates
         } else {
@@ -1255,7 +1264,24 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         };
         let num_retained_records = num_variation_record_to_retain(self, feature_index_map)
             .map_err(|error| s.set_err(error))?;
-        if num_retained_records == 0 {
+        let lookup_records = if self.version().minor == 1 {
+            Some(
+                self.lookup_variation_records()
+                    .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?,
+            )
+        } else {
+            None
+        };
+        let num_lookup_records = lookup_records.map_or(0, |records| {
+            records
+                .iter()
+                .filter(|record| {
+                    feature_index_map.contains_key(&record.feature_index())
+                        && !record.feature_lookups_offset().is_null()
+                })
+                .count()
+        });
+        if num_retained_records == 0 && num_lookup_records == 0 {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
@@ -1267,6 +1293,21 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         let variation_records = self.feature_variation_records();
         for i in 0..num_retained_records {
             variation_records[i as usize].subset(plan, s, (font_data, feature_index_map, c))?;
+        }
+        if let Some(records) = lookup_records {
+            let count = u32::try_from(num_lookup_records)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+            s.embed(count)?;
+            let lookup_map = if c.table_tag == Gsub::TAG {
+                &plan.gsub_lookups
+            } else {
+                &plan.gpos_lookups
+            };
+            for record in records {
+                record
+                    .subset(plan, s, (font_data, feature_index_map, lookup_map))
+                    .is_empty()?;
+            }
         }
         Ok(())
     }
