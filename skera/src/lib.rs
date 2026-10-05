@@ -795,6 +795,26 @@ impl Plan {
 
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
+            if let Some(Ok(variations)) = gpos.feature_variations() {
+                layout::collect_feature_variation_condition_indices(
+                    &variations,
+                    self,
+                    &self.gpos_features_w_duplicates,
+                    &self.gpos_lookups,
+                    &mut varidx_set,
+                );
+            }
+        }
+        if let Ok(gsub) = font.gsub() {
+            if let Some(Ok(variations)) = gsub.feature_variations() {
+                layout::collect_feature_variation_condition_indices(
+                    &variations,
+                    self,
+                    &self.gsub_features_w_duplicates,
+                    &self.gsub_lookups,
+                    &mut varidx_set,
+                );
+            }
         }
 
         let vardata_count = var_store.item_variation_data_count() as u32;

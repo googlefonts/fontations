@@ -1,6 +1,8 @@
 //! impl subset() for layout common tables
 
 mod classdef;
+mod condition;
+pub(crate) use condition::collect_feature_variation_condition_indices;
 mod extended;
 pub(crate) mod header;
 mod lookup_variations;
@@ -1251,7 +1253,8 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         } else {
             &plan.gpos_features_w_duplicates
         };
-        let num_retained_records = num_variation_record_to_retain(self, feature_index_map, s)?;
+        let num_retained_records = num_variation_record_to_retain(self, feature_index_map)
+            .map_err(|error| s.set_err(error))?;
         if num_retained_records == 0 {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
@@ -1274,9 +1277,12 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 fn num_variation_record_to_retain(
     feature_variations: &FeatureVariations,
     feature_index_map: &FnvHashMap<u16, u16>,
-    s: &mut Serializer,
 ) -> Result<u32, SerializeErrorFlags> {
     let num_records = feature_variations.feature_variation_record_count();
+    if u64::from(num_records) * 8 > feature_variations.offset_data().len().saturating_sub(8) as u64
+    {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+    }
     let variation_records = feature_variations.feature_variation_records();
     let font_data = feature_variations.offset_data();
 
@@ -1284,7 +1290,7 @@ fn num_variation_record_to_retain(
         let Some(feature_substitution) = variation_records[i as usize]
             .feature_table_substitution(font_data)
             .transpose()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         else {
             continue;
         };
@@ -1339,63 +1345,6 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
         }
 
         Ok(())
-    }
-}
-
-impl SubsetTable<'_> for ConditionSet<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        let count_pos = s.embed(0_u16)?;
-        let mut count = 0_u16;
-
-        let conditions = self.conditions();
-        let condition_count = self.condition_count() as usize;
-        for i in 0..condition_count {
-            if !conditions.subset_offset(i, s, plan, ()).is_empty()? {
-                count += 1;
-            }
-        }
-
-        if count != 0 {
-            s.copy_assign(count_pos, count);
-        }
-        Ok(())
-    }
-}
-
-impl SubsetTable<'_> for Condition<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        match self {
-            Self::Format1AxisRange(item) => item.subset(plan, s, ()),
-            // TODO: support other formats
-            _ => Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
-        }
-    }
-}
-
-impl SubsetTable<'_> for ConditionFormat1<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        _plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        s.embed_bytes(self.min_table_bytes()).map(|_| ())
     }
 }
 
