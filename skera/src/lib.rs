@@ -74,7 +74,7 @@ use write_fonts::{
             glyf::{Glyf, Glyph},
             gpos::Gpos,
             gsub::Gsub,
-            gvar::Gvar,
+            gvar::{Gvar, GvarExtended},
             hdmx::Hdmx,
             head::Head,
             hhea::{Hhea, HheaExtended},
@@ -1354,9 +1354,19 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gsub::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
+        Gvar::TAG if font.data_for_tag(GvarExtended::TAG).is_some() => Ok(()),
+
         Gvar::TAG => font
             .gvar()
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
+            .subset(plan, font, s, builder),
+
+        GvarExtended::TAG => font
+            .gvar_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(GvarExtended::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Hdmx::TAG => font
