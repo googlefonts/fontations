@@ -2,6 +2,8 @@
 
 mod classdef;
 mod extended;
+#[cfg(test)]
+mod lookup_list_tests;
 
 use std::{cmp::Ordering, mem};
 
@@ -24,7 +26,7 @@ use write_fonts::{
                 DeltaFormat, Device, DeviceOrVariationIndex, Feature, FeatureList, FeatureParams,
                 FeatureRecord, FeatureTableSubstitution, FeatureTableSubstitutionRecord,
                 FeatureVariationRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
-                LookupList, RangeRecord, Script, ScriptList, ScriptRecord, SizeParams,
+                LookupList, LookupList2, RangeRecord, Script, ScriptList, ScriptRecord, SizeParams,
                 StylisticSetParams, VariationIndex,
             },
             variations::NO_VARIATION_INDEX,
@@ -1181,34 +1183,52 @@ impl SubsetTable<'_> for FeatureParams<'_> {
     }
 }
 
-impl<
-        'a,
-        T: FontRead<'a, Args = ()>
-            + SubsetTable<
+macro_rules! subset_lookup_list {
+    ($table:ident) => {
+        impl<
                 'a,
-                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
-            >,
-    > SubsetTable<'a> for LookupList<'a, T>
-{
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let lookup_index_map = args.2;
-        let lookup_count = lookup_index_map.len() as u16;
-        s.embed(lookup_count)?;
+                T: FontRead<'a, Args = ()>
+                    + SubsetTable<
+                        'a,
+                        ArgsForSubset = (
+                            &'a SubsetState,
+                            &'a FontRef<'a>,
+                            &'a FnvHashMap<u16, u16>,
+                        ),
+                    >,
+            > SubsetTable<'a> for $table<'a, T>
+        {
+            type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<(), SerializeErrorFlags> {
+                let lookup_index_map = args.2;
+                let lookup_count = u16::try_from(lookup_index_map.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                if self.min_table_bytes().is_empty()
+                    || lookup_index_map
+                        .keys()
+                        .any(|idx| *idx >= self.lookup_count())
+                {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                s.embed(lookup_count)?;
 
-        let lookup_offsets = self.lookups();
-        for i in (0..self.lookup_count()).filter(|idx| lookup_index_map.contains_key(idx)) {
-            lookup_offsets.subset_offset(i as usize, s, plan, args)?;
+                let lookup_offsets = self.lookups();
+                for i in (0..self.lookup_count()).filter(|idx| lookup_index_map.contains_key(idx)) {
+                    lookup_offsets.subset_offset(i as usize, s, plan, args)?;
+                }
+                Ok(())
+            }
         }
-        Ok(())
-    }
+    };
 }
+subset_lookup_list!(LookupList);
+subset_lookup_list!(LookupList2);
 
 impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
     type ArgsForSubset = &'a mut SubsetLayoutContext;
@@ -1501,7 +1521,7 @@ impl<
     ) -> Result<(), SerializeErrorFlags> {
         match self {
             Self::Offset16(t) => t.subset(plan, s, args),
-            Self::Offset32(_) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)),
+            Self::Offset32(t) => t.subset(plan, s, args),
         }
     }
 }
