@@ -63,7 +63,7 @@ use write_fonts::{
             cblc::Cblc,
             cff::Cff,
             cff2::Cff2,
-            cmap::{Cmap, VariationSubtable},
+            cmap::{Cmap, Dmap, VariationSubtable},
             colr::Colr,
             cpal::Cpal,
             cvar::Cvar,
@@ -520,25 +520,32 @@ impl Plan {
     }
 
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
-        let Some((_, subtable)) = font.cmap().ok().and_then(|cmap| cmap.variation_subtable())
-        else {
-            return;
-        };
-        match subtable {
-            VariationSubtable::Format14(table) => self.unicodes.extend(
-                table
-                    .var_selector()
-                    .iter()
-                    .map(|s| s.var_selector().to_u32())
-                    .filter(|v| input_unicodes.contains(*v)),
-            ),
-            VariationSubtable::Format15(table) => self.unicodes.extend(
-                table
-                    .var_selector()
-                    .iter()
-                    .map(|s| s.var_selector().to_u32())
-                    .filter(|v| input_unicodes.contains(*v)),
-            ),
+        for cmap in [
+            font.cmap().ok(),
+            font.dmap().ok().map(|dmap| dmap.as_cmap()),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let Some((_, subtable)) = cmap.variation_subtable() else {
+                continue;
+            };
+            match subtable {
+                VariationSubtable::Format14(table) => self.unicodes.extend(
+                    table
+                        .var_selector()
+                        .iter()
+                        .map(|s| s.var_selector().to_u32())
+                        .filter(|v| input_unicodes.contains(*v)),
+                ),
+                VariationSubtable::Format15(table) => self.unicodes.extend(
+                    table
+                        .var_selector()
+                        .iter()
+                        .map(|s| s.var_selector().to_u32())
+                        .filter(|v| input_unicodes.contains(*v)),
+                ),
+            }
         }
     }
 
@@ -549,6 +556,11 @@ impl Plan {
         //glyph closure for cmap
         if let Ok(cmap) = font.cmap() {
             cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+        }
+        if let Ok(dmap) = font.dmap() {
+            // Keep cmap variants too: a zero DMAP variant falls back to cmap.
+            dmap.as_cmap()
+                .closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         }
 
         // layout closure
@@ -1294,6 +1306,14 @@ fn subset_table<'a>(
         Cmap::TAG => font
             .cmap()
             .map_err(|_| SubsetError::SubsetTableError(Cmap::TAG))?
+            .subset(plan, font, s, builder),
+
+        Dmap::TAG => font
+            .dmap()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(Dmap::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Colr::TAG => font

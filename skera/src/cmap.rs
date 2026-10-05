@@ -13,9 +13,9 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::cmap::{
-            Cmap, Cmap12, Cmap14, Cmap15, Cmap4, CmapSubtable, DefaultUvs, EncodingRecord,
-            NonDefaultUvs, NonDefaultUvs24, PlatformId, SequentialMapGroup, VariationSelector,
-            VariationSelector15,
+            Cmap, Cmap12, Cmap13, Cmap14, Cmap15, Cmap4, CmapSubtable, DefaultUvs, Dmap,
+            EncodingRecord, NonDefaultUvs, NonDefaultUvs24, PlatformId, SequentialMapGroup,
+            VariationSelector, VariationSelector15,
         },
         types::{FixedSize, GlyphId},
         FontRef, TopLevelTable,
@@ -80,6 +80,89 @@ impl Subset for Cmap<'_> {
         serialize_cmap(self, s, plan, &retained_encoding_records)
             .map_err(|_| SubsetTableError(Cmap::TAG))
     }
+}
+
+impl Subset for Dmap<'_> {
+    fn subset(
+        &self,
+        plan: &Plan,
+        _font: &FontRef,
+        s: &mut Serializer,
+        _builder: &mut FontBuilder,
+    ) -> Result<(), SubsetError> {
+        serialize_dmap(&self.as_cmap(), s, plan).map_err(|error| {
+            if error != SerializeErrorFlags::SERIALIZE_ERROR_EMPTY {
+                s.set_err(error);
+            }
+            SubsetTableError(Dmap::TAG)
+        })
+    }
+}
+
+fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), SerializeErrorFlags> {
+    if dmap.encoding_records().len() != dmap.num_tables() as usize {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+    }
+    s.embed(0u16)?;
+    let count_pos = s.embed(0u16)?;
+    let mut count = 0;
+    let variation_index = dmap.variation_subtable().map(|(index, _)| index as usize);
+    for (index, record) in dmap.encoding_records().iter().enumerate() {
+        let retain = retain_encoding_record_for_subset(record, dmap)
+            || (record.platform_id() == PlatformId::Unicode
+                && matches!(record.encoding_id(), 5 | 6));
+        if !retain {
+            continue;
+        }
+        let subtable = record
+            .subtable(dmap.offset_data())
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        if !matches!(subtable.format(), 4 | 12 | 13 | 14 | 15) {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        }
+        if matches!(subtable.format(), 14 | 15) && Some(index) != variation_index {
+            continue;
+        }
+        let truncated = match &subtable {
+            CmapSubtable::Format12(table) => table.groups().len() != table.num_groups() as usize,
+            CmapSubtable::Format13(table) => table.groups().len() != table.num_groups() as usize,
+            _ => false,
+        };
+        if truncated {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
+        // Project the effective mapping onto each subtable's nonzero coverage,
+        // as for cmap. If pruning changes which nominal subtable is selected,
+        // a lower-priority subtable must not introduce different glyphs.
+        // Zero nominal mappings can be omitted because they fall back to cmap.
+        let mappings: Vec<_> = plan
+            .unicode_to_new_gid_list
+            .iter()
+            .filter_map(|(cp, gid)| {
+                let old_gid = subtable.map_codepoint(*cp)?;
+                (old_gid != GlyphId::NOTDEF).then_some((*cp, *gid))
+            })
+            .collect();
+        if subtable.format() == 4
+            && mappings
+                .iter()
+                .any(|(_, gid)| gid.to_u32() > u16::MAX as u32)
+        {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW));
+        }
+        if serialize_encoding_record(record, &subtable, s, &mappings, plan, None, true)?.is_some() {
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+    }
+    s.check_assign::<u16>(
+        count_pos,
+        count,
+        SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
+    )?;
+    Ok(())
 }
 
 fn retain_encoding_record_for_subset(record: &EncodingRecord, cmap: &Cmap) -> bool {
@@ -197,6 +280,7 @@ fn serialize_cmap(
                 &cp_to_new_gid_list,
                 plan,
                 format4_objidx,
+                false,
             ) {
                 Ok(obj_idx) => obj_idx,
                 Err(e) => {
@@ -243,6 +327,7 @@ fn serialize_cmap(
                 &cp_to_new_gid_list,
                 plan,
                 format12_objidx,
+                false,
             )?;
         } else if format == 14 || format == 15 {
             let objidx = if format == 14 {
@@ -257,6 +342,7 @@ fn serialize_cmap(
                 &plan.unicode_to_new_gid_list,
                 plan,
                 *objidx,
+                false,
             )?;
         }
     }
@@ -283,6 +369,7 @@ fn serialize_encoding_record(
     cp_to_new_gid_list: &[(u32, GlyphId)],
     plan: &Plan,
     obj_idx: Option<ObjIdx>,
+    dmap: bool,
 ) -> Result<Option<ObjIdx>, SerializeErrorFlags> {
     let snap = s.snapshot();
     s.embed(record.platform_id())?;
@@ -294,9 +381,17 @@ fn serialize_encoding_record(
     } else {
         s.push()?;
         let init_len = s.length();
+        let init_head = s.head();
         match cmap_subtable.serialize(s, plan, cp_to_new_gid_list) {
             Ok(()) => {
                 if s.length() > init_len {
+                    if dmap {
+                        match cmap_subtable.format() {
+                            4 => s.copy_assign(init_head + 4, 0u16),
+                            12 | 13 => s.copy_assign(init_head + 8, 0u32),
+                            _ => (),
+                        }
+                    }
                     s.pop_pack(true).ok_or_else(|| s.error())?
                 } else {
                     s.pop_discard();
@@ -351,6 +446,7 @@ impl Serialize for CmapSubtable<'_> {
         match self {
             Self::Format4(item) => item.serialize(s, plan, cp_to_new_gid_list),
             Self::Format12(item) => item.serialize(s, plan, cp_to_new_gid_list),
+            Self::Format13(item) => item.serialize(s, plan, cp_to_new_gid_list),
             Self::Format14(item) => item.serialize(s, plan, cp_to_new_gid_list),
             Self::Format15(item) => item.serialize(s, plan, cp_to_new_gid_list),
             _ => Ok(()),
@@ -698,59 +794,86 @@ impl Serialize for Cmap12<'_> {
         _plan: &Plan,
         cp_to_new_gid_list: &[(u32, GlyphId)],
     ) -> Result<(), SerializeErrorFlags> {
-        let init_pos = s.length();
-        //copy header format
-        s.embed(self.format())?;
-        // reserved
-        s.embed(0_u16)?;
-        // length, initialized to 0, update later
-        let length_pos = s.embed(0_u32)?;
-        // language
-        s.embed(self.language())?;
-        // numGroups: set to 0 initially
-        let num_groups_pos = s.embed(0_u32)?;
-
-        let mut start_char_code = INVALID_UNICODE_CHAR;
-        let mut end_char_code = INVALID_UNICODE_CHAR;
-        let mut glyph_id = GlyphId::NOTDEF;
-
-        for (cp, gid) in cp_to_new_gid_list.iter() {
-            if start_char_code == INVALID_UNICODE_CHAR {
-                start_char_code = *cp;
-                end_char_code = *cp;
-                glyph_id = *gid;
-            } else if !is_gid_consecutive(end_char_code, start_char_code, glyph_id, *cp, *gid) {
-                s.embed(start_char_code)?;
-                s.embed(end_char_code)?;
-                s.embed(glyph_id.to_u32())?;
-
-                start_char_code = *cp;
-                end_char_code = *cp;
-                glyph_id = *gid;
-            } else {
-                end_char_code = *cp;
-            }
-        }
-
-        s.embed(start_char_code)?;
-        s.embed(end_char_code)?;
-        s.embed(glyph_id.to_u32())?;
-
-        // update length
-        s.check_assign::<u32>(
-            length_pos,
-            s.length() - init_pos,
-            SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        )?;
-
-        // header size = 16
-        s.check_assign::<u32>(
-            num_groups_pos,
-            (s.length() - init_pos - 16) / SequentialMapGroup::RAW_BYTE_LEN,
-            SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        )?;
-        Ok(())
+        serialize_groups(self.format(), self.language(), s, cp_to_new_gid_list)
     }
+}
+
+impl Serialize for Cmap13<'_> {
+    fn serialize(
+        &self,
+        s: &mut Serializer,
+        _plan: &Plan,
+        cp_to_new_gid_list: &[(u32, GlyphId)],
+    ) -> Result<(), SerializeErrorFlags> {
+        serialize_groups(self.format(), self.language(), s, cp_to_new_gid_list)
+    }
+}
+
+fn serialize_groups(
+    format: u16,
+    language: u32,
+    s: &mut Serializer,
+    cp_to_new_gid_list: &[(u32, GlyphId)],
+) -> Result<(), SerializeErrorFlags> {
+    if cp_to_new_gid_list.is_empty() {
+        return Ok(());
+    }
+    let init_pos = s.length();
+    //copy header format
+    s.embed(format)?;
+    // reserved
+    s.embed(0_u16)?;
+    // length, initialized to 0, update later
+    let length_pos = s.embed(0_u32)?;
+    // language
+    s.embed(language)?;
+    // numGroups: set to 0 initially
+    let num_groups_pos = s.embed(0_u32)?;
+
+    let mut start_char_code = INVALID_UNICODE_CHAR;
+    let mut end_char_code = INVALID_UNICODE_CHAR;
+    let mut glyph_id = GlyphId::NOTDEF;
+
+    for (cp, gid) in cp_to_new_gid_list.iter() {
+        if start_char_code == INVALID_UNICODE_CHAR {
+            start_char_code = *cp;
+            end_char_code = *cp;
+            glyph_id = *gid;
+        } else if !(if format == 13 {
+            *cp == end_char_code + 1 && *gid == glyph_id
+        } else {
+            is_gid_consecutive(end_char_code, start_char_code, glyph_id, *cp, *gid)
+        }) {
+            s.embed(start_char_code)?;
+            s.embed(end_char_code)?;
+            s.embed(glyph_id.to_u32())?;
+
+            start_char_code = *cp;
+            end_char_code = *cp;
+            glyph_id = *gid;
+        } else {
+            end_char_code = *cp;
+        }
+    }
+
+    s.embed(start_char_code)?;
+    s.embed(end_char_code)?;
+    s.embed(glyph_id.to_u32())?;
+
+    // update length
+    s.check_assign::<u32>(
+        length_pos,
+        s.length() - init_pos,
+        SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
+    )?;
+
+    // header size = 16
+    s.check_assign::<u32>(
+        num_groups_pos,
+        (s.length() - init_pos - 16) / SequentialMapGroup::RAW_BYTE_LEN,
+        SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
+    )?;
+    Ok(())
 }
 
 // reference: <https://github.com/qxliu76/harfbuzz/blob/1c249be96e27eafd15eb86d832b67fbc3751634b/src/hb-ot-cmap-table.hh#L1369>
@@ -1224,3 +1347,7 @@ impl CollectUnicodes for Cmap12<'_> {
 #[cfg(test)]
 #[path = "cmap/uvs_tests.rs"]
 mod uvs_tests;
+
+#[cfg(test)]
+#[path = "cmap/dmap_tests.rs"]
+mod dmap_tests;
