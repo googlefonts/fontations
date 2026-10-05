@@ -77,7 +77,12 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FnvHashMap::default();
         };
-        find_duplicate_features(&feature_list, lookup_indices, feature_indices)
+        let mut duplicates =
+            find_duplicate_features(&feature_list, lookup_indices, feature_indices);
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::protect_lookup_variation_features(&variations, &mut duplicates);
+        }
+        duplicates
     }
 
     fn prune_langsys(

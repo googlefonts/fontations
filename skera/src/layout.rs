@@ -3,6 +3,8 @@
 mod classdef;
 mod extended;
 pub(crate) mod header;
+mod lookup_variations;
+pub(crate) use lookup_variations::protect_lookup_variation_features;
 #[cfg(test)]
 mod lookup_list_tests;
 
@@ -497,6 +499,10 @@ pub(crate) fn collect_features_with_retained_subs(
             out.insert(rec.feature_index());
         }
     }
+    out.union(&lookup_variations::features_with_retained_lookups(
+        feature_variations,
+        lookup_indices,
+    ));
     out
 }
 
