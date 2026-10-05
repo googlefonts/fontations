@@ -441,7 +441,7 @@ impl Vertex {
                 2 => prev_dist - table_size,
                 _ => 0,
             }
-            .clamp(0, 0x7FFFFFFFFFF_i64)
+            .clamp(0, i64::MAX >> 18)
         };
 
         (distance << 18) | (0x003FFFF & order as i64)
@@ -2550,5 +2550,25 @@ pub(crate) mod test {
         assert_eq!(graph.num_roots_for_space, vec![1, 1, 1]);
         graph.sort_shortest_distance().unwrap();
         graph.is_fully_connected().unwrap();
+    }
+
+    #[test]
+    fn large_distances_keep_their_packing_order() {
+        let mut vertex = Vertex {
+            tail: 128,
+            distance: (1u64 << 43) + 256,
+            ..Default::default()
+        };
+        let order = 7;
+        for (priority, modifier) in [(0, 0), (1, 64), (2, 128)] {
+            vertex.priority = priority;
+            let expected = (((vertex.distance - modifier) as i64) << 18) | order;
+            assert_eq!(vertex.modified_distance(order as u32), expected);
+        }
+        vertex.priority = 3;
+        assert_eq!(vertex.modified_distance(order as u32), order);
+        vertex.priority = 0;
+        vertex.distance = u64::MAX / 2;
+        assert_eq!(vertex.modified_distance(0), (i64::MAX >> 18) << 18);
     }
 }
