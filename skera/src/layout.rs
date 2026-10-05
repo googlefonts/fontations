@@ -2,6 +2,7 @@
 
 mod classdef;
 mod extended;
+pub(crate) mod header;
 #[cfg(test)]
 mod lookup_list_tests;
 

@@ -148,9 +148,8 @@ fn subset_gpos(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
-    // Extended headers and subtables are not yet supported by the subsetter.
     if gpos.version() >= MajorMinor::new(1, 2) {
-        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        return subset_extended_layout(gpos, plan, font, state, s);
     }
     let version_pos = s.embed(gpos.version())?;
     let mut c = SubsetLayoutContext::new(Gpos::TAG);
@@ -216,6 +215,8 @@ fn subset_gpos(
     }
     Ok(())
 }
+
+crate::layout::header::subset_extended_layout!(Gpos, gpos_lookups);
 
 impl<'a> SubsetTable<'a> for PositionLookup<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
