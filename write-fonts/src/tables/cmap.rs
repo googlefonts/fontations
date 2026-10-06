@@ -50,9 +50,7 @@ impl CmapSubtable {
             end_code.push(end as u32 as u16);
             if let Some(delta) = segment.id_delta {
                 // "The idDelta arithmetic is modulo 65536":
-                let delta = i16::try_from(delta)
-                    .unwrap_or_else(|_| delta.rem_euclid(0x10000).try_into().unwrap());
-                id_deltas.push(delta);
+                id_deltas.push(delta as i16);
                 id_range_offsets.push(0u16);
             } else {
                 // if the deltas for a range are not identical, we rely on the
@@ -756,6 +754,23 @@ mod tests {
         // Example from Texturina.
         let codepoint = char::from_u32(0xa78b).unwrap();
         let gid = GlyphId::new(153);
+        mappings.push((codepoint, gid));
+
+        let cmap = write::Cmap::from_mappings(mappings).unwrap();
+
+        let bytes = dump_table(&cmap).unwrap();
+        let font_data = FontData::new(&bytes);
+        let cmap = Cmap::read(font_data).unwrap();
+        assert_eq!(cmap.map_codepoint(codepoint), Some(gid));
+    }
+
+    #[test]
+    fn generate_cmap4_large_positive_delta() {
+        let mut mappings = simple_cmap_mappings();
+        // Example from Cactus Classical Serif: a low codepoint mapped to a
+        // glyph more than 32767 ids above it.
+        let codepoint = '\u{2026}';
+        let gid = GlyphId::new(58562);
         mappings.push((codepoint, gid));
 
         let cmap = write::Cmap::from_mappings(mappings).unwrap();
