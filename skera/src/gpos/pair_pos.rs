@@ -765,6 +765,7 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
         }
         class2_set.insert(0);
 
+        let class1_count = self.class1_count();
         let class2_count = self.class2_count() as usize;
         let records_offset = self.class2_count_byte_range().end;
         let record1_size = compute_record_len(value_format1);
@@ -772,9 +773,19 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
         let font_data = self.offset_data();
 
         for i in class1_set.iter() {
+            // intersect_classes reports the class values a ClassDef actually
+            // assigns, which is not tied to class1Count/class2Count and so can run
+            // past the end of the record matrix in a malformed font.
+            if i >= class1_count {
+                break;
+            }
             for j in class2_set.iter() {
-                let offset =
-                    records_offset + (i as usize * class2_count + j as usize) * record_size;
+                let j = j as usize;
+                if j >= class2_count {
+                    break;
+                }
+                let record_idx = i as usize * class2_count + j;
+                let offset = records_offset + record_idx * record_size;
 
                 if value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
                     let record1 = ValueRecord::new(font_data, offset, value_format1);
@@ -989,5 +1000,69 @@ mod test {
         assert!(varidx_set.contains(0x1c0022_u32));
         assert!(varidx_set.contains(0x100005_u32));
         assert!(varidx_set.contains(0x1c0036_u32));
+    }
+
+    /// A PairPosFormat2 whose ClassDefs assign classes outside the declared
+    /// class1Count x class2Count matrix.
+    ///
+    /// intersect_classes reports the classes a ClassDef actually assigns, and
+    /// nothing ties those to the counts in the PairPos header, so a malformed
+    /// font can produce a record index past the end of the matrix. Harfbuzz
+    /// reads the records out of an array sized to the counts, and its sub_array
+    /// clamps, so those contribute nothing.
+    #[test]
+    fn test_collect_variation_indices_pairpos_format2_class_past_matrix() {
+        use write_fonts::read::{FontData, FontRead};
+
+        // class1Count is 1 and class2Count is 2, so only records [0][0] and
+        // [0][1] exist. Everything after them is filler pointing at a
+        // VariationIndex that the matrix itself never references.
+        #[rustfmt::skip]
+        let raw_table: [u8; 92] = [
+            // posFormat=2, coverageOffset=58
+            0x00, 0x02, 0x00, 0x3a,
+            // valueFormat1=X_ADVANCE_DEVICE, valueFormat2=0
+            0x00, 0x40, 0x00, 0x00,
+            // classDef1Offset=66, classDef2Offset=76
+            0x00, 0x42, 0x00, 0x4c,
+            // class1Count=1, class2Count=2
+            0x00, 0x01, 0x00, 0x02,
+            // @16 the 1x2 record matrix: device offsets 40 and 46
+            0x00, 0x28, 0x00, 0x2e,
+            // @20 past the matrix: ten slots, every one pointing at 52
+            0x00, 0x34, 0x00, 0x34, 0x00, 0x34, 0x00, 0x34, 0x00, 0x34,
+            0x00, 0x34, 0x00, 0x34, 0x00, 0x34, 0x00, 0x34, 0x00, 0x34,
+            // @40 VariationIndex (1, 2)
+            0x00, 0x01, 0x00, 0x02, 0x80, 0x00,
+            // @46 VariationIndex (3, 4)
+            0x00, 0x03, 0x00, 0x04, 0x80, 0x00,
+            // @52 VariationIndex (11, 12), only reachable from past the matrix
+            0x00, 0x0b, 0x00, 0x0c, 0x80, 0x00,
+            // @58 coverage: format 1, glyphs 10 and 20
+            0x00, 0x01, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x14,
+            // @66 classDef1: format 2, glyph 20 -> class 3, past class1Count
+            0x00, 0x02, 0x00, 0x01, 0x00, 0x14, 0x00, 0x14, 0x00, 0x03,
+            // @76 classDef2: format 2, glyph 30 -> class 1, glyph 40 -> class 5
+            0x00, 0x02, 0x00, 0x02,
+            0x00, 0x1e, 0x00, 0x1e, 0x00, 0x01,
+            0x00, 0x28, 0x00, 0x28, 0x00, 0x05,
+        ];
+
+        let pairpos = PairPosFormat2::read(FontData::new(&raw_table)).unwrap();
+
+        let mut plan = Plan::default();
+        for g in [10_u32, 20, 30, 40] {
+            plan.glyphset_gsub.insert(GlyphId::from(g));
+        }
+
+        let mut varidx_set = IntSet::empty();
+        pairpos.collect_variation_indices(&plan, &mut varidx_set);
+
+        // class1 3 and class2 5 both land outside the matrix, so only the two
+        // real records contribute. 0x000b000c would mean a read past the end.
+        assert_eq!(
+            varidx_set.iter().collect::<Vec<_>>(),
+            vec![0x00010002, 0x00030004]
+        );
     }
 }
