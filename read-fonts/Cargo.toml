@@ -7,7 +7,9 @@ categories = ["text-processing", "parsing", "graphics"]
 
 rust-version.workspace = true
 edition.workspace = true
-license.workspace = true
+# The “Adobe Glyph List,” data/glyphlist.txt, is BSD-3-Clause. It is used to
+# produce data/generated/generated_agl.rs.
+license = "(MIT OR Apache-2.0) AND BSD-3-Clause"
 repository.workspace = true
 
 [package.metadata.docs.rs]
