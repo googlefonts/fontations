@@ -911,9 +911,9 @@ impl GlyphDataOffsetArray for Gvar<'_> {
             flags &= 0b11111110;
         }
 
-        // The offsets array is counted in full since it grows past the original one
-        // when the offset type is widened.
-        let max_new_size = orig_size + offsets.offset_array.len() + offsets.data.len();
+        // Widening the offset type at most doubles the offsets array, so half of the new
+        // array covers the growth over the original one already counted in orig_size.
+        let max_new_size = orig_size + offsets.offset_array.len() / 2 + offsets.data.len();
 
         // part 1 and 2 - write gvar header and offsets
         let mut serializer = Serializer::new(max_new_size);
