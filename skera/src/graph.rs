@@ -1,7 +1,7 @@
 //! Define a graph struct that represents a serialized table
 //! Implement methods to modify and reorder the graph
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     priority_queue::PriorityQueue,
     serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
@@ -49,7 +49,7 @@ pub(crate) enum Parents {
     #[default]
     Empty,
     Single(ObjIdx),
-    Multiple(FnvHashMap<ObjIdx, usize>),
+    Multiple(FastHashMap<ObjIdx, usize>),
 }
 
 #[derive(Clone, Debug)]
@@ -286,7 +286,7 @@ impl Vertex {
             }
             Parents::Single(exist_parent) => {
                 assert!(self.incoming_edges == 1);
-                let mut parents = FnvHashMap::default();
+                let mut parents = FastHashMap::default();
                 parents.insert(*exist_parent, 1);
                 parents
                     .entry(parent_idx)
@@ -500,8 +500,8 @@ impl Vertex {
         }
     }
 
-    pub(crate) fn child_idxes(&self) -> FnvHashMap<ObjIdx, u32> {
-        let mut out = FnvHashMap::default();
+    pub(crate) fn child_idxes(&self) -> FastHashMap<ObjIdx, u32> {
+        let mut out = FastHashMap::default();
         for l in &self.real_links {
             let obj_idx = l.obj_idx();
             let pos = l.position();
@@ -901,7 +901,7 @@ impl Graph {
     pub(crate) fn overflows(&mut self) -> Vec<Overflow> {
         self.update_positions();
         let vertices = &self.vertices;
-        let mut overflows = FnvHashMap::default();
+        let mut overflows = FastHashMap::default();
         let mut out = Vec::new();
         for parent_idx in &self.ordering {
             let parent_v = &vertices[*parent_idx];
@@ -1099,7 +1099,7 @@ impl Graph {
     fn find_subgraph_nodes_incoming_edges(
         &mut self,
         start_idx: ObjIdx,
-        subgraph_map: &mut FnvHashMap<u32, usize>,
+        subgraph_map: &mut FastHashMap<u32, usize>,
     ) -> Result<(), RepackError> {
         traverse_directed_bfs(
             &mut self.ordering_scratch,
@@ -1189,14 +1189,14 @@ impl Graph {
         self.update_parents()?;
 
         let mut parents = IntSet::empty();
-        let mut subgraph_map = FnvHashMap::default();
+        let mut subgraph_map = FastHashMap::default();
         for root_idx in roots.iter() {
             subgraph_map.insert(root_idx, self.wide_parents(root_idx as usize, &mut parents));
             self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map)?;
         }
 
         let len = self.vertices.len();
-        let mut index_map = FnvHashMap::default();
+        let mut index_map = FastHashMap::default();
         for (idx, num_incoming_edges) in subgraph_map.iter() {
             let obj_idx = *idx as usize;
             assert!(obj_idx < len);
@@ -1234,7 +1234,7 @@ impl Graph {
 
     fn remap_obj_indices(
         &mut self,
-        index_map: &FnvHashMap<usize, usize>,
+        index_map: &FastHashMap<usize, usize>,
         it: IntSet<u32>,
         only_wide: bool,
     ) -> Result<(), RepackError> {
@@ -1307,7 +1307,7 @@ impl Graph {
     fn duplicate_subgraph(
         &mut self,
         start_idx: ObjIdx,
-        index_map: &mut FnvHashMap<usize, usize>,
+        index_map: &mut FastHashMap<usize, usize>,
         visited: &mut IntSet<u32>,
     ) -> Result<(), RepackError> {
         if index_map.contains_key(&start_idx) {
@@ -2400,7 +2400,7 @@ pub(crate) mod test {
         assert_eq!(sz, 4 + 2000 * 6);
 
         // Test find_subgraph_nodes_incoming_edges (map)
-        let mut map = FnvHashMap::default();
+        let mut map = FastHashMap::default();
         map.insert(graph.root_idx() as u32, 1);
         graph
             .find_subgraph_nodes_incoming_edges(graph.root_idx(), &mut map)
@@ -2411,7 +2411,7 @@ pub(crate) mod test {
         assert!(graph.assign_spaces().is_ok());
 
         // Test duplicate_subgraph
-        let mut index_map = FnvHashMap::default();
+        let mut index_map = FastHashMap::default();
         let mut visited = IntSet::empty();
         assert!(graph
             .duplicate_subgraph(graph.root_idx(), &mut index_map, &mut visited)

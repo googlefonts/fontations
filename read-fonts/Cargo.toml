@@ -16,7 +16,7 @@ repository.workspace = true
 features = ["agl", "libm", "serde", "std"]
 
 [features]
-std = ["font-types/std"]
+std = ["font-types/std", "dep:foldhash"]
 codegen_test = []
 scaler_test = []
 # experimental support for incremental font transfer (https://www.w3.org/TR/IFT/)
@@ -40,6 +40,7 @@ libm = ["dep:core_maths"]
 agl = []
 
 [dependencies]
+foldhash = { workspace = true, optional = true }
 font-types = { workspace = true, features = ["bytemuck"] }
 yoke = { workspace = true }
 serde = { version = "1.0", features = ["derive"], optional = true }

@@ -2,7 +2,7 @@
 
 use std::{cmp::Ordering, mem};
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
@@ -84,14 +84,14 @@ impl NameIdClosure for Feature<'_> {
 }
 
 impl<'a> SubsetTable<'a> for DeviceOrVariationIndex<'a> {
-    type ArgsForSubset = &'a FnvHashMap<u32, (u32, i32)>;
+    type ArgsForSubset = &'a FastHashMap<u32, (u32, i32)>;
     type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: &FnvHashMap<u32, (u32, i32)>,
+        args: &FastHashMap<u32, (u32, i32)>,
     ) -> Result<(), SerializeErrorFlags> {
         match self {
             Self::Device(item) => item.subset(plan, s, ()),
@@ -114,14 +114,14 @@ impl SubsetTable<'_> for Device<'_> {
 }
 
 impl<'a> SubsetTable<'a> for VariationIndex<'a> {
-    type ArgsForSubset = &'a FnvHashMap<u32, (u32, i32)>;
+    type ArgsForSubset = &'a FastHashMap<u32, (u32, i32)>;
     type Output = ();
 
     fn subset(
         &self,
         _plan: &Plan,
         s: &mut Serializer,
-        args: &FnvHashMap<u32, (u32, i32)>,
+        args: &FastHashMap<u32, (u32, i32)>,
     ) -> Result<(), SerializeErrorFlags> {
         let var_idx =
             ((self.delta_set_outer_index() as u32) << 16) + self.delta_set_inner_index() as u32;
@@ -165,8 +165,8 @@ pub(crate) struct ClassDefSubsetStruct<'a> {
 
 impl<'a> SubsetTable<'a> for ClassDef<'a> {
     type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
-    // class_map: Option<FnvHashMap<u16, u16>>
-    type Output = Option<FnvHashMap<u16, u16>>;
+    // class_map: Option<FastHashMap<u16, u16>>
+    type Output = Option<FastHashMap<u16, u16>>;
     fn subset(
         &self,
         plan: &Plan,
@@ -182,8 +182,8 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
 
 impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
     type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
-    // class_map: Option<FnvHashMap<u16, u16>>
-    type Output = Option<FnvHashMap<u16, u16>>;
+    // class_map: Option<FastHashMap<u16, u16>>
+    type Output = Option<FastHashMap<u16, u16>>;
     fn subset(
         &self,
         plan: &Plan,
@@ -261,8 +261,8 @@ impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
 
 impl<'a> SubsetTable<'a> for ClassDefFormat2<'a> {
     type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
-    // class_map: Option<FnvHashMap<u16, u16>>
-    type Output = Option<FnvHashMap<u16, u16>>;
+    // class_map: Option<FastHashMap<u16, u16>>
+    type Output = Option<FastHashMap<u16, u16>>;
     fn subset(
         &self,
         plan: &Plan,
@@ -362,12 +362,12 @@ fn classdef_remap_and_serialize(
     use_class_zero: bool,
     new_gid_classes: &mut [(u16, u16)],
     s: &mut Serializer,
-) -> Result<Option<FnvHashMap<u16, u16>>, SerializeErrorFlags> {
+) -> Result<Option<FastHashMap<u16, u16>>, SerializeErrorFlags> {
     if !remap_class {
         return ClassDef::serialize(s, new_gid_classes).map(|()| None);
     }
 
-    let mut class_map = FnvHashMap::default();
+    let mut class_map = FastHashMap::default();
     if !use_class_zero {
         class_map.insert(0_u16, 0_u16);
     }
@@ -906,14 +906,14 @@ pub(crate) fn find_duplicate_features(
     feature_list: &FeatureList,
     lookup_indices: &IntSet<u16>,
     feature_indices: IntSet<u16>,
-) -> FnvHashMap<u16, u16> {
-    let mut out = FnvHashMap::default();
+) -> FastHashMap<u16, u16> {
+    let mut out = FastHashMap::default();
     if feature_indices.is_empty() {
         return out;
     }
 
     let feature_recs = feature_list.feature_records();
-    let mut unique_features = FnvHashMap::default();
+    let mut unique_features = FastHashMap::default();
     for i in feature_indices.iter() {
         let Some(rec) = feature_recs.get(i as usize) else {
             continue;
@@ -971,21 +971,21 @@ pub(crate) struct PruneLangSysContext<'a> {
     langsys_feature_count: u16,
     // IN: retained feature indices map:
     // duplicate features will be mapped to the same value
-    feature_index_map: &'a FnvHashMap<u16, u16>,
+    feature_index_map: &'a FastHashMap<u16, u16>,
     // OUT: retained feature indices after pruning
     feature_indices: IntSet<u16>,
     // OUT: retained script->langsys map after pruning
-    script_langsys_map: FnvHashMap<u16, IntSet<u16>>,
+    script_langsys_map: FastHashMap<u16, IntSet<u16>>,
 }
 
 impl<'a> PruneLangSysContext<'a> {
-    pub(crate) fn new(feature_index_map: &'a FnvHashMap<u16, u16>) -> Self {
+    pub(crate) fn new(feature_index_map: &'a FastHashMap<u16, u16>) -> Self {
         Self {
             script_count: 0,
             langsys_feature_count: 0,
             feature_index_map,
             feature_indices: IntSet::empty(),
-            script_langsys_map: FnvHashMap::default(),
+            script_langsys_map: FastHashMap::default(),
         }
     }
 
@@ -1093,7 +1093,7 @@ impl<'a> PruneLangSysContext<'a> {
         }
     }
 
-    pub(crate) fn script_langsys_map(&mut self) -> FnvHashMap<u16, IntSet<u16>> {
+    pub(crate) fn script_langsys_map(&mut self) -> FastHashMap<u16, IntSet<u16>> {
         mem::take(&mut self.script_langsys_map)
     }
 
@@ -1105,7 +1105,7 @@ impl<'a> PruneLangSysContext<'a> {
         &mut self,
         script_list: &ScriptList,
         layout_scripts: &IntSet<Tag>,
-    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
+    ) -> (FastHashMap<u16, IntSet<u16>>, IntSet<u16>) {
         for (i, script_rec) in script_list.script_records().iter().enumerate() {
             if script_rec.script_offset().is_null() {
                 continue;
@@ -1129,10 +1129,10 @@ impl<'a> PruneLangSysContext<'a> {
 // mapping_w_duplicate contains all retained feature indices in ScriptList/FeatureVariations subsetting
 pub(crate) fn remap_feature_indices(
     feature_indices: &IntSet<u16>,
-    duplicate_feature_map: &FnvHashMap<u16, u16>,
-) -> (FnvHashMap<u16, u16>, FnvHashMap<u16, u16>) {
-    let mut mapping = FnvHashMap::default();
-    let mut mapping_w_duplicates = FnvHashMap::default();
+    duplicate_feature_map: &FastHashMap<u16, u16>,
+) -> (FastHashMap<u16, u16>, FastHashMap<u16, u16>) {
+    let mut mapping = FastHashMap::default();
+    let mut mapping_w_duplicates = FastHashMap::default();
     let mut i = 0_u16;
     for f_idx in feature_indices.iter() {
         let unique_f_idx = duplicate_feature_map.get(&f_idx).unwrap_or(&f_idx);
@@ -1543,11 +1543,11 @@ impl<
         T: FontRead<'a, Args = ()>
             + SubsetTable<
                 'a,
-                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+                ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>),
             >,
     > SubsetTable<'a> for LookupList<'a, T>
 {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -1603,7 +1603,7 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 // ref: <https://github.com/fonttools/fonttools/blob/3c1822544d608f87c41fc8fb9ba41ea129257aa8/Lib/fontTools/subset/__init__.py#L1782>
 fn num_variation_record_to_retain(
     feature_variations: &FeatureVariations,
-    feature_index_map: &FnvHashMap<u16, u16>,
+    feature_index_map: &FastHashMap<u16, u16>,
     s: &mut Serializer,
 ) -> Result<u32, SerializeErrorFlags> {
     let num_records = feature_variations.feature_variation_record_count();
@@ -1633,7 +1633,7 @@ fn num_variation_record_to_retain(
 impl<'a> SubsetTable<'a> for FeatureVariationRecord {
     type ArgsForSubset = (
         FontData<'a>,
-        &'a FnvHashMap<u16, u16>,
+        &'a FastHashMap<u16, u16>,
         &'a mut SubsetLayoutContext,
     );
     type Output = ();
@@ -1730,7 +1730,7 @@ impl SubsetTable<'_> for ConditionFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
-    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, &'a mut SubsetLayoutContext);
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut SubsetLayoutContext);
     type Output = ();
     fn subset(
         &self,
@@ -1764,7 +1764,7 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
 
 impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
     type ArgsForSubset = (
-        &'a FnvHashMap<u16, u16>,
+        &'a FastHashMap<u16, u16>,
         &'a mut SubsetLayoutContext,
         FontData<'a>,
     );
@@ -1797,7 +1797,7 @@ impl<'a, T> SubsetTable<'a> for ArrayOfOffsets<'a, T, Offset16>
 where
     T: SubsetTable<
             'a,
-            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>),
         > + Intersect
         + FontRead<'a, Args = ()>
         + 'a,

@@ -38,6 +38,7 @@ yoke = { version = "0.8.0", features = ["derive"] }
 env_logger = "0.11"
 pretty_assertions = "1.3.0"
 
+foldhash = { version = "0.2.0", default-features = false }
 core_maths = "0.1"
 criterion = "0.7"
 kurbo = "0.13.0"

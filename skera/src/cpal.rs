@@ -1,6 +1,6 @@
 //! impl subset() for CPAL table
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     offset::{SerializeCopy, SerializeSubset},
     serialize::{SerializeErrorFlags, Serializer},
@@ -146,7 +146,7 @@ fn subset_v1(cpal: &Cpal, plan: &Plan, s: &mut Serializer) -> Result<(), Seriali
 impl<'a> SubsetTable<'a> for &'a [ColorRecord] {
     // color_record_indices, num_palette_entries
     type ArgsForSubset = (&'a [BigEndian<u16>], &'a IntSet<u16>);
-    type Output = FnvHashMap<u16, u16>;
+    type Output = FastHashMap<u16, u16>;
     fn subset(
         &self,
         _plan: &Plan,
@@ -157,7 +157,7 @@ impl<'a> SubsetTable<'a> for &'a [ColorRecord] {
         let num_palette_entries = retained_entries.len() as u16;
 
         let mut new_idx = 0_u16;
-        let mut first_record_idx_map = FnvHashMap::default();
+        let mut first_record_idx_map = FastHashMap::default();
         for first_record_idx in color_record_indices {
             let first_idx = first_record_idx.get();
             if first_record_idx_map.contains_key(&first_idx) {

@@ -1,7 +1,7 @@
 //! impl subset() for HVAR
 
-use crate::fnv::FnvHashMap;
 use crate::offset::SerializeSerialize;
+use crate::FastHashMap;
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
@@ -130,7 +130,7 @@ pub(crate) struct IndexMapSubsetPlan {
     max_inners: Vec<u16>,
     outer_bit_count: u8,
     inner_bit_count: u8,
-    output_map: FnvHashMap<u32, u32>,
+    output_map: FastHashMap<u32, u32>,
 }
 
 impl IndexMapSubsetPlan {

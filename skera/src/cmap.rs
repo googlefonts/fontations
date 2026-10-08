@@ -7,7 +7,7 @@ use crate::{
     SubsetError::{self, SubsetTableError},
 };
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::{
     read::{
@@ -659,7 +659,7 @@ fn serialize_rangeoffset_glyph_ids(
     id_delta: usize,
 ) -> Result<(), SerializeErrorFlags> {
     let id_range_offset = s.allocate_size(u16::RAW_BYTE_LEN * seg_count, true)?;
-    let cp_to_gid_map: FnvHashMap<u32, GlyphId> = cp_to_new_gid_list
+    let cp_to_gid_map: FastHashMap<u32, GlyphId> = cp_to_new_gid_list
         .iter()
         .map(|(cp, gid)| (*cp, *gid))
         .collect();
@@ -1046,14 +1046,14 @@ fn copy_default_uvs(
 #[allow(dead_code)]
 pub(crate) struct SubtableUnicodeCache {
     base: usize,
-    cached_unicodes: FnvHashMap<usize, IntSet<u32>>,
+    cached_unicodes: FastHashMap<usize, IntSet<u32>>,
 }
 
 impl SubtableUnicodeCache {
     fn new(base: usize) -> Self {
         Self {
             base,
-            cached_unicodes: FnvHashMap::default(),
+            cached_unicodes: FastHashMap::default(),
         }
     }
 

@@ -1,5 +1,5 @@
 //! impl subset() for Sequence Context/Chained Sequence Context tables
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
@@ -23,7 +23,7 @@ use write_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for SequenceContext<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -41,7 +41,7 @@ impl<'a> SubsetTable<'a> for SequenceContext<'_> {
 }
 
 impl<'a> SubsetTable<'a> for SequenceContextFormat1<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -98,7 +98,7 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for SequenceRuleSet<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -150,7 +150,7 @@ fn serialize_glyph_sequence(
 
 fn serialize_class_sequence(
     sequence: &[BigEndian<u16>],
-    class_map: &FnvHashMap<u16, u16>,
+    class_map: &FastHashMap<u16, u16>,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     for c in sequence {
@@ -165,7 +165,7 @@ fn serialize_class_sequence(
 fn serialize_lookup_records(
     lookup_records: &[SequenceLookupRecord],
     plan: &Plan,
-    lookup_map: &FnvHashMap<u16, u16>,
+    lookup_map: &FastHashMap<u16, u16>,
     s: &mut Serializer,
 ) -> Result<u16, SerializeErrorFlags> {
     let mut seq_lookup_count = 0_u16;
@@ -178,7 +178,7 @@ fn serialize_lookup_records(
 }
 
 impl<'a> SubsetTable<'a> for SequenceRule<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -208,7 +208,7 @@ impl<'a> SubsetTable<'a> for SequenceRule<'_> {
 }
 
 impl<'a> SubsetTable<'a> for SequenceLookupRecord {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -227,7 +227,7 @@ impl<'a> SubsetTable<'a> for SequenceLookupRecord {
 }
 
 impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -329,7 +329,7 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ClassSequenceRuleSet<'_> {
-    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -367,7 +367,7 @@ impl<'a> SubsetTable<'a> for ClassSequenceRuleSet<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
-    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -424,7 +424,7 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
 }
 
 impl<'a> SubsetTable<'a> for SequenceContextFormat3<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -452,7 +452,7 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat3<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -470,7 +470,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat1<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -527,7 +527,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceRuleSet<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -566,7 +566,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceRuleSet<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceRule<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -601,7 +601,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceRule<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -655,7 +655,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             };
             backtrack_class_map
         } else {
-            FnvHashMap::default()
+            FastHashMap::default()
         };
 
         // input classdef offset
@@ -705,7 +705,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             };
             lookahead_class_map
         } else {
-            FnvHashMap::default()
+            FastHashMap::default()
         };
 
         // seq ruleset count
@@ -759,10 +759,10 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
 }
 
 pub(crate) struct ChainedContextSubsetStruct<'a> {
-    lookup_map: &'a FnvHashMap<u16, u16>,
-    backtrack_class_map: &'a FnvHashMap<u16, u16>,
-    input_class_map: &'a FnvHashMap<u16, u16>,
-    lookahead_class_map: &'a FnvHashMap<u16, u16>,
+    lookup_map: &'a FastHashMap<u16, u16>,
+    backtrack_class_map: &'a FastHashMap<u16, u16>,
+    input_class_map: &'a FastHashMap<u16, u16>,
+    lookahead_class_map: &'a FastHashMap<u16, u16>,
 }
 impl<'a> SubsetTable<'a> for ChainedClassSequenceRuleSet<'_> {
     type ArgsForSubset = &'a ChainedContextSubsetStruct<'a>;
@@ -831,7 +831,7 @@ impl<'a> SubsetTable<'a> for ChainedClassSequenceRule<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat3<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
@@ -901,7 +901,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(235_u32));
         plan.glyphset_gsub.insert(GlyphId::from(559_u32));
 
-        let mut lookup_map = FnvHashMap::default();
+        let mut lookup_map = FastHashMap::default();
         lookup_map.insert(58_u16, 0_u16);
 
         let mut s = Serializer::new(1024);
@@ -954,7 +954,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(50_u32));
         plan.glyphset_gsub.insert(GlyphId::from(51_u32));
 
-        let mut lookup_map = FnvHashMap::default();
+        let mut lookup_map = FastHashMap::default();
         lookup_map.insert(1_u16, 0_u16);
 
         let mut s = Serializer::new(1024);
@@ -1012,7 +1012,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(970_u32));
         plan.glyphset_gsub.insert(GlyphId::from(972_u32));
 
-        let mut lookup_map = FnvHashMap::default();
+        let mut lookup_map = FastHashMap::default();
         lookup_map.insert(6_u16, 1_u16);
         lookup_map.insert(8_u16, 2_u16);
 
@@ -1077,7 +1077,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(1025_u32));
         plan.glyphset_gsub.insert(GlyphId::from(1119_u32));
 
-        let mut lookup_map = FnvHashMap::default();
+        let mut lookup_map = FastHashMap::default();
         lookup_map.insert(4_u16, 0_u16);
         lookup_map.insert(6_u16, 1_u16);
 
@@ -1137,7 +1137,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(966_u32));
         plan.glyphset_gsub.insert(GlyphId::from(1383_u32));
 
-        let mut lookup_map = FnvHashMap::default();
+        let mut lookup_map = FastHashMap::default();
         lookup_map.insert(152_u16, 0_u16);
 
         let mut s = Serializer::new(1024);
@@ -1193,7 +1193,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(218_u32));
         plan.glyphset_gsub.insert(GlyphId::from(275_u32));
 
-        let mut lookup_map = FnvHashMap::default();
+        let mut lookup_map = FastHashMap::default();
         lookup_map.insert(1_u16, 1_u16);
 
         let mut s = Serializer::new(1024);
