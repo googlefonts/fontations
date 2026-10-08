@@ -393,6 +393,32 @@ struct Os2Info {
 }
 
 impl Plan {
+    /// Returns the original-to-subset glyph mapping, including glyphs added by closure.
+    ///
+    /// Iteration order is unspecified. With `SUBSET_FLAGS_RETAIN_GIDS`, every
+    /// pair has identical original and subset glyph IDs.
+    pub fn old_to_new_glyph_mapping(&self) -> impl Iterator<Item = (GlyphId, GlyphId)> + '_ {
+        self.glyph_map.iter().map(|(&old, &new)| (old, new))
+    }
+
+    /// Returns retained Unicode codepoints and their original glyph IDs.
+    pub fn unicode_to_old_glyph_mapping(&self) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
+        self.unicode_to_new_gid_list
+            .iter()
+            .filter_map(|&(unicode, new)| {
+                self.reverse_glyph_map.get(&new).map(|&old| (unicode, old))
+            })
+    }
+
+    /// Replaces the table tags that are copied without subsetting.
+    ///
+    /// Drop-table rules and hint removal still take precedence. Copying tables
+    /// that contain glyph IDs is the caller's responsibility when IDs change.
+    /// This only changes table serialization; it does not recompute closure.
+    pub fn set_no_subset_tables(&mut self, tables: &IntSet<Tag>) {
+        self.no_subset_tables.clone_from(tables);
+    }
+
     fn has_identity_glyph_map(&self) -> bool {
         self.num_output_glyphs == self.font_num_glyphs
             && self.new_to_old_gid_list.len() == self.font_num_glyphs
@@ -1472,6 +1498,80 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
 #[cfg(test)]
 mod test {
     use super::*;
+    #[test]
+    fn configurable_passthrough_copies_an_unrecognized_table() {
+        let original = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let mut builder = FontBuilder::new();
+        for record in original.table_directory().table_records() {
+            builder.add_raw(record.tag(), original.data_for_tag(record.tag()).unwrap());
+        }
+        let tag = Tag::new(b"TEST");
+        builder.add_raw(tag, b"opaque table".to_vec());
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut plan = Plan::new(
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        let before = subset_font(&font, &plan).unwrap();
+        assert!(FontRef::new(&before).unwrap().data_for_tag(tag).is_none());
+        plan.set_no_subset_tables(&[tag].into_iter().collect());
+        let after = subset_font(&font, &plan).unwrap();
+        assert_eq!(
+            FontRef::new(&after)
+                .unwrap()
+                .data_for_tag(tag)
+                .unwrap()
+                .as_bytes(),
+            b"opaque table"
+        );
+    }
+
+    #[test]
+    fn public_plan_mappings_include_closure_and_original_unicode_glyphs() {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let unicodes = [0x2C, 0x31].into_iter().collect();
+        let glyphs = IntSet::empty();
+        for flags in [
+            SubsetFlags::default(),
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS,
+        ] {
+            let mut plan = Plan::new(
+                &glyphs,
+                &unicodes,
+                &font,
+                flags,
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+            );
+            let mapping: std::collections::BTreeMap<_, _> =
+                plan.old_to_new_glyph_mapping().collect();
+            assert!(mapping.contains_key(&GlyphId::new(0)));
+            assert!(mapping.contains_key(&GlyphId::new(2)));
+            assert!(mapping.contains_key(&GlyphId::new(4)));
+            let unicode_mapping: std::collections::BTreeMap<_, _> =
+                plan.unicode_to_old_glyph_mapping().collect();
+            assert_eq!(unicode_mapping[&0x2C], GlyphId::new(2));
+            assert_eq!(unicode_mapping[&0x31], GlyphId::new(4));
+            if flags.contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS) {
+                assert!(mapping.iter().all(|(old, new)| old == new));
+            }
+            let no_subset = [Tag::new(b"name")].into_iter().collect();
+            plan.set_no_subset_tables(&no_subset);
+            assert_eq!(plan.no_subset_tables, no_subset);
+        }
+    }
+
     #[test]
     fn populate_unicodes_wo_input_gid() {
         let mut plan = Plan::default();
