@@ -291,10 +291,9 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
         let rule_sets = self.class_seq_rule_sets();
         let n = self
             .class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap());
-
+            .min(cov_classes.last().unwrap().saturating_add(1));
         let mut snap = s.snapshot();
-        for (i, c) in (0..=n).filter(|c| class_map.contains_key(c)).enumerate() {
+        for (i, c) in (0..n).filter(|c| class_map.contains_key(c)).enumerate() {
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
             if !cov_classes.contains(c) {
                 continue;
@@ -315,7 +314,9 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
                     }
                 }
                 None => continue,
-                Some(Err(_)) => return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR),
+                Some(Err(_)) => {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
+                }
             }
         }
 
@@ -720,7 +721,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
         let rule_sets = self.chained_class_seq_rule_sets();
         let n = self
             .chained_class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap());
+            .min(cov_classes.last().unwrap().saturating_add(1));
 
         let mut snap = s.snapshot();
         let subset_struct = ChainedContextSubsetStruct {
@@ -729,7 +730,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             input_class_map: &input_class_map,
             lookahead_class_map: &lookahead_class_map,
         };
-        for (i, c) in (0..=n)
+        for (i, c) in (0..n)
             .filter(|c| input_class_map.contains_key(c))
             .enumerate()
         {
@@ -747,7 +748,9 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
                     }
                 }
                 None => continue,
-                Some(Err(_)) => return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR),
+                Some(Err(_)) => {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
+                }
             }
         }
 
@@ -1219,5 +1222,101 @@ mod test {
         ];
 
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    /// Plan and lookup map for the two class-past-rule-set-count tests below:
+    /// glyphs 10 (class 1) and 20 (class 2) are retained, lookup 0 is kept.
+    fn class_past_rule_set_count_plan() -> (Plan, FnvHashMap<u16, u16>) {
+        let mut plan = Plan {
+            font_num_glyphs: 21,
+            glyph_map_gsub: vec![crate::INVALID_GID; 21],
+            ..Default::default()
+        };
+        plan.glyph_map_gsub[10] = GlyphId::from(1_u32);
+        plan.glyph_map_gsub[20] = GlyphId::from(2_u32);
+        plan.glyphset_gsub.insert(GlyphId::from(10_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(20_u32));
+
+        let mut lookup_map = FnvHashMap::default();
+        lookup_map.insert(0_u16, 0_u16);
+        (plan, lookup_map)
+    }
+
+    /// A covered glyph whose input class is >= classSeqRuleSetCount has no
+    /// ClassSequenceRuleSet. That's valid (the class just has no rules), and
+    /// harfbuzz only walks the existing rule sets. Reading past the end used
+    /// to fail the subtable with a READ_ERROR, which dropped the whole table.
+    #[test]
+    fn test_subset_context_format2_class_past_rule_set_count() {
+        use write_fonts::read::{FontData, FontRead};
+
+        #[rustfmt::skip]
+        let raw_table: [u8; 48] = [
+            // format=2, coverageOffset=24, classDefOffset=32, classSeqRuleSetCount=2
+            0x00, 0x02, 0x00, 0x18, 0x00, 0x20, 0x00, 0x02,
+            // classSeqRuleSetOffsets: class 0 null, class 1 @12
+            0x00, 0x00, 0x00, 0x0c,
+            // @12 ClassSequenceRuleSet: ruleCount=1, rule @+4
+            0x00, 0x01, 0x00, 0x04,
+            // @16 ClassSequenceRule: glyphCount=1, seqLookupCount=1, (0, lookup 0)
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+            // @24 coverage: format 1, glyphs 10 and 20
+            0x00, 0x01, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x14,
+            // @32 classDef: format 2, glyph 10 -> class 1, glyph 20 -> class 2
+            0x00, 0x02, 0x00, 0x02,
+            0x00, 0x0a, 0x00, 0x0a, 0x00, 0x01,
+            0x00, 0x14, 0x00, 0x14, 0x00, 0x02,
+        ];
+        let table = SequenceContextFormat2::read(FontData::new(&raw_table)).unwrap();
+        let (plan, lookup_map) = class_past_rule_set_count_plan();
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(table.subset(&plan, &mut s, &lookup_map), Ok(()));
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        // No retained glyph is in class 0, so classes are remapped 1 -> 0 and
+        // 2 -> 1. Only old class 1 has a rule set: classSeqRuleSetCount = 1.
+        let out = s.copy_bytes();
+        assert_eq!(&out[6..8], &[0x00, 0x01]);
+    }
+
+    /// Same as above for ChainedSequenceContextFormat2.
+    #[test]
+    fn test_subset_chain_context_format2_class_past_rule_set_count() {
+        use write_fonts::read::{FontData, FontRead};
+
+        #[rustfmt::skip]
+        let raw_table: [u8; 56] = [
+            // format=2, coverageOffset=32, backtrackClassDef=null,
+            // inputClassDefOffset=40, lookaheadClassDef=null
+            0x00, 0x02, 0x00, 0x20, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00,
+            // chainedClassSeqRuleSetCount=2: class 0 null, class 1 @16
+            0x00, 0x02, 0x00, 0x00, 0x00, 0x10,
+            // @16 ChainedClassSequenceRuleSet: ruleCount=1, rule @+4
+            0x00, 0x01, 0x00, 0x04,
+            // @20 ChainedClassSequenceRule: backtrack=0, input=1, lookahead=0,
+            // seqLookupCount=1, (0, lookup 0)
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+            // @32 coverage: format 1, glyphs 10 and 20
+            0x00, 0x01, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x14,
+            // @40 inputClassDef: format 2, glyph 10 -> class 1, glyph 20 -> class 2
+            0x00, 0x02, 0x00, 0x02,
+            0x00, 0x0a, 0x00, 0x0a, 0x00, 0x01,
+            0x00, 0x14, 0x00, 0x14, 0x00, 0x02,
+        ];
+        let table = ChainedSequenceContextFormat2::read(FontData::new(&raw_table)).unwrap();
+        let (plan, lookup_map) = class_past_rule_set_count_plan();
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(table.subset(&plan, &mut s, &lookup_map), Ok(()));
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        // Classes are remapped as above: chainedClassSeqRuleSetCount = 1.
+        let out = s.copy_bytes();
+        assert_eq!(&out[10..12], &[0x00, 0x01]);
     }
 }
