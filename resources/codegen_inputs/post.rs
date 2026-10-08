@@ -51,7 +51,7 @@ table Post {
     glyph_name_index: [u16],
     /// Storage for the string data.
     #[count(..)]
-    #[validate(skip)]
+    #[validate(validate_string_data)]
     #[since_version(2.0)]
     string_data: VarLenArray<PString<'a>>,
 }

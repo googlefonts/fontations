@@ -153,6 +153,12 @@ impl Validate for Post {
                     ctx.report("array exceeds max length");
                 }
             });
+            ctx.in_field("string_data", |ctx| {
+                if version.compatible((2u16, 0u16)) && self.string_data.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+                self.validate_string_data(ctx);
+            });
         })
     }
 }
