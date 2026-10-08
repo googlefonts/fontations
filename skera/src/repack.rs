@@ -3,7 +3,7 @@
 
 use std::cmp::Ordering;
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     graph::{
         layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
@@ -54,7 +54,7 @@ pub(crate) fn resolve_graph_overflows(
     if tag == Gsub::TAG || tag == Gpos::TAG {
         if always_recalculate_extensions {
             let (lookup_list_idx, lookup_indices) = find_lookup_indices(graph)?;
-            let mut visited = FnvHashMap::default();
+            let mut visited = FastHashMap::default();
             presplit_subtables_if_needed(graph, tag, &lookup_indices, &mut visited)?;
             promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
 
@@ -102,8 +102,8 @@ pub(crate) fn resolve_graph_overflows(
 fn presplit_subtables_if_needed(
     graph: &mut Graph,
     table_tag: Tag,
-    lookup_indices: &FnvHashMap<ObjIdx, u32>,
-    visited: &mut FnvHashMap<ObjIdx, Vec<ObjIdx>>,
+    lookup_indices: &FastHashMap<ObjIdx, u32>,
+    visited: &mut FastHashMap<ObjIdx, Vec<ObjIdx>>,
 ) -> Result<(), RepackError> {
     for lookup_idx in lookup_indices.keys() {
         split_lookup_subtables_if_needed(graph, table_tag, *lookup_idx, visited)?;
@@ -115,7 +115,7 @@ fn split_lookup_subtables_if_needed(
     graph: &mut Graph,
     table_tag: Tag,
     lookup_index: ObjIdx,
-    visited: &mut FnvHashMap<ObjIdx, Vec<ObjIdx>>,
+    visited: &mut FastHashMap<ObjIdx, Vec<ObjIdx>>,
 ) -> Result<(), RepackError> {
     let lookup = Lookup::from_graph(graph, lookup_index)?;
     let mut lookup_type = lookup.lookup_type();
@@ -207,7 +207,7 @@ fn splitting_supported_lookup_type(lookup_type: u16, table_tag: Tag) -> bool {
 fn promote_extensions_if_needed(
     graph: &mut Graph,
     lookup_list_idx: ObjIdx,
-    lookups: &FnvHashMap<ObjIdx, u32>,
+    lookups: &FastHashMap<ObjIdx, u32>,
     table_tag: Tag,
 ) -> Result<(), RepackError> {
     struct LookupSize {
@@ -282,7 +282,7 @@ fn promote_extensions_if_needed(
     }
 
     let mut layers_full = false;
-    let mut idx_map = FnvHashMap::default();
+    let mut idx_map = FastHashMap::default();
     for l in &lookup_sizes {
         if l.is_ext {
             continue;
@@ -330,7 +330,7 @@ fn extension_type(table_tag: Tag) -> Option<u16> {
     }
 }
 
-fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, FnvHashMap<ObjIdx, u32>), RepackError> {
+fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, FastHashMap<ObjIdx, u32>), RepackError> {
     // pos=8: lookup list position in GSUB/GPOS table
     let lookup_list_idx = graph
         .index_for_position(graph.root_idx(), 8)

@@ -8,6 +8,4 @@ mod range_set;
 pub use range_set::RangeSet;
 
 #[cfg(feature = "std")]
-pub(crate) mod fnv;
-#[cfg(feature = "std")]
-pub(crate) use fnv::FnvHashMap;
+pub(crate) type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;

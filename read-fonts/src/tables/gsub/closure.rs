@@ -5,7 +5,7 @@
 use font_types::GlyphId;
 
 use crate::{
-    collections::{FnvHashMap, IntSet},
+    collections::{FastHashMap, IntSet},
     tables::layout::{ExtensionLookup, Subtables},
     FontRead, ReadError, Tag,
 };
@@ -827,7 +827,7 @@ fn intersected_class_glyphs(
     class_def: &ClassDef,
     glyphs: &IntSet<GlyphId>,
     class: u16,
-    cache: &mut FnvHashMap<u16, IntSet<GlyphId>>,
+    cache: &mut FastHashMap<u16, IntSet<GlyphId>>,
 ) -> IntSet<GlyphId> {
     if let Some(cached_set) = cache.get(&class) {
         return cached_set.clone();
@@ -882,7 +882,7 @@ impl GlyphClosure for ContextFormat2<'_> {
         let lookups = lookup_list.lookups();
         let mut seen_sequence_indices = IntSet::new();
 
-        let mut intersected_class_cache = FnvHashMap::default();
+        let mut intersected_class_cache = FastHashMap::default();
         let mut seq_cache = SeqCache::default();
         for (i, rule_set) in self
             .rule_sets()

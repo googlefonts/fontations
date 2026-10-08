@@ -1,6 +1,6 @@
 //! impl subset() for CursivePos subtable
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
@@ -20,7 +20,7 @@ use write_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,

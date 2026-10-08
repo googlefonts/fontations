@@ -1,5 +1,5 @@
 //! Read layout tables in a graph
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     graph::{Graph, Parents, RepackError},
     serialize::{Link, LinkWidth, ObjIdx},
@@ -153,7 +153,7 @@ impl Graph {
         lookup_idx: ObjIdx,
         subtable_idx: ObjIdx,
         lookup_type: u16,
-        idx_map: &mut FnvHashMap<usize, usize>,
+        idx_map: &mut FastHashMap<usize, usize>,
     ) -> Result<usize, RepackError> {
         let ext_idx = if let Some(idx) = idx_map.get(&subtable_idx) {
             let subtable_v = self
@@ -186,7 +186,7 @@ impl Graph {
         lookup_idx: ObjIdx,
         lookup_type: u16,
         extension_type: Option<u16>,
-        idx_map: &mut FnvHashMap<usize, usize>,
+        idx_map: &mut FastHashMap<usize, usize>,
     ) -> Result<(), RepackError> {
         let Some(ext_type) = extension_type else {
             return Ok(());

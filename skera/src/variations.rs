@@ -1,5 +1,5 @@
 //! impl Subset for OpenType font variations common tables.
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     inc_bimap::IncBiMap,
     offset::SerializeSubset,
@@ -457,7 +457,7 @@ fn collect_region_refs(
 pub(crate) struct DeltaSetIndexMapSerializePlan<'a> {
     outer_bit_count: u8,
     inner_bit_count: u8,
-    output_map: &'a FnvHashMap<u32, u32>,
+    output_map: &'a FastHashMap<u32, u32>,
     map_count: u32,
 }
 
@@ -465,7 +465,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
     pub(crate) fn new(
         outer_bit_count: u8,
         inner_bit_count: u8,
-        output_map: &'a FnvHashMap<u32, u32>,
+        output_map: &'a FastHashMap<u32, u32>,
         map_count: u32,
     ) -> Self {
         Self {
@@ -484,7 +484,7 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
         self.inner_bit_count
     }
 
-    pub(crate) fn output_map(&self) -> &'a FnvHashMap<u32, u32> {
+    pub(crate) fn output_map(&self) -> &'a FastHashMap<u32, u32> {
         self.output_map
     }
 

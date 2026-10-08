@@ -1,6 +1,6 @@
 //! impl subset() for COLR
-use crate::fnv::FnvHashMap;
 use crate::offset::SerializeSerialize;
+use crate::FastHashMap;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
@@ -403,7 +403,7 @@ impl SubsetTable<'_> for ClipList<'_> {
         let retained_last_gid = glyph_set.last().unwrap().to_u32();
 
         let mut new_gids_set = IntSet::empty();
-        let mut new_gids_offset_map = FnvHashMap::default();
+        let mut new_gids_offset_map = FastHashMap::default();
         for clip in self.clips() {
             let offset = clip.clip_box_offset();
             if offset.is_null() {
@@ -447,7 +447,7 @@ fn serialize_clips(
     s: &mut Serializer,
     plan: &Plan,
     gids_set: &IntSet<u16>,
-    gids_offset_map: &FnvHashMap<u16, Offset24>,
+    gids_offset_map: &FastHashMap<u16, Offset24>,
 ) -> Result<u32, SerializeErrorFlags> {
     let mut count = 0;
 

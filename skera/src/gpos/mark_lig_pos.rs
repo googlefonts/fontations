@@ -1,5 +1,5 @@
 //! impl subset() for MarkLigPos subtable
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -75,7 +75,7 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -170,7 +170,7 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for LigatureArray<'_> {
-    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FastHashMap<u16, u16>);
     type Output = Vec<GlyphId>;
     fn subset(
         &self,
@@ -205,13 +205,13 @@ impl<'a> SubsetTable<'a> for LigatureArray<'_> {
 }
 
 impl<'a> SubsetTable<'a> for LigatureAttach<'_> {
-    type ArgsForSubset = &'a FnvHashMap<u16, u16>;
+    type ArgsForSubset = &'a FastHashMap<u16, u16>;
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        mark_class_map: &FnvHashMap<u16, u16>,
+        mark_class_map: &FastHashMap<u16, u16>,
     ) -> Result<(), SerializeErrorFlags> {
         let snap = s.snapshot();
         s.embed(self.component_count())?;
@@ -241,7 +241,7 @@ impl<'a> SubsetTable<'a> for LigatureAttach<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ComponentRecord<'_> {
-    type ArgsForSubset = (FontData<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (FontData<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,

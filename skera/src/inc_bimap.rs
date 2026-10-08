@@ -1,19 +1,19 @@
 //! inc_bimap: incremental bijective map, only lhs is given, rhs is incrementally assigned
 //! ported from Harfbuzz hb_inc_bimap_t: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-bimap.hh#L97>
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use core::slice::Iter;
 
 #[derive(Default)]
 pub(crate) struct IncBiMap {
-    forw_map: FnvHashMap<u32, u32>,
+    forw_map: FastHashMap<u32, u32>,
     back_map: Vec<u32>,
 }
 
 impl IncBiMap {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
-            forw_map: FnvHashMap::with_capacity_and_hasher(capacity, Default::default()),
+            forw_map: FastHashMap::with_capacity_and_hasher(capacity, Default::default()),
             back_map: Vec::with_capacity(capacity),
         }
     }

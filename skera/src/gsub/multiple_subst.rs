@@ -1,5 +1,5 @@
 //! impl subset() for MultipleSubst subtable
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     layout::{intersected_glyphs_and_indices, map_gsub_glyph},
     offset::SerializeSerialize,
@@ -20,7 +20,7 @@ use write_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,

@@ -1,5 +1,5 @@
 //! impl subset() for MarkMarkPos subtable
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -65,7 +65,7 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for MarkMarkPosFormat1<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -158,7 +158,7 @@ impl<'a> SubsetTable<'a> for MarkMarkPosFormat1<'_> {
 }
 
 impl<'a> SubsetTable<'a> for Mark2Array<'_> {
-    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u16>, &'a FastHashMap<u16, u16>);
     type Output = Vec<GlyphId>;
     fn subset(
         &self,
@@ -196,7 +196,7 @@ impl<'a> SubsetTable<'a> for Mark2Array<'_> {
 }
 
 impl<'a> SubsetTable<'a> for Mark2Record<'_> {
-    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, FontData<'a>);
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, FontData<'a>);
     type Output = ();
     fn subset(
         &self,

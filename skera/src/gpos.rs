@@ -10,7 +10,7 @@ mod pair_pos;
 mod single_pos;
 mod value_record;
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
@@ -80,18 +80,18 @@ impl LayoutClosure for Gpos<'_> {
         &self,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
-    ) -> FnvHashMap<u16, u16> {
+    ) -> FastHashMap<u16, u16> {
         let Ok(feature_list) = self.feature_list() else {
-            return FnvHashMap::default();
+            return FastHashMap::default();
         };
         find_duplicate_features(&feature_list, lookup_indices, feature_indices)
     }
 
     fn prune_langsys(
         &self,
-        duplicate_feature_index_map: &FnvHashMap<u16, u16>,
+        duplicate_feature_index_map: &FastHashMap<u16, u16>,
         layout_scripts: &IntSet<Tag>,
-    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
+    ) -> (FastHashMap<u16, IntSet<u16>>, IntSet<u16>) {
         let mut c = PruneLangSysContext::new(duplicate_feature_index_map);
         let Ok(script_list) = self.script_list() else {
             return (c.script_langsys_map(), c.feature_indices());
@@ -218,7 +218,7 @@ fn subset_gpos(
 }
 
 impl<'a> SubsetTable<'a> for PositionLookup<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -262,7 +262,7 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ExtensionSubtable<'a> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
 
     fn subset(
@@ -288,11 +288,11 @@ impl<'a, T> SubsetTable<'a> for ExtensionPosFormat1<'a, T>
 where
     T: SubsetTable<
             'a,
-            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>),
             Output = (),
         > + FontRead<'a, Args = ()>,
 {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
 
     fn subset(
@@ -401,7 +401,7 @@ mod test {
         let gpos = font.gpos().unwrap();
 
         let mut layout_scripts = IntSet::all();
-        let mut duplicate_feature_index_map = FnvHashMap::default();
+        let mut duplicate_feature_index_map = FastHashMap::default();
         duplicate_feature_index_map.insert(0, 0);
         duplicate_feature_index_map.insert(2, 2);
         duplicate_feature_index_map.insert(4, 2);

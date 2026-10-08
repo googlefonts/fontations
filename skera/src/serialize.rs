@@ -2,11 +2,10 @@
 //! ported from Harfbuzz Serializer: <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh>
 use core::ops::Range;
 use std::{
-    hash::{Hash, Hasher},
+    hash::{BuildHasher, Hash, Hasher},
     mem,
 };
 
-use crate::fnv::FnvHasher;
 use hashbrown::HashTable;
 use write_fonts::types::{FixedSize, Scalar, Uint24};
 
@@ -1017,7 +1016,7 @@ impl ObjectPool {
 
 // Hash an Object: Virtual links aren't considered for equality since they don't affect the functionality of the object.
 fn hash_one_pool_idx(pool_idx: PoolIdx, data: &[u8], obj_pool: &ObjectPool) -> u64 {
-    let mut hasher = FnvHasher::default();
+    let mut hasher = foldhash::fast::FixedState::default().build_hasher();
     let Some(obj) = obj_pool.get_obj(pool_idx) else {
         return hasher.finish();
     };

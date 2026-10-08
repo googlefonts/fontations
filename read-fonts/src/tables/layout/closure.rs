@@ -12,7 +12,7 @@ use super::{
     SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
 use crate::{
-    collections::{FnvHashMap, IntSet},
+    collections::{FastHashMap, IntSet},
     tables::{gpos::PositionLookupList, gsub::SubstitutionLookupList},
     FontRead,
 };
@@ -632,9 +632,9 @@ pub(crate) enum Format2Rule<'a> {
 
 #[derive(Default)]
 pub(crate) struct SeqCache {
-    input: FnvHashMap<u16, bool>,
-    backtrack: FnvHashMap<u16, bool>,
-    lookahead: FnvHashMap<u16, bool>,
+    input: FastHashMap<u16, bool>,
+    backtrack: FastHashMap<u16, bool>,
+    lookahead: FastHashMap<u16, bool>,
 }
 
 impl ContextFormat2<'_> {
@@ -760,7 +760,7 @@ fn intersects_class(
     class_def: &ClassDef,
     glyphs: &IntSet<GlyphId>,
     class: u16,
-    cache: &mut FnvHashMap<u16, bool>,
+    cache: &mut FastHashMap<u16, bool>,
 ) -> bool {
     *cache
         .entry(class)
@@ -771,7 +771,7 @@ impl ClassSequenceRule<'_> {
         &self,
         glyphs: &IntSet<GlyphId>,
         input_class_def: &ClassDef,
-        cache: &mut FnvHashMap<u16, bool>,
+        cache: &mut FastHashMap<u16, bool>,
     ) -> bool {
         self.input_sequence()
             .iter()

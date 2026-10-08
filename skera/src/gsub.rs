@@ -5,7 +5,7 @@ mod multiple_subst;
 mod reverse_chain_single_subst;
 mod single_subst;
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
@@ -72,18 +72,18 @@ impl LayoutClosure for Gsub<'_> {
         &self,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
-    ) -> FnvHashMap<u16, u16> {
+    ) -> FastHashMap<u16, u16> {
         let Ok(feature_list) = self.feature_list() else {
-            return FnvHashMap::default();
+            return FastHashMap::default();
         };
         find_duplicate_features(&feature_list, lookup_indices, feature_indices)
     }
 
     fn prune_langsys(
         &self,
-        duplicate_feature_index_map: &FnvHashMap<u16, u16>,
+        duplicate_feature_index_map: &FastHashMap<u16, u16>,
         layout_scripts: &IntSet<Tag>,
-    ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
+    ) -> (FastHashMap<u16, IntSet<u16>>, IntSet<u16>) {
         let mut c = PruneLangSysContext::new(duplicate_feature_index_map);
         let Ok(script_list) = self.script_list() else {
             return (c.script_langsys_map(), c.feature_indices());
@@ -219,7 +219,7 @@ fn subset_gsub(
 }
 
 impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -264,7 +264,7 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ExtensionSubtable<'a> {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
 
     fn subset(
@@ -289,11 +289,11 @@ impl<'a, T> SubsetTable<'a> for ExtensionSubstFormat1<'a, T>
 where
     T: SubsetTable<
             'a,
-            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>),
             Output = (),
         > + FontRead<'a, Args = ()>,
 {
-    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
 
     fn subset(

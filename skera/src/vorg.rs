@@ -7,7 +7,7 @@ use write_fonts::{
     FontBuilder,
 };
 
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 
 // reference: subset() for VORG in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/22fbc7568828b9acfd116be44b2d77d56d2d448b/src/hb-ot-vorg-table.hh#L90>
@@ -26,7 +26,7 @@ impl Subset for Vorg<'_> {
 fn serialize(
     vorg: &Vorg,
     s: &mut Serializer,
-    glyph_map: &FnvHashMap<GlyphId, GlyphId>,
+    glyph_map: &FastHashMap<GlyphId, GlyphId>,
 ) -> Result<(), SerializeErrorFlags> {
     s.embed(vorg.version())?;
     s.embed(vorg.default_vert_origin_y())?;

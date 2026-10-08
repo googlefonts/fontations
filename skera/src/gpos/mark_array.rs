@@ -1,5 +1,5 @@
 //! impl subset() for MarkRecord subtable
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
@@ -33,7 +33,7 @@ pub(crate) fn get_mark_class_map(
     coverage: &CoverageTable,
     mark_array: &MarkArray,
     glyph_set: &IntSet<GlyphId>,
-) -> FnvHashMap<u16, u16> {
+) -> FastHashMap<u16, u16> {
     let mark_records = mark_array.mark_records();
 
     let count = match coverage {
@@ -75,7 +75,7 @@ pub(crate) fn get_mark_class_map(
 }
 
 impl<'a> SubsetTable<'a> for MarkArray<'_> {
-    type ArgsForSubset = (&'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a IntSet<u16>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -103,7 +103,7 @@ impl<'a> SubsetTable<'a> for MarkArray<'_> {
 }
 
 impl<'a> SubsetTable<'a> for MarkRecord {
-    type ArgsForSubset = (&'a FnvHashMap<u16, u16>, FontData<'a>);
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, FontData<'a>);
     type Output = ();
     fn subset(
         &self,

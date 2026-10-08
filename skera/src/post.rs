@@ -1,5 +1,5 @@
 //! impl subset() for post
-use crate::fnv::FnvHashMap;
+use crate::FastHashMap;
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetFlags,
@@ -77,8 +77,8 @@ fn subset_post_v2tail(
         )
     };
 
-    let default_name_idx_map: FnvHashMap<&[u8], u16> = if string_data_byte_range.is_empty() {
-        FnvHashMap::default()
+    let default_name_idx_map: FastHashMap<&[u8], u16> = if string_data_byte_range.is_empty() {
+        FastHashMap::default()
     } else {
         DEFAULT_GLYPH_NAMES
             .iter()
@@ -88,8 +88,8 @@ fn subset_post_v2tail(
     };
 
     let mut new_name_idx = 258_u16;
-    let mut old_to_new_idx_map = FnvHashMap::default();
-    let mut name_bytes_to_new_idx_map = FnvHashMap::default();
+    let mut old_to_new_idx_map = FastHashMap::default();
+    let mut name_bytes_to_new_idx_map = FastHashMap::default();
 
     for (new_gid, old_gid) in plan
         .new_to_old_gid_list
