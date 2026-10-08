@@ -1,7 +1,7 @@
 //! impl subset() for LigatureSubst subtable
 use crate::fnv::FnvHashMap;
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{ObjIdx, SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -38,40 +38,42 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let glyph_set = &plan.glyphset_gsub;
-        let (cov_glyphs, lig_set_idxes) = intersected_glyphs_and_indices(
-            &coverage,
-            glyph_set,
-            &plan.glyph_map_gsub,
-            self.ligature_set_count(),
-        );
-
-        if cov_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
+        let lig_set_count = self.ligature_set_count();
         let lig_sets = self.ligature_sets();
 
         // we need to serialize retained coverage glyphs first so it'll be packed after the LigatureSet and Ligature tables
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/0a257b0188ce8b002b51d9955713cd7136ca4769/src/OT/Layout/GSUB/LigatureSubstFormat1.hh#L155>
-        let cap = cov_glyphs.len();
+        let cap = coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(lig_set_count as usize);
         let mut retained_cov_glyphs = Vec::with_capacity(cap);
         let mut retained_lig_set_idxes = Vec::with_capacity(cap);
-        for (g, idx) in cov_glyphs.iter().zip(lig_set_idxes.iter()) {
-            let lig_set = match lig_sets.get(idx as usize) {
-                Err(ReadError::NullOffset) => continue,
-                Err(_) => return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)),
-                Ok(lig_set) => lig_set,
-            };
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            lig_set_count,
+            |idx, g| {
+                let lig_set = match lig_sets.get(idx as usize) {
+                    Err(ReadError::NullOffset) => return Ok(()),
+                    Err(_) => {
+                        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
+                    }
+                    Ok(lig_set) => lig_set,
+                };
 
-            if !intersects_lig_glyph(&lig_set, glyph_set)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-            {
-                continue;
-            }
+                if !intersects_lig_glyph(&lig_set, glyph_set)
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+                {
+                    return Ok(());
+                }
 
-            retained_cov_glyphs.push(*g);
-            retained_lig_set_idxes.push(idx as usize);
-        }
+                retained_cov_glyphs.push(g);
+                retained_lig_set_idxes.push(idx as usize);
+                Ok(())
+            },
+        )?;
 
         let lig_set_count = retained_lig_set_idxes.len();
         if lig_set_count == 0 {

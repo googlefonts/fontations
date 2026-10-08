@@ -3,7 +3,9 @@
 use crate::fnv::FnvHashMap;
 use crate::{
     gpos::value_record::{compute_effective_format, compute_record_len},
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{
+        for_each_intersected_coverage_index, for_each_intersected_glyph_and_index, map_gsub_glyph,
+    },
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
@@ -116,7 +118,7 @@ fn compute_new_value_format(
     plan: &Plan,
     has_gdef_varstore: bool,
     font: &FontRef,
-    retained_rec_idxes: &IntSet<u16>,
+    retained_rec_idxes: &[u16],
 ) -> Result<(), ReadError> {
     // TODO: support instancing
     let (value_format, records_offset, record_size, font_data, new_format) = (
@@ -137,7 +139,7 @@ fn compute_new_value_format(
             true
         };
 
-        for i in retained_rec_idxes.iter() {
+        for &i in retained_rec_idxes {
             let offset = records_offset + i as usize * record_size;
             let value_record = ValueRecord::new(font_data, offset, value_format);
             *new_format |= compute_effective_format(&value_record, strip_hints, true)?;
@@ -165,11 +167,26 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (retained_glyphs, retained_rec_idxes) = intersected_glyphs_and_indices(
+        let glyph_set = &plan.glyphset_gsub;
+        let value_count = self.value_count();
+        let cap = coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(value_count as usize);
+        // Kept as parallel Vecs: retained_rec_idxes[i] is the ValueRecord
+        // for retained_glyphs[i].
+        let mut retained_glyphs = Vec::with_capacity(cap);
+        let mut retained_rec_idxes = Vec::with_capacity(cap);
+        let _ = for_each_intersected_glyph_and_index::<()>(
             &coverage,
-            &plan.glyphset_gsub,
+            glyph_set,
             &plan.glyph_map_gsub,
-            self.value_count(),
+            value_count,
+            |idx, g| {
+                retained_glyphs.push(g);
+                retained_rec_idxes.push(idx);
+                Ok(())
+            },
         );
 
         if retained_glyphs.is_empty() {
@@ -198,7 +215,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
         )
         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let Some(first_rec_idx) = retained_rec_idxes.first() else {
+        let Some(&first_rec_idx) = retained_rec_idxes.first() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         };
         let first_retained_rec = ValueRecord::new(
@@ -210,7 +227,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
         let table_format = if retained_rec_idxes
             .iter()
             .skip(1)
-            .map(|i| {
+            .map(|&i| {
                 ValueRecord::new(
                     font_data,
                     records_offset + i as usize * record_size,
@@ -244,12 +261,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
 }
 
 impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
-    type Args = (
-        &'a [GlyphId],
-        &'a SinglePosInfo<'a>,
-        &'a IntSet<u16>,
-        &'a Plan,
-    );
+    type Args = (&'a [GlyphId], &'a SinglePosInfo<'a>, &'a [u16], &'a Plan);
     fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
         // format
         s.embed(2_u16)?;
@@ -272,7 +284,7 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
         let value_count = glyphs.len();
         s.embed(value_count as u16)?;
 
-        for i in retained_rec_idxes.iter() {
+        for &i in retained_rec_idxes {
             let offset = records_offset + i as usize * record_size;
             let value_record = ValueRecord::new(font_data, offset, value_format);
             value_record.subset(plan, s, new_format)?;
@@ -325,40 +337,22 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
         let Ok(coverage) = self.coverage() else {
             return;
         };
-        let glyph_set = &plan.glyphset_gsub;
         let value_count = self.value_count();
         let record_size = compute_record_len(value_format);
         let records_offset = self.value_count_byte_range().end;
         let font_data = self.offset_data();
 
-        // As in subset(), coverage entries at or past valueCount have no
-        // ValueRecord and are skipped. Here the format is known to hold a
-        // device or variation index, so record_size is non zero and an out of
-        // range index would address bytes past the end of the record array and
-        // collect variation indices out of whatever follows it.
-        let bit_storage = 16 - value_count.leading_zeros() as u64;
-        if value_count as u64 > glyph_set.len() * bit_storage {
-            for idx in glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter(|idx| *idx < value_count)
-            {
+        let _ = for_each_intersected_coverage_index::<()>(
+            &coverage,
+            &plan.glyphset_gsub,
+            value_count,
+            |idx| {
                 let offset = records_offset + idx as usize * record_size;
                 let value_record = ValueRecord::new(font_data, offset, value_format);
                 value_record.collect_variation_indices(plan, varidx_set);
-            }
-        } else {
-            for i in coverage
-                .iter()
-                .take(value_count as usize)
-                .enumerate()
-                .filter_map(|(idx, g)| glyph_set.contains(GlyphId::from(g)).then_some(idx))
-            {
-                let offset = records_offset + i * record_size;
-                let value_record = ValueRecord::new(font_data, offset, value_format);
-                value_record.collect_variation_indices(plan, varidx_set);
-            }
-        }
+                Ok(())
+            },
+        );
     }
 }
 
@@ -778,7 +772,7 @@ mod test {
     #[test]
     fn test_collect_variation_indices_coverage_longer_than_value_array() {
         // Glyph 10 is at coverage index 0, glyph 60 at index 5. Two glyphs
-        // against valueCount 4 walks the coverage table.
+        // against a 6-glyph coverage (cost 3) walks the coverage table.
         let varidx_set = collect_varidxes(&COVERAGE_LONGER_THAN_VALUES, &[10, 60]);
 
         // Only glyph 10's record. Glyph 60 would otherwise pull in 0x000b000c.
@@ -788,8 +782,8 @@ mod test {
     /// Same, but sparse enough that the collection walks the glyph set instead.
     #[test]
     fn test_collect_variation_indices_coverage_longer_than_value_array_sparse() {
-        // One glyph against valueCount 4 walks the glyph set. Glyph 60 is at
-        // coverage index 5, which has no record.
+        // One glyph against a 6-glyph coverage (cost 3) walks the glyph set.
+        // Glyph 60 is at coverage index 5, which has no record.
         let varidx_set = collect_varidxes(&COVERAGE_LONGER_THAN_VALUES, &[60]);
 
         assert!(varidx_set.is_empty());

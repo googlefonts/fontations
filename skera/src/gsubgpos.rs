@@ -1,7 +1,7 @@
 //! impl subset() for Sequence Context/Chained Sequence Context tables
 use crate::fnv::FnvHashMap;
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph, ClassDefSubsetStruct},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -56,16 +56,6 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat1<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (cov_glyphs, rule_sets_idxes) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            &plan.glyph_map_gsub,
-            self.seq_rule_set_count(),
-        );
-        if rule_sets_idxes.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
         // format
         s.embed(self.format())?;
 
@@ -73,26 +63,38 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat1<'_> {
         let cov_offset_pos = s.embed(0_u16)?;
         // seq ruleset count
         let seq_ruleset_count_pos = s.embed(0_u16)?;
-        let mut rule_set_count = 0_u16;
 
-        let mut new_cov_glyphs = Vec::with_capacity(cov_glyphs.len());
+        let glyph_set = &plan.glyphset_gsub;
+        let rule_set_count = self.seq_rule_set_count();
+        let mut new_cov_glyphs = Vec::with_capacity(
+            coverage
+                .population()
+                .min(glyph_set.len() as usize)
+                .min(rule_set_count as usize),
+        );
         // seq rulesets offsets
         let rule_sets = self.seq_rule_sets();
-        for (g, idx) in cov_glyphs.iter().zip(rule_sets_idxes.iter()) {
-            if !rule_sets
-                .subset_offset(idx as usize, s, plan, lookup_map)
-                .is_empty()?
-            {
-                new_cov_glyphs.push(*g);
-                rule_set_count += 1;
-            }
-        }
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            rule_set_count,
+            |idx, g| {
+                if !rule_sets
+                    .subset_offset(idx as usize, s, plan, lookup_map)
+                    .is_empty()?
+                {
+                    new_cov_glyphs.push(g);
+                }
+                Ok(())
+            },
+        )?;
 
-        if rule_set_count == 0 {
+        if new_cov_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        s.copy_assign(seq_ruleset_count_pos, rule_set_count);
+        s.copy_assign(seq_ruleset_count_pos, new_cov_glyphs.len() as u16);
         Offset16::serialize_serialize::<CoverageTable>(s, &new_cov_glyphs, cov_offset_pos)
     }
 }
@@ -485,16 +487,6 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat1<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (cov_glyphs, rule_sets_idxes) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            &plan.glyph_map_gsub,
-            self.chained_seq_rule_set_count(),
-        );
-        if rule_sets_idxes.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
         // format
         s.embed(self.format())?;
 
@@ -502,26 +494,38 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat1<'_> {
         let cov_offset_pos = s.embed(0_u16)?;
         // chained seq ruleset count
         let seq_ruleset_count_pos = s.embed(0_u16)?;
-        let mut rule_set_count = 0_u16;
 
-        let mut new_cov_glyphs = Vec::with_capacity(cov_glyphs.len());
+        let glyph_set = &plan.glyphset_gsub;
+        let rule_set_count = self.chained_seq_rule_set_count();
+        let mut new_cov_glyphs = Vec::with_capacity(
+            coverage
+                .population()
+                .min(glyph_set.len() as usize)
+                .min(rule_set_count as usize),
+        );
         // chained seq rulesets offsets
         let rule_sets = self.chained_seq_rule_sets();
-        for (g, idx) in cov_glyphs.iter().zip(rule_sets_idxes.iter()) {
-            if !rule_sets
-                .subset_offset(idx as usize, s, plan, lookup_map)
-                .is_empty()?
-            {
-                new_cov_glyphs.push(*g);
-                rule_set_count += 1;
-            }
-        }
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            rule_set_count,
+            |idx, g| {
+                if !rule_sets
+                    .subset_offset(idx as usize, s, plan, lookup_map)
+                    .is_empty()?
+                {
+                    new_cov_glyphs.push(g);
+                }
+                Ok(())
+            },
+        )?;
 
-        if rule_set_count == 0 {
+        if new_cov_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        s.copy_assign(seq_ruleset_count_pos, rule_set_count);
+        s.copy_assign(seq_ruleset_count_pos, new_cov_glyphs.len() as u16);
         Offset16::serialize_serialize::<CoverageTable>(s, &new_cov_glyphs, cov_offset_pos)
     }
 }

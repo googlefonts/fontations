@@ -1,6 +1,7 @@
 //! impl subset() for MarkRecord subtable
 use crate::fnv::FnvHashMap;
 use crate::{
+    layout::for_each_intersected_coverage_index,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
@@ -18,6 +19,7 @@ use write_fonts::{
     types::Offset16,
 };
 
+#[inline]
 pub(crate) fn collect_mark_record_varidx(
     mark_record: &MarkRecord,
     plan: &Plan,
@@ -36,42 +38,49 @@ pub(crate) fn get_mark_class_map(
 ) -> FnvHashMap<u16, u16> {
     let mark_records = mark_array.mark_records();
 
-    let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
-    };
-    let num_bits = 32 - count.leading_zeros();
-    let coverage_population = coverage.population();
-
-    let retained_classes: IntSet<u16> =
-        if coverage_population as u32 > (glyph_set.len() as u32) * num_bits {
-            glyph_set
-                .iter()
-                .filter_map(|g| {
-                    coverage.get(g).and_then(|idx| {
-                        mark_records
-                            .get(idx as usize)
-                            .map(|mark_record| mark_record.mark_class())
-                    })
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .enumerate()
-                .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
-                .filter_map(|(idx, _)| {
-                    mark_records
-                        .get(idx)
-                        .map(|mark_record| mark_record.mark_class())
-                })
-                .collect()
-        };
+    let mut retained_classes = IntSet::<u16>::empty();
+    let _ = for_each_intersected_coverage_index::<()>(
+        coverage,
+        glyph_set,
+        mark_array.mark_count(),
+        |idx| {
+            if let Some(mark_record) = mark_records.get(idx as usize) {
+                retained_classes.insert(mark_record.mark_class());
+            }
+            Ok(())
+        },
+    );
     retained_classes
         .iter()
         .enumerate()
         .map(|(new_class, class)| (class, new_class as u16))
         .collect()
+}
+
+/// Collect variation indices from the anchors of the retained MarkRecords
+/// and return the set of retained mark classes.
+pub(crate) fn collect_retained_mark_varidx_and_classes(
+    coverage: &CoverageTable,
+    mark_array: &MarkArray,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+) -> IntSet<u16> {
+    let mark_array_data = mark_array.offset_data();
+    let mark_records = mark_array.mark_records();
+
+    let mut retained_mark_classes = IntSet::empty();
+    let _ = for_each_intersected_coverage_index::<()>(
+        coverage,
+        &plan.glyphset_gsub,
+        mark_array.mark_count(),
+        |idx| {
+            let mark_record = mark_records.get(idx as usize).ok_or(())?;
+            collect_mark_record_varidx(mark_record, plan, varidx_set, mark_array_data);
+            retained_mark_classes.insert(mark_record.mark_class());
+            Ok(())
+        },
+    );
+    retained_mark_classes
 }
 
 impl<'a> SubsetTable<'a> for MarkArray<'_> {

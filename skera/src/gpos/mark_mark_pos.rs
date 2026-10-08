@@ -1,8 +1,8 @@
 //! impl subset() for MarkMarkPos subtable
 use crate::fnv::FnvHashMap;
 use crate::{
-    gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
-    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
+    gpos::mark_array::{collect_retained_mark_varidx_and_classes, get_mark_class_map},
+    layout::{for_each_intersected_coverage_index, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
@@ -14,7 +14,7 @@ use write_fonts::read::{
         layout::CoverageTable,
     },
     types::{GlyphId, Offset16},
-    FontData, FontRef,
+    FontData, FontRef, ReadError,
 };
 
 impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
@@ -26,20 +26,12 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
             return;
         };
 
-        let glyph_set = &plan.glyphset_gsub;
-        let mark1_array_data = mark1_array.offset_data();
-        let mark1_records = mark1_array.mark_records();
-
-        let mark1_record_idxes = intersected_coverage_indices(&mark1_coverage, glyph_set);
-        let mut retained_mark_classes = IntSet::empty();
-        for i in mark1_record_idxes.iter() {
-            let Some(mark1_record) = mark1_records.get(i as usize) else {
-                return;
-            };
-            let class = mark1_record.mark_class();
-            collect_mark_record_varidx(mark1_record, plan, varidx_set, mark1_array_data);
-            retained_mark_classes.insert(class);
-        }
+        let retained_mark_classes = collect_retained_mark_varidx_and_classes(
+            &mark1_coverage,
+            &mark1_array,
+            plan,
+            varidx_set,
+        );
 
         let Ok(mark2_coverage) = self.mark2_coverage() else {
             return;
@@ -49,18 +41,21 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
         };
         let mark2_array_data = mark2_array.offset_data();
         let mark2_records = mark2_array.mark2_records();
-        let mark2_record_idxes = intersected_coverage_indices(&mark2_coverage, glyph_set);
-        for i in mark2_record_idxes.iter() {
-            let Ok(mark2_record) = mark2_records.get(i as usize) else {
-                return;
-            };
-            let mark2_anchors = mark2_record.mark2_anchors(mark2_array_data);
-            for j in retained_mark_classes.iter() {
-                if let Some(Ok(anchor)) = mark2_anchors.get(j as usize) {
-                    anchor.collect_variation_indices(plan, varidx_set);
+        let _ = for_each_intersected_coverage_index(
+            &mark2_coverage,
+            &plan.glyphset_gsub,
+            mark2_array.mark2_count(),
+            |i| {
+                let mark2_record = mark2_records.get(i as usize)?;
+                let mark2_anchors = mark2_record.mark2_anchors(mark2_array_data);
+                for j in retained_mark_classes.iter() {
+                    if let Some(Ok(anchor)) = mark2_anchors.get(j as usize) {
+                        anchor.collect_variation_indices(plan, varidx_set);
+                    }
                 }
-            }
-        }
+                Ok::<(), ReadError>(())
+            },
+        );
     }
 }
 
