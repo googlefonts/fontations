@@ -6,6 +6,53 @@ use super::{
     glyf::{PointCoord, PointFlags, PointMarker},
     gvar::GlyphDelta,
 };
+use alloc::{boxed::Box, vec::Vec};
+use core::sync::atomic::{AtomicI32, Ordering};
+
+/// A small, lazily populated scalar array for one store and one location.
+///
+/// Like HarfBuzz's scalar cache, values are indexed by region and an invalid
+/// sentinel distinguishes an uncomputed scalar from zero. Concurrent readers
+/// may compute the same scalar, but always publish the same exact value.
+pub(crate) struct ScalarCache {
+    values: Box<[AtomicI32]>,
+}
+
+impl ScalarCache {
+    pub(crate) const MAX_LEN: usize = 128;
+    const INVALID: i32 = i32::MIN;
+
+    pub(crate) fn new(count: usize) -> Self {
+        let count = count.min(Self::MAX_LEN);
+        let mut values = Vec::new();
+        if values.try_reserve_exact(count).is_ok() {
+            values.extend((0..count).map(|_| AtomicI32::new(Self::INVALID)));
+        }
+        Self {
+            values: values.into_boxed_slice(),
+        }
+    }
+
+    pub(crate) fn from_store(store: Result<ItemVariationStore<'_>, ReadError>) -> Self {
+        let count = store
+            .and_then(|store| store.variation_region_list())
+            .map_or(0, |regions| regions.region_count() as usize);
+        Self::new(count)
+    }
+
+    #[inline]
+    fn get(&self, index: usize) -> Option<Fixed> {
+        let value = self.values.get(index)?.load(Ordering::Relaxed);
+        (value != Self::INVALID).then(|| Fixed::from_bits(value))
+    }
+
+    #[inline]
+    fn set(&self, index: usize, value: Fixed) {
+        if let Some(slot) = self.values.get(index) {
+            slot.store(value.to_bits(), Ordering::Relaxed);
+        }
+    }
+}
 
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].
@@ -1584,6 +1631,31 @@ impl ItemVariationStore<'_> {
         coords: &[F2Dot14],
         scalars: &[Fixed],
     ) -> Option<F48Dot16> {
+        self.compute_delta_impl::<true>(index, coords, |i| scalars.get(i).copied(), |_, _| {})
+    }
+
+    #[inline]
+    pub(crate) fn compute_delta_with_cache(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+        cache: &ScalarCache,
+    ) -> Option<F48Dot16> {
+        self.compute_delta_impl::<false>(
+            index,
+            coords,
+            |i| cache.get(i),
+            |i, value| cache.set(i, value),
+        )
+    }
+
+    fn compute_delta_impl<const SKIP_ZERO_DELTAS: bool>(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+        get_scalar: impl Fn(usize) -> Option<Fixed>,
+        set_scalar: impl Fn(usize, Fixed),
+    ) -> Option<F48Dot16> {
         if coords.is_empty() || index == DeltaSetIndex::NO_VARIATION_INDEX {
             return Some(F48Dot16::ZERO);
         }
@@ -1600,10 +1672,23 @@ impl ItemVariationStore<'_> {
         let mut accum = F48Dot16::ZERO;
         // The deltas and the region indices are parallel arrays sized by the
         // same header field, so they are walked together.
-        for (region_index, region_delta) in region_indices.iter().zip(data.delta_set(index.inner)) {
+        let mut deltas = data.delta_set_iter(index.inner);
+        for region_index in region_indices {
             let region_index = region_index.get() as usize;
-            let scalar = match scalars.get(region_index) {
-                Some(scalar) => *scalar,
+            let scalar = get_scalar(region_index);
+            // Most regions do not apply to a particular location. A cached
+            // zero lets us advance past the delta bytes without decoding them.
+            if scalar == Some(Fixed::ZERO) {
+                if deltas.skip_next().is_none() {
+                    break;
+                }
+                continue;
+            }
+            let Some(region_delta) = deltas.next() else {
+                break;
+            };
+            let scalar = match scalar {
+                Some(scalar) => scalar,
                 None => {
                     let regions = match &regions {
                         Some(regions) => regions,
@@ -1612,12 +1697,15 @@ impl ItemVariationStore<'_> {
                         }
                     };
                     let region = regions.get(region_index).ok()?;
-                    // A zero delta cannot contribute at any location. Still
-                    // resolve its region so malformed indices fail as before.
-                    if region_delta == 0 {
+                    // Without a cache, a zero delta needs no scalar. With a
+                    // cache, populate the entry: leaving it uncomputed makes
+                    // later zero deltas repeatedly resolve the region.
+                    if SKIP_ZERO_DELTAS && region_delta == 0 {
                         continue;
                     }
-                    region.compute_scalar(coords)
+                    let scalar = region.compute_scalar(coords);
+                    set_scalar(region_index, scalar);
+                    scalar
                 }
             };
             // The sum cannot overflow, even for hostile data: a scalar is a
@@ -1716,6 +1804,10 @@ impl<'a> ItemVariationData<'a> {
     /// Returns an iterator over the per-region delta values for the specified
     /// inner index.
     pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = i32> + 'a + Clone {
+        self.delta_set_iter(inner_index)
+    }
+
+    fn delta_set_iter(&self, inner_index: u16) -> ItemDeltas<'a> {
         let word_delta_count = self.word_delta_count();
         let region_count = self.region_index_count();
         let bytes_per_row = Self::delta_row_len(word_delta_count, region_count);
@@ -1768,6 +1860,22 @@ struct ItemDeltas<'a> {
     pos: u16,
 }
 
+impl ItemDeltas<'_> {
+    fn skip_next(&mut self) -> Option<()> {
+        if self.pos >= self.len {
+            return None;
+        }
+        let size = if self.pos < self.word_delta_count {
+            2
+        } else {
+            1
+        } << self.long_words as usize;
+        self.pos += 1;
+        self.bytes.nth(size - 1)?;
+        Some(())
+    }
+}
+
 impl Iterator for ItemDeltas<'_> {
     type Item = i32;
 
@@ -1798,6 +1906,30 @@ pub(crate) fn advance_delta_with_scalars(
     coords: &[F2Dot14],
     scalars: &[Fixed],
 ) -> Option<F48Dot16> {
+    advance_delta_impl(dsim, ivs, glyph_id, coords, |store, index| {
+        store.compute_delta_with_scalars(index, coords, scalars)
+    })
+}
+
+pub(crate) fn advance_delta_with_cache(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+    cache: &ScalarCache,
+) -> Option<F48Dot16> {
+    advance_delta_impl(dsim, ivs, glyph_id, coords, |store, index| {
+        store.compute_delta_with_cache(index, coords, cache)
+    })
+}
+
+fn advance_delta_impl(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+    compute: impl FnOnce(ItemVariationStore, DeltaSetIndex) -> Option<F48Dot16>,
+) -> Option<F48Dot16> {
     if coords.is_empty() {
         return Some(F48Dot16::ZERO);
     }
@@ -1812,7 +1944,7 @@ pub(crate) fn advance_delta_with_scalars(
             inner: gid as _,
         },
     };
-    ivs.ok()?.compute_delta_with_scalars(ix, coords, scalars)
+    compute(ivs.ok()?, ix)
 }
 
 /// The delta for an item, reusing `scalars`.
@@ -1826,6 +1958,30 @@ pub(crate) fn item_delta_with_scalars(
     coords: &[F2Dot14],
     scalars: &[Fixed],
 ) -> Option<F48Dot16> {
+    item_delta_impl(dsim, ivs, glyph_id, coords, |store, index| {
+        store.compute_delta_with_scalars(index, coords, scalars)
+    })
+}
+
+pub(crate) fn item_delta_with_cache(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+    cache: &ScalarCache,
+) -> Option<F48Dot16> {
+    item_delta_impl(dsim, ivs, glyph_id, coords, |store, index| {
+        store.compute_delta_with_cache(index, coords, cache)
+    })
+}
+
+fn item_delta_impl(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+    compute: impl FnOnce(ItemVariationStore, DeltaSetIndex) -> Option<F48Dot16>,
+) -> Option<F48Dot16> {
     if coords.is_empty() {
         return Some(F48Dot16::ZERO);
     }
@@ -1834,7 +1990,7 @@ pub(crate) fn item_delta_with_scalars(
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
         _ => return None,
     };
-    ivs.ok()?.compute_delta_with_scalars(ix, coords, scalars)
+    compute(ivs.ok()?, ix)
 }
 
 #[cfg(test)]
@@ -1843,6 +1999,68 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    #[test]
+    fn scalar_cache_is_bounded_and_distinguishes_zero() {
+        let cache = ScalarCache::new(usize::MAX);
+        assert_eq!(cache.values.len(), ScalarCache::MAX_LEN);
+        assert_eq!(cache.get(0), None);
+        cache.set(0, Fixed::ZERO);
+        assert_eq!(cache.get(0), Some(Fixed::ZERO));
+        cache.set(1, Fixed::from_bits(12345));
+        assert_eq!(cache.get(1), Some(Fixed::from_bits(12345)));
+        cache.set(ScalarCache::MAX_LEN, Fixed::ONE);
+        assert_eq!(cache.get(ScalarCache::MAX_LEN), None);
+        assert_eq!(ScalarCache::new(0).get(0), None);
+    }
+
+    #[test]
+    fn skipped_item_deltas_preserve_word_boundaries() {
+        for long_words in [false, true] {
+            for word_count in 0..=3 {
+                let mut bytes = Vec::new();
+                let mut expected = Vec::new();
+                for i in 0..3 {
+                    let size = if i < word_count { 2 } else { 1 } << long_words as usize;
+                    let value: i32 = match size {
+                        4 => -100_000,
+                        2 => -1000,
+                        _ => -100,
+                    };
+                    bytes.extend_from_slice(&value.to_be_bytes()[4 - size..]);
+                    expected.push(value);
+                }
+                let deltas = ItemDeltas {
+                    bytes: bytes.iter(),
+                    word_delta_count: word_count,
+                    long_words,
+                    len: 3,
+                    pos: 0,
+                };
+                assert_eq!(deltas.clone().collect::<Vec<_>>(), expected);
+                for skip in 0..3 {
+                    let mut deltas = deltas.clone();
+                    for (i, expected) in expected.iter().enumerate() {
+                        if i == skip {
+                            assert_eq!(deltas.skip_next(), Some(()));
+                        } else {
+                            assert_eq!(deltas.next(), Some(*expected));
+                        }
+                    }
+                    assert_eq!(deltas.skip_next(), None);
+                    assert_eq!(deltas.next(), None);
+                }
+                // An incomplete delta must end the run rather than skip ahead.
+                let mut truncated = ItemDeltas {
+                    bytes: bytes[..bytes.len() - 1].iter(),
+                    ..deltas
+                };
+                assert_eq!(truncated.skip_next(), Some(()));
+                assert_eq!(truncated.skip_next(), Some(()));
+                assert_eq!(truncated.skip_next(), None);
+            }
+        }
+    }
 
     #[test]
     fn zero_deltas_still_validate_their_regions() {
@@ -1883,6 +2101,18 @@ mod tests {
                         store.compute_delta_with_scalars(index, &coords, &scalars[..count]),
                         expected
                     );
+                    let cache = ScalarCache::new(count);
+                    // Cold, warm, empty, and partial caches give the same bits.
+                    for _ in 0..2 {
+                        assert_eq!(
+                            store.compute_delta_with_cache(index, &coords, &cache),
+                            expected
+                        );
+                    }
+                    // Zero deltas also populate their scalars in the cached path.
+                    for (i, scalar) in scalars[..count].iter().enumerate() {
+                        assert_eq!(cache.get(i), Some(*scalar));
+                    }
                 }
             }
         }
@@ -1892,6 +2122,14 @@ mod tests {
             let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
             assert_eq!(
                 store.compute_delta(DeltaSetIndex { outer: 0, inner }, &[F2Dot14::ONE]),
+                None
+            );
+            assert_eq!(
+                store.compute_delta_with_cache(
+                    DeltaSetIndex { outer: 0, inner },
+                    &[F2Dot14::ONE],
+                    &ScalarCache::new(2),
+                ),
                 None
             );
         }

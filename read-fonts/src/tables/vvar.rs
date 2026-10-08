@@ -1,11 +1,46 @@
 //! The [VVAR (Vertical Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 
-use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
+use super::variations::{self, DeltaSetIndexMap, ItemVariationStore, ScalarCache};
 use types::F48Dot16;
 
 include!("../../generated/generated_vvar.rs");
 
 impl Vvar<'_> {
+    pub(crate) fn scalar_cache(&self) -> ScalarCache {
+        ScalarCache::from_store(self.item_variation_store())
+    }
+
+    #[inline]
+    pub(crate) fn advance_delta_with_cache(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        cache: &ScalarCache,
+    ) -> Option<F48Dot16> {
+        variations::advance_delta_with_cache(
+            self.advance_height_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+            cache,
+        )
+    }
+
+    pub(crate) fn v_origin_y_delta_with_cache(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        cache: &ScalarCache,
+    ) -> Option<F48Dot16> {
+        variations::item_delta_with_cache(
+            self.v_org_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+            cache,
+        )
+    }
+
     /// Computes the scalar for each variation region at `coords`, in table
     /// order, and returns how many were written.
     ///
@@ -146,7 +181,8 @@ impl Vvar<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{FontRef, TableProvider};
+    use super::{ScalarCache, Vvar};
+    use crate::{FontData, FontRead, FontRef, TableProvider};
     use types::{F2Dot14, F48Dot16, GlyphId};
 
     /// The only fixture stating `VVAR`. Every one of its mappings resolves to
@@ -154,6 +190,42 @@ mod tests {
     /// rather than their arithmetic; `HVAR` carries that, over the same code
     /// in `variations`.
     const VAR: &[u8] = font_test_data::ift::CFF2_FONT;
+
+    #[test]
+    fn cached_deltas_match_uncached_with_partial_cache() {
+        let vert = FontRef::new(font_test_data::MPLUS1CODE_VERTICAL_SUBSET).unwrap();
+        let cff = FontRef::new(VAR).unwrap();
+        let vvar = vert.vvar().unwrap();
+        // Give the fixture's vertical origins its nonzero advance mapping.
+        let mut origins = vvar.offset_data().as_bytes().to_vec();
+        let mapping: [u8; 4] = origins[8..12].try_into().unwrap();
+        origins[20..24].copy_from_slice(&mapping);
+        let origins = Vvar::read(FontData::new(&origins)).unwrap();
+        for (table, count) in [
+            (vvar, vert.maxp().unwrap().num_glyphs()),
+            (cff.vvar().unwrap(), cff.maxp().unwrap().num_glyphs()),
+            (origins, vert.maxp().unwrap().num_glyphs()),
+        ] {
+            for coord in [-0.75, 0.25] {
+                let coords = [F2Dot14::from_f32(coord)];
+                for len in [0, 1, ScalarCache::MAX_LEN] {
+                    let cache = ScalarCache::new(len);
+                    for _ in 0..2 {
+                        for gid in (0..count as u32).chain([u32::MAX]).map(GlyphId::new) {
+                            assert_eq!(
+                                table.advance_delta_with_cache(gid, &coords, &cache),
+                                table.advance_delta(gid, &coords),
+                            );
+                            assert_eq!(
+                                table.v_origin_y_delta_with_cache(gid, &coords, &cache),
+                                table.v_origin_y_delta(gid, &coords),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn a_default_location_moves_nothing() {
