@@ -299,6 +299,17 @@ impl CollectVariationIndices for SinglePosFormat1<'_> {
         {
             return;
         }
+        // The single ValueRecord applies to every covered glyph, so it is
+        // only retained if at least one covered glyph is. subset() drops the
+        // subtable otherwise, and its variation indices must not be kept
+        // alive. A null or unreadable coverage covers nothing.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/4834503eddaffb9b401695ebbe470d5a220c5922/src/OT/Layout/GPOS/SinglePosFormat1.hh#L54>
+        let Ok(coverage) = self.coverage() else {
+            return;
+        };
+        if !coverage.intersects(&plan.glyphset_gsub) {
+            return;
+        }
         self.value_record()
             .collect_variation_indices(plan, varidx_set);
     }
@@ -782,5 +793,40 @@ mod test {
         let varidx_set = collect_varidxes(&COVERAGE_LONGER_THAN_VALUES, &[60]);
 
         assert!(varidx_set.is_empty());
+    }
+
+    /// A SinglePosFormat1 whose coverage misses the glyph set is dropped by
+    /// subset(), so its ValueRecord's variation index must not be collected.
+    #[test]
+    fn test_collect_variation_indices_format1_requires_coverage_intersection() {
+        use write_fonts::read::{FontData, FontRead};
+
+        #[rustfmt::skip]
+        let raw_table: [u8; 20] = [
+            // posFormat=1, coverageOffset=14, valueFormat=X_ADVANCE_DEVICE
+            0x00, 0x01, 0x00, 0x0e, 0x00, 0x40,
+            // ValueRecord: xAdvDeviceOffset=8
+            0x00, 0x08,
+            // @8 VariationIndex (1, 2)
+            0x00, 0x01, 0x00, 0x02, 0x80, 0x00,
+            // @14 coverage: format 1, glyph 10
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x0a,
+        ];
+        let singlepos = SinglePosFormat1::read(FontData::new(&raw_table)).unwrap();
+
+        let collect = |glyphs: &[u32]| {
+            let mut plan = Plan::default();
+            for g in glyphs {
+                plan.glyphset_gsub.insert(GlyphId::from(*g));
+            }
+            let mut varidx_set = IntSet::empty();
+            singlepos.collect_variation_indices(&plan, &mut varidx_set);
+            varidx_set.iter().collect::<Vec<_>>()
+        };
+
+        // Glyph 20 is not covered: nothing is retained.
+        assert!(collect(&[20]).is_empty());
+        // Glyph 10 is covered: the shared record's variation index is kept.
+        assert_eq!(collect(&[10, 20]), vec![0x00010002]);
     }
 }
