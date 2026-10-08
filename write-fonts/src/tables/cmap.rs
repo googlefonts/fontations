@@ -49,9 +49,9 @@ impl CmapSubtable {
             start_code.push(start as u32 as u16);
             end_code.push(end as u32 as u16);
             if let Some(delta) = segment.id_delta {
-                // "The idDelta arithmetic is modulo 65536":
-                let delta = i16::try_from(delta)
-                    .unwrap_or_else(|_| delta.rem_euclid(0x10000).try_into().unwrap());
+                // "The idDelta arithmetic is modulo 65536", so we only need
+                // the low 16 bits; e.g. a delta of 37853 is stored as -27683.
+                let delta = delta as i16;
                 id_deltas.push(delta);
                 id_range_offsets.push(0u16);
             } else {
@@ -764,6 +764,19 @@ mod tests {
         let font_data = FontData::new(&bytes);
         let cmap = Cmap::read(font_data).unwrap();
         assert_eq!(cmap.map_codepoint(codepoint), Some(gid));
+    }
+
+    // https://github.com/googlefonts/fontations/issues/2236
+    #[test]
+    fn generate_cmap4_delta_exceeds_i16() {
+        let mappings = vec![
+            ('\0', GlyphId::new(1)),
+            ('!', GlyphId::new(37886)),
+            ('~', GlyphId::new(37979)),
+        ];
+        let format4 = expect_f4(&mappings);
+        assert_eq!(format4.id_delta, [1, -27683, -27683, 1]);
+        assert_eq!(get_read_mapping(&format4), mappings);
     }
 
     #[test]
