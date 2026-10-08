@@ -15,6 +15,11 @@ const NUM_STANDARD: usize = 258;
 /// names.
 const MAX_CUSTOM_NAMES: usize = u16::MAX as usize + 1 - NUM_STANDARD;
 
+/// The maximum length in bytes of a custom glyph name.
+///
+/// Each name is a Pascal string, prefixed by a `u8` length.
+const MAX_NAME_LEN: usize = u8::MAX as usize;
+
 /// A string in the post table.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -72,12 +77,24 @@ impl Post {
         let Some(names) = &self.string_data else {
             return;
         };
-        if self.version.compatible(Version16Dot16::VERSION_2_0) && names.len() > MAX_CUSTOM_NAMES {
+        if !self.version.compatible(Version16Dot16::VERSION_2_0) {
+            return;
+        }
+        if names.len() > MAX_CUSTOM_NAMES {
             ctx.report(format!(
                 "post table version 2.0 can hold at most {MAX_CUSTOM_NAMES} custom glyph names, found {}",
                 names.len()
             ));
         }
+        ctx.with_array_items(names.iter(), |ctx, name| {
+            if name.len() > MAX_NAME_LEN {
+                ctx.report(format!(
+                    "glyph name '{}' is {} bytes long, but the maximum is {MAX_NAME_LEN}",
+                    name.0,
+                    name.len()
+                ));
+            }
+        });
     }
 }
 
@@ -175,6 +192,20 @@ mod tests {
             err.contains("can hold at most 65278 custom glyph names, found 65279"),
             "{err}"
         );
+    }
+
+    #[test]
+    fn compilev2_long_glyph_name() {
+        let too_long = "a".repeat(256);
+        let post = Post::new_v2([".notdef", too_long.as_str()]);
+        let err = crate::dump_table(&post).unwrap_err().to_string();
+        assert!(err.contains("is 256 bytes long"), "{err}");
+
+        let max_len = "a".repeat(255);
+        let post = Post::new_v2([".notdef", max_len.as_str()]);
+        let dumped = crate::dump_table(&post).unwrap();
+        let loaded = read_fonts::tables::post::Post::read(FontData::new(&dumped)).unwrap();
+        assert_eq!(loaded.glyph_name(GlyphId16::new(1)), Some(max_len.as_str()));
     }
 
     #[test]
