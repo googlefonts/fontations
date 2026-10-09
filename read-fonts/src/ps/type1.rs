@@ -203,7 +203,7 @@ impl Type1Font {
     pub fn notice(&self) -> Option<&str> {
         self.notice.as_deref()
     }
-        
+
     /// Returns the italic angle.
     pub fn italic_angle(&self) -> i32 {
         self.italic_angle
