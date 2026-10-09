@@ -51,7 +51,7 @@ impl SubsetTable<'_> for SingleSubstFormat1<'_> {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let cov_glyphs = coverage.intersect_set(&plan.glyphset_gsub);
-        let delta = self.delta_glyph_id() as i32;
+        let delta = self.delta_glyph_id();
         let glyph_map = &plan.glyph_map_gsub;
 
         if cov_glyphs.is_empty() {
@@ -62,7 +62,12 @@ impl SubsetTable<'_> for SingleSubstFormat1<'_> {
         let mut sub_glyphs = Vec::with_capacity(cap);
         for (new_g, new_sub_g) in cov_glyphs
             .iter()
-            .map(|g| (g, GlyphId::from(g.to_u32().wrapping_add_signed(delta))))
+            .map(|g| {
+                (
+                    g,
+                    GlyphId::from((g.to_u32() as u16).wrapping_add_signed(delta)),
+                )
+            })
             .filter_map(|(g, sub_g)| {
                 let new_g = map_gsub_glyph(glyph_map, g)?;
                 let new_sub_g = map_gsub_glyph(glyph_map, sub_g)?;
@@ -141,12 +146,12 @@ impl<'a> Serialize<'a> for SingleSubst<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
 
-        let delta = sub_glyphs[0].to_u32() as i32 - glyphs[0].to_u32() as i32;
+        let delta = (sub_glyphs[0].to_u32() as u16).wrapping_sub(glyphs[0].to_u32() as u16);
         if glyphs
             .iter()
             .zip(sub_glyphs)
             .skip(1)
-            .all(|(g, sub_g)| sub_g.to_u32() as i32 - g.to_u32() as i32 == delta)
+            .all(|(g, sub_g)| (sub_g.to_u32() as u16).wrapping_sub(g.to_u32() as u16) == delta)
         {
             SingleSubstFormat1::serialize(s, (glyphs, delta as i16))
         } else {
@@ -323,5 +328,60 @@ mod test {
         ];
 
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    /// deltaGlyphID is applied modulo 65536: 504 + (-7504) maps to 58536.
+    #[test]
+    fn test_subset_single_subst_format1_wrapping_delta() {
+        use write_fonts::read::{FontData, FontRead};
+
+        #[rustfmt::skip]
+        let raw_table: [u8; 12] = [
+            // format=1, coverageOffset=6, deltaGlyphID=-7504
+            0x00, 0x01, 0x00, 0x06, 0xE2, 0xB0,
+            // coverage: format 1, glyph 504
+            0x00, 0x01, 0x00, 0x01, 0x01, 0xF8,
+        ];
+        let table = SingleSubstFormat1::read(FontData::new(&raw_table)).unwrap();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 58537],
+            ..Default::default()
+        };
+        plan.glyph_map_gsub[504] = GlyphId::from(1_u32);
+        plan.glyph_map_gsub[58536] = GlyphId::from(2_u32);
+        plan.glyphset_gsub.insert(GlyphId::from(504_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(58536_u32));
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(table.subset(&plan, &mut s, ()), Ok(()));
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let expected_data: [u8; 12] = [
+            0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+        ];
+        assert_eq!(s.copy_bytes(), expected_data);
+    }
+
+    /// Deltas that are equal modulo 65536 still serialize as format 1.
+    #[test]
+    fn test_serialize_single_subst_wrapping_delta() {
+        let glyphs = [GlyphId::from(1_u32), GlyphId::from(3_u32)];
+        let sub_glyphs = [GlyphId::from(0xFFFF_u32), GlyphId::from(1_u32)];
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(
+            SingleSubst::serialize(&mut s, (&glyphs, &sub_glyphs)),
+            Ok(())
+        );
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let expected_data: [u8; 14] = [
+            0x00, 0x01, 0x00, 0x06, 0xFF, 0xFE, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x03,
+        ];
+        assert_eq!(s.copy_bytes(), expected_data);
     }
 }
