@@ -68,7 +68,7 @@ impl<'a> Name<'a> {
         self.id
     }
 
-    /// Returns the best available English name, or the first name.
+    /// Returns `en-US` or `en` if present, falling back to the first entry.
     ///
     /// This prefers `en-US`, then `en`, then a name without a language tag,
     /// and finally the first name in table order. Records with unsupported
