@@ -199,13 +199,14 @@ fn seac_components_join_the_glyph_mapping() {
 
 #[test]
 fn full_cff2_instances_match_harfbuzz() {
-    for (filename, request) in [
-        ("AdobeVFPrototype.otf", "wght=650,CNTR=40"),
-        ("Cantarell-VF-ABC.otf", "wght=650"),
-        ("NotoSansJP-VF.subset.otf", "wght=500"),
+    for (filename, request, full_average) in [
+        ("AdobeVFPrototype.otf", "wght=650,CNTR=40", 529),
+        ("Cantarell-VF-ABC.otf", "wght=650", 611),
+        ("NotoSansJP-VF.subset.otf", "wght=500", 1000),
         (
             "SourceSerif4Variable-Roman-HelloWorld.otf",
             "wght=650,opsz=48",
+            530,
         ),
     ] {
         let data = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
@@ -237,6 +238,11 @@ fn full_cff2_instances_match_harfbuzz() {
         assert!(a.var_store().is_none());
         assert!(output.fvar().is_err());
         assert!(output.hvar().is_err());
+        assert_eq!(
+            instance.os2().unwrap().x_avg_char_width(),
+            full_average,
+            "{filename}"
+        );
         assert_eq!(a.num_glyphs(), b.num_glyphs());
         for gid in 0..a.num_glyphs() {
             let gid = GlyphId::new(gid);

@@ -355,6 +355,52 @@ fn static_line(v: &VarColorLine) -> ColorLine {
             .collect(),
     }
 }
+
+// Check borrowed paint offsets before recursive owned-table conversion.
+fn validate_paint(
+    paint: write_fonts::read::tables::colr::Paint,
+    depth: usize,
+    remaining: &mut usize,
+) -> Result<(), SubsetError> {
+    use write_fonts::read::tables::colr::Paint;
+    if depth > 64 || *remaining == 0 {
+        return Err(error());
+    }
+    *remaining -= 1;
+    macro_rules! children {($($variant:ident),*) => {
+        match paint {
+            $(Paint::$variant(v) => validate_paint(v.paint().map_err(|_| error())?, depth+1, remaining),)*
+            Paint::Composite(v) => {
+                validate_paint(v.source_paint().map_err(|_| error())?, depth+1, remaining)?;
+                validate_paint(v.backdrop_paint().map_err(|_| error())?, depth+1, remaining)
+            }
+            _ => Ok(()),
+        }
+    }}
+    children!(
+        Glyph,
+        Transform,
+        VarTransform,
+        Translate,
+        VarTranslate,
+        Scale,
+        VarScale,
+        ScaleAroundCenter,
+        VarScaleAroundCenter,
+        ScaleUniform,
+        VarScaleUniform,
+        ScaleUniformAroundCenter,
+        VarScaleUniformAroundCenter,
+        Rotate,
+        VarRotate,
+        RotateAroundCenter,
+        VarRotateAroundCenter,
+        Skew,
+        VarSkew,
+        SkewAroundCenter,
+        VarSkewAroundCenter
+    )
+}
 pub(super) fn instance(
     font: &FontRef,
     axes: &AxisPlan,
@@ -365,6 +411,21 @@ pub(super) fn instance(
     };
     if colr.version() == 0 {
         return Ok(());
+    }
+    let mut remaining = 200_000;
+    if let Some(list) = colr.base_glyph_list().transpose().map_err(|_| error())? {
+        for record in list.base_glyph_paint_records() {
+            validate_paint(
+                record.paint(list.offset_data()).map_err(|_| error())?,
+                0,
+                &mut remaining,
+            )?;
+        }
+    }
+    if let Some(list) = colr.layer_list().transpose().map_err(|_| error())? {
+        for paint in list.paints().iter() {
+            validate_paint(paint.map_err(|_| error())?, 0, &mut remaining)?;
+        }
     }
     let c = Context {
         axes,
@@ -428,6 +489,31 @@ pub(super) fn instance(
 mod tests {
     use super::*;
     use write_fonts::{tables::variations::*, FontBuilder};
+
+    #[test]
+    fn deep_paints_are_rejected_before_owned_conversion() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut colr = vec![0; 34];
+        colr[..2].copy_from_slice(&1u16.to_be_bytes());
+        colr[14..18].copy_from_slice(&34u32.to_be_bytes());
+        colr.extend(1u32.to_be_bytes());
+        colr.extend(0u16.to_be_bytes());
+        colr.extend(10u32.to_be_bytes());
+        colr.extend([14, 0, 0, 8, 0, 0, 0, 0].repeat(4096));
+        colr.extend([2, 0, 0, 0x40, 0]);
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+        }
+        builder.add_raw(Tag::new(b"COLR"), colr);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(matches!(
+            crate::instance_font(&font,&crate::parse_axis_limits("wght=900,CNTR=drop").unwrap()),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
+        ));
+    }
     #[test]
     fn color_values_compose_across_partial_and_full_instances() {
         let data = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();

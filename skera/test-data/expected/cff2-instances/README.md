@@ -9,6 +9,10 @@ These reference instances were generated with HarfBuzz 14.5.1 at commit
 
 Tests compare decoded outlines and metrics rather than serialization order.
 
+The full-instance `OS/2.xAvgCharWidth` expectations (529, 611, 1000, 530 in
+the order above) use the same command with `--gids='*'` instead of
+`--unicodes='*'`, because `instance_font` preserves every input glyph.
+
 Partial instances use the same command, with these axis requests:
 
 * partial-0, AdobeVFPrototype: `wght=650`

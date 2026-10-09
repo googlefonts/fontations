@@ -10,6 +10,7 @@ use crate::{
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable, INVALID_GID,
 };
 use write_fonts::{
+    from_obj::ToOwnedTable,
     read::{
         collections::IntSet,
         tables::{
@@ -1708,10 +1709,95 @@ impl SubsetTable<'_> for Condition<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        match self {
-            Self::Format1AxisRange(item) => item.subset(plan, s, ()),
-            // TODO: support other formats
-            _ => Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
+        walk_conditions(self, 0, &mut 200_000, &mut |_| {})
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let mut owned: write_fonts::tables::layout::Condition = self.to_owned_table();
+        remap_condition(&mut owned, plan)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let bytes = write_fonts::dump_table(&owned)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
+        s.embed_bytes(&bytes).map(|_| ())
+    }
+}
+
+/// Visit borrowed conditions before recursively materializing an owned tree.
+pub(crate) fn walk_conditions(
+    condition: &Condition,
+    depth: usize,
+    remaining: &mut usize,
+    visit: &mut impl FnMut(&Condition),
+) -> Result<(), ReadError> {
+    if depth > 32 || *remaining == 0 {
+        return Err(ReadError::MalformedData("condition tree exceeds limits"));
+    }
+    *remaining -= 1;
+    visit(condition);
+    match condition {
+        Condition::Format3And(v) => {
+            for child in v.conditions().iter() {
+                walk_conditions(&child?, depth + 1, remaining, visit)?;
+            }
+        }
+        Condition::Format4Or(v) => {
+            for child in v.conditions().iter() {
+                walk_conditions(&child?, depth + 1, remaining, visit)?;
+            }
+        }
+        Condition::Format5Negate(v) => {
+            walk_conditions(&v.condition()?, depth + 1, remaining, visit)?
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn remap_condition(
+    condition: &mut write_fonts::tables::layout::Condition,
+    plan: &Plan,
+) -> Result<(), ReadError> {
+    use write_fonts::tables::layout::Condition;
+    match condition {
+        Condition::Format2VariableValue(v) if v.var_index != NO_VARIATION_INDEX => {
+            v.var_index = plan
+                .layout_varidx_delta_map
+                .get(&v.var_index)
+                .ok_or(ReadError::MalformedData(
+                    "missing condition variation index",
+                ))?
+                .0;
+        }
+        Condition::Format3And(v) => {
+            for child in &mut v.conditions {
+                remap_condition(child, plan)?;
+            }
+        }
+        Condition::Format4Or(v) => {
+            for child in &mut v.conditions {
+                remap_condition(child, plan)?;
+            }
+        }
+        Condition::Format5Negate(v) => remap_condition(&mut v.condition, plan)?,
+        _ => {}
+    }
+    Ok(())
+}
+
+impl CollectVariationIndices for FeatureVariations<'_> {
+    fn collect_variation_indices(&self, _plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let mut remaining = 200_000;
+        for record in self.feature_variation_records() {
+            let Some(Ok(set)) = record.condition_set(self.offset_data()) else {
+                continue;
+            };
+            for condition in set.conditions().iter().flatten() {
+                let _ = walk_conditions(&condition, 0, &mut remaining, &mut |c| {
+                    if let Condition::Format2VariableValue(v) = c {
+                        if v.var_index() != NO_VARIATION_INDEX {
+                            varidx_set.insert(v.var_index());
+                        }
+                    }
+                });
+            }
         }
     }
 }
