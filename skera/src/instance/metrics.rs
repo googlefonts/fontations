@@ -1,9 +1,12 @@
 //! Update CFF2 metrics at the instance's new default, including empty glyphs.
-use super::{AxisPlan, StorePlan};
+use super::{scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
 use std::collections::BTreeMap;
 use write_fonts::{
-    read::{ps::cff::CffFontRef, FontRef, TableProvider},
+    read::{
+        tables::variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore},
+        FontRef, ReadError, TableProvider,
+    },
     types::{GlyphId, Tag},
 };
 
@@ -30,6 +33,57 @@ fn rounded(value: f64) -> i32 {
         .clamp(i32::MIN as f64, i32::MAX as f64) as i32
 }
 
+struct MetricStore<'a> {
+    store: ItemVariationStore<'a>,
+    scalars: VariationScalars,
+}
+impl<'a> MetricStore<'a> {
+    fn new(store: ItemVariationStore<'a>, coords: &[write_fonts::types::F2Dot14]) -> Option<Self> {
+        let scalars = VariationScalars::new(&store, coords)?;
+        Some(Self { store, scalars })
+    }
+    fn indexed(&self, index: DeltaSetIndex) -> Option<f64> {
+        self.scalars.delta(&self.store, index).map(f64::from)
+    }
+    fn mapped(
+        &self,
+        map: Option<Result<DeltaSetIndexMap, ReadError>>,
+        gid: GlyphId,
+        implicit: bool,
+    ) -> Option<f64> {
+        let index = if let Some(map) = map {
+            map.ok()?.get(gid.to_u32()).ok()?
+        } else if implicit {
+            DeltaSetIndex {
+                outer: 0,
+                inner: u16::try_from(gid.to_u32()).ok()?,
+            }
+        } else {
+            return Some(0.);
+        };
+        self.indexed(index)
+    }
+}
+
+fn mvar_store<'a>(
+    font: &FontRef<'a>,
+    coords: &[write_fonts::types::F2Dot14],
+) -> Option<MetricStore<'a>> {
+    MetricStore::new(font.mvar().ok()?.item_variation_store()?.ok()?, coords)
+}
+fn mvar_delta(font: &FontRef, store: &MetricStore, tag: Tag) -> Option<f64> {
+    let mvar = font.mvar().ok()?;
+    let records = mvar.value_records();
+    let index = records
+        .binary_search_by(|record| record.value_tag().cmp(&tag))
+        .ok()?;
+    let record = &records[index];
+    store.indexed(DeltaSetIndex {
+        outer: record.delta_set_outer_index(),
+        inner: record.delta_set_inner_index(),
+    })
+}
+
 // Match HarfBuzz's CFF vertical-origin fallback when VORG is absent: center
 // the glyph in the horizontal line's advance, including MVAR at this location.
 fn horizontal_span(font: &FontRef, axes: &AxisPlan) -> i64 {
@@ -49,11 +103,12 @@ fn horizontal_span(font: &FontRef, axes: &AxisPlan) -> i64 {
         let upem = font.head().map_or(1000., |h| h.units_per_em() as f64);
         return (upem * 0.8).round() as i64 + (upem * 0.2).round() as i64;
     };
+    let store = mvar_store(font, &axes.metric_coords);
     let delta = |tag| {
-        font.mvar()
-            .ok()
-            .and_then(|m| m.metric_delta(Tag::new(tag), &axes.coords))
-            .map_or(0., |d| d.to_f64())
+        store
+            .as_ref()
+            .and_then(|s| mvar_delta(font, s, Tag::new(tag)))
+            .unwrap_or(0.)
     };
     let ascender = rounded((ascender + delta(b"hasc")).abs()) as i64;
     let descender = rounded((descender + delta(b"hdsc")).abs()) as i64;
@@ -65,14 +120,7 @@ pub(super) fn instance(
     axes: &AxisPlan,
     tables: &mut Tables,
 ) -> Result<(), SubsetError> {
-    let tag = Tag::new(b"CFF2");
-    let data = font.data_for_tag(tag).ok_or_else(|| error(tag))?;
-    let cff = CffFontRef::new(
-        data.as_bytes(),
-        0,
-        font.head().ok().map(|h| h.units_per_em() as i32),
-    )
-    .map_err(|_| error(tag))?;
+    let source_bounds = crate::cff::instance_bounds(font, axes)?;
     let count = font
         .maxp()
         .map_err(|_| error(Tag::new(b"maxp")))?
@@ -81,34 +129,20 @@ pub(super) fn instance(
     let vmtx = font.vmtx().ok();
     let hvar = font.hvar().ok();
     let vvar = font.vvar().ok();
+    let hvar_store = hvar
+        .as_ref()
+        .and_then(|v| MetricStore::new(v.item_variation_store().ok()?, &axes.metric_coords));
+    let vvar_store = vvar
+        .as_ref()
+        .and_then(|v| MetricStore::new(v.item_variation_store().ok()?, &axes.metric_coords));
     let vorg = font.vorg().ok();
     let horizontal_span = horizontal_span(font, axes);
     let mut bounds = Vec::new();
     let mut union: Option<[i32; 4]> = None;
-    for gid in 0..count {
-        let gid = GlyphId::new(gid as u32);
-        let bound = if gid.to_u32() < cff.num_glyphs() {
-            let sf = cff
-                .subfont(
-                    cff.subfont_index(gid).ok_or_else(|| error(tag))?,
-                    &axes.coords,
-                )
-                .map_err(|_| error(tag))?;
-            let mut bounds = write_fonts::read::ps::cs::ControlBoundsSink::new();
-            let mut sink = write_fonts::read::ps::cs::NopFilterSink::new(&mut bounds);
-            cff.evaluate_charstring(&sf, gid, &axes.coords, &mut sink)
-                .map_err(|_| error(tag))?;
-            bounds.bounding_box().map(|b| {
-                [
-                    rounded(b.x_min.to_f64()),
-                    rounded(b.y_min.to_f64()),
-                    rounded(b.x_max.to_f64()),
-                    rounded(b.y_max.to_f64()),
-                ]
-            })
-        } else {
-            None
-        };
+    for bound in source_bounds {
+        // HarfBuzz treats an all-zero rounded extent as having no bounds;
+        // preserve the input bearing for these glyphs, as for empty programs.
+        let bound = bound.map(|b| b.map(rounded)).filter(|b| *b != [0; 4]);
         if let Some(b) = bound {
             union = Some(match union {
                 None => b,
@@ -146,13 +180,15 @@ pub(super) fn instance(
             }
             .unwrap_or(0) as i32;
             let delta = if vertical {
-                vvar.as_ref()
-                    .and_then(|v| v.advance_delta(gid, &axes.coords))
+                vvar_store
+                    .as_ref()
+                    .and_then(|s| s.mapped(vvar.as_ref()?.advance_height_mapping(), gid, true))
             } else {
-                hvar.as_ref()
-                    .and_then(|v| v.advance_delta(gid, &axes.coords))
+                hvar_store
+                    .as_ref()
+                    .and_then(|s| s.mapped(hvar.as_ref()?.advance_width_mapping(), gid, true))
             }
-            .map_or(0, |d| rounded(d.to_f64()));
+            .map_or(0, rounded);
             let advance = base.saturating_add(delta).clamp(0, 65535);
             let old_bearing = if vertical {
                 vmtx.as_ref().and_then(|m| m.side_bearing(gid))
@@ -163,9 +199,10 @@ pub(super) fn instance(
             let origin = if vertical {
                 let origin = if let Some(vorg) = &vorg {
                     (vorg.vertical_origin_y(gid) as i32).saturating_add(
-                        vvar.as_ref()
-                            .and_then(|v| v.v_origin_y_delta(gid, &axes.coords))
-                            .map_or(0, |d| rounded(d.to_f64())),
+                        vvar_store
+                            .as_ref()
+                            .and_then(|s| s.mapped(vvar.as_ref()?.v_org_mapping(), gid, false))
+                            .map_or(0, rounded),
                     )
                 } else {
                     bound.map_or(0, |b| {
@@ -321,10 +358,7 @@ pub(super) fn update_os2(axes: &AxisPlan, tables: &mut Tables) {
 }
 
 fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<(), SubsetError> {
-    let Ok(mvar) = font.mvar() else {
-        return Ok(());
-    };
-    let Some(instance) = mvar.at(&axes.coords) else {
+    let Some(store) = mvar_store(font, &axes.coords) else {
         return Ok(());
     };
     let sync = [(b"hasc", 4, 68), (b"hdsc", 6, 70), (b"hlgp", 8, 72)].map(|(tag, h, os)| {
@@ -365,10 +399,10 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
         (b"undo", b"post", 8, false),
         (b"unds", b"post", 10, false),
     ] {
-        let Some(delta) = instance.get(Tag::new(metric)) else {
+        let Some(delta) = mvar_delta(font, &store, Tag::new(metric)) else {
             continue;
         };
-        let delta = rounded(delta.to_f64());
+        let delta = rounded(delta);
         if let Some(data) = tables.get_mut(&Tag::new(table)) {
             if let Some(old) = signed(data, offset) {
                 let old = if unsigned {
@@ -388,14 +422,10 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
     }
     for (metric, offset, same) in sync {
         if same {
-            if let Some(delta) = instance.get(Tag::new(&metric)) {
+            if let Some(delta) = mvar_delta(font, &store, Tag::new(&metric)) {
                 if let Some(data) = tables.get_mut(&Tag::new(b"hhea")) {
                     let old = signed(data, offset).ok_or_else(|| error(Tag::new(b"hhea")))?;
-                    put(
-                        data,
-                        offset,
-                        (old as i32).saturating_add(rounded(delta.to_f64())),
-                    )?;
+                    put(data, offset, (old as i32).saturating_add(rounded(delta)))?;
                 }
             }
         }
@@ -404,11 +434,11 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
         for i in 0..10 {
             let tag = [b'g', b's', b'p', b'0' + i];
             let offset = 4 + i as usize * 4;
-            if let Some(delta) = instance.get(Tag::new(&tag)) {
+            if let Some(delta) = mvar_delta(font, &store, Tag::new(&tag)) {
                 if let Some(old) = signed(data, offset) {
                     data[offset..offset + 2].copy_from_slice(
                         &((old as u16 as i32)
-                            .saturating_add(rounded(delta.to_f64()))
+                            .saturating_add(rounded(delta))
                             .clamp(0, 65535) as u16)
                             .to_be_bytes(),
                     );
@@ -426,11 +456,64 @@ mod tests {
         tables::{
             hvar::Hvar,
             mvar::{Mvar, ValueRecord},
-            variations::*,
+            variations::{ItemVariationStore, *},
         },
         types::{F2Dot14, MajorMinor},
         FontBuilder,
     };
+
+    #[test]
+    fn fractional_metrics_match_harfbuzz_float_evaluation() {
+        // hb-subset FONT --gids=* --notdef-outline --variations=REQUEST
+        // These locations crossed a rounding boundary with 16.16 scalars.
+        for (file, request, gid, advance, bearing) in [
+            (
+                "32bit_var_store.otf",
+                "wght=330.096435546875,CNTR=9.759521484375",
+                1,
+                39790,
+                50,
+            ),
+            (
+                "AdobeVFPrototype.otf",
+                "wght=502.618408203125,CNTR=69.097900390625",
+                2,
+                304,
+                80,
+            ),
+            (
+                "AdobeVFPrototype.otf",
+                "wght=226.66015625,CNTR=30.206298828125",
+                62,
+                301,
+                50,
+            ),
+            (
+                "AdobeVFPrototype.otf",
+                "wght=255.755615234375,CNTR=35.07080078125",
+                12,
+                530,
+                38,
+            ),
+            ("Cantarell-VF-ABC.otf", "wght=726.043701171875", 1, 667, -2),
+        ] {
+            let bytes = std::fs::read(format!("test-data/fonts/{file}")).unwrap();
+            let font = FontRef::new(&bytes).unwrap();
+            let output =
+                crate::instance_font(&font, &crate::parse_axis_limits(request).unwrap()).unwrap();
+            let output = FontRef::new(&output).unwrap();
+            assert_eq!(
+                output.hmtx().unwrap().advance(GlyphId::new(gid)),
+                Some(advance),
+                "{file} {request}"
+            );
+            assert_eq!(
+                output.hmtx().unwrap().side_bearing(GlyphId::new(gid)),
+                Some(bearing),
+                "{file} {request}"
+            );
+        }
+    }
 
     #[test]
     fn cff_vertical_metrics_without_vorg_match_harfbuzz() {

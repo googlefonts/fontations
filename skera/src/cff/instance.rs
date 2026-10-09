@@ -23,30 +23,14 @@ use write_fonts::read::{
 // products with operands in double. A 16.16 intermediate can move half-unit
 // operands across the rounding boundary and shift the rest of a contour.
 fn region_gain(region: &VariationRegion, coords: &[F2Dot14]) -> f64 {
-    let mut gain = 1f32;
-    for (i, axis) in region.region_axes().iter().enumerate() {
-        let (start, peak, end) = (
-            axis.start_coord().to_bits() as i32,
-            axis.peak_coord().to_bits() as i32,
-            axis.end_coord().to_bits() as i32,
-        );
-        let coord = coords.get(i).copied().unwrap_or_default().to_bits() as i32;
-        if peak == 0 || coord == peak || start > peak || peak > end || start < 0 && end > 0 {
-            continue;
-        }
-        if coord <= start || coord >= end {
-            return 0.;
-        }
-        gain *= if coord < peak {
-            (coord - start) as f32 / (peak - start) as f32
-        } else {
-            (end - coord) as f32 / (end - peak) as f32
-        };
-    }
-    gain as f64
+    crate::instance::scalars::region_scalar(region, coords) as f64
 }
 
-fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<f64>> {
+pub(super) fn gains(
+    store: &ItemVariationStore,
+    ivs: usize,
+    coords: &[F2Dot14],
+) -> Result<Vec<f64>> {
     let data = store.item_variation_data().get(ivs);
     let Some(data) = data else {
         return Ok(vec![]);
@@ -61,7 +45,7 @@ fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<
         .map(|idx| {
             Ok(region_gain(
                 &regions.get(idx.get() as usize).map_err(|_| Error)?,
-                &axes.coords,
+                coords,
             ))
         })
         .collect()
@@ -172,7 +156,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
     let mut transforms = Vec::new();
     if let Some(store) = source.font.var_store() {
         for i in 0..store.item_variation_data_count() as usize {
-            transforms.push(gains(store, i, axes)?);
+            transforms.push(gains(store, i, &axes.coords)?);
         }
     }
     let mut chars = Vec::new();
@@ -497,7 +481,7 @@ mod tests {
         let store = source.font.var_store().unwrap();
         let mut plan = StorePlan::new(store, &axes).unwrap();
         let constants = plan.add_constant_region(&[0].into()).unwrap();
-        let gains = vec![gains(store, 0, &axes).unwrap()];
+        let gains = vec![gains(store, 0, &axes.coords).unwrap()];
         let result = Rebaser::new(&plan, &gains, &constants)
             .value(&values[0], &mut Rounding::private_dict())
             .unwrap();
