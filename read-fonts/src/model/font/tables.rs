@@ -338,6 +338,10 @@ impl<'a> TableProvider<'a> for &'a Tables {
         self.load_table(self.gvar_state())
     }
 
+    fn gvar_extended(&self) -> Result<tables::gvar::GvarExtended<'a>, ReadError> {
+        self.load_table(self.gvar_extended_state())
+    }
+
     /// Returns the array of entries for the control value table which is used
     /// for TrueType hinting.
     fn cvt(&self) -> Result<&'a [types::BigEndian<i16>], ReadError> {

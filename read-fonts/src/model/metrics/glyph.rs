@@ -1067,6 +1067,42 @@ mod tests {
         }
     }
 
+    #[test]
+    fn extended_gvar_metrics_and_extents_in_the_cached_font_model() {
+        for long_offsets in [false, true] {
+            for legacy in [false, true] {
+                let data =
+                    font_test_data::extended::variable_outlines_font(true, legacy, long_offsets);
+                let font = Font::new(data, 0).unwrap();
+                assert_eq!(font.tables().gvar_table().unwrap().glyph_count(), 65537);
+                for coord in [0.0, 0.5, 1.0] {
+                    let instance = at(&font, coord);
+                    let metrics = instance.glyph_metrics();
+                    for (gid, delta, shift) in [(65536, 100.0, 40.0), (1, 60.0, 60.0)] {
+                        let id = GlyphId::new(gid);
+                        assert_eq!(
+                            metrics.h_advance_exact(id),
+                            F48Dot16::from_f64(1000.0 + delta * coord as f64)
+                        );
+                        let v_delta = if gid == 65536 { 60.0 } else { 0.0 };
+                        assert_eq!(
+                            metrics.v_advance_exact(id),
+                            F48Dot16::from_f64(1200.0 + v_delta * coord as f64)
+                        );
+                        let extents = metrics.extents_exact(id).unwrap();
+                        assert_eq!(
+                            extents.x_bearing,
+                            F48Dot16::from_f64(shift * coord as f64),
+                            "gid {gid}, coord {coord}"
+                        );
+                        assert_eq!(extents.width, F48Dot16::from_i32(80));
+                        assert_eq!(extents.height, F48Dot16::from_i32(80));
+                    }
+                }
+            }
+        }
+    }
+
     /// Has both `HVAR` and `gvar`, so it can answer either way.
     const VAR: &[u8] = font_test_data::VAZIRMATN_VAR;
     /// Eleven glyphs but one long metric, so ten of them are in the tail.

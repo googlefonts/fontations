@@ -1553,6 +1553,123 @@ mod tests {
         }
     }
 
+    #[test]
+    fn extended_gvar_draws_high_glyphs_and_varies_metrics() {
+        use font_test_data::extended::variable_outlines_font;
+        for long_offsets in [false, true] {
+            for (extended, legacy) in [(true, false), (true, true), (false, true), (false, false)] {
+                let bytes = variable_outlines_font(extended, legacy, long_offsets);
+                let font = FontRef::new(&bytes).unwrap();
+                let glyphs = font.outline_glyphs();
+                for coord in [0.0, 0.5, 1.0] {
+                    let coords = [NormalizedCoord::from_f32(coord)];
+                    let location = LocationRef::new(&coords);
+                    let metrics = font.glyph_metrics(Size::unscaled(), location);
+                    for gid in [65536, 1] {
+                        let shift = if gid == 1 {
+                            (if extended { 40.0 } else { 0.0 })
+                                + if extended || legacy { 20.0 } else { 0.0 }
+                        } else if extended {
+                            40.0
+                        } else {
+                            0.0
+                        } * coord;
+                        let advance_delta = if gid == 1 && (extended || legacy) {
+                            60.0
+                        } else if gid == 65536 && extended {
+                            100.0
+                        } else {
+                            0.0
+                        } * coord;
+                        let right = shift + 80.0;
+                        let expected = format!(
+                            "M{shift:.1},40.0 C{shift:.1},0.0 {right:.1},0.0 {right:.1},40.0 C{right:.1},80.0 {shift:.1},80.0 {shift:.1},40.0 Z"
+                        );
+                        let id = GlyphId::new(gid);
+                        assert_eq!(metrics.advance_width(id), Some(1000.0 + advance_delta));
+                        for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                            let mut pen = SvgPen::with_precision(1);
+                            let adjusted = glyphs
+                                .get(id)
+                                .unwrap()
+                                .draw(
+                                    DrawSettings::unhinted(Size::unscaled(), location)
+                                        .with_path_style(style),
+                                    &mut pen,
+                                )
+                                .unwrap();
+                            assert_eq!(
+                                pen.as_ref(),
+                                expected,
+                                "gid {gid}, coord {coord}, {style:?}"
+                            );
+                            assert_eq!(adjusted.advance_width, Some(1000.0 + advance_delta));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn extended_gvar_instances_keep_metrics_and_outlines_in_sync() {
+        use font_test_data::extended::variable_outlines_font;
+        use read_fonts::model::Font;
+
+        for long_offsets in [false, true] {
+            let bytes = variable_outlines_font(true, true, long_offsets);
+            let font = FontRef::new(&bytes).unwrap();
+            let cached = Font::new(bytes.clone(), 0).unwrap();
+            let coords = [0.0, 1.0, 0.5, -0.5];
+            let instances: Vec<_> = coords
+                .iter()
+                .map(|&coord| {
+                    cached
+                        .instance_builder()
+                        .normalized_coords([NormalizedCoord::from_f32(coord)])
+                        .build()
+                })
+                .collect();
+            let outlines = font.outline_glyphs();
+            for gid in [1, 65536] {
+                let id = GlyphId::new(gid);
+                let glyph = outlines.get(id).unwrap();
+                // Revisit retained instances after other locations have populated caches.
+                for index in [1, 0, 2, 3, 1, 2, 0] {
+                    let location_coords = [NormalizedCoord::from_f32(coords[index])];
+                    let location = LocationRef::new(&location_coords);
+                    let metrics = instances[index].glyph_metrics();
+                    let scalar = coords[index].max(0.0);
+                    let shift = if gid == 1 { 60.0 } else { 40.0 } * scalar;
+                    let advance = 1000.0 + if gid == 1 { 60.0 } else { 100.0 } * scalar;
+                    assert_eq!(metrics.h_advance(id), advance);
+                    assert_eq!(metrics.extents(id).unwrap().x_bearing, shift);
+                    assert_eq!(
+                        font.glyph_metrics(Size::unscaled(), location)
+                            .advance_width(id),
+                        Some(advance)
+                    );
+                    for style in [PathStyle::FreeType, PathStyle::HarfBuzz] {
+                        let mut pen = SvgPen::with_precision(1);
+                        let adjusted = glyph
+                            .draw(
+                                DrawSettings::unhinted(Size::new(125.0), location)
+                                    .with_path_style(style),
+                                &mut pen,
+                            )
+                            .unwrap();
+                        let left = shift / 8.0;
+                        let right = left + 10.0;
+                        assert_eq!(pen.as_ref(), format!(
+                            "M{left:.1},5.0 C{left:.1},0.0 {right:.1},0.0 {right:.1},5.0 C{right:.1},10.0 {left:.1},10.0 {left:.1},5.0 Z"
+                        ), "gid {gid}, coord {}, {style:?}", coords[index]);
+                        assert_eq!(adjusted.advance_width, Some(advance / 8.0));
+                    }
+                }
+            }
+        }
+    }
+
     /// Case where a font subset caused hinting to fail because execution
     /// budget was derived from glyph count.
     /// <https://github.com/googlefonts/fontations/issues/936>

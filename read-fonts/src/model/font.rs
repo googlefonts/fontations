@@ -25,7 +25,7 @@ use crate::tables::{
     avar::Avar,
     fvar::Fvar,
     glyf::{outline::OutlineContext, Glyf, PHANTOM_POINT_COUNT},
-    gvar::{GlyphVariationData, Gvar},
+    gvar::{GlyphVariationData, GvarTable as SelectedGvar},
     hvar::Hvar,
     layout::SelectedFeatureVariations,
     loca::Loca,
@@ -263,7 +263,7 @@ impl Font {
 
     /// Returns `gvar`.
     #[inline]
-    pub(crate) fn gvar(&self) -> Option<&Gvar<'_>> {
+    pub(crate) fn gvar(&self) -> Option<&SelectedGvar<'_>> {
         self.shared().gvar()
     }
 
@@ -1030,7 +1030,7 @@ impl SharedFont {
     /// Typically about half a variable font, so nothing should ask for this
     /// that another table can answer.
     #[inline]
-    fn gvar(&self) -> Option<&Gvar<'_>> {
+    fn gvar(&self) -> Option<&SelectedGvar<'_>> {
         let tables = self.tables_arc()?;
         self.0
             .gvar

@@ -596,7 +596,7 @@ mod tests {
         let context = OutlineTables {
             glyf,
             loca,
-            gvar: Some(gvar),
+            gvar: Some(crate::tables::gvar::GvarTable::Standard(gvar)),
             hmtx: None,
             os2: None,
             hvar: None,
