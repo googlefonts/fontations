@@ -332,6 +332,7 @@ pub(crate) struct HarfBuzzScaler<'a> {
     outlines: &'a Outlines<'a>,
     memory: HarfBuzzOutlineMemory<'a>,
     coords: &'a [F2Dot14],
+    gvar_scalars: &'a [Fixed],
     point_count: usize,
     contour_count: usize,
     component_delta_count: usize,
@@ -366,6 +367,7 @@ impl<'a> HarfBuzzScaler<'a> {
             outlines,
             memory,
             coords,
+            gvar_scalars: &[],
             point_count: 0,
             contour_count: 0,
             component_delta_count: 0,
@@ -373,6 +375,11 @@ impl<'a> HarfBuzzScaler<'a> {
             scale,
             phantom: Default::default(),
         })
+    }
+
+    pub(crate) fn with_gvar_scalars(mut self, scalars: &'a [Fixed]) -> Self {
+        self.gvar_scalars = scalars;
+        self
     }
 
     pub(crate) fn scale(
@@ -442,6 +449,7 @@ pub(crate) struct FreeTypeScaler<'a> {
     outlines: &'a Outlines<'a>,
     memory: FreeTypeOutlineMemory<'a>,
     coords: &'a [F2Dot14],
+    gvar_scalars: &'a [Fixed],
     point_count: usize,
     contour_count: usize,
     component_delta_count: usize,
@@ -474,6 +482,7 @@ impl<'a> FreeTypeScaler<'a> {
             outlines,
             memory,
             coords,
+            gvar_scalars: &[],
             point_count: 0,
             contour_count: 0,
             component_delta_count: 0,
@@ -484,6 +493,11 @@ impl<'a> FreeTypeScaler<'a> {
             phantom: Default::default(),
             hinter: None,
         })
+    }
+
+    pub(crate) fn with_gvar_scalars(mut self, scalars: &'a [Fixed]) -> Self {
+        self.gvar_scalars = scalars;
+        self
     }
 
     pub(crate) fn hinted(
@@ -503,6 +517,7 @@ impl<'a> FreeTypeScaler<'a> {
             outlines,
             memory,
             coords,
+            gvar_scalars: &[],
             point_count: 0,
             contour_count: 0,
             component_delta_count: 0,
@@ -579,12 +594,19 @@ impl Scaler for FreeTypeScaler<'_> {
         let scale = self.scale;
         let mut unscaled = self.phantom.map(|point| point.map(|x| x.to_bits()));
         if self.outlines.gvar.is_some() && !self.coords.is_empty() {
-            if let Some(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
-                &self.outlines.glyf,
-                &self.outlines.loca,
-                self.coords,
-                glyph_id,
-            ) {
+            if let Some(deltas) = self
+                .outlines
+                .gvar
+                .as_ref()
+                .unwrap()
+                .phantom_point_deltas_with_scalars(
+                    &self.outlines.glyf,
+                    &self.outlines.loca,
+                    self.coords,
+                    self.gvar_scalars,
+                    glyph_id,
+                )
+            {
                 unscaled[0] += deltas[0].map(Fixed::to_i32);
                 unscaled[1] += deltas[1].map(Fixed::to_i32);
             }
@@ -686,9 +708,10 @@ impl Scaler for FreeTypeScaler<'_> {
             // one, so keying off the return value would change the output for
             // unvaried glyphs in a variable font.
             if gvar
-                .simple_deltas(
+                .simple_deltas_with_scalars(
                     glyph_id,
                     self.coords,
+                    self.gvar_scalars,
                     &unscaled[..],
                     &mut flags[..],
                     contours,
@@ -837,7 +860,12 @@ impl Scaler for FreeTypeScaler<'_> {
                 .get_mut(delta_base..delta_base + count)
                 .ok_or(InsufficientMemory)?;
             if gvar
-                .composite_deltas(glyph_id, self.coords, &mut deltas[..])
+                .composite_deltas_with_scalars(
+                    glyph_id,
+                    self.coords,
+                    self.gvar_scalars,
+                    &mut deltas[..],
+                )
                 .is_some()
             {
                 // Apply deltas to phantom points.
@@ -1122,12 +1150,19 @@ impl Scaler for HarfBuzzScaler<'_> {
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
-            if let Some(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
-                &self.outlines.glyf,
-                &self.outlines.loca,
-                self.coords,
-                glyph_id,
-            ) {
+            if let Some(deltas) = self
+                .outlines
+                .gvar
+                .as_ref()
+                .unwrap()
+                .phantom_point_deltas_with_scalars(
+                    &self.outlines.glyf,
+                    &self.outlines.loca,
+                    self.coords,
+                    self.gvar_scalars,
+                    glyph_id,
+                )
+            {
                 unscaled[0] += deltas[0].map(Fixed::to_f32);
                 unscaled[1] += deltas[1].map(Fixed::to_f32);
             }
@@ -1198,9 +1233,10 @@ impl Scaler for HarfBuzzScaler<'_> {
                     .ok_or(InsufficientMemory)?,
             };
             if gvar
-                .simple_deltas(
+                .simple_deltas_with_scalars(
                     glyph_id,
                     self.coords,
+                    self.gvar_scalars,
                     &points[..],
                     &mut flags[..],
                     contours,
@@ -1256,7 +1292,12 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .get_mut(delta_base..delta_base + count)
                 .ok_or(InsufficientMemory)?;
             if gvar
-                .composite_deltas(glyph_id, self.coords, &mut deltas[..])
+                .composite_deltas_with_scalars(
+                    glyph_id,
+                    self.coords,
+                    self.gvar_scalars,
+                    &mut deltas[..],
+                )
                 .is_some()
             {
                 // Apply deltas to phantom points.
