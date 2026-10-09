@@ -73,6 +73,7 @@ pub fn parse_axis_limits(input: &str) -> Result<Vec<AxisLimits>, SubsetError> {
 #[derive(Clone)]
 pub(crate) struct AxisPlan {
     pub coords: Vec<F2Dot14>,
+    pub metric_coords: Vec<F2Dot14>,
     pub pinned: Vec<bool>,
     pub values: Vec<(Tag, f32)>,
     pub normalized: Vec<Triple>,
@@ -178,7 +179,7 @@ impl AxisPlan {
             let i = axis.index();
             let u = user[i];
             let map = |v: f64| {
-                let n = F2Dot14::from_f64(
+                let n = normalized_coord(
                     axis_to_normalized(
                         v,
                         axis.min_value() as f64,
@@ -190,7 +191,7 @@ impl AxisPlan {
                 maps.as_ref()
                     .and_then(|m| m.get(i))
                     .map_or(n.to_f64(), |m| {
-                        F2Dot14::from_f64(map_float(m, n.to_f64(), false)).to_f64()
+                        normalized_coord(map_float(m, n.to_f64(), false)).to_f64()
                     })
             };
             coords[i] = F2Dot14::from_f64(map(u.1));
@@ -208,6 +209,8 @@ impl AxisPlan {
                     .transpose()
                     .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
                 let input = coords.clone();
+                let scalars = super::scalars::VariationScalars::new(&store, &input)
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"avar")))?;
                 for (i, coord) in coords.iter_mut().enumerate() {
                     let index = if let Some(map) = &index_map {
                         map.get(i as u32)
@@ -218,9 +221,9 @@ impl AxisPlan {
                             inner: i as u16,
                         }
                     };
-                    let delta = store
-                        .compute_delta(index, &input)
-                        .map_or(0, |d| d.to_f64().round() as i32);
+                    let delta = scalars
+                        .delta(&store, index)
+                        .map_or(0, |d| (d.clamp(-32768., 32768.) + 0.5).floor() as i32);
                     *coord = F2Dot14::from_bits(
                         (coord.to_bits() as i32 + delta.clamp(-32768, 32768)).clamp(-16384, 16384)
                             as i16,
@@ -229,11 +232,65 @@ impl AxisPlan {
             }
         }
         let user_pinned = pinned.clone();
+        // HarfBuzz uses its font's 16.16 normalization path for CFF bounds and
+        // advances, while outline/store instancing uses the 2.14 plan above.
+        let mut metric_coords: Vec<i32> = axes
+            .iter()
+            .map(|axis| {
+                let n = axis_to_normalized(
+                    user[axis.index()].1,
+                    axis.min_value() as f64,
+                    axis.default_value() as f64,
+                    axis.max_value() as f64,
+                ) as f32;
+                (n * 65536. + 0.5).floor() as i32
+            })
+            .collect();
+        if let Some(maps) = &maps {
+            for (coord, map) in metric_coords.iter_mut().zip(maps) {
+                let mapped = map_float(map, *coord as f64 / 65536., false) as f32;
+                *coord = (mapped * 65536. + 0.5).floor() as i32;
+            }
+        }
+        if let Some(avar) = &avar {
+            if let Some(store) = avar.var_store() {
+                let store = store.map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                let intermediate: Vec<_> = metric_coords
+                    .iter()
+                    .map(|c| F2Dot14::from_bits(((c + 2) >> 2) as i16))
+                    .collect();
+                let scalars = super::scalars::VariationScalars::new(&store, &intermediate)
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                let map = avar
+                    .axis_index_map()
+                    .transpose()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                for (i, coord) in metric_coords.iter_mut().enumerate() {
+                    let index = if let Some(map) = &map {
+                        map.get(i as u32)
+                            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?
+                    } else {
+                        write_fonts::read::tables::variations::DeltaSetIndex {
+                            outer: 0,
+                            inner: i as u16,
+                        }
+                    };
+                    let delta =
+                        (scalars.delta(&store, index).unwrap_or(0.) * 4.).clamp(-131072., 131072.);
+                    *coord = (*coord + (delta + 0.5).floor() as i32).clamp(-65536, 65536);
+                }
+            }
+        }
+        let metric_coords = metric_coords
+            .into_iter()
+            .map(|c| F2Dot14::from_bits(((c + 2) >> 2) as i16))
+            .collect();
         if coupled {
             pinned.fill(false);
         }
         Ok(Self {
             coords,
+            metric_coords,
             pinned,
             values: settings,
             normalized,
@@ -391,7 +448,10 @@ impl AxisPlan {
     }
 }
 pub(super) fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
-    if v == def {
+    // HarfBuzz normalizes the user value in float before rounding to 2.14.
+    // Double intermediates can land on the other side of a half-unit tie.
+    let (v, min, def, max) = (v as f32, min as f32, def as f32, max as f32);
+    let normalized = if v == def {
         0.
     } else if v < def {
         if min == def {
@@ -403,7 +463,12 @@ pub(super) fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
         1.
     } else {
         (v - def) / (max - def)
-    }
+    };
+    normalized as f64
+}
+
+pub(super) fn normalized_coord(value: f64) -> F2Dot14 {
+    F2Dot14::from_bits(((value * 16384. + 0.5).floor().clamp(-32768., 32767.)) as i16)
 }
 
 // HarfBuzz reconstructs the pre-avar interval from the quantized mapped
