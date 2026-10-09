@@ -14,6 +14,61 @@ use write_fonts::{
 fn error() -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(b"CFF2"))
 }
+
+/// Repeated region indexes let rebased sums exceed a single LONG_WORD delta.
+pub(super) fn encode_rows(
+    indices: &[u16],
+    rows: &[Vec<f64>],
+) -> Result<owned::ItemVariationData, SubsetError> {
+    let mut copies = vec![1usize; indices.len()];
+    for row in rows {
+        if row.len() != indices.len() {
+            return Err(error());
+        }
+        for (copies, &value) in copies.iter_mut().zip(row) {
+            let value = value.round();
+            if !value.is_finite() || value.abs() > (1u64 << 48) as f64 {
+                return Err(error());
+            }
+            let limit = if value < 0. {
+                -(i32::MIN as f64)
+            } else {
+                i32::MAX as f64
+            };
+            *copies = (*copies).max((value.abs() / limit).ceil() as usize);
+        }
+    }
+    let count = copies.iter().try_fold(0usize, |count, &n| {
+        let count = count.checked_add(n).ok_or_else(error)?;
+        if count > 0x7fff {
+            Err(error())
+        } else {
+            Ok(count)
+        }
+    })?;
+    let mut delta_sets = Vec::new();
+    for row in rows {
+        for (&value, &copies) in row.iter().zip(&copies) {
+            let mut value = value.round() as i64;
+            for _ in 0..copies {
+                let part = value.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+                delta_sets.extend(part.to_be_bytes());
+                value -= part as i64;
+            }
+        }
+    }
+    Ok(owned::ItemVariationData {
+        item_count: u16::try_from(rows.len()).map_err(|_| error())?,
+        word_delta_count: 0x8000 | count as u16,
+        region_indexes: indices
+            .iter()
+            .zip(copies)
+            .flat_map(|(&i, n)| std::iter::repeat_n(i, n))
+            .collect(),
+        delta_sets,
+    })
+}
+
 type Region = Vec<(i16, i16, i16)>;
 pub(crate) struct Transform {
     pub gains: Vec<f64>,
@@ -157,28 +212,12 @@ impl StorePlan {
             };
             let old = old.map_err(|_| error())?;
             let t = &self.transforms[i];
-            if t.indices.len() > 0x7fff {
-                return Err(error());
-            }
             let mut rows = Vec::new();
             for inner in 0..old.item_count() {
                 let deltas: Vec<_> = old.delta_set(inner).map(|d| d as f64).collect();
-                for v in t.residual(&deltas)? {
-                    rows.extend(
-                        (v.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32).to_be_bytes(),
-                    );
-                }
+                rows.push(t.residual(&deltas)?);
             }
-            data.push(
-                owned::ItemVariationData {
-                    item_count: old.item_count(),
-                    word_delta_count: 0x8000
-                        | u16::try_from(t.indices.len()).map_err(|_| error())?,
-                    region_indexes: t.indices.clone(),
-                    delta_sets: rows,
-                }
-                .into(),
-            );
+            data.push(encode_rows(&t.indices, &rows)?.into());
         }
         Ok(owned::ItemVariationStore {
             variation_region_list: owned::VariationRegionList {
@@ -203,5 +242,54 @@ impl StorePlan {
             .into(),
             item_variation_data: data,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use write_fonts::read::{FontData, FontRead, FontRef};
+
+    #[test]
+    fn merged_long_word_columns_preserve_large_delta_sums() {
+        use write_fonts::tables::variations::*;
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("CNTR=drop").unwrap()).unwrap();
+        let pos = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE);
+        let zero = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
+        let region = VariationRegion::new(vec![pos, zero]);
+        let bytes = write_fonts::dump_table(&write_fonts::tables::variations::ItemVariationStore {
+            variation_region_list: VariationRegionList::new(2, vec![region.clone(), region]).into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: 2,
+                word_delta_count: 0x8002,
+                region_indexes: vec![0, 1],
+                delta_sets: [i32::MAX, i32::MAX, i32::MIN, i32::MIN]
+                    .into_iter()
+                    .flat_map(i32::to_be_bytes)
+                    .collect(),
+            }
+            .into()],
+        })
+        .unwrap();
+        let original =
+            write_fonts::read::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+                .unwrap();
+        let plan = StorePlan::new(&original, &axes).unwrap();
+        let output = write_fonts::dump_table(&plan.rebuild(&original).unwrap()).unwrap();
+        let output =
+            write_fonts::read::tables::variations::ItemVariationStore::read(FontData::new(&output))
+                .unwrap();
+        for inner in 0..2 {
+            for coord in [F2Dot14::ZERO, F2Dot14::from_f64(0.5), F2Dot14::ONE] {
+                let index =
+                    write_fonts::read::tables::variations::DeltaSetIndex { outer: 0, inner };
+                assert_eq!(
+                    original.compute_delta(index, &[coord, F2Dot14::ZERO]),
+                    output.compute_delta(index, &[coord])
+                );
+            }
+        }
     }
 }

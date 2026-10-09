@@ -126,13 +126,17 @@ pub(super) fn instance(
             }
             .unwrap_or(0) as i32;
             let origin = if vertical {
-                let origin = vorg.as_ref().map_or_else(
-                    || font.hhea().ok().map_or(0, |h| h.ascender().to_i16() as i32),
-                    |v| v.vertical_origin_y(gid) as i32,
-                ) + vvar
+                let origin = vorg
                     .as_ref()
-                    .and_then(|v| v.v_origin_y_delta(gid, &axes.coords))
-                    .map_or(0, |d| rounded(d.to_f64()));
+                    .map_or_else(
+                        || font.hhea().ok().map_or(0, |h| h.ascender().to_i16() as i32),
+                        |v| v.vertical_origin_y(gid) as i32,
+                    )
+                    .saturating_add(
+                        vvar.as_ref()
+                            .and_then(|v| v.v_origin_y_delta(gid, &axes.coords))
+                            .map_or(0, |d| rounded(d.to_f64())),
+                    );
                 origins.push((gid, origin));
                 origin
             } else {
@@ -140,7 +144,7 @@ pub(super) fn instance(
             };
             let leading = if let Some(b) = bound {
                 if vertical {
-                    origin - b[3]
+                    origin.saturating_sub(b[3])
                 } else {
                     b[0]
                 }
@@ -152,8 +156,22 @@ pub(super) fn instance(
             out.extend((leading.clamp(-32768, 32767) as i16).to_be_bytes());
             max_advance = max_advance.max(advance);
             min_leading = min_leading.min(leading);
-            min_trailing = min_trailing.min(advance - leading - extent);
-            max_extent = max_extent.max(leading + extent);
+            min_trailing = min_trailing.min(advance.saturating_sub(leading).saturating_sub(extent));
+            max_extent = max_extent.max(leading.saturating_add(extent));
+        }
+        if !vertical {
+            if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
+                let (sum, count) = out.chunks_exact(4).fold((0u64, 0u64), |(sum, count), m| {
+                    let advance = u16::from_be_bytes([m[0], m[1]]) as u64;
+                    (sum + advance, count + u64::from(advance != 0))
+                });
+                let average = if count == 0 {
+                    0
+                } else {
+                    (sum + count / 2) / count
+                };
+                put(os2, 2, average as i32)?;
+            }
         }
         tables.insert(Tag::new(if vertical { b"vmtx" } else { b"hmtx" }), out);
         if let Some(header) = tables.get_mut(&Tag::new(if vertical { b"vhea" } else { b"hhea" })) {
@@ -330,7 +348,11 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
             if let Some(delta) = instance.get(Tag::new(&metric)) {
                 if let Some(data) = tables.get_mut(&Tag::new(b"hhea")) {
                     let old = signed(data, offset).ok_or_else(|| error(Tag::new(b"hhea")))?;
-                    put(data, offset, old as i32 + rounded(delta.to_f64()))?;
+                    put(
+                        data,
+                        offset,
+                        (old as i32).saturating_add(rounded(delta.to_f64())),
+                    )?;
                 }
             }
         }
@@ -342,7 +364,9 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
             if let Some(delta) = instance.get(Tag::new(&tag)) {
                 if let Some(old) = signed(data, offset) {
                     data[offset..offset + 2].copy_from_slice(
-                        &((old as u16 as i32 + rounded(delta.to_f64())).clamp(0, 65535) as u16)
+                        &((old as u16 as i32)
+                            .saturating_add(rounded(delta.to_f64()))
+                            .clamp(0, 65535) as u16)
                             .to_be_bytes(),
                     );
                 }
@@ -350,4 +374,81 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use write_fonts::{
+        tables::{
+            hvar::Hvar,
+            mvar::{Mvar, ValueRecord},
+            variations::*,
+        },
+        types::{F2Dot14, MajorMinor},
+        FontBuilder,
+    };
+
+    #[test]
+    fn large_metric_deltas_saturate_without_overflow() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let count = font.maxp().unwrap().num_glyphs();
+        let store = |delta: i32| ItemVariationStore {
+            variation_region_list: VariationRegionList::new(
+                2,
+                vec![VariationRegion::new(vec![
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE),
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO),
+                ])],
+            )
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: count,
+                word_delta_count: 0x8001,
+                region_indexes: vec![0],
+                delta_sets: std::iter::repeat_n(delta, count as usize)
+                    .flat_map(i32::to_be_bytes)
+                    .collect(),
+            }
+            .into()],
+        };
+        for (delta, advance, average, ascent) in [
+            (i32::MAX, u16::MAX, i16::MAX, i16::MAX),
+            (i32::MIN, 0, 0, i16::MIN),
+        ] {
+            let mut builder = FontBuilder::new();
+            for r in font.table_directory().table_records() {
+                builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+            }
+            builder
+                .add_table(&Hvar::new(store(delta), None, None, None))
+                .unwrap();
+            builder
+                .add_table(&Mvar {
+                    version: MajorMinor::VERSION_1_0,
+                    value_record_size: 8,
+                    value_record_count: 1,
+                    item_variation_store: store(delta).into(),
+                    value_records: vec![ValueRecord::new(Tag::new(b"hasc"), 0, 0)],
+                })
+                .unwrap();
+            let bytes = builder.build();
+            let font = FontRef::new(&bytes).unwrap();
+            let bytes = crate::instance_font(
+                &font,
+                &crate::parse_axis_limits("wght=900,CNTR=drop").unwrap(),
+            )
+            .unwrap();
+            let full = FontRef::new(&bytes).unwrap();
+            for gid in 0..count {
+                assert_eq!(
+                    full.hmtx().unwrap().advance(GlyphId::new(gid as u32)),
+                    Some(advance)
+                );
+            }
+            assert_eq!(full.os2().unwrap().x_avg_char_width(), average);
+            assert_eq!(full.os2().unwrap().s_typo_ascender(), ascent);
+        }
+    }
 }

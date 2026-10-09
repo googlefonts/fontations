@@ -85,6 +85,12 @@ pub(crate) struct AxisPlan {
 impl AxisPlan {
     pub fn new(font: &FontRef, limits: &[AxisLimits]) -> Result<Self, SubsetError> {
         let axes = font.axes();
+        if axes
+            .iter()
+            .any(|a| a.min_value() > a.default_value() || a.default_value() > a.max_value())
+        {
+            return Err(SubsetError::SubsetTableError(Tag::new(b"fvar")));
+        }
         let mut pinned = vec![false; axes.len()];
         let mut settings = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
@@ -464,6 +470,26 @@ pub(super) fn map_float(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_source_axis_bounds_return_an_error() {
+        use write_fonts::{from_obj::ToOwnedTable, tables::fvar::Fvar, FontBuilder};
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut fvar: Fvar = font.fvar().unwrap().to_owned_table();
+        fvar.axis_instance_arrays.axes[0].min_value = write_fonts::types::Fixed::from_f64(1000.);
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+        }
+        builder.add_table(&fvar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(matches!(
+            crate::instance_font(&font, &parse_axis_limits("wght=700").unwrap()),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"fvar")
+        ));
+    }
 
     #[test]
     fn axis_request_syntax() {
