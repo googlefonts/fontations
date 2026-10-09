@@ -46,6 +46,8 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         metrics::instance(font, &axes, &mut tables)?;
         layout::instance(font, &axes, &mut tables)?;
         color::instance(font, &axes, &mut tables)?;
+    } else {
+        metrics::update_os2(&axes, &mut tables);
     }
     if axes.all_pinned() {
         for tag in [b"fvar", b"avar", b"HVAR", b"VVAR", b"MVAR"] {

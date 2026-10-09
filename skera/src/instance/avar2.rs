@@ -350,6 +350,17 @@ mod tests {
                 let out = crate::instance_font(&original, &limits).unwrap();
                 let partial = FontRef::new(&out).unwrap();
                 assert_eq!(partial.axes().len(), original.axes().len());
+                if limits.iter().any(|l| l.tag() == Tag::new(b"wght")) {
+                    let weight = partial
+                        .axes()
+                        .get_by_tag(Tag::new(b"wght"))
+                        .unwrap()
+                        .default_value();
+                    assert_eq!(
+                        partial.os2().unwrap().us_weight_class(),
+                        weight.round() as u16
+                    );
+                }
                 // All consumers still interpret the original final coordinates.
                 for tag in [b"CFF2", b"HVAR", b"GPOS", b"GDEF"] {
                     assert_eq!(
@@ -393,6 +404,38 @@ mod tests {
     }
 
     #[test]
+    fn coupled_width_pins_update_style_metadata() {
+        let bytes = font(false, false);
+        let original = FontRef::new(&bytes).unwrap();
+        let mut fvar: write_fonts::tables::fvar::Fvar = original.fvar().unwrap().to_owned_table();
+        let width = &mut fvar.axis_instance_arrays.axes[1];
+        width.axis_tag = Tag::new(b"wdth");
+        width.min_value = write_fonts::types::Fixed::from_f64(50.);
+        width.default_value = write_fonts::types::Fixed::from_f64(100.);
+        width.max_value = write_fonts::types::Fixed::from_f64(200.);
+        fvar.axis_instance_arrays.instances.clear();
+        let mut builder = FontBuilder::new();
+        for record in original.table_directory().table_records() {
+            if record.tag() != Tag::new(b"fvar") {
+                builder.add_raw(record.tag(), original.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&fvar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let bytes =
+            crate::instance_font(&font, &crate::parse_axis_limits("wdth=125").unwrap()).unwrap();
+        assert_eq!(
+            FontRef::new(&bytes)
+                .unwrap()
+                .os2()
+                .unwrap()
+                .us_width_class(),
+            7
+        );
+    }
+
+    #[test]
     fn coupled_partial_then_full_instance_resolves_hidden_axes() {
         use write_fonts::read::{model::glyph::outline::PathElement, ps::cff::CffFontRef};
         use write_fonts::types::GlyphId;
@@ -413,6 +456,10 @@ mod tests {
         let direct = FontRef::new(&direct).unwrap();
         assert!(composed.fvar().is_err());
         assert!(composed.avar().is_err());
+        assert_eq!(
+            composed.os2().unwrap().us_weight_class(),
+            direct.os2().unwrap().us_weight_class()
+        );
         let a = CffFontRef::new(
             composed.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
             0,
