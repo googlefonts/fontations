@@ -20,7 +20,7 @@ struct Context<'a> {
     map: Option<DeltaSetIndexMap<'a>>,
 }
 impl Context<'_> {
-    fn delta(&self, base: u32, offset: u32) -> Result<i32, SubsetError> {
+    fn delta(&self, base: u32, offset: u32) -> Result<i64, SubsetError> {
         if base == u32::MAX {
             return Ok(0);
         }
@@ -39,7 +39,7 @@ impl Context<'_> {
         self.store
             .as_ref()
             .and_then(|s| s.compute_delta(index, &self.axes.coords))
-            .map(|v| v.to_f64().round() as i32)
+            .map(|v| v.to_f64().round() as i64)
             .ok_or_else(error)
     }
     fn field<T: ColorValue>(
@@ -316,28 +316,26 @@ impl Context<'_> {
     }
 }
 trait ColorValue: Copy {
-    fn add(self, delta: i32) -> Self;
+    fn add(self, delta: i64) -> Self;
 }
 impl ColorValue for FWord {
-    fn add(self, d: i32) -> Self {
-        FWord::new((self.to_i16() as i64 + d as i64).clamp(-32768, 32767) as i16)
+    fn add(self, d: i64) -> Self {
+        FWord::new((self.to_i16() as i64 + d).clamp(-32768, 32767) as i16)
     }
 }
 impl ColorValue for UfWord {
-    fn add(self, d: i32) -> Self {
-        UfWord::new((self.to_u16() as i64 + d as i64).clamp(0, 65535) as u16)
+    fn add(self, d: i64) -> Self {
+        UfWord::new((self.to_u16() as i64 + d).clamp(0, 65535) as u16)
     }
 }
 impl ColorValue for F2Dot14 {
-    fn add(self, d: i32) -> Self {
-        Self::from_bits((self.to_bits() as i64 + d as i64).clamp(-32768, 32767) as i16)
+    fn add(self, d: i64) -> Self {
+        Self::from_bits((self.to_bits() as i64 + d).clamp(-32768, 32767) as i16)
     }
 }
 impl ColorValue for Fixed {
-    fn add(self, d: i32) -> Self {
-        Self::from_bits(
-            (self.to_bits() as i64 + d as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32,
-        )
+    fn add(self, d: i64) -> Self {
+        Self::from_bits((self.to_bits() as i64 + d).clamp(i32::MIN as i64, i32::MAX as i64) as i32)
     }
 }
 fn static_line(v: &VarColorLine) -> ColorLine {
@@ -489,6 +487,56 @@ pub(super) fn instance(
 mod tests {
     use super::*;
     use write_fonts::{tables::variations::*, FontBuilder};
+
+    #[test]
+    fn wide_deltas_cancel_fixed_bases_before_clamping() {
+        use write_fonts::read::{FontData, FontRead};
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(
+            &font,
+            &crate::parse_axis_limits("wght=900,CNTR=100").unwrap(),
+        )
+        .unwrap();
+        let zero = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
+        let pos = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE);
+        let bytes = write_fonts::dump_table(&write_fonts::tables::variations::ItemVariationStore {
+            variation_region_list: VariationRegionList::new(
+                2,
+                vec![
+                    VariationRegion::new(vec![pos.clone(), zero.clone()]),
+                    VariationRegion::new(vec![zero, pos]),
+                ],
+            )
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: 2,
+                word_delta_count: 0x8002,
+                region_indexes: vec![0, 1],
+                delta_sets: [i32::MAX, i32::MAX, -i32::MAX, -i32::MAX]
+                    .into_iter()
+                    .flat_map(i32::to_be_bytes)
+                    .collect(),
+            }
+            .into()],
+        })
+        .unwrap();
+        let c = Context {
+            axes: &axes,
+            store: Some(
+                write_fonts::read::tables::variations::ItemVariationStore::read(FontData::new(
+                    &bytes,
+                ))
+                .unwrap(),
+            ),
+            map: None,
+        };
+        for (index, base, expected) in [(0, i32::MIN, i32::MAX - 1), (1, i32::MAX, i32::MIN + 1)] {
+            let mut value = Fixed::from_bits(base);
+            c.field(index, 0, &mut value).unwrap();
+            assert_eq!(value.to_bits(), expected);
+        }
+    }
 
     #[test]
     fn deep_paints_are_rejected_before_owned_conversion() {
