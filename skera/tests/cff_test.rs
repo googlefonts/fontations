@@ -426,3 +426,49 @@ fn cff2_downgrade_preserves_outlines_and_cff1_widths() {
         }
     }
 }
+
+#[test]
+fn full_cff2_instances_preserve_half_unit_contours() {
+    let data = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+    let font = FontRef::new(&data).unwrap();
+    for (gid, request) in [(81, "wght=550,CNTR=50"), (40, "wght=725,CNTR=75")] {
+        let instanced =
+            skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()).unwrap();
+        let instance = FontRef::new(&instanced).unwrap();
+        let p = Plan::new(
+            &[GlyphId::new(0), GlyphId::new(gid)].into_iter().collect(),
+            &IntSet::empty(),
+            &instance,
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::<NameId>::all(),
+            &IntSet::all(),
+        );
+        let out = subset_font(&instance, &p).unwrap();
+        let reference = std::fs::read(format!(
+            "test-data/expected/cff2-instances/hb-AdobeVFPrototype-gid{gid}.otf"
+        ))
+        .unwrap();
+        let paths = |bytes: &[u8]| {
+            let font = FontRef::new(bytes).unwrap();
+            let cff = CffFontRef::new(
+                font.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+                0,
+                None,
+            )
+            .unwrap();
+            (0..cff.num_glyphs())
+                .map(|gid| {
+                    let gid = GlyphId::new(gid);
+                    let sf = cff.subfont(cff.subfont_index(gid).unwrap(), &[]).unwrap();
+                    let mut path = Vec::<PathElement>::new();
+                    cff.draw(&sf, gid, &[], None, &mut path).unwrap();
+                    path
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(paths(&out), paths(&reference), "{request} glyph {gid}");
+    }
+}
