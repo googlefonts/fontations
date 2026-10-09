@@ -1,4 +1,5 @@
 //! CFF2 instancing and the variation tables that share its axes.
+mod avar2;
 mod axes;
 mod color;
 mod layout;
@@ -21,6 +22,8 @@ use write_fonts::{
 ///
 /// Glyph IDs are preserved. Unspecified axes are retained. To subset the
 /// instance, create a `Plan` from the returned font and call `subset_font`.
+/// Coupled avar2 pins remain hidden axes until full instancing; restricted
+/// ranges can introduce F2Dot14 rounding differences in the axis mapping.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
     if limits.is_empty() {
         return Ok(copy_font(font));
@@ -37,11 +40,13 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         .iter()
         .filter_map(|r| Some((r.tag(), font.data_for_tag(r.tag())?.as_bytes().to_vec())))
         .collect();
-    let cff2 = cff::instance(font, &axes)?;
-    tables.insert(Tag::new(b"CFF2"), cff2);
-    metrics::instance(font, &axes, &mut tables)?;
-    layout::instance(font, &axes, &mut tables)?;
-    color::instance(font, &axes, &mut tables)?;
+    if !axes.coupled {
+        let cff2 = cff::instance(font, &axes)?;
+        tables.insert(Tag::new(b"CFF2"), cff2);
+        metrics::instance(font, &axes, &mut tables)?;
+        layout::instance(font, &axes, &mut tables)?;
+        color::instance(font, &axes, &mut tables)?;
+    }
     if axes.all_pinned() {
         for tag in [b"fvar", b"avar", b"HVAR", b"VVAR", b"MVAR"] {
             tables.remove(&Tag::new(tag));
