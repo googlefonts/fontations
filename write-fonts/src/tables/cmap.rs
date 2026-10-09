@@ -16,33 +16,73 @@ const WINDOWS_FULL_REPERTOIRE_ENCODING: u16 = 10;
 const UNICODE_BMP_ENCODING: u16 = 3;
 const UNICODE_FULL_REPERTOIRE_ENCODING: u16 = 4;
 
+/// The reason we can't build a format 4 subtable for a set of mappings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Format4Error {
+    /// None of the chars are in the BMP.
+    NoBmpMappings,
+    /// A BMP char is mapped to a glyph id that doesn't fit in 16 bits.
+    GlyphIdOverflow { ch: char, gid: GlyphId },
+    /// The subtable's length, in bytes, doesn't fit in 16 bits.
+    LengthOverflow(usize),
+}
+
+impl std::fmt::Display for Format4Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoBmpMappings => write!(f, "there are no chars in the BMP"),
+            Self::GlyphIdOverflow { ch, gid } => write!(
+                f,
+                "U+{:04X} is mapped to {gid}, which is above the format 4 maximum of 65535",
+                *ch as u32
+            ),
+            Self::LengthOverflow(len) => write!(
+                f,
+                "length of {len} bytes is above the format 4 maximum of 65535"
+            ),
+        }
+    }
+}
+
 impl CmapSubtable {
     /// Create a new format 4 subtable
     ///
-    /// Returns `None` if none of the input chars are in the BMP (i.e. have
-    /// codepoints <= 0xFFFF.)
+    /// Returns an error if none of the input chars are in the BMP (i.e. have
+    /// codepoints <= 0xFFFF), or if format 4 can't represent all of the BMP
+    /// mappings.
     ///
     /// Invariants:
     ///
     /// - Inputs must be sorted and deduplicated.
-    /// - All `GlyphId`s must be 16-bit
-    fn create_format_4(mappings: &[(char, GlyphId)]) -> Option<Self> {
+    fn create_format_4(mappings: &[(char, GlyphId)]) -> Result<Self, Format4Error> {
         let mut end_code = Vec::with_capacity(mappings.len() + 1);
         let mut start_code = Vec::with_capacity(mappings.len() + 1);
         let mut id_deltas = Vec::with_capacity(mappings.len() + 1);
         let mut id_range_offsets = Vec::with_capacity(mappings.len() + 1);
         let mut glyph_ids = Vec::new();
 
+        // format 4 only has 16-bit glyph ids
+        if let Some((ch, gid)) = mappings
+            .iter()
+            .take_while(|(ch, _)| *ch <= '\u{FFFF}')
+            .find(|(_, gid)| gid.to_u32() > 0xFFFF)
+        {
+            return Err(Format4Error::GlyphIdOverflow { ch: *ch, gid: *gid });
+        }
         let segments = Format4SegmentComputer::new(mappings).compute();
-        assert!(mappings.iter().all(|(_, g)| g.to_u32() <= 0xFFFF));
         if segments.is_empty() {
-            // no chars in BMP
-            return None;
+            return Err(Format4Error::NoBmpMappings);
         }
         let add_final_segment = segments.last().is_none_or(|seg| {
             (mappings[seg.start_ix].0, mappings[seg.end_ix].0) != ('\u{FFFF}', '\u{FFFF}')
         });
         let n_segments = segments.len() + add_final_segment as usize;
+        let n_glyph_ids = segments
+            .iter()
+            .filter(|seg| seg.id_delta.is_none())
+            .map(Format4Segment::len)
+            .sum();
+        Cmap4::checked_length(n_segments, n_glyph_ids)?;
         for (i, segment) in segments.into_iter().enumerate() {
             let start = mappings[segment.start_ix].0;
             let end = mappings[segment.end_ix].0;
@@ -65,7 +105,13 @@ impl CmapSubtable {
                 // for this segment, in the glyph_ids array
                 let id_range_offset = (n_following_segments + current_n_ids) * u16::RAW_BYTE_LEN;
                 id_deltas.push(0);
-                id_range_offsets.push(id_range_offset.try_into().unwrap());
+                // this is an offset within the subtable, so it fits in a u16
+                // because the subtable's length does
+                id_range_offsets.push(
+                    id_range_offset
+                        .try_into()
+                        .expect("length checked before now"),
+                );
                 glyph_ids.extend(
                     mappings[segment.start_ix..=segment.end_ix]
                         .iter()
@@ -82,7 +128,7 @@ impl CmapSubtable {
             id_range_offsets.push(0);
         }
 
-        Some(Self::format_4(
+        Ok(Self::format_4(
             0,
             end_code,
             start_code,
@@ -104,7 +150,7 @@ impl CmapSubtable {
         let cmap: HashMap<_, _> = char_codes.iter().cloned().zip(gids).collect();
         char_codes.dedup();
 
-        // we know we have at least one non-BMP char_code > 0xFFFF so unwrap is safe
+        // we only create a format 12 subtable when there are mappings, so unwrap is safe
         let mut start_char_code = *char_codes.first().unwrap();
         let mut start_glyph_id = cmap[&start_char_code];
         let mut last_glyph_id = start_glyph_id.wrapping_sub(1);
@@ -167,11 +213,20 @@ impl Cmap {
     /// This emits [format 4] and [format 12] subtables, respectively for the
     /// Basic Multilingual Plane and Full Unicode Repertoire.
     ///
+    /// The format 4 subtable is omitted if it can't represent every mapping
+    /// in the BMP: that is, if it would be longer than 65535 bytes, or if a
+    /// BMP char is mapped to a glyph id above 65535. In that case we log a
+    /// warning, and the format 12 subtable contains all of the mappings, and
+    /// is emitted even if every char is in the BMP. The spec [doesn't require] a format 4 alongside a
+    /// format 12, and says that if both are present their BMP mappings should
+    /// be identical, which rules out a partial format 4.
+    ///
     /// Also see: <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table>
     ///
     /// [`cmap`]: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap
     /// [format 4]: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
     /// [format 12]: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
+    /// [doesn't require]: https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table
     pub fn from_mappings(
         mappings: impl IntoIterator<Item = (char, GlyphId)>,
     ) -> Result<Cmap, CmapConflict> {
@@ -193,8 +248,11 @@ impl Cmap {
         let mut win_records = Vec::new(); // platform 3
 
         // if there are characters in the Unicode Basic Multilingual Plane (U+0000 to U+FFFF)
-        // we need to emit format 4 subtables
-        let bmp_subtable = CmapSubtable::create_format_4(&mappings);
+        // we need to emit format 4 subtables, unless format 4 can't represent them
+        let bmp_subtable = CmapSubtable::create_format_4(&mappings)
+            .inspect_err(|e| log::warn!("omitting cmap format 4 subtable: {e}"))
+            .ok();
+        let has_format_4 = bmp_subtable.is_some();
         if let Some(bmp_subtable) = bmp_subtable {
             // Absent a strong signal to do otherwise, match fontmake/fonttools
             // Since both Windows and Unicode platform tables use the same subtable they are
@@ -213,8 +271,11 @@ impl Cmap {
         }
 
         // If there are any supplementary-plane characters (U+10000 to U+10FFFF) we also
-        // emit format 12 subtables
-        if mappings.iter().any(|(cp, _)| *cp > '\u{FFFF}') {
+        // emit format 12 subtables; and if there's no format 4 then format 12 has to
+        // cover the BMP as well
+        if !mappings.is_empty()
+            && (!has_format_4 || mappings.iter().any(|(cp, _)| *cp > '\u{FFFF}'))
+        {
             let full_repertoire_subtable = CmapSubtable::create_format_12(&mappings);
             // format 12 subtables are also going to be byte-shared, just like above
             uni_records.push(EncodingRecord::new(
@@ -506,18 +567,34 @@ impl<'a> Format4SegmentComputer<'a> {
 }
 
 impl Cmap4 {
-    fn compute_length(&self) -> u16 {
+    /// Compute the length of a subtable with the given number of segments and glyph ids.
+    ///
+    /// Returns an error if the length doesn't fit in the 16-bit length field.
+    fn checked_length(n_segments: usize, n_glyph_ids: usize) -> Result<u16, Format4Error> {
         // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
         // there are always 8 u16 fields
         const FIXED_SIZE: usize = 8 * u16::RAW_BYTE_LEN;
         const PER_SEGMENT_LEN: usize = 4 * u16::RAW_BYTE_LEN;
 
-        let segment_len = self.end_code.len() * PER_SEGMENT_LEN;
-        let gid_len = self.glyph_id_array.len() * u16::RAW_BYTE_LEN;
+        let segment_len = n_segments * PER_SEGMENT_LEN;
+        let gid_len = n_glyph_ids * u16::RAW_BYTE_LEN;
 
-        (FIXED_SIZE + segment_len + gid_len)
+        let length = FIXED_SIZE + segment_len + gid_len;
+        length
             .try_into()
+            .map_err(|_| Format4Error::LengthOverflow(length))
+    }
+
+    fn compute_length(&self) -> u16 {
+        // validation reports a length that doesn't fit
+        Self::checked_length(self.end_code.len(), self.glyph_id_array.len())
             .expect("cmap4 overflow")
+    }
+
+    fn check_length(&self, ctx: &mut ValidationCtx) {
+        if let Err(e) = Self::checked_length(self.end_code.len(), self.glyph_id_array.len()) {
+            ctx.report(e);
+        }
     }
 
     fn compute_search_range(&self) -> u16 {
@@ -1235,5 +1312,156 @@ mod tests {
             ('\u{FFFE}', GlyphId::new(0)),
             ('\u{FFFF}', GlyphId::new(0)),
         ]);
+    }
+
+    type RecordKey = (PlatformId, u16, u16);
+
+    // write the cmap and read it back, returning the (platform, encoding, format)
+    // of each encoding record along with the mappings in its subtable
+    fn read_back(cmap: &write::Cmap) -> Vec<(RecordKey, Vec<(char, GlyphId)>)> {
+        let bytes = dump_table(cmap).unwrap();
+        let font_data = FontData::new(&bytes);
+        let cmap = Cmap::read(font_data).unwrap();
+        cmap.encoding_records()
+            .iter()
+            .map(|rec| {
+                let subtable = rec.subtable(font_data).unwrap();
+                let mut mappings = subtable
+                    .iter()
+                    .map(|(c, gid)| (char::from_u32(c).unwrap(), gid))
+                    .collect::<Vec<_>>();
+                if subtable.format() == 4 {
+                    // cmap4 always ends with a 65535 => notdef entry
+                    assert_eq!(mappings.pop(), Some(('\u{FFFF}', GlyphId::NOTDEF)));
+                }
+                let key = (rec.platform_id(), rec.encoding_id(), subtable.format());
+                (key, mappings)
+            })
+            .collect()
+    }
+
+    // assert that we emit only format 12, containing all the mappings
+    fn assert_format_12_only(mut mappings: Vec<(char, GlyphId)>) {
+        let cmap = write::Cmap::from_mappings(mappings.clone()).unwrap();
+        mappings.sort();
+        mappings.dedup();
+        assert_eq!(
+            read_back(&cmap),
+            [
+                (
+                    (PlatformId::Unicode, UNICODE_FULL_REPERTOIRE_ENCODING, 12),
+                    mappings.clone()
+                ),
+                (
+                    (PlatformId::Windows, WINDOWS_FULL_REPERTOIRE_ENCODING, 12),
+                    mappings
+                ),
+            ]
+        );
+    }
+
+    // one contiguous run of BMP chars with reversed glyph ids, which has to
+    // be stored in the glyph id array, and is too long for format 4
+    fn too_long_for_format_4() -> MappingBuilder {
+        MappingBuilder::default().extend(('\u{1000}'..='\u{AC3F}').rev())
+    }
+
+    #[test]
+    fn omit_format_4_if_too_long() {
+        let mappings = too_long_for_format_4().build();
+        assert_eq!(mappings.len(), 40_000);
+        assert_eq!(
+            super::CmapSubtable::create_format_4(&mappings),
+            // two segments, and a glyph id for each mapping
+            Err(super::Format4Error::LengthOverflow(16 + 2 * 8 + 40_000 * 2))
+        );
+        assert_format_12_only(mappings);
+    }
+
+    #[test]
+    fn omit_format_4_if_too_long_with_supplementary_chars() {
+        let mappings = too_long_for_format_4()
+            .extend(['\u{1F600}', '\u{1F602}', '\u{20000}'])
+            .build();
+        assert_format_12_only(mappings);
+    }
+
+    #[test]
+    fn omit_format_4_if_bmp_glyph_id_too_large() {
+        let mut mappings = simple_cmap_mappings();
+        let big_gid = ('\u{4E00}', GlyphId::new(70_000));
+        mappings.push(big_gid);
+        mappings.sort();
+        assert_eq!(
+            super::CmapSubtable::create_format_4(&mappings),
+            Err(super::Format4Error::GlyphIdOverflow {
+                ch: big_gid.0,
+                gid: big_gid.1
+            })
+        );
+        assert_format_12_only(mappings);
+    }
+
+    #[test]
+    fn empty_mappings() {
+        let cmap = write::Cmap::from_mappings([]).unwrap();
+        assert!(read_back(&cmap).is_empty());
+    }
+
+    #[test]
+    fn large_supplementary_glyph_id_keeps_format_4() {
+        let mut mappings = bmp_and_non_bmp_cmap_mappings();
+        mappings.push(('\u{20000}', GlyphId::new(70_000)));
+        mappings.sort();
+        mappings.dedup();
+        let bmp_mappings = simple_cmap_mappings();
+
+        let cmap = write::Cmap::from_mappings(mappings.clone()).unwrap();
+        assert_eq!(
+            read_back(&cmap),
+            [
+                (
+                    (PlatformId::Unicode, UNICODE_BMP_ENCODING, 4),
+                    bmp_mappings.clone()
+                ),
+                (
+                    (PlatformId::Unicode, UNICODE_FULL_REPERTOIRE_ENCODING, 12),
+                    mappings.clone()
+                ),
+                ((PlatformId::Windows, WINDOWS_BMP_ENCODING, 4), bmp_mappings),
+                (
+                    (PlatformId::Windows, WINDOWS_FULL_REPERTOIRE_ENCODING, 12),
+                    mappings
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn oversized_cmap4_fails_validation() {
+        // a segment covering U+0000..=U+7FFF using the glyph id array, then
+        // the final segment
+        let cmap4 = write::Cmap4::new(
+            0,
+            vec![0x7FFF, 0xFFFF],
+            vec![0, 0xFFFF],
+            vec![0, 1],
+            vec![4, 0],
+            (1..=0x8000).collect(),
+        );
+        assert!(matches!(
+            dump_table(&cmap4),
+            Err(crate::error::Error::ValidationFailed(_))
+        ));
+
+        let cmap = write::Cmap::new(vec![write::EncodingRecord::new(
+            PlatformId::Windows,
+            WINDOWS_BMP_ENCODING,
+            cmap4.into(),
+        )]);
+        assert!(matches!(
+            dump_table(&cmap),
+            Err(crate::error::Error::ValidationFailed(_))
+        ));
     }
 }

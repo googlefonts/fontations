@@ -102,6 +102,7 @@ record SubHeader {
 }
 
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
+#[validate(check_length)]
 table Cmap4 {
     /// Format number is set to 4.
     #[format = 4]

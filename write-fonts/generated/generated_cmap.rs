@@ -620,7 +620,11 @@ impl FontWrite for Cmap4 {
 }
 
 impl Validate for Cmap4 {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Cmap4", |ctx| {
+            self.check_length(ctx);
+        })
+    }
 }
 
 impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap4<'a>> for Cmap4 {
