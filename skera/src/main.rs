@@ -70,8 +70,8 @@ struct Args {
     #[arg(long)]
     desubroutinize: bool,
 
-    /// Pin variation axes, for example wght=650,CNTR=drop.
-    #[arg(long)]
+    /// Instance axes or ranges, for example wght=650,CNTR=drop or wght=300:500:700.
+    #[arg(long, alias = "variations")]
     instance: Option<String>,
 
     /// Keep legacy (non-Unicode) 'name' table entries

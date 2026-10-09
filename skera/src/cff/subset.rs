@@ -444,7 +444,9 @@ pub(super) fn assemble<F: CffFlavor>(
         }
         privates.push(bytes);
     }
-    let var_store = if F::CFF2 {
+    let var_store = if source.instanced_store.is_some() {
+        source.instanced_store.clone()
+    } else if F::CFF2 {
         dict::offset(&top, 24, 0)?
             .map(|offset| {
                 let data = source.font.data();

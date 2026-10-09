@@ -8,10 +8,15 @@ retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,
 custom and expert encodings, glyph names, and `seac` component closure.
 
 CFF2 fonts can be fully instantiated with `--instance wght=650,opsz=48`.
-Every axis must be pinned; `tag=drop` pins an axis at its default. Instancing
-resolves outline blends and variation deltas in metrics and layout tables.
+Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
+instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
+Instancing resolves outline blends and variation deltas in metrics, layout,
+and COLRv1 paint tables.
 The library's `instance_font` preserves glyph IDs; create a `Plan` from the
 returned font to subset the instance.
+
+Full instancing supports `avar` version 2. Partial instancing currently
+requires separable axis maps (`avar` version 1).
 
 ## Installation
 
