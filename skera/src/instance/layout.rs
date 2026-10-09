@@ -1,5 +1,5 @@
 //! Apply variation deltas while walking owned layout tables.
-use super::AxisPlan;
+use super::{rebase::renormalize, AxisPlan, StorePlan};
 use crate::SubsetError;
 use std::collections::BTreeMap;
 use write_fonts::{
@@ -16,6 +16,7 @@ use write_fonts::{
 struct Context<'a> {
     store: Option<ItemVariationStore<'a>>,
     coords: &'a [F2Dot14],
+    axes: &'a AxisPlan,
 }
 impl Context<'_> {
     fn delta(&self, outer: u16, inner: u16) -> Result<i32, SubsetError> {
@@ -46,7 +47,9 @@ impl Context<'_> {
             .flatten()
         {
             *value = add(*value, delta);
-            *device = Default::default();
+            if self.axes.all_pinned() {
+                *device = Default::default();
+            }
         }
         Ok(())
     }
@@ -144,7 +147,9 @@ impl Apply for ValueRecord {
         ] {
             if let Some(delta) = device.as_ref().map(|d| c.device(d)).transpose()?.flatten() {
                 *value = Some(add(value.unwrap_or(0), delta));
-                *device = Default::default();
+                if c.axes.all_pinned() {
+                    *device = Default::default();
+                }
             }
         }
         // All records in a subtable must retain the same serialized format,
@@ -172,9 +177,12 @@ impl Apply for CaretValue {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         if let Self::Format3(a) = self {
             if let Some(delta) = c.device(&a.device)? {
-                *self = Self::Format1(CaretValueFormat1 {
-                    coordinate: add(a.coordinate, delta),
-                });
+                a.coordinate = add(a.coordinate, delta);
+                if c.axes.all_pinned() {
+                    *self = Self::Format1(CaretValueFormat1 {
+                        coordinate: a.coordinate,
+                    });
+                }
             }
         }
         Ok(())
@@ -232,6 +240,39 @@ fn features(
     vars: &mut NullableOffsetMarker<FeatureVariations, 4>,
     c: &Context,
 ) -> Result<(), SubsetError> {
+    if !c.axes.all_pinned() {
+        if let Some(vars) = vars.as_mut() {
+            let mut records = Vec::new();
+            for record in &vars.feature_variation_records {
+                let mut conditions = Vec::new();
+                let mut possible = true;
+                if let Some(set) = record.condition_set.as_ref() {
+                    for cond in &set.conditions {
+                        match partial_condition(cond, c, 0)? {
+                            PartialCondition::Constant(false) => {
+                                possible = false;
+                                break;
+                            }
+                            PartialCondition::Constant(true) => {}
+                            PartialCondition::Variable(v) => conditions.push(v.into()),
+                        }
+                    }
+                }
+                if !possible {
+                    continue;
+                }
+                let mut record = record.clone();
+                let unconditional = conditions.is_empty();
+                record.condition_set = ConditionSet { conditions }.into();
+                records.push(record);
+                if unconditional {
+                    break;
+                }
+            }
+            vars.feature_variation_records = records;
+        }
+        return Ok(());
+    }
     if let Some(vars) = vars.as_ref() {
         for record in &vars.feature_variation_records {
             let mut matches = true;
@@ -258,6 +299,104 @@ fn features(
     *vars = Default::default();
     Ok(())
 }
+enum PartialCondition {
+    Constant(bool),
+    Variable(Condition),
+}
+fn partial_condition(
+    cond: &Condition,
+    c: &Context,
+    depth: usize,
+) -> Result<PartialCondition, SubsetError> {
+    if depth > 32 {
+        return Err(SubsetError::SubsetTableError(Tag::new(b"GSUB")));
+    }
+    Ok(match cond {
+        Condition::Format1AxisRange(v) => {
+            let i = v.axis_index as usize;
+            let limit = *c
+                .axes
+                .normalized
+                .get(i)
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?;
+            if let Some(index) = c.axes.new_index(i) {
+                let min = v.filter_range_min_value.to_f64().max(limit.0);
+                let max = v.filter_range_max_value.to_f64().min(limit.2);
+                if min > max {
+                    PartialCondition::Constant(false)
+                } else if min == limit.0 && max == limit.2 {
+                    PartialCondition::Constant(true)
+                } else {
+                    let mut v = v.clone();
+                    v.axis_index = index as u16;
+                    v.filter_range_min_value =
+                        F2Dot14::from_f64(renormalize(min, limit, c.axes.distances[i]));
+                    v.filter_range_max_value =
+                        F2Dot14::from_f64(renormalize(max, limit, c.axes.distances[i]));
+                    PartialCondition::Variable(Condition::Format1AxisRange(v))
+                }
+            } else {
+                PartialCondition::Constant(condition(cond, c, depth)?)
+            }
+        }
+        Condition::Format2VariableValue(v) => {
+            let mut v = v.clone();
+            v.default_value = add(
+                v.default_value,
+                c.delta((v.var_index >> 16) as u16, v.var_index as u16)?,
+            );
+            PartialCondition::Variable(Condition::Format2VariableValue(v))
+        }
+        Condition::Format3And(v) => {
+            let mut conditions = Vec::new();
+            for cond in &v.conditions {
+                match partial_condition(cond, c, depth + 1)? {
+                    PartialCondition::Constant(false) => {
+                        return Ok(PartialCondition::Constant(false))
+                    }
+                    PartialCondition::Constant(true) => {}
+                    PartialCondition::Variable(v) => conditions.push(v.into()),
+                }
+            }
+            if conditions.is_empty() {
+                PartialCondition::Constant(true)
+            } else {
+                let mut v = v.clone();
+                v.condition_count = conditions.len() as u8;
+                v.conditions = conditions;
+                PartialCondition::Variable(Condition::Format3And(v))
+            }
+        }
+        Condition::Format4Or(v) => {
+            let mut conditions = Vec::new();
+            for cond in &v.conditions {
+                match partial_condition(cond, c, depth + 1)? {
+                    PartialCondition::Constant(true) => {
+                        return Ok(PartialCondition::Constant(true))
+                    }
+                    PartialCondition::Constant(false) => {}
+                    PartialCondition::Variable(v) => conditions.push(v.into()),
+                }
+            }
+            if conditions.is_empty() {
+                PartialCondition::Constant(false)
+            } else {
+                let mut v = v.clone();
+                v.condition_count = conditions.len() as u8;
+                v.conditions = conditions;
+                PartialCondition::Variable(Condition::Format4Or(v))
+            }
+        }
+        Condition::Format5Negate(v) => match partial_condition(&v.condition, c, depth + 1)? {
+            PartialCondition::Constant(b) => PartialCondition::Constant(!b),
+            PartialCondition::Variable(cond) => {
+                let mut v = v.clone();
+                v.condition = cond.into();
+                PartialCondition::Variable(Condition::Format5Negate(v))
+            }
+        },
+    })
+}
 
 pub(super) fn instance(
     font: &FontRef,
@@ -272,6 +411,7 @@ pub(super) fn instance(
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GDEF")))?,
         coords: &axes.coords,
+        axes,
     };
     if let Ok(gpos) = font.gpos() {
         let mut table: Gpos = gpos.to_owned_table();
@@ -295,7 +435,17 @@ pub(super) fn instance(
     if let Some(gdef) = gdef {
         let mut table: Gdef = gdef.to_owned_table();
         table.lig_caret_list.apply(&context)?;
-        table.item_var_store = Default::default();
+        table.item_var_store = if axes.all_pinned() {
+            Default::default()
+        } else {
+            context
+                .store
+                .as_ref()
+                .map(|s| StorePlan::new(s, axes)?.rebuild(s))
+                .transpose()?
+                .map(Into::into)
+                .unwrap_or_default()
+        };
         save(tables, b"GDEF", &table)?;
     }
     if let Ok(base) = font.base() {
@@ -305,11 +455,22 @@ pub(super) fn instance(
                 .transpose()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"BASE")))?,
             coords: &axes.coords,
+            axes,
         };
         let mut table: Base = base.to_owned_table();
         table.horiz_axis.apply(&context)?;
         table.vert_axis.apply(&context)?;
-        table.item_var_store = Default::default();
+        table.item_var_store = if axes.all_pinned() {
+            Default::default()
+        } else {
+            context
+                .store
+                .as_ref()
+                .map(|s| StorePlan::new(s, axes)?.rebuild(s))
+                .transpose()?
+                .map(Into::into)
+                .unwrap_or_default()
+        };
         save(tables, b"BASE", &table)?;
     }
     Ok(())
@@ -325,4 +486,93 @@ fn save(
         write_fonts::dump_table(table).map_err(|_| SubsetError::SubsetTableError(tag))?,
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn partial_feature_conditions_keep_priority_and_remap_axes() {
+        let data = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&data).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=900").unwrap()).unwrap();
+        let c = Context {
+            store: None,
+            coords: &axes.coords,
+            axes: &axes,
+        };
+        let range = |axis| {
+            Condition::Format1AxisRange(ConditionFormat1 {
+                axis_index: axis,
+                filter_range_min_value: F2Dot14::from_f64(0.5),
+                filter_range_max_value: F2Dot14::ONE,
+            })
+        };
+        let record = |conditions: Vec<Condition>, index| FeatureVariationRecord {
+            condition_set: ConditionSet {
+                conditions: conditions.into_iter().map(Into::into).collect(),
+            }
+            .into(),
+            feature_table_substitution: FeatureTableSubstitution {
+                substitutions: vec![FeatureTableSubstitutionRecord {
+                    feature_index: 0,
+                    alternate_feature: Feature {
+                        lookup_list_indices: vec![index],
+                        ..Default::default()
+                    }
+                    .into(),
+                }],
+            }
+            .into(),
+        };
+        let mut vars: NullableOffsetMarker<FeatureVariations, 4> = FeatureVariations {
+            feature_variation_records: vec![
+                record(vec![range(0), range(1)], 1),
+                record(vec![range(0)], 2),
+            ],
+        }
+        .into();
+        let mut list = FeatureList {
+            feature_records: vec![FeatureRecord {
+                feature_tag: Tag::new(b"rvrn"),
+                feature: Feature {
+                    lookup_list_indices: vec![0],
+                    ..Default::default()
+                }
+                .into(),
+            }],
+        };
+        features(&mut list, &mut vars, &c).unwrap();
+        assert_eq!(vars.as_ref().unwrap().feature_variation_records.len(), 2);
+        let set = vars.as_ref().unwrap().feature_variation_records[0]
+            .condition_set
+            .as_ref()
+            .unwrap();
+        let Condition::Format1AxisRange(cond) = set.conditions[0].as_ref() else {
+            panic!()
+        };
+        assert_eq!(cond.axis_index, 0);
+        for (value, expected) in [(0., 2), (75., 1)] {
+            let axes = AxisPlan::new(
+                &font,
+                &crate::parse_axis_limits(&format!("wght=900,CNTR={value}")).unwrap(),
+            )
+            .unwrap();
+            // The retained condition's index is in the output's axis order.
+            let coords = vec![axes.coords[1]];
+            let c = Context {
+                store: None,
+                coords: &coords,
+                axes: &axes,
+            };
+            let mut list = list.clone();
+            let mut vars = vars.clone();
+            features(&mut list, &mut vars, &c).unwrap();
+            assert_eq!(
+                list.feature_records[0].feature.lookup_list_indices,
+                vec![expected]
+            );
+            assert!(vars.is_none());
+        }
+    }
 }
