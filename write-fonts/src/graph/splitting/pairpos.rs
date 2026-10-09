@@ -500,13 +500,15 @@ mod tests {
     use crate::{
         tables::{
             gpos::{
-                Class1Record, Class2Record, ExtensionPosFormat1, ExtensionSubtable, PairPos,
+                builders::{PairPosBuilder, ValueRecordBuilder},
+                Class1Record, Class2Record, ExtensionPosFormat1, ExtensionSubtable, Gpos, PairPos,
                 PairSet, PairValueRecord, PositionLookup, ValueRecord,
             },
             layout::{
-                builders::CoverageTableBuilder, Device, DeviceOrVariationIndex, LookupType,
-                VariationIndex,
+                builders::{Builder, CoverageTableBuilder, LookupBuilder},
+                Device, DeviceOrVariationIndex, LookupType, VariationIndex,
             },
+            variations::ivs_builder::VariationStoreBuilder,
         },
         FontWrite, TableWriter,
     };
@@ -727,6 +729,71 @@ mod tests {
             })
             .sum();
         assert!(subs.len() > 1, "expected the subtable to be split");
+        assert_eq!(n_pair_sets, G1_COUNT);
+    }
+
+    // a `subtable` statement with no rules after it leaves an empty builder;
+    // make sure that neither this nor an empty subtable of either format trips
+    // up splitting, which we do whenever anything in GPOS overflows.
+    #[test]
+    fn split_lookup_with_empty_subtables() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // big enough that the kerning subtable needs splitting
+        const G1_COUNT: u16 = 300;
+        const G2_COUNT: u16 = 100;
+
+        let mut builder = LookupBuilder::<PairPosBuilder>::new(LookupFlag::empty(), None);
+        builder.force_subtable_break();
+        let subtable = builder.last_mut().unwrap();
+        for g1 in 0..G1_COUNT {
+            // a unique value for each first glyph, so no PairSets are shared
+            let record1 = ValueRecordBuilder::new().with_x_advance(g1 as i16 + 1);
+            for g2 in 0..G2_COUNT {
+                let (g1, g2) = (GlyphId16::new(g1), GlyphId16::new(g2));
+                subtable.insert_pair(g1, record1.clone(), g2, ValueRecordBuilder::new());
+            }
+        }
+        builder.force_subtable_break();
+        let mut lookup = builder.build(&mut VariationStoreBuilder::new(0));
+        // empty builders produce no subtables at all
+        assert_eq!(lookup.subtables.len(), 1);
+
+        // but other code might produce empty subtables of either format
+        let empty_format_1 = PairPos::format_1(Default::default(), vec![]);
+        let empty_format_2 = PairPos::format_2(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            vec![Class1Record::new(vec![Class2Record::default()])],
+        );
+        lookup.subtables.push(empty_format_1.into());
+        lookup.subtables.push(empty_format_2.into());
+
+        let gpos = Gpos::new(
+            Default::default(),
+            Default::default(),
+            wlayout::LookupList::new(vec![PositionLookup::Pair(lookup)]),
+        );
+        let bytes = crate::dump_table(&gpos).unwrap();
+
+        let gpos = rgpos::Gpos::read(FontData::new(&bytes)).unwrap();
+        let lookup = gpos.lookup_list().unwrap().lookups().get(0).unwrap();
+        let PositionSubtables::Pair(subs) = lookup.subtables().unwrap() else {
+            panic!("wrong lookup type");
+        };
+        let subs = subs.iter().map(|sub| sub.unwrap()).collect::<Vec<_>>();
+        // the kerning subtable was split, and the empty ones left alone
+        assert!(subs.len() > 3, "expected the first subtable to split");
+        let (kerning, empty) = subs.split_last_chunk::<2>().unwrap();
+        assert!(matches!(&empty[0], rgpos::PairPos::Format1(sub) if sub.pair_set_count() == 0));
+        assert!(matches!(&empty[1], rgpos::PairPos::Format2(sub) if sub.class1_count() == 1));
+        let n_pair_sets: u16 = kerning
+            .iter()
+            .map(|sub| match sub {
+                rgpos::PairPos::Format1(sub) => sub.pair_set_count(),
+                rgpos::PairPos::Format2(_) => panic!("wrong subtable format"),
+            })
+            .sum();
         assert_eq!(n_pair_sets, G1_COUNT);
     }
 
