@@ -772,17 +772,17 @@ mod tests {
         .unwrap();
         let pair = PairPos::format_2(
             CoverageTable::from_iter([GlyphId16::new(1), GlyphId16::new(2)]),
-            ClassDef::from_iter([(GlyphId16::new(2), 1)]),
-            ClassDef::from_iter([(GlyphId16::new(1), 2), (GlyphId16::new(2), 1)]),
+            ClassDef::from_iter([(GlyphId16::new(2), 2)]),
+            ClassDef::from_iter([(GlyphId16::new(1), 4), (GlyphId16::new(2), 1)]),
             vec![
                 Class1Record::new(vec![
                     Class2Record::new(
                         ValueRecord::new(),
                         ValueRecord::new()
                     );
-                    3
+                    5
                 ]);
-                2
+                3
             ],
         );
         let mut oversized = write_fonts::dump_table(&pair).unwrap();
