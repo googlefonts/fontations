@@ -47,6 +47,8 @@ struct PerTableData<T> {
     gdef: T,
     /// TrueType glyph data table.
     glyf: T,
+    /// Extended glyph data table.
+    glyf_extended: T,
     /// Glyph positioning table.
     gpos: T,
     /// Glyph substitution table.
@@ -79,6 +81,8 @@ struct PerTableData<T> {
     kerx: T,
     /// Index to location table.
     loca: T,
+    /// Extended index to location table.
+    loca_extended: T,
     /// Language tag table.
     ltag: T,
     /// Mathematical typesetting table.
@@ -151,6 +155,7 @@ impl<T> PerTableData<T> {
         f(Tag::new(b"gasp"), &mut self.gasp);
         f(Tag::new(b"GDEF"), &mut self.gdef);
         f(Tag::new(b"glyf"), &mut self.glyf);
+        f(Tag::new(b"GLYF"), &mut self.glyf_extended);
         f(Tag::new(b"GPOS"), &mut self.gpos);
         f(Tag::new(b"GSUB"), &mut self.gsub);
         f(Tag::new(b"gvar"), &mut self.gvar);
@@ -167,6 +172,7 @@ impl<T> PerTableData<T> {
         f(Tag::new(b"kern"), &mut self.kern);
         f(Tag::new(b"kerx"), &mut self.kerx);
         f(Tag::new(b"loca"), &mut self.loca);
+        f(Tag::new(b"LOCA"), &mut self.loca_extended);
         f(Tag::new(b"ltag"), &mut self.ltag);
         f(Tag::new(b"MATH"), &mut self.math);
         f(Tag::new(b"maxp"), &mut self.maxp);
@@ -283,6 +289,10 @@ trait TableDataProvider<'a> where Self: 'a {
         self.table_state(Tag::new(b"glyf"), &self.tables().glyf)
     }
 
+    fn glyf_extended(&self) -> Option<TableState<'a>> {
+        self.table_state(Tag::new(b"GLYF"), &self.tables().glyf_extended)
+    }
+
     fn gpos(&self) -> Option<TableState<'a>> {
         self.table_state(Tag::new(b"GPOS"), &self.tables().gpos)
     }
@@ -345,6 +355,10 @@ trait TableDataProvider<'a> where Self: 'a {
 
     fn loca(&self) -> Option<TableState<'a>> {
         self.table_state(Tag::new(b"loca"), &self.tables().loca)
+    }
+
+    fn loca_extended(&self) -> Option<TableState<'a>> {
+        self.table_state(Tag::new(b"LOCA"), &self.tables().loca_extended)
     }
 
     fn ltag(&self) -> Option<TableState<'a>> {
@@ -757,6 +771,21 @@ impl Tables {
         }
     }
 
+    /// Extended glyph data table data.
+    ///
+    /// See ISO/IEC 14496-22:2026, 5.2.8.
+    pub fn glyf_extended_data(&self) -> Option<&'_ [u8]> {
+        self.glyf_extended_state().map(|state| state.data)
+    }
+
+    fn glyf_extended_state(&self) -> Option<TableState<'_>> {
+        match &self.0 {
+            TableSource::None => None,
+            TableSource::Blob(blob) => blob.glyf_extended(),
+            TableSource::Function(func) => func.glyf_extended(),
+        }
+    }
+
     /// Glyph positioning table data.
     ///
     /// See the [GPOS](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos) specification.
@@ -994,6 +1023,21 @@ impl Tables {
             TableSource::None => None,
             TableSource::Blob(blob) => blob.loca(),
             TableSource::Function(func) => func.loca(),
+        }
+    }
+
+    /// Extended index to location table data.
+    ///
+    /// See ISO/IEC 14496-22:2026, 5.2.9.
+    pub fn loca_extended_data(&self) -> Option<&'_ [u8]> {
+        self.loca_extended_state().map(|state| state.data)
+    }
+
+    fn loca_extended_state(&self) -> Option<TableState<'_>> {
+        match &self.0 {
+            TableSource::None => None,
+            TableSource::Blob(blob) => blob.loca_extended(),
+            TableSource::Function(func) => func.loca_extended(),
         }
     }
 

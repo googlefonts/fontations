@@ -22,9 +22,6 @@ scaler_test = []
 # experimental support for incremental font transfer (https://www.w3.org/TR/IFT/)
 # code behind this feature does not honor semver and may break at any time.
 ift = []
-# Enables experimental implementations of proposed changes to the spec
-# as discussed at https://github.com/harfbuzz/boring-expansion-spec
-spec_next = []
 # Enables support for a new font API, as proposed at
 # https://github.com/googlefonts/oxidize/pull/77
 experimental_font_api = []

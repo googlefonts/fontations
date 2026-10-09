@@ -45,7 +45,7 @@ pub(crate) struct GlyfLoca<'a>(pub(crate) Option<(Glyf<'a>, Loca<'a>)>);
 
 impl<'a> GlyfLoca<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
-        Self(tables.glyf().ok().zip(tables.loca(None).ok()))
+        Self(tables.glyf_loca(None).ok())
     }
 }
 

@@ -1,10 +1,10 @@
 //! Where outline loading gets its data.
 
 use crate::{
+    model::metrics::GlyphMetricRecords,
     tables::{
         glyf::{Glyf, PHANTOM_POINT_COUNT},
         gvar::{GlyphVariationData, Gvar},
-        hmtx::Hmtx,
         hvar::Hvar,
         loca::{Loca, LocaGlyph},
         os2::Os2,
@@ -121,7 +121,7 @@ pub struct OutlineTables<'a> {
     /// Glyph variations, absent if the font does not vary.
     pub gvar: Option<Gvar<'a>>,
     /// Source of the metrics for the first two phantom points.
-    pub hmtx: Option<Hmtx<'a>>,
+    pub hmtx: Option<GlyphMetricRecords<'a>>,
     /// Supplies the ascender and descender for the last two.
     pub os2: Option<Os2<'a>>,
     /// Only its presence is read: it changes how deltas apply to phantom
@@ -143,11 +143,12 @@ impl<'a> OutlineTables<'a> {
     /// without `hmtx` or `OS/2` the corresponding phantom point metrics are
     /// zero.
     pub fn new(font: &impl TableProvider<'a>) -> Result<Self, ReadError> {
+        let (glyf, loca) = font.glyf_loca(None)?;
         Ok(Self {
-            glyf: font.glyf()?,
-            loca: font.loca(None)?,
+            glyf,
+            loca,
             gvar: font.gvar().ok(),
-            hmtx: font.hmtx().ok(),
+            hmtx: font.glyph_metric_records().ok(),
             os2: font.os2().ok(),
             hvar: font.hvar().ok(),
             units_per_em: font.head()?.units_per_em(),
@@ -242,6 +243,28 @@ mod tests {
     use super::*;
     use crate::tables::glyf::outline::{Outline, Scale26Dot6, Unscaled};
     use crate::{types::F26Dot6, FontRef};
+
+    #[test]
+    fn extended_outline_tables_load_wide_cubic_components() {
+        use super::super::PathContourStart;
+        use crate::model::glyph::outline::SvgPen;
+        for extended_metrics in [false, true] {
+            let data = font_test_data::extended::outlines_font(true, true, extended_metrics, false);
+            let font = FontRef::new(&data).unwrap();
+            let tables = OutlineTables::new(&font).unwrap();
+            let mut outline = Outline::<Unscaled>::new();
+            for gid in [1, 65536] {
+                outline.load(&tables, GlyphId::new(gid)).unwrap();
+                assert_eq!(outline.adjusted_advance_width(), 1000);
+                let mut pen = SvgPen::with_precision(1);
+                assert!(outline.to_path(PathContourStart::ScanBackward, &mut pen));
+                assert_eq!(
+                    pen.as_ref(),
+                    "M0.0,40.0 C0.0,0.0 80.0,0.0 80.0,40.0 C80.0,80.0 0.0,80.0 0.0,40.0 Z"
+                );
+            }
+        }
+    }
 
     /// A context serving tables it already holds, and metrics from somewhere
     /// other than `hmtx`, the reason this is a trait.

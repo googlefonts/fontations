@@ -25,7 +25,7 @@ pub struct SimpleGlyph {
     pub overlaps: bool,
 }
 
-/// A single contour, comprising only line and quadratic bezier segments
+/// A single contour comprising line, quadratic, or cubic bezier segments.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Contour(Vec<CurvePoint>);
 
@@ -121,6 +121,9 @@ impl SimpleGlyph {
 
             if point.on_curve {
                 flag |= SimpleGlyphFlags::ON_CURVE_POINT;
+            }
+            if point.cubic {
+                flag |= SimpleGlyphFlags::CUBIC;
             }
             let (x_flag, x_data) = flag_and_delta(
                 d_x,
@@ -643,6 +646,32 @@ mod tests {
     use read_fonts::{tables::glyf as read_glyf, FontRef, TableProvider};
 
     use super::*;
+
+    #[test]
+    fn roundtrip_cubic_flags_in_extended_simple_glyph() {
+        let bytes = font_test_data::extended::simple_glyph(&[
+            (0, 0, 0x81),
+            (20, 80, 0x80),
+            (60, 80, 0x80),
+            (80, 0, 0x81),
+        ]);
+        let read = read_glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
+        let points: Vec<_> = read.points().collect();
+        assert!(points.iter().all(|point| point.cubic));
+        assert!(points[0].on_curve);
+        assert!(!points[1].on_curve);
+        let owned: SimpleGlyph = read.to_owned_table();
+        let compiled = crate::dump_table(&owned).unwrap();
+        let read = read_glyf::SimpleGlyph::read(compiled.as_slice().into()).unwrap();
+        assert_eq!(read.points().collect::<Vec<_>>(), points);
+        let mut fast_points = vec![read_fonts::types::Point::<i32>::default(); points.len()];
+        let mut flags = vec![read_glyf::PointFlags::default(); points.len()];
+        read.read_points_fast(&mut fast_points, &mut flags).unwrap();
+        assert_eq!(
+            flags.iter().map(|flag| flag.to_bits()).collect::<Vec<_>>(),
+            [0x81, 0x80, 0x80, 0x81]
+        );
+    }
 
     // For `indexToLocFormat == 0` (short version), offset divided by 2 is stored, so add a padding
     // byte if the length is not even to ensure our computed bytes match those of our test glyphs.

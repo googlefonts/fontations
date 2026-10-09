@@ -287,7 +287,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "spec_next")]
     fn read_cubic_glyf_outline() {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
         let glyph = font.outline_glyphs().get(GlyphId::new(2)).unwrap();
