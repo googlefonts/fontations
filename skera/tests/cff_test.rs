@@ -479,3 +479,113 @@ fn full_cff2_instances_preserve_half_unit_contours() {
         assert_eq!(paths(&out), paths(&reference), "{request} glyph {gid}");
     }
 }
+
+#[test]
+fn nested_cff2_blends_survive_subsetting_and_instancing() {
+    use skrifa::MetadataProvider;
+    use write_fonts::types::F2Dot14;
+    let bytes = std::fs::read("test-data/fonts/cff2-nested-blends.otf").unwrap();
+    let font = FontRef::new(&bytes).unwrap();
+    let paths = |font: &FontRef, coords: &[F2Dot14]| {
+        let cff = CffFontRef::new(
+            font.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        (0..cff.num_glyphs())
+            .map(|gid| {
+                let gid = GlyphId::new(gid);
+                let sf = cff
+                    .subfont(cff.subfont_index(gid).unwrap(), coords)
+                    .unwrap();
+                let mut path = Vec::<PathElement>::new();
+                cff.draw(&sf, gid, coords, None, &mut path).unwrap();
+                path
+            })
+            .collect::<Vec<_>>()
+    };
+    for flags in 0..8 {
+        let mut mode = SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE;
+        for (bit, flag) in [
+            (1, SubsetFlags::SUBSET_FLAGS_NO_HINTING),
+            (2, SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE),
+            (4, SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS),
+        ] {
+            if flags & bit != 0 {
+                mode |= flag;
+            }
+        }
+        let out = subset_font(&font, &plan(&font, mode, "*")).unwrap();
+        let output = FontRef::new(&out).unwrap();
+        for coord in [0., 0.25, 0.5, 1.] {
+            let coords = [F2Dot14::from_f64(coord); 2];
+            assert_eq!(
+                paths(&font, &coords),
+                paths(&output, &coords),
+                "flags={flags} coord={coord}"
+            );
+        }
+    }
+    let full = skera::instance_font(
+        &font,
+        &skera::parse_axis_limits("wght=0.6,wdth=0.5").unwrap(),
+    )
+    .unwrap();
+    let reference = std::fs::read("test-data/expected/cff2-instances/hb-nested-full.otf").unwrap();
+    assert_eq!(
+        paths(&FontRef::new(&full).unwrap(), &[]),
+        paths(&FontRef::new(&reference).unwrap(), &[])
+    );
+    // Metrics are computed from continuous source bounds, with negative ties
+    // rounded toward positive infinity, independently of blend fold rounding.
+    for (coordinate, bearing) in [(0.25, -99), (0.75, -98)] {
+        let limits =
+            skera::parse_axis_limits(&format!("wght={coordinate},wdth={coordinate}")).unwrap();
+        let instance = skera::instance_font(&font, &limits).unwrap();
+        let instance = FontRef::new(&instance).unwrap();
+        assert_eq!(
+            instance.hmtx().unwrap().side_bearing(GlyphId::new(3)),
+            Some(bearing)
+        );
+    }
+    for request in ["wght=0.5", "wdth=0.5", "wght=0.25:0.5:1,wdth=0.25:0.5:1"] {
+        let partial =
+            skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()).unwrap();
+        let output = FontRef::new(&partial).unwrap();
+        let pins = skera::parse_axis_limits(request).unwrap();
+        for fraction in [0., 0.25, 0.5, 0.75, 1.] {
+            let mut settings: Vec<_> = output
+                .axes()
+                .iter()
+                .map(|a| {
+                    (
+                        a.tag(),
+                        a.min_value() + (a.max_value() - a.min_value()) * fraction,
+                    )
+                })
+                .collect();
+            for pin in &pins {
+                if let skera::AxisLimits::Pin { tag, value } = pin {
+                    settings.push((*tag, *value));
+                }
+            }
+            let old = font.axes().location(settings.iter().copied());
+            let new = output.axes().location(settings);
+            let original = paths(&font, old.coords());
+            let instanced = paths(&output, new.coords());
+            // Integral folds preserve the continuous linear/quadratic terms,
+            // including sums of variable terms. Glyph 3 tests deliberate
+            // half-unit rounding against the full HarfBuzz oracle above.
+            for gid in [0, 1, 2, 4] {
+                assert_eq!(
+                    original[gid], instanced[gid],
+                    "{request} fraction={fraction} gid={gid}"
+                );
+            }
+            if request == "wdth=0.5" {
+                assert_eq!(original, instanced, "{request} fraction={fraction}");
+            }
+        }
+    }
+}

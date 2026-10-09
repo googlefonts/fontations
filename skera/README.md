@@ -12,6 +12,8 @@ Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
 instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
 Instancing resolves outline blends and variation deltas in metrics, layout,
 and COLRv1 paint tables.
+Nested CFF2 blends, including variable deltas, are preserved through subsetting
+and partial instancing; full instancing rounds each blend independently.
 The library's `instance_font` preserves glyph IDs; create a `Plan` from the
 returned font to subset the instance.
 

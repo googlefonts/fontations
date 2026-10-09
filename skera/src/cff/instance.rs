@@ -1,8 +1,9 @@
 //! Resolve CFF2 charstring and Private DICT blends through the same region scalars.
 use super::{
-    charstring::{self, Interpreter, Program, Recorder, Value},
+    blend::{Rebaser, Rounding},
+    charstring::{self, CharStringActions, Command, Interpreter, Program, Recorder, Value},
     dict, encoding,
-    source::{Cff2, Source},
+    source::{Cff2, CharStringSource, Source},
     subset::{self, Programs},
     Error, Result,
 };
@@ -10,6 +11,7 @@ use crate::{
     instance::{AxisPlan, StorePlan},
     Plan, SubsetFlags,
 };
+use std::collections::BTreeSet;
 use write_fonts::read::{
     collections::IntSet,
     tables::variations::{ItemVariationStore, VariationRegion},
@@ -64,11 +66,84 @@ fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<
         })
         .collect()
 }
-fn fold(default: f64, deltas: &[f64], gains: &[f64]) -> Result<f64> {
-    if deltas.len() != gains.len() {
-        return Err(Error);
+#[derive(Default)]
+struct ComplexBlends(BTreeSet<usize>);
+impl CharStringActions for ComplexBlends {
+    fn token(&mut self, _: Program, _: usize, _: &[u8]) {}
+    fn call(&mut self, _: Program, _: usize, _: Program, _: &Value) -> Result<()> {
+        Ok(())
     }
-    Ok((default + deltas.iter().zip(gains).map(|(d, g)| d * g).sum::<f64>()).round())
+    fn discard(&mut self, _: impl Iterator<Item = (Program, usize)>) {}
+    fn command(&mut self, command: Command) {
+        for value in command.args.iter().filter(|v| v.nested()) {
+            self.0.insert(value.blend.as_ref().unwrap().ivs);
+        }
+    }
+}
+
+fn private_values(entry: &dict::Entry, source: &Source, ivs: usize) -> Result<Vec<Value>> {
+    let mut position = 0;
+    let mut stack: Vec<Value> = Vec::new();
+    while position < entry.raw.len() {
+        if let Some(number) = encoding::number(&entry.raw, &mut position, true)? {
+            if stack.len() >= 513 {
+                return Err(Error);
+            }
+            stack.push(Value::plain(number));
+            continue;
+        }
+        let op = encoding::op(&entry.raw, &mut position)?;
+        if op != 23 {
+            if op != entry.op || position != entry.raw.len() {
+                return Err(Error);
+            }
+            return Ok(stack);
+        }
+        let count = usize::try_from(stack.pop().ok_or(Error)?.int()?).map_err(|_| Error)?;
+        let regions = source.region_count(ivs)?;
+        let start = stack
+            .len()
+            .checked_sub(count.checked_mul(regions + 1).ok_or(Error)?)
+            .ok_or(Error)?;
+        let values = stack.split_off(start);
+        for i in 0..count {
+            stack.push(Value::blended(
+                &values[i],
+                &values[count + i * regions..count + (i + 1) * regions],
+                ivs,
+            )?);
+        }
+    }
+    Err(Error)
+}
+
+fn complex_blends(source: &Source) -> Result<BTreeSet<usize>> {
+    let mut collector = ComplexBlends::default();
+    for gid in 0..source.font.num_glyphs() as usize {
+        let fd = source.fd(write_fonts::types::GlyphId::new(gid as u32))?;
+        let mut interpreter =
+            Interpreter::<Cff2, _, _>::new(source, &mut collector, fd, source.fds[fd].ivs, false);
+        interpreter.run(
+            Program::Glyph(gid),
+            source.font.charstrings().get(gid).ok_or(Error)?,
+        )?;
+    }
+    for fd in &source.fds {
+        let mut ivs = 0;
+        for entry in &fd.private {
+            if entry.op == 22 {
+                ivs = dict::uint(*entry.args.first().ok_or(Error)?)?;
+            } else if entry.op != 19 {
+                for value in private_values(entry, source, ivs)?
+                    .iter()
+                    .filter(|v| v.nested())
+                {
+                    collector.0.insert(value.blend.as_ref().unwrap().ivs);
+                }
+            }
+        }
+    }
+    Ok(collector.0)
 }
 
 pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
@@ -78,12 +153,22 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
         .ok_or(Error)?;
     let mut source = Source::new(data.as_bytes())?;
     let partial = !axes.all_pinned();
-    let store_plan = source
-        .font
-        .var_store()
-        .map(|s| StorePlan::new(s, axes))
-        .transpose()
-        .map_err(|_| Error)?;
+    let mut store_plan = if partial {
+        source
+            .font
+            .var_store()
+            .map(|s| StorePlan::new(s, axes))
+            .transpose()
+            .map_err(|_| Error)?
+    } else {
+        None
+    };
+    let constants = if let Some(plan) = &mut store_plan {
+        plan.add_constant_region(&complex_blends(&source)?)
+            .map_err(|_| Error)?
+    } else {
+        Default::default()
+    };
     let mut transforms = Vec::new();
     if let Some(store) = source.font.var_store() {
         for i in 0..store.item_variation_data_count() as usize {
@@ -100,30 +185,19 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
             Program::Glyph(gid),
             source.font.charstrings().get(gid).ok_or(Error)?,
         )?;
+        let mut rebaser = store_plan
+            .as_ref()
+            .map(|s| Rebaser::new(s, &transforms, &constants));
+        let mut remaining = 200_000;
         for command in &mut rec.commands {
             for value in &mut command.args {
-                if let Some((ivs, deltas)) = value.blend.take() {
-                    if partial {
-                        let transform = store_plan
-                            .as_ref()
-                            .ok_or(Error)?
-                            .transforms
-                            .get(ivs)
-                            .ok_or(Error)?;
-                        value.default += fold(0., &deltas, transforms.get(ivs).ok_or(Error)?)?;
-                        let residual: Vec<_> = transform
-                            .residual(&deltas)
-                            .map_err(|_| Error)?
-                            .into_iter()
-                            .map(f64::round)
-                            .collect();
-                        if residual.iter().any(|v| *v != 0.) {
-                            value.blend = Some((ivs, residual));
-                        }
-                    } else {
-                        value.default =
-                            fold(value.default, &deltas, transforms.get(ivs).ok_or(Error)?)?;
+                if partial {
+                    if let Some(rebaser) = &mut rebaser {
+                        *value = rebaser.value(value, &mut Rounding::default())?;
                     }
+                } else {
+                    value.default = value.resolve(transforms.as_slice(), &mut remaining)?;
+                    value.blend = None;
                 }
             }
         }
@@ -134,7 +208,9 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
             if partial { source.fds[fd].ivs } else { 0 },
         )?);
     }
-    for fd in &mut source.fds {
+    // Parse before mutating source so DICT expressions use the original store.
+    let mut privates = Vec::new();
+    for fd in &source.fds {
         let mut ivs = 0;
         let mut entries = Vec::new();
         for entry in &fd.private {
@@ -148,104 +224,45 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                 }
                 continue;
             }
-            let mut p = 0;
-            let mut stack: Vec<Value> = Vec::new();
-            let mut raw = Vec::new();
-            let mut fold_exact = 0.;
-            let mut fold_emitted = 0.;
-            while p < entry.raw.len() {
-                if let Some(v) = encoding::number(&entry.raw, &mut p, true)? {
-                    stack.push(Value::plain(v));
-                    continue;
-                }
-                let op = encoding::op(&entry.raw, &mut p)?;
-                if op == 23 {
-                    let n = dict::uint(stack.pop().ok_or(Error)?.default)?;
-                    let g = transforms.get(ivs).ok_or(Error)?;
-                    let k = g.len();
-                    let start = stack
-                        .len()
-                        .checked_sub(n.checked_mul(k + 1).ok_or(Error)?)
-                        .ok_or(Error)?;
-                    let values = stack.split_off(start);
-                    for i in 0..n {
-                        let deltas: Vec<_> = values[n + i * k..n + (i + 1) * k]
-                            .iter()
-                            .map(|v| v.default)
-                            .collect();
-                        let mut value = values[i].clone();
-                        if partial {
-                            let t = store_plan
-                                .as_ref()
-                                .ok_or(Error)?
-                                .transforms
-                                .get(ivs)
-                                .ok_or(Error)?;
-                            if deltas.len() != g.len() {
-                                return Err(Error);
-                            }
-                            let f: f64 = deltas.iter().zip(g).map(|(d, s)| d * s).sum();
-                            fold_exact += f;
-                            let emitted = fold_exact.round();
-                            value.default += emitted - fold_emitted;
-                            fold_emitted = emitted;
-                            let residual: Vec<_> = t
-                                .residual(&deltas)
-                                .map_err(|_| Error)?
-                                .into_iter()
-                                .map(f64::round)
-                                .collect();
-                            if residual.iter().any(|v| *v != 0.) {
-                                value.blend = Some((ivs, residual));
-                            }
-                        } else {
-                            value.default = (value.default
-                                + deltas.iter().zip(g).map(|(d, s)| d * s).sum::<f64>())
-                            .round();
-                        }
-                        stack.push(value);
+            let mut values = private_values(entry, &source, ivs)?;
+            let mut rounding = Rounding::private_dict();
+            let mut rebaser = store_plan
+                .as_ref()
+                .map(|s| Rebaser::new(s, &transforms, &constants));
+            let mut remaining = 200_000;
+            for value in &mut values {
+                if partial {
+                    if let Some(rebaser) = &mut rebaser {
+                        *value = rebaser.value(value, &mut rounding)?;
                     }
                 } else {
-                    let k = stack
-                        .iter()
-                        .find_map(|v| v.blend.as_ref().map(|(_, d)| d.len()));
-                    if let Some(k) = k {
-                        let mut done = 0;
-                        while done < stack.len() {
-                            let count = ((512 - done) / (k + 1)).min(stack.len() - done);
-                            if count == 0 {
-                                return Err(Error);
-                            }
-                            for v in &stack[done..done + count] {
-                                encoding::encode(&mut raw, v.default, true)?;
-                            }
-                            for v in &stack[done..done + count] {
-                                for i in 0..k {
-                                    encoding::encode(
-                                        &mut raw,
-                                        v.blend.as_ref().map_or(0., |(_, d)| d[i]),
-                                        true,
-                                    )?;
-                                }
-                            }
-                            encoding::encode(&mut raw, count as f64, true)?;
-                            raw.push(23);
-                            done += count;
-                        }
-                    } else {
-                        for v in &stack {
-                            encoding::encode(&mut raw, v.default, true)?;
-                        }
-                    }
-                    stack.clear();
-                    encoding::emit_op(&mut raw, op);
+                    value.default = value.resolve(transforms.as_slice(), &mut remaining)?;
+                    value.blend = None;
                 }
             }
-            let mut e = entry.clone();
-            e.raw = raw;
-            entries.push(e);
+            let mut raw = Vec::new();
+            let mut occupied = 0;
+            let mut remaining = 200_000;
+            for value in &values {
+                charstring::emit_value(
+                    value,
+                    &mut raw,
+                    true,
+                    Some(ivs),
+                    &mut occupied,
+                    513,
+                    &mut remaining,
+                )?;
+            }
+            encoding::emit_op(&mut raw, entry.op);
+            let mut entry = entry.clone();
+            entry.raw = raw;
+            entries.push(entry);
         }
-        fd.private = entries;
+        privates.push(entries);
+    }
+    for (fd, private) in source.fds.iter_mut().zip(privates) {
+        fd.private = private;
         if !partial {
             fd.ivs = 0;
         }
@@ -325,7 +342,7 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
                 .commands
                 .iter()
                 .flat_map(|c| &c.args)
-                .filter_map(|v| v.blend.as_ref().map(|b| b.0)),
+                .filter_map(|v| v.blend.as_ref().map(|b| b.ivs)),
         );
         commands.push((fd, recorder.commands));
     }
@@ -421,9 +438,7 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
     for (fd, mut commands) in commands {
         for command in &mut commands {
             for value in &mut command.args {
-                if let Some((ivs, _)) = &mut value.blend {
-                    *ivs = *remap.get(ivs).ok_or(Error)?;
-                }
+                value.remap_ivs(&remap)?;
             }
         }
         chars.push(charstring::flatten(
@@ -454,6 +469,105 @@ mod tests {
     };
 
     #[test]
+    fn nested_private_dict_blends_use_the_shared_rebaser() {
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/cff2-nested-blends.otf"
+        ))
+        .unwrap();
+        use write_fonts::read::TableProvider;
+        let mut source = Source::new(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let mut raw = Vec::new();
+        for number in [100., 0., 10., 20., 0., 1.] {
+            encoding::encode(&mut raw, number, true).unwrap();
+        }
+        raw.push(23);
+        raw.extend([140, 23, 10]);
+        let entry = dict::parse(&raw).unwrap().remove(0);
+        let values = private_values(&entry, &source, 0).unwrap();
+        assert_eq!(values.len(), 1);
+        assert!(values[0].nested());
+        assert_eq!(
+            values[0]
+                .resolve(&[vec![0.6, 0.5]][..], &mut 200_000)
+                .unwrap(),
+            111.
+        );
+
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wdth=0.5").unwrap()).unwrap();
+        let store = source.font.var_store().unwrap();
+        let mut plan = StorePlan::new(store, &axes).unwrap();
+        let constants = plan.add_constant_region(&[0].into()).unwrap();
+        let gains = vec![gains(store, 0, &axes).unwrap()];
+        let result = Rebaser::new(&plan, &gains, &constants)
+            .value(&values[0], &mut Rounding::private_dict())
+            .unwrap();
+        // The retained wght region and the constant region are the two columns.
+        assert_eq!(
+            result.resolve(&[vec![0.25, 1.]][..], &mut 200_000).unwrap(),
+            108.
+        );
+        let mut encoded = Vec::new();
+        charstring::emit_value(
+            &result,
+            &mut encoded,
+            true,
+            Some(0),
+            &mut 0,
+            513,
+            &mut 200_000,
+        )
+        .unwrap();
+        encoded.push(10);
+        let reread = private_values(&dict::parse(&encoded).unwrap().remove(0), &source, 0).unwrap();
+        assert_eq!(
+            reread[0]
+                .resolve(&[vec![0.25, 1.]][..], &mut 200_000)
+                .unwrap(),
+            108.
+        );
+
+        // Exercise the real Private DICT assembly and VarData compaction, then
+        // instance the remaining axis through the public font API.
+        source.fds[0].private = vec![entry];
+        let plan = Plan::new(
+            &IntSet::all(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::<NameId>::all(),
+            &IntSet::all(),
+        );
+        let cff = subset::assemble::<Cff2>(
+            &source,
+            &plan,
+            Programs {
+                chars: (0..source.font.num_glyphs() as usize)
+                    .map(|gid| source.font.charstrings().get(gid).unwrap().to_vec())
+                    .collect(),
+                globals: vec![],
+                locals: vec![vec![]; source.fds.len()],
+            },
+        )
+        .unwrap();
+        let mut builder = write_fonts::FontBuilder::new();
+        builder.add_raw(write_fonts::types::Tag::new(b"CFF2"), cff);
+        let input = builder.copy_missing_tables(font.clone()).build();
+        let input = FontRef::new(&input).unwrap();
+        let partial =
+            crate::instance_font(&input, &crate::parse_axis_limits("wdth=0.5").unwrap()).unwrap();
+        let partial = FontRef::new(&partial).unwrap();
+        let full = crate::instance_font(&partial, &crate::parse_axis_limits("wght=0.25").unwrap())
+            .unwrap();
+        let full = FontRef::new(&full).unwrap();
+        let output = Source::new(full.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let private = output.fds[0].private.iter().find(|e| e.op == 10).unwrap();
+        assert_eq!(private.args, [108.]);
+    }
+
+    #[test]
     fn cff_scalars_keep_half_unit_operands_on_the_correct_side() {
         let bytes = write_fonts::dump_table(&VariationRegionList::new(
             1,
@@ -467,9 +581,19 @@ mod tests {
                 .unwrap();
         let region = list.variation_regions().get(0).unwrap();
         let gain = region_gain(&region, &[F2Dot14::from_f64(0.25)]);
-        assert_eq!(fold(0., &[1.5], &[gain]).unwrap(), 1.);
-        assert_eq!(fold(0., &[-1.5], &[gain]).unwrap(), -1.);
-        assert_eq!(fold(0.25, &[0.5], &[gain]).unwrap(), 0.);
-        assert_eq!(fold(0.25, &[1.], &[gain]).unwrap(), 1.);
+        let fold = |default, deltas: &[f64], gains: &[f64]| {
+            Value::blended(
+                &Value::plain(default),
+                &deltas.iter().copied().map(Value::plain).collect::<Vec<_>>(),
+                0,
+            )
+            .unwrap()
+            .resolve(&[gains.to_vec()][..], &mut 200_000)
+            .unwrap()
+        };
+        assert_eq!(fold(0., &[1.5], &[gain]), 1.);
+        assert_eq!(fold(0., &[-1.5], &[gain]), -1.);
+        assert_eq!(fold(0.25, &[0.5], &[gain]), 0.);
+        assert_eq!(fold(0.25, &[1.], &[gain]), 1.);
     }
 }
