@@ -304,7 +304,7 @@ fn encoding(source: &Source, old_gids: &[usize], codes: &[usize]) -> Result<Opti
     Ok(Some(out))
 }
 
-fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
+pub(super) fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
     let mut ranges = Vec::new();
     for (i, &fd) in fds.iter().enumerate() {
         if i == 0 || fd != fds[i - 1] {
