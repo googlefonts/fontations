@@ -203,8 +203,13 @@ impl IndexMapSubsetPlan {
 
                 let v = index_map.unwrap().get(old_gid.to_u32())?;
                 let outer = v.outer as usize;
+                if v == DeltaSetIndex::NO_VARIATION_INDEX {
+                    continue;
+                }
                 if outer >= this.max_inners.len() {
-                    break;
+                    return Err(ReadError::MalformedData(
+                        "variation index outer is out of range",
+                    ));
                 }
 
                 outer_map.add(v.outer as u32);
@@ -225,7 +230,7 @@ impl IndexMapSubsetPlan {
         index_map: Option<&DeltaSetIndexMap>,
         outer_map: &IncBiMap,
         inner_maps: &[IncBiMap],
-    ) {
+    ) -> Result<(), ReadError> {
         self.inner_bit_count = 1;
 
         for (max_inner, inner_map) in self.max_inners.iter().zip(inner_maps) {
@@ -248,23 +253,30 @@ impl IndexMapSubsetPlan {
 
             let old_gid = old_gid.to_u32();
             let v = match index_map {
-                Some(m) => m.get(old_gid).unwrap(),
+                Some(m) => m.get(old_gid)?,
                 None => DeltaSetIndex {
                     outer: (old_gid >> 16) as u16,
                     inner: (old_gid & 0xFFFF) as u16,
                 },
             };
 
-            let outer = v.outer;
-            if outer as usize >= inner_maps.len() {
+            if v == DeltaSetIndex::NO_VARIATION_INDEX {
+                self.inner_bit_count = 16;
+                self.outer_bit_count = self.outer_bit_count.max(16);
+                self.output_map.insert(new_gid.to_u32(), u32::MAX);
                 continue;
             }
-
-            let new_outer = outer_map.get(outer as u32).unwrap();
-            let new_inner = inner_maps[outer as usize].get(v.inner as u32).unwrap();
+            let outer = v.outer;
+            let invalid = || ReadError::MalformedData("variation index cannot be remapped");
+            let new_outer = outer_map.get(outer as u32).ok_or_else(invalid)?;
+            let new_inner = inner_maps
+                .get(outer as usize)
+                .and_then(|m| m.get(v.inner as u32))
+                .ok_or_else(invalid)?;
             self.output_map
                 .insert(new_gid.to_u32(), (*new_outer << 16) | *new_inner);
         }
+        Ok(())
     }
 
     fn is_identity(&self) -> bool {
@@ -305,6 +317,11 @@ impl HvarVvarSubsetPlan {
     ) -> Result<Self, ReadError> {
         let mut this = HvarVvarSubsetPlan::default();
         let vardata_count = var_store.item_variation_data_count() as usize;
+        if vardata_count == 0 || index_maps.is_empty() {
+            return Err(ReadError::MalformedData(
+                "metric variation store has no data or index maps",
+            ));
+        }
 
         let mut inner_sets = Vec::new();
         inner_sets.resize(vardata_count, Default::default());
@@ -333,6 +350,20 @@ impl HvarVvarSubsetPlan {
                 &mut outer_map,
                 &mut inner_sets,
             )?);
+        }
+
+        for (outer, set) in inner_sets.iter().enumerate() {
+            if !set.is_empty() {
+                let data = var_store
+                    .item_variation_data()
+                    .get(outer)
+                    .ok_or(ReadError::MalformedData("metric variation data is missing"))??;
+                if set.iter().any(|inner| inner >= data.item_count()) {
+                    return Err(ReadError::MalformedData(
+                        "variation index inner is out of range",
+                    ));
+                }
+            }
         }
 
         outer_map.sort();
@@ -365,12 +396,11 @@ impl HvarVvarSubsetPlan {
             this.inner_maps.push(inner_map);
         }
 
-        this.index_map_subset_plans
-            .iter_mut()
-            .zip(index_maps)
-            .for_each(|(index_map_subset_plan, index_map)| {
-                index_map_subset_plan.remap(plan, index_map.as_ref(), &outer_map, &this.inner_maps)
-            });
+        for (index_map_subset_plan, index_map) in
+            this.index_map_subset_plans.iter_mut().zip(index_maps)
+        {
+            index_map_subset_plan.remap(plan, index_map.as_ref(), &outer_map, &this.inner_maps)?;
+        }
         Ok(this)
     }
 
@@ -390,6 +420,63 @@ mod test {
         read::{FontData, FontRead},
         types::GlyphId,
     };
+    #[test]
+    fn malformed_metric_indices_return_errors_and_no_variation_indices_survive() {
+        use write_fonts::tables::variations as owned;
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut plan = Plan::default();
+        for gid in [GlyphId::new(0), GlyphId::new(1)] {
+            plan.new_to_old_gid_list.push((gid, gid));
+            plan.glyphset.insert(gid);
+        }
+        let make_store = |empty: bool| owned::ItemVariationStore {
+            variation_region_list: owned::VariationRegionList::new(0, vec![]).into(),
+            item_variation_data: if empty {
+                vec![]
+            } else {
+                vec![owned::ItemVariationData {
+                    item_count: 1,
+                    word_delta_count: 0,
+                    region_indexes: vec![],
+                    delta_sets: vec![],
+                }
+                .into()]
+            },
+        };
+        for (empty, mapping, valid) in [
+            (true, None, false),
+            (false, None, false),
+            (false, Some(vec![1 << 16, 0]), false),
+            (false, Some(vec![0, u32::MAX]), true),
+        ] {
+            let hvar = write_fonts::tables::hvar::Hvar::new(
+                make_store(empty),
+                mapping.map(|m| m.into_iter().collect()),
+                None,
+                None,
+            );
+            let bytes = write_fonts::dump_table(&hvar).unwrap();
+            let hvar = Hvar::read(FontData::new(&bytes)).unwrap();
+            let mut builder = FontBuilder::new();
+            let mut serializer = Serializer::new(1024);
+            serializer.start_serialize().unwrap();
+            let result = hvar.subset(&plan, &font, &mut serializer, &mut builder);
+            assert_eq!(result.is_ok(), valid);
+            if valid {
+                serializer.end_serialize();
+                let bytes = serializer.copy_bytes();
+                let result = Hvar::read(FontData::new(&bytes)).unwrap();
+                let mapping = result.advance_width_mapping().unwrap().unwrap();
+                assert_eq!(
+                    mapping.get(0).unwrap(),
+                    DeltaSetIndex { outer: 0, inner: 0 }
+                );
+                assert_eq!(mapping.get(1).unwrap(), DeltaSetIndex::NO_VARIATION_INDEX);
+            }
+        }
+    }
+
     #[test]
     fn test_subset_hvar_noop() {
         let raw_bytes: [u8; 98] = [
