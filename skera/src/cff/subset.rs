@@ -77,9 +77,18 @@ pub(super) struct Programs {
 }
 
 pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Programs> {
-    let desub = plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE);
+    programs_impl::<F>(source, plan, false)
+}
+
+fn programs_impl<F: CffFlavor>(
+    source: &Source,
+    plan: &Plan,
+    force_flatten: bool,
+) -> Result<Programs> {
+    let desub = force_flatten
+        || plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE);
     let nohint = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
@@ -100,19 +109,24 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         let fd = source.fd(old)?;
         let data = source.font.charstrings().get(orig).unwrap_or(&[]);
         let key = Program::Glyph(orig);
-        let first = rec.commands.len();
+        let mut glyph = Recorder::default();
         let mut interpreter =
-            Interpreter::<F, _, _>::new(source, &mut rec, fd, source.fds[fd].ivs, nohint);
+            Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
         interpreter.run(key, data)?;
         let width = interpreter.width;
         if desub {
-            chars[gid] =
-                charstring::flatten(&rec.commands[first..], width, F::CFF2, source.fds[fd].ivs)?;
+            chars[gid] = charstring::flatten(&glyph.commands, width, F::CFF2, source.fds[fd].ivs)?;
         } else {
             roots.push(key);
             widths.insert(orig, width);
+            rec.merge(glyph);
+            // The same subroutine can execute with different caller stacks.
+            // Flatten only when its call targets, masks, or removed operands
+            // cannot be represented by a single retained program.
+            if rec.needs_flattening {
+                return programs_impl::<F>(source, plan, true);
+            }
         }
-        rec.commands.truncate(first);
     }
     let mut globals = Vec::new();
     let mut locals = vec![Vec::new(); source.fds.len()];
@@ -200,6 +214,7 @@ fn map_sids(
     }
     Ok(out)
 }
+
 fn remap_sid(
     sid: usize,
     map: &mut BTreeMap<usize, usize>,
@@ -559,4 +574,105 @@ pub(super) fn assemble<F: CffFlavor>(
     }
     out.extend(fdarray);
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::source::Cff1;
+    use super::*;
+    use write_fonts::read::{
+        model::glyph::outline::PathElement, ps::cff::CffFontRef, FontRef, TableProvider,
+    };
+    use write_fonts::{
+        types::{NameId, Tag},
+        FontBuilder,
+    };
+
+    #[test]
+    fn caller_dependent_subroutine_targets_preserve_outlines() {
+        let names = encoding::index(&[b"CFFTest".to_vec()], false).unwrap();
+        let locals = encoding::index(&[vec![10, 11], vec![5, 11], vec![8, 11]], false).unwrap();
+        let mut private = vec![139, 20];
+        private.extend(dict::replacement(19, &[8]).unwrap());
+        assert_eq!(private.len(), 8);
+        let chars: Vec<_> = [33, 34]
+            .into_iter()
+            .map(|target| {
+                // The wrapper takes its own callsubr target from the caller.
+                vec![
+                    139, 139, 21, 149, 139, 139, 149, 149, 139, target, 32, 10, 14,
+                ]
+            })
+            .collect();
+        let char_index = encoding::index(&chars, false).unwrap();
+        let top = |offset: usize| {
+            let mut top = dict::replacement(17, &[offset + private.len() + locals.len()]).unwrap();
+            top.extend(dict::replacement(18, &[private.len(), offset]).unwrap());
+            top
+        };
+        let offset = 4 + names.len() + encoding::index(&[top(0)], false).unwrap().len() + 4;
+        let mut cff = vec![1, 0, 4, 4];
+        cff.extend(names);
+        cff.extend(encoding::index(&[top(offset)], false).unwrap());
+        cff.extend([0, 0, 0, 0]); // String and Global Subr INDEXes.
+        cff.extend(private);
+        cff.extend(locals);
+        cff.extend(char_index);
+        let base = std::fs::read("test-data/fonts/Cantarell-VF-ABC.otf").unwrap();
+        let base = FontRef::new(&base).unwrap();
+        let mut builder = FontBuilder::new();
+        builder.add_raw(
+            Tag::new(b"head"),
+            base.data_for_tag(Tag::new(b"head")).unwrap(),
+        );
+        let mut hhea = base
+            .data_for_tag(Tag::new(b"hhea"))
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        hhea[34..36].copy_from_slice(&2u16.to_be_bytes());
+        builder.add_raw(Tag::new(b"hhea"), hhea);
+        builder.add_raw(Tag::new(b"hmtx"), [0x02, 0x8a, 0, 0].repeat(2));
+        builder.add_raw(Tag::new(b"maxp"), vec![0, 0, 0x50, 0, 0, 2]);
+        builder.add_raw(Tag::new(b"CFF "), &cff);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let source = Source::new(&cff).unwrap();
+        let original = CffFontRef::new(&cff, 0, None).unwrap();
+        for flags in [
+            SubsetFlags::default(),
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING,
+            SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
+        ] {
+            let plan = Plan::new(
+                &[GlyphId::new(0), GlyphId::new(1)].into_iter().collect(),
+                &IntSet::empty(),
+                &font,
+                flags | SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+                &IntSet::empty(),
+                &IntSet::all(),
+                &IntSet::empty(),
+                &IntSet::<NameId>::all(),
+                &IntSet::all(),
+            );
+            let programs = programs::<Cff1>(&source, &plan).unwrap();
+            assert!(programs.locals.iter().all(Vec::is_empty));
+            let bytes = assemble::<Cff1>(&source, &plan, programs).unwrap();
+            let subset = CffFontRef::new(&bytes, 0, None).unwrap();
+            for i in 0..2 {
+                let gid = GlyphId::new(i);
+                let original_subfont = original.subfont(0, &[]).unwrap();
+                let subset_subfont = subset.subfont(0, &[]).unwrap();
+                let mut a = Vec::<PathElement>::new();
+                let mut b = Vec::<PathElement>::new();
+                original
+                    .draw(&original_subfont, gid, &[], None, &mut a)
+                    .unwrap();
+                subset
+                    .draw(&subset_subfont, gid, &[], None, &mut b)
+                    .unwrap();
+                assert_eq!(a, b);
+            }
+        }
+    }
 }
