@@ -1,119 +1,165 @@
 //! impl subset() for gvar table
 use std::mem::size_of;
 
-use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
+use crate::{
+    serialize::{SerializeErrorFlags, Serializer},
+    Plan, Subset, SubsetError, SubsetFlags,
+};
 
 use write_fonts::{
-    read::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable},
-    types::Scalar,
+    read::{
+        tables::gvar::{Gvar, GvarExtended, GvarTable},
+        types::GlyphId,
+        FontRef, TopLevelTable,
+    },
+    types::{Scalar, Tag, Uint24},
     FontBuilder,
 };
 
 const FIXED_HEADER_SIZE: u32 = 20;
 // reference: subset() for gvar table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/63d09dbefcf7ad9f794ca96445d37b6d8c3c9124/src/hb-ot-var-gvar-table.hh#L411
-impl Subset for Gvar<'_> {
-    fn subset(
-        &self,
-        plan: &Plan,
-        _font: &FontRef,
-        s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
-        //table header: from version to sharedTuplesOffset
-        s.embed_bytes(self.offset_data().as_bytes().get(0..12).unwrap())
-            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
-
-        // glyphCount
-        let num_glyphs = plan.num_output_glyphs.min(0xFFFF) as u16;
-        s.embed(num_glyphs)
-            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
-
-        let subset_data_size: usize = plan
-            .new_to_old_gid_list
-            .iter()
-            .filter_map(|x| {
-                if x.0 == GlyphId::NOTDEF
-                    && !plan
-                        .subset_flags
-                        .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
-                {
-                    return None;
+macro_rules! subset_gvar_table {
+    ($table:ident) => {
+        impl Subset for $table<'_> {
+            fn subset(
+                &self,
+                plan: &Plan,
+                _font: &FontRef,
+                s: &mut Serializer,
+                _builder: &mut FontBuilder,
+            ) -> Result<(), SubsetError> {
+                let table: GvarTable = self.clone().into();
+                let result = subset_gvar(&table, plan, s);
+                if result.is_err() {
+                    s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
                 }
-                self.data_for_gid(x.1)
-                    .ok()
-                    .flatten()
-                    .map(|data| data.len() + data.len() % 2)
-            })
-            .sum();
-
-        // According to the spec: If the short format (Offset16) is used for offsets, the value stored is the offset divided by 2.
-        // So the maximum subset data size that could use short format should be 2 * 0xFFFFu, which is 0x1FFFE
-        let long_offset = if subset_data_size > 0x1FFFE_usize {
-            1_u16
-        } else {
-            0_u16
-        };
-        // flags
-        s.embed(long_offset)
-            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
-
-        if long_offset > 0 {
-            subset_with_offset_type::<u32>(self, plan, num_glyphs, s)?;
-        } else {
-            subset_with_offset_type::<u16>(self, plan, num_glyphs, s)?;
+                result
+            }
         }
+    };
+}
+subset_gvar_table!(Gvar);
+subset_gvar_table!(GvarExtended);
 
-        Ok(())
+fn subset_gvar(gvar: &GvarTable<'_>, plan: &Plan, s: &mut Serializer) -> Result<(), SubsetError> {
+    let extended = matches!(gvar, GvarTable::Extended(_));
+    let tag = if extended {
+        GvarExtended::TAG
+    } else {
+        Gvar::TAG
+    };
+    let header_size = FIXED_HEADER_SIZE + u32::from(extended);
+    // table header: from version to sharedTuplesOffset
+    s.embed_bytes(gvar.offset_data().as_bytes().get(0..12).unwrap())
+        .map_err(|_| SubsetError::SubsetTableError(tag))?;
+
+    // glyphCount
+    if extended {
+        let count = Uint24::try_from(plan.num_output_glyphs)
+            .map_err(|_| SubsetError::SubsetTableError(tag))?;
+        s.embed(count)
+            .map_err(|_| SubsetError::SubsetTableError(tag))?;
+    } else {
+        let count = u16::try_from(plan.num_output_glyphs)
+            .map_err(|_| SubsetError::SubsetTableError(tag))?;
+        s.embed(count)
+            .map_err(|_| SubsetError::SubsetTableError(tag))?;
     }
+    let num_glyphs = plan.num_output_glyphs as u32;
+
+    let subset_data_size: u64 = plan
+        .new_to_old_gid_list
+        .iter()
+        .filter_map(|x| {
+            if x.0 == GlyphId::NOTDEF
+                && !plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+            {
+                return None;
+            }
+            gvar.data_for_gid(x.1)
+                .ok()
+                .flatten()
+                .map(|data| data.len() as u64 + (data.len() % 2) as u64)
+        })
+        .sum();
+
+    // According to the spec: If the short format (Offset16) is used for offsets, the value stored is the offset divided by 2.
+    // So the maximum subset data size that could use short format should be 2 * 0xFFFFu, which is 0x1FFFE
+    let long_offset = if subset_data_size > 0x1FFFE_u64 {
+        1_u16
+    } else {
+        0_u16
+    };
+    // flags
+    s.embed(long_offset)
+        .map_err(|_| SubsetError::SubsetTableError(tag))?;
+
+    if long_offset > 0 {
+        subset_with_offset_type::<u32>(gvar, plan, num_glyphs, header_size, tag, s)?;
+    } else {
+        subset_with_offset_type::<u16>(gvar, plan, num_glyphs, header_size, tag, s)?;
+    }
+
+    Ok(())
 }
 
 fn subset_with_offset_type<OffsetType: GvarOffset>(
-    gvar: &Gvar<'_>,
+    gvar: &GvarTable<'_>,
     plan: &Plan,
-    num_glyphs: u16,
+    num_glyphs: u32,
+    header_size: u32,
+    tag: Tag,
     s: &mut Serializer,
 ) -> Result<(), SubsetError> {
     // calculate sharedTuplesOffset
     // shared tuples array follow the GlyphVariationData offsets array at the end of the 'gvar' header.
     let off_size = size_of::<OffsetType>();
 
-    let glyph_var_data_offset_array_size = (num_glyphs as u32 + 1) * off_size as u32;
+    let glyph_var_data_offset_array_size = (num_glyphs + 1) * off_size as u32;
+    if gvar.shared_tuple_count() != 0 && gvar.shared_tuples_offset().is_null() {
+        return Err(SubsetError::SubsetTableError(tag));
+    }
     let shared_tuples_offset =
         if gvar.shared_tuple_count() == 0 || gvar.shared_tuples_offset().is_null() {
             0_u32
         } else {
-            FIXED_HEADER_SIZE + glyph_var_data_offset_array_size
+            header_size + glyph_var_data_offset_array_size
         };
 
     //update sharedTuplesOffset, which is of Offset32 type and byte position in gvar is 8..12
-    s.copy_assign(
-        gvar.shared_tuples_offset_byte_range().start,
-        shared_tuples_offset,
-    );
+    s.copy_assign(8, shared_tuples_offset);
 
     // calculate glyphVariationDataArrayOffset: put the glyphVariationData at last in the table
-    let shared_tuples_size = 2 * gvar.axis_count() * gvar.shared_tuple_count();
-    let glyph_var_data_offset =
-        FIXED_HEADER_SIZE + glyph_var_data_offset_array_size + shared_tuples_size as u32;
+    let shared_tuples_size =
+        2u64 * u64::from(gvar.axis_count()) * u64::from(gvar.shared_tuple_count());
+    let glyph_var_data_offset = u32::try_from(
+        u64::from(header_size) + u64::from(glyph_var_data_offset_array_size) + shared_tuples_size,
+    )
+    .map_err(|_| SubsetError::SubsetTableError(tag))?;
     s.embed(glyph_var_data_offset)
-        .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
+        .map_err(|_| SubsetError::SubsetTableError(tag))?;
 
     //pre-allocate glyphVariationDataOffsets array
     let mut start_idx = s
-        .allocate_size(glyph_var_data_offset_array_size as usize, false)
-        .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
+        .allocate_size(glyph_var_data_offset_array_size as usize, true)
+        .map_err(|_| SubsetError::SubsetTableError(tag))?;
 
     // shared tuples array
     if shared_tuples_offset > 0 {
         let offset = gvar.shared_tuples_offset().to_u32() as usize;
+        let end = offset
+            .checked_add(shared_tuples_size as usize)
+            .ok_or(SubsetError::SubsetTableError(tag))?;
         let shared_tuples_data = gvar
             .offset_data()
             .as_bytes()
-            .get(offset..offset + shared_tuples_size as usize)
-            .ok_or(SubsetError::SubsetTableError(Gvar::TAG))?;
+            .get(offset..end)
+            .ok_or(SubsetError::SubsetTableError(tag))?;
         s.embed_bytes(shared_tuples_data)
-            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
+            .map_err(|_| SubsetError::SubsetTableError(tag))?;
     }
 
     // GlyphVariationData table array, also update glyphVariationDataOffsets
@@ -136,18 +182,22 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
 
         if let Some(glyph_var_data) = gvar
             .data_for_gid(*old_gid)
-            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
+            .map_err(|_| SubsetError::SubsetTableError(tag))?
         {
             s.embed_bytes(glyph_var_data.as_bytes())
-                .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
+                .map_err(|_| SubsetError::SubsetTableError(tag))?;
 
             let len = glyph_var_data.len();
-            glyph_offset += len as u32;
+            glyph_offset = glyph_offset
+                .checked_add(u32::try_from(len).map_err(|_| SubsetError::SubsetTableError(tag))?)
+                .ok_or(SubsetError::SubsetTableError(tag))?;
             // padding when short offset format is used
             if off_size == 2 && len % 2 != 0 {
                 s.embed(1_u8)
-                    .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
-                glyph_offset += 1;
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?;
+                glyph_offset = glyph_offset
+                    .checked_add(1)
+                    .ok_or(SubsetError::SubsetTableError(tag))?;
             }
         };
 
@@ -180,6 +230,9 @@ impl GvarOffset for u32 {
         val
     }
 }
+
+#[cfg(test)]
+mod extended_tests;
 
 #[cfg(test)]
 mod test {

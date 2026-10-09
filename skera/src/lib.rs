@@ -20,6 +20,7 @@ mod hvar;
 mod inc_bimap;
 mod layout;
 mod maxp;
+mod metrics;
 mod name;
 mod offset;
 mod offset_array;
@@ -71,22 +72,22 @@ use write_fonts::{
             glyf::{Glyf, Glyph},
             gpos::Gpos,
             gsub::Gsub,
-            gvar::Gvar,
+            gvar::{Gvar, GvarExtended},
             hdmx::Hdmx,
             head::Head,
-            hhea::Hhea,
-            hmtx::Hmtx,
+            hhea::{Hhea, HheaExtended},
+            hmtx::{Hmtx, HmtxExtended},
             hvar::Hvar,
             loca::Loca,
-            maxp::Maxp,
+            maxp::{Maxp, MaxpExtended},
             name::Name,
             os2::Os2,
             post::Post,
             sbix::Sbix,
             stat::Stat,
             variations::NO_VARIATION_INDEX,
-            vhea::Vhea,
-            vmtx::Vmtx,
+            vhea::{Vhea, VheaExtended},
+            vmtx::{Vmtx, VmtxExtended},
             vorg::Vorg,
             vvar::Vvar,
         },
@@ -598,8 +599,7 @@ impl Plan {
         }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
-        if let Ok(loca) = font.loca(None) {
-            let glyf = font.glyf().expect("Error reading glyf table");
+        if let Ok((glyf, loca)) = font.glyf_loca(None) {
             let operation_count =
                 self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
             for gid in self.glyphset_colred.iter() {
@@ -649,7 +649,7 @@ impl Plan {
             self.new_to_old_gid_list.extend(
                 self.glyphset
                     .iter()
-                    .zip(0u16..)
+                    .zip(0u32..)
                     .map(|x| (GlyphId::from(x.1), x.0)),
             );
             self.num_output_glyphs = self.new_to_old_gid_list.len();
@@ -995,8 +995,13 @@ fn remove_invalid_gids(gids: &mut IntSet<GlyphId>, num_glyphs: usize) {
 }
 
 fn get_font_num_glyphs(font: &FontRef) -> usize {
-    let ret = font.loca(None).map(|loca| loca.len()).unwrap_or_default();
-    let maxp = font.maxp().expect("Error reading maxp table");
+    let ret = font
+        .glyf_loca(None)
+        .map(|(_, loca)| loca.len())
+        .unwrap_or_default();
+    let maxp = font
+        .maxp_table()
+        .expect("Error reading maximum profile table");
     ret.max(maxp.num_glyphs() as usize)
 }
 
@@ -1345,10 +1350,25 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
+        Glyf::TAG
+            if font.data_for_tag(glyf_loca::GLYF).is_some()
+                && !plan.drop_tables.contains(glyf_loca::GLYF) =>
+        {
+            Ok(())
+        }
+
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
             .subset(plan, font, s, builder),
+
+        glyf_loca::GLYF => {
+            let glyf = font.glyf_extended().map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(glyf_loca::GLYF)
+            })?;
+            glyf_loca::subset_glyf(&glyf, plan, font, s, builder, true)
+        }
 
         Gpos::TAG => font
             .gpos()
@@ -1360,9 +1380,19 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gsub::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
+        Gvar::TAG if font.data_for_tag(GvarExtended::TAG).is_some() => Ok(()),
+
         Gvar::TAG => font
             .gvar()
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
+            .subset(plan, font, s, builder),
+
+        GvarExtended::TAG => font
+            .gvar_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(GvarExtended::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Hdmx::TAG => font
@@ -1371,26 +1401,46 @@ fn subset_table<'a>(
             .subset(plan, font, s, builder),
 
         //handled by glyf table if exists
-        Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
+        Head::TAG => font.glyf_loca(None).map(|_| ()).or_else(|_| {
             font.head()
                 .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
                 .subset(plan, font, s, builder)
         }),
 
         //Skip, handled by Hmtx
-        Hhea::TAG => Ok(()),
+        Hhea::TAG | HheaExtended::TAG => Ok(()),
+
+        Hmtx::TAG if font.data_for_tag(HmtxExtended::TAG).is_some() => Ok(()),
 
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
             .subset(plan, font, s, builder),
 
+        HmtxExtended::TAG => font
+            .hmtx_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(HmtxExtended::TAG)
+            })?
+            .subset(plan, font, s, builder),
+
         //Skip, handled by Vmtx
-        Vhea::TAG => Ok(()),
+        Vhea::TAG | VheaExtended::TAG => Ok(()),
+
+        Vmtx::TAG if font.data_for_tag(VmtxExtended::TAG).is_some() => Ok(()),
 
         Vmtx::TAG => font
             .vmtx()
             .map_err(|_| SubsetError::SubsetTableError(Vmtx::TAG))?
+            .subset(plan, font, s, builder),
+
+        VmtxExtended::TAG => font
+            .vmtx_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(VmtxExtended::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Hvar::TAG => font
@@ -1408,11 +1458,24 @@ fn subset_table<'a>(
         MVAR | CVT => passthrough_table(tag, font, s),
 
         //Skip, handled by glyf
-        Loca::TAG => Ok(()),
+        Loca::TAG | glyf_loca::LOCA => Ok(()),
+
+        // Hybrid output is not maintained: MAXP describes the retained glyph space.
+        Maxp::TAG
+            if font.data_for_tag(MaxpExtended::TAG).is_some()
+                && !plan.drop_tables.contains(MaxpExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Maxp::TAG => font
             .maxp()
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?
+            .subset(plan, font, s, builder),
+
+        MaxpExtended::TAG => font
+            .maxp_extended()
+            .map_err(|_| SubsetError::SubsetTableError(MaxpExtended::TAG))?
             .subset(plan, font, s, builder),
 
         Name::TAG => font
