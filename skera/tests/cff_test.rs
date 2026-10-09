@@ -320,6 +320,13 @@ fn partial_cff2_instances_match_harfbuzz() {
             None,
         )
         .unwrap();
+        if let Some(store) = a.var_store() {
+            for data in store.item_variation_data().iter().flatten() {
+                let data = data.unwrap();
+                assert_eq!(data.item_count(), 0);
+                assert_eq!(data.word_delta_count(), 0);
+            }
+        }
         assert_eq!(output.axes().len(), reference.axes().len());
         assert_eq!(a.num_glyphs(), b.num_glyphs());
         for fraction in [0.25, 0.75] {
