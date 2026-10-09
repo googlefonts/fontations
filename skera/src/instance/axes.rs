@@ -124,11 +124,11 @@ impl AxisPlan {
                 AxisLimits::Range {
                     min, default, max, ..
                 } => {
-                    let default =
-                        default.unwrap_or(axis.default_value().clamp(min.min(max), max.max(min)));
-                    if !min.is_finite()
-                        || !max.is_finite()
-                        || !default.is_finite()
+                    if !min.is_finite() || !max.is_finite() || min > max {
+                        return Err(SubsetError::InvalidAxis(format!("invalid range for {tag}")));
+                    }
+                    let default = default.unwrap_or(axis.default_value().clamp(min, max));
+                    if !default.is_finite()
                         || min > default
                         || default > max
                         || min < axis.min_value()
@@ -146,6 +146,7 @@ impl AxisPlan {
             if !value.is_finite() {
                 return Err(SubsetError::InvalidAxis(format!("invalid value for {tag}")));
             }
+            let value = value.clamp(axis.min_value(), axis.max_value());
             settings.push((tag, value));
             user[axis.index()] = match limit {
                 AxisLimits::Range { min, max, .. } => Triple(min as f64, value as f64, max as f64),
@@ -470,6 +471,31 @@ pub(super) fn map_float(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nonfinite_api_ranges_return_errors() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (min, max) in [
+            (f32::NAN, f32::NAN),
+            (f32::NAN, 900.),
+            (f32::NEG_INFINITY, f32::INFINITY),
+            (900., 100.),
+        ] {
+            assert!(matches!(
+                crate::instance_font(
+                    &font,
+                    &[AxisLimits::Range {
+                        tag: Tag::new(b"wght"),
+                        min,
+                        default: None,
+                        max,
+                    }]
+                ),
+                Err(SubsetError::InvalidAxis(_))
+            ));
+        }
+    }
 
     #[test]
     fn invalid_source_axis_bounds_return_an_error() {

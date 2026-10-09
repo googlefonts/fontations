@@ -390,6 +390,18 @@ mod tests {
     };
 
     #[test]
+    fn style_metadata_uses_the_effective_clamped_pin() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (request, expected) in [("wght=10000", 900), ("wght=-10000", 200)] {
+            let bytes =
+                crate::instance_font(&font, &crate::parse_axis_limits(request).unwrap()).unwrap();
+            let output = FontRef::new(&bytes).unwrap();
+            assert_eq!(output.os2().unwrap().us_weight_class(), expected);
+        }
+    }
+
+    #[test]
     fn large_metric_deltas_saturate_without_overflow() {
         let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
