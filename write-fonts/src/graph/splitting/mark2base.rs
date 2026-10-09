@@ -20,9 +20,17 @@ fn split_mark_to_base_subtable(graph: &mut Graph, subtable: ObjectId) -> Option<
                                + u16::RAW_BYTE_LEN // empty mark array table
                                + u16::RAW_BYTE_LEN; // empty base array table
     let data = &graph.objects[&subtable];
+    debug_assert!(data.reparse::<rgpos::MarkBasePosFormat1>().is_ok());
+    let mark_class_count: u16 = data.read_at(6).unwrap_or(0);
+    // we split between mark classes, so a subtable without any has nothing
+    // to split. fea-rs produces these for a `subtable` statement that isn't
+    // followed by any rules.
+    if mark_class_count == 0 {
+        return None;
+    }
+
     let base_coverage_id = data.offsets[1].object;
     let base_coverage_size = graph.objects[&base_coverage_id].bytes.len();
-    debug_assert!(data.reparse::<rgpos::MarkBasePosFormat1>().is_ok());
 
     let min_subtable_size = BASE_SIZE + base_coverage_size;
     let class_info = get_class_info(graph, subtable);
@@ -30,7 +38,6 @@ fn split_mark_to_base_subtable(graph: &mut Graph, subtable: ObjectId) -> Option<
     let base_array_off = &data.offsets[3];
     let base_array_data = &graph.objects[&base_array_off.object];
 
-    let mark_class_count: u16 = data.read_at(6).unwrap_or(0);
     debug_assert_eq!(class_info.len(), mark_class_count as usize);
     let base_count: u16 = base_array_data.read_at(0).unwrap_or(0);
 
@@ -270,15 +277,18 @@ fn get_class_info(graph: &Graph, subtable: ObjectId) -> Vec<Mark2BaseClassInfo> 
     }
 
     // - base array declares one record for each base glyph (in cov table order)
-    // - each record has an anchor for each mark glyph
+    // - each record has an anchor offset for each mark class
+    // - null offsets (a base with no anchor for some class) have no offset
+    //   record, so we find the class from the offset's position
     let base_array_off = &data.offsets[3];
     assert_eq!(base_array_off.pos, 10);
     let base_array_data = &graph.objects[&base_array_off.object];
 
-    for offsets in base_array_data.offsets.chunks_exact(mark_class_count as _) {
-        for (i, off) in offsets.iter().enumerate() {
-            class_to_info[i].children.push(off.object)
-        }
+    for off in &base_array_data.offsets {
+        // skip the u16 base_count, then a row of offsets for each base
+        let offset_idx = (off.pos as usize - u16::RAW_BYTE_LEN) / Offset16::RAW_BYTE_LEN;
+        let mark_class = offset_idx % mark_class_count as usize;
+        class_to_info[mark_class].children.push(off.object)
     }
 
     class_to_info
@@ -297,10 +307,15 @@ mod tests {
     use crate::{
         tables::{
             gpos::{
-                AnchorTable, BaseArray, BaseRecord, ExtensionPosFormat1, ExtensionSubtable,
+                builders::{AnchorBuilder, MarkToBaseBuilder},
+                AnchorTable, BaseArray, BaseRecord, ExtensionPosFormat1, ExtensionSubtable, Gpos,
                 MarkArray, MarkBasePosFormat1, MarkRecord, PositionLookup,
             },
-            layout::{DeviceOrVariationIndex, Lookup, LookupList, LookupType, VariationIndex},
+            layout::{
+                builders::{Builder, LookupBuilder},
+                DeviceOrVariationIndex, Lookup, LookupList, LookupType, VariationIndex,
+            },
+            variations::ivs_builder::VariationStoreBuilder,
         },
         TableWriter,
     };
@@ -604,6 +619,131 @@ mod tests {
         assert!(
             matches!(mark_anchor.x_device().transpose().unwrap(), Some(rgpos::DeviceOrVariationIndex::VariationIndex(varidx)) if varidx.delta_set_outer_index() == mark_cov_idx_to_test as u16)
         );
+    }
+
+    #[test]
+    fn split_lookup_with_empty_subtable() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        split_lookup_with_empty_subtable_impl(false)
+    }
+
+    #[test]
+    fn split_extension_lookup_with_empty_subtable() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        split_lookup_with_empty_subtable_impl(true)
+    }
+
+    // a `subtable` statement with no rules after it leaves an empty builder,
+    // which builds a subtable with no mark classes. We used to panic when
+    // trying to split it, which we do whenever anything in GPOS overflows.
+    fn split_lookup_with_empty_subtable_impl(use_extension: bool) {
+        // big enough that the first subtable needs splitting
+        const N_CLASSES: u16 = 100;
+        const N_BASES: u16 = 100;
+        const FIRST_MARK_GLYPH: u16 = 1000;
+
+        let mut builder = LookupBuilder::<MarkToBaseBuilder>::new(LookupFlag::empty(), None);
+        let subtable = builder.last_mut().unwrap();
+        for class in 0..N_CLASSES {
+            let mark = GlyphId16::new(FIRST_MARK_GLYPH + class);
+            let anchor = AnchorBuilder::new(-1, class as _);
+            subtable
+                .insert_mark(mark, &class.to_string(), anchor)
+                .unwrap();
+        }
+        for base in 0..N_BASES {
+            for class in 0..N_CLASSES {
+                // unique, so that no anchors are shared
+                let anchor = AnchorBuilder::new(base as _, class as _);
+                subtable.insert_base(GlyphId16::new(base), &class.to_string(), anchor);
+            }
+        }
+        builder.force_subtable_break();
+        let lookup = builder.build(&mut VariationStoreBuilder::new(0));
+        assert_eq!(lookup.subtables.len(), 2);
+        assert!(lookup.subtables[1].mark_array.mark_records.is_empty());
+
+        let lookup = if use_extension {
+            let subtables = lookup
+                .subtables
+                .into_iter()
+                .map(|sub| {
+                    ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
+                        LookupType::MARK_TO_BASE,
+                        sub.into_inner(),
+                    ))
+                })
+                .collect();
+            PositionLookup::Extension(Lookup::new(LookupFlag::empty(), subtables))
+        } else {
+            PositionLookup::MarkToBase(lookup)
+        };
+        let gpos = Gpos::new(
+            Default::default(),
+            Default::default(),
+            LookupList::new(vec![lookup]),
+        );
+        let bytes = crate::dump_table(&gpos).unwrap();
+
+        let gpos = rgpos::Gpos::read(bytes.as_slice().into()).unwrap();
+        let lookup = gpos.lookup_list().unwrap().lookups().get(0).unwrap();
+        let subtables: Vec<_> = match lookup.subtables().unwrap() {
+            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            _ => panic!("wrong lookup type"),
+        };
+        // the first subtable was split, and the empty one left alone
+        assert!(subtables.len() > 2, "expected the first subtable to split");
+        let empty = subtables.last().unwrap();
+        assert_eq!(empty.mark_class_count(), 0);
+        assert_eq!(empty.mark_coverage().unwrap().iter().count(), 0);
+        let n_marks: usize = subtables
+            .iter()
+            .map(|sub| sub.mark_coverage().unwrap().iter().count())
+            .sum();
+        assert_eq!(n_marks, N_CLASSES as usize);
+    }
+
+    // a base with no anchor for some mark class has a null offset, which has
+    // no offset record in the graph, so we can't just chunk the base array's
+    // offsets by class.
+    #[test]
+    fn class_info_with_null_base_anchors() {
+        // marks have x == -1, so we can tell them apart from base anchors
+        let mark_array = MarkArray::new(
+            (0..3)
+                .map(|class| MarkRecord::new(class, AnchorTable::format_1(-1, class as _)))
+                .collect(),
+        );
+        // class 1 has no base anchors, and class 2 only has one, on the last base
+        let anchor = |x| Some(AnchorTable::format_1(x, 0));
+        let base_array = BaseArray::new(vec![
+            BaseRecord::new(vec![anchor(10), None, None]),
+            BaseRecord::new(vec![anchor(20), None, None]),
+            BaseRecord::new(vec![anchor(30), None, anchor(40)]),
+        ]);
+        let mark_coverage = (10..13).map(GlyphId16::new).collect();
+        let base_coverage = (1..4).map(GlyphId16::new).collect();
+        let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
+        let graph = TableWriter::make_graph(&table);
+
+        let class_info = get_class_info(&graph, graph.root);
+        let base_anchor_xs: Vec<Vec<i16>> = class_info
+            .iter()
+            .map(|info| {
+                let mut xs: Vec<_> = info
+                    .children
+                    .iter()
+                    .map(|id| {
+                        let anchor = graph.objects[id].reparse::<rgpos::AnchorFormat1>();
+                        anchor.unwrap().x_coordinate()
+                    })
+                    .filter(|x| *x != -1)
+                    .collect();
+                xs.sort();
+                xs
+            })
+            .collect();
+        assert_eq!(base_anchor_xs, [vec![10, 20, 30], vec![], vec![40]]);
     }
 
     #[test]
