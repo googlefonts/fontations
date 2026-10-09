@@ -70,6 +70,10 @@ struct Args {
     #[arg(long)]
     desubroutinize: bool,
 
+    /// Pin variation axes, for example wght=650,CNTR=drop.
+    #[arg(long)]
+    instance: Option<String>,
+
     /// Keep legacy (non-Unicode) 'name' table entries
     #[arg(long)]
     name_legacy: bool,
@@ -131,6 +135,20 @@ fn main() {
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
     let font = FontRef::new(&font_bytes)
         .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
+    let instance_bytes = args.instance.as_deref().map(|input| {
+        skera::parse_axis_limits(input)
+            .and_then(|limits| skera::instance_font(&font, &limits))
+            .unwrap_or_else(|err| {
+                eprintln!("{err}");
+                std::process::exit(1);
+            })
+    });
+    let font = instance_bytes
+        .as_deref()
+        .map(FontRef::new)
+        .transpose()
+        .unwrap()
+        .unwrap_or(font);
     let drop_tables = match &args.drop_tables {
         Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
             Ok(drop_tables) => drop_tables,
