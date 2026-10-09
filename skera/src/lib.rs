@@ -19,6 +19,8 @@ mod head;
 mod hmtx;
 mod hvar;
 mod inc_bimap;
+mod instance;
+pub use instance::{instance_font, parse_axis_limits, AxisLimits};
 mod layout;
 mod maxp;
 mod name;
@@ -1041,6 +1043,8 @@ pub struct SubsetState {
 
 #[derive(Debug, Error)]
 pub enum SubsetError {
+    #[error("Invalid axis request: {0}")]
+    InvalidAxis(String),
     #[error("Invalid input gid {0}")]
     InvalidGid(String),
 
