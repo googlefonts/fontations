@@ -6,7 +6,10 @@ pub(crate) use glyph::{glyph_name, glyph_names};
 pub use glyph::{GlyphName, GlyphNameSource};
 
 use crate::{
-    ps::type1::Type1Font,
+    ps::{
+        cff::{CffFontRef, Metadata as CffMetadata},
+        type1::Type1Font,
+    },
     tables::name::{language_id_to_bcp47, Encoding, Name as SfntName, NameRecord, NameString},
     TableProvider,
 };
@@ -17,9 +20,10 @@ pub use crate::types::NameId;
 
 /// Access to names in a font.
 ///
-/// SFNT names come from the `name` table. For Type 1 fonts, the available
+/// SFNT names come from the `name` table. For Type 1 and standalone CFF fonts,
 /// family, weight, full, and PostScript names are exposed as name IDs 1, 2,
-/// 4, and 6, respectively.
+/// 4, and 6. Standalone CFF also exposes copyright, version, and notice as
+/// name IDs 0, 5, and 7.
 #[derive(Clone)]
 pub struct Names<'a> {
     source: Source<'a>,
@@ -29,6 +33,7 @@ pub struct Names<'a> {
 enum Source<'a> {
     Sfnt(Option<SfntName<'a>>),
     Type1(&'a Type1Font),
+    BareCff(Option<CffMetadata<'a>>),
 }
 
 impl<'a> Names<'a> {
@@ -43,6 +48,13 @@ impl<'a> Names<'a> {
     pub fn from_type1(font: &'a Type1Font) -> Self {
         Self {
             source: Source::Type1(font),
+        }
+    }
+
+    /// Creates a name facade from a standalone CFF font.
+    pub fn from_cff(font: &CffFontRef<'a>) -> Self {
+        Self {
+            source: Source::BareCff(font.metadata()),
         }
     }
 
@@ -125,14 +137,32 @@ impl<'a> Name<'a> {
             language: None,
             sfnt_record: None,
         });
-        sfnt.chain(type1)
+        let bare_cff = match &self.source {
+            Source::BareCff(Some(meta)) => match id {
+                NameId::COPYRIGHT_NOTICE => meta.copyright(),
+                NameId::FAMILY_NAME => meta.family_name(),
+                NameId::SUBFAMILY_NAME => meta.weight(),
+                NameId::FULL_NAME => meta.full_name(),
+                NameId::VERSION_STRING => meta.version(),
+                NameId::POSTSCRIPT_NAME => meta.name(),
+                NameId::TRADEMARK => meta.notice(),
+                _ => None,
+            },
+            _ => None,
+        }
+        .map(|name| Localized {
+            name: Encoded::from_str(name),
+            language: None,
+            sfnt_record: None,
+        });
+        sfnt.chain(type1).chain(bare_cff)
     }
 }
 
 /// A font name and its optional BCP 47 language tag.
 ///
 /// The language is `None` when the source supplies no recognized language or
-/// when the name comes from a Type 1 font.
+/// when the name comes from a Type 1 or standalone CFF font.
 #[derive(Clone, Copy, Debug)]
 pub struct Localized<'a> {
     name: Encoded<'a>,
@@ -151,7 +181,7 @@ impl<'a> Localized<'a> {
         self.language
     }
 
-    /// Returns the source `name` record for an SFNT name, or `None` for Type 1.
+    /// Returns the source `name` record for an SFNT name, or `None` for Type 1 or CFF.
     pub fn sfnt_record(self) -> Option<NameRecord> {
         self.sfnt_record
     }
@@ -183,8 +213,8 @@ impl<'a> Localized<'a> {
 /// A name or language tag in its source encoding.
 ///
 /// SFNT UTF-16BE and Mac Roman strings are decoded when displayed or compared,
-/// without allocating. Type 1 names and built-in language tags borrow UTF-8
-/// text directly.
+/// without allocating. Type 1 and standalone CFF names and built-in language
+/// tags borrow UTF-8 text directly.
 #[derive(Clone, Copy)]
 pub struct Encoded<'a>(EncodedRepr<'a>);
 

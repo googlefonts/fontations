@@ -2,7 +2,10 @@
 
 use super::super::{Font, Kind};
 use crate::{
-    ps::{cff::charset, type1::Type1Font},
+    ps::{
+        cff::{charset, CffFontRef},
+        type1::Type1Font,
+    },
     tables::{cff::Cff, post},
     types::GlyphId16,
     TableProvider,
@@ -123,7 +126,8 @@ impl fmt::Write for GlyphNameWrite<'_> {
 
 enum NameSource<'a> {
     Post(post::Post<'a>),
-    Cff(Cff<'a>, charset::Charset<'a>),
+    SfntCff(Cff<'a>, charset::Charset<'a>),
+    BareCff(CffFontRef<'a>, charset::Charset<'a>),
     Type1(&'a Type1Font),
     Synthesized,
 }
@@ -132,14 +136,25 @@ fn source(font: &Font) -> NameSource<'_> {
     if let Kind::Type1(type1) = font.kind() {
         return NameSource::Type1(type1);
     }
+    if let Kind::Cff(cff, _) = font.kind() {
+        if cff.is_cid() {
+            return NameSource::Synthesized;
+        }
+        return cff.charset().map_or(NameSource::Synthesized, |charset| {
+            NameSource::BareCff(cff, charset)
+        });
+    }
     if let Ok(post) = font.tables().post() {
         if post.num_names() != 0 {
             return NameSource::Post(post);
         }
     }
     if let Ok(cff) = font.tables().cff() {
+        if font.cff().is_some_and(|parsed| parsed.is_cid()) {
+            return NameSource::Synthesized;
+        }
         if let Some(charset) = cff.charset(0) {
-            return NameSource::Cff(cff, charset);
+            return NameSource::SfntCff(cff, charset);
         }
     }
     NameSource::Synthesized
@@ -154,7 +169,11 @@ pub(crate) fn glyph_name(font: &Font, glyph: GlyphId) -> Option<GlyphName> {
             .ok()
             .and_then(|id| post.glyph_name(id))
             .and_then(|value| GlyphName::from_bytes(value.as_bytes(), GlyphNameSource::Post)),
-        NameSource::Cff(cff, charset) => charset
+        NameSource::SfntCff(cff, charset) => charset
+            .string_id(glyph)
+            .and_then(|id| cff.string(id))
+            .and_then(|value| GlyphName::from_bytes(value, GlyphNameSource::Cff)),
+        NameSource::BareCff(cff, charset) => charset
             .string_id(glyph)
             .and_then(|id| cff.string(id))
             .and_then(|value| GlyphName::from_bytes(value, GlyphNameSource::Cff)),
@@ -168,7 +187,8 @@ pub(crate) fn glyph_name(font: &Font, glyph: GlyphId) -> Option<GlyphName> {
 
 enum NameIterSource<'a> {
     Post(post::GlyphNames<'a>),
-    Cff(Cff<'a>, charset::Iter<'a>),
+    SfntCff(Cff<'a>, charset::Iter<'a>),
+    BareCff(CffFontRef<'a>, charset::Iter<'a>),
     Type1(&'a Type1Font),
     Synthesized,
 }
@@ -182,7 +202,8 @@ struct NameIter<'a> {
 pub(crate) fn glyph_names(font: &Font) -> impl ExactSizeIterator<Item = (GlyphId, GlyphName)> + '_ {
     let source = match source(font) {
         NameSource::Post(post) => NameIterSource::Post(post.glyph_names()),
-        NameSource::Cff(cff, charset) => NameIterSource::Cff(cff, charset.iter()),
+        NameSource::SfntCff(cff, charset) => NameIterSource::SfntCff(cff, charset.iter()),
+        NameSource::BareCff(cff, charset) => NameIterSource::BareCff(cff, charset.iter()),
         NameSource::Type1(type1) => NameIterSource::Type1(type1),
         NameSource::Synthesized => NameIterSource::Synthesized,
     };
@@ -211,7 +232,13 @@ impl Iterator for NameIter<'_> {
             NameIterSource::Post(names) => names.next().and_then(|(_, value)| {
                 GlyphName::from_bytes(value.as_bytes(), GlyphNameSource::Post)
             }),
-            NameIterSource::Cff(cff, names) => names.next().and_then(|(id, sid)| {
+            NameIterSource::SfntCff(cff, names) => names.next().and_then(|(id, sid)| {
+                (id == glyph)
+                    .then(|| cff.string(sid))
+                    .flatten()
+                    .and_then(|value| GlyphName::from_bytes(value, GlyphNameSource::Cff))
+            }),
+            NameIterSource::BareCff(cff, names) => names.next().and_then(|(id, sid)| {
                 (id == glyph)
                     .then(|| cff.string(sid))
                     .flatten()
@@ -294,6 +321,36 @@ mod tests {
             assert_eq!(name, expected);
             assert_eq!(name.source(), GlyphNameSource::Cff);
             assert_eq!(font.glyph_name(*glyph).unwrap().as_str(), *expected);
+        }
+    }
+
+    #[test]
+    fn standalone_cid_cff_synthesizes_gid_names() {
+        let sfnt = FontRef::new(font_test_data::NOTO_SANS_JP_CFF).unwrap();
+        let cff = sfnt.cff().unwrap().offset_data().as_bytes();
+        let font = Font::new(cff, 0).unwrap();
+        let Kind::Cff(raw, _) = font.kind() else {
+            panic!("expected standalone CFF font");
+        };
+        assert!(raw.is_cid());
+        let names: Vec<_> = font.glyph_names().collect();
+        assert_eq!(names.len(), font.num_glyphs() as usize);
+        for (glyph, name) in names {
+            assert_eq!(name.as_str(), format!("gid{}", glyph.to_u32()));
+            assert!(name.is_synthesized());
+            assert_eq!(font.glyph_name(glyph).unwrap().as_str(), name.as_str());
+        }
+        assert!(font.glyph_name(GlyphId::new(font.num_glyphs())).is_none());
+    }
+
+    #[test]
+    fn sfnt_cid_cff_without_post_names_synthesizes_gid_names() {
+        let font = Font::new(font_test_data::NOTO_SANS_JP_CFF, 0).unwrap();
+        assert!(font.cff().unwrap().is_cid());
+        let names: Vec<_> = font.glyph_names().take(3).collect();
+        for (glyph, name) in names {
+            assert_eq!(name.as_str(), format!("gid{}", glyph.to_u32()));
+            assert!(name.is_synthesized());
         }
     }
 

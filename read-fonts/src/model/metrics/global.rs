@@ -3,7 +3,7 @@
 use super::metric;
 
 use crate::{
-    ps::type1::Type1Font,
+    ps::{cff::CffFontRef, type1::Type1Font},
     tables::{mvar::tags, os2::SelectionFlags},
     TableProvider,
 };
@@ -252,6 +252,30 @@ impl Metrics {
             }),
             ..Default::default()
         }
+    }
+
+    /// Reads the metrics a standalone CFF font states.
+    pub fn from_cff(font: &CffFontRef<'_>) -> Self {
+        let mut metrics = Self {
+            units_per_em: font.upem().clamp(0, u16::MAX as i32) as u16,
+            num_glyphs: font.num_glyphs(),
+            ..Default::default()
+        };
+        if let Some(metadata) = font.metadata() {
+            let bbox = metadata.bbox();
+            metrics.bounds = BoundingBox {
+                x_min: bbox.x_min.to_f48dot16(),
+                y_min: bbox.y_min.to_f48dot16(),
+                x_max: bbox.x_max.to_f48dot16(),
+                y_max: bbox.y_max.to_f48dot16(),
+            };
+            metrics.hhea_line = Some(LineBox {
+                ascender: metrics.bounds.y_max,
+                descender: metrics.bounds.y_min,
+                line_gap: F48Dot16::ZERO,
+            });
+        }
+        metrics
     }
 }
 

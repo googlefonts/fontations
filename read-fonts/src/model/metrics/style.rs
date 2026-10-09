@@ -1,7 +1,11 @@
 //! Metrics used to style text and decorations.
 
 use super::metric;
-use crate::{ps::type1::Type1Font, tables::mvar::tags, TableProvider};
+use crate::{
+    ps::{cff::CffFontRef, type1::Type1Font},
+    tables::mvar::tags,
+    TableProvider,
+};
 use types::{F2Dot14, F48Dot16, Fixed};
 
 /// The size and placement of a subscript or superscript em box.
@@ -118,6 +122,24 @@ impl StyleMetrics {
             }),
             italic_angle: Some(Fixed::from_i32(font.italic_angle())),
             is_fixed_pitch: Some(font.is_fixed_pitch()),
+            ..Default::default()
+        }
+    }
+
+    /// Reads style measurements from a standalone CFF font.
+    pub fn from_cff(font: &CffFontRef<'_>) -> Self {
+        let Some(metadata) = font.metadata() else {
+            return Self::default();
+        };
+        let thickness = metadata.underline_thickness().to_f48dot16();
+        Self {
+            underline: Some(Decoration {
+                position: metadata.underline_position().to_f48dot16()
+                    + F48Dot16::from_bits(thickness.to_bits() >> 1),
+                thickness,
+            }),
+            italic_angle: Some(metadata.italic_angle()),
+            is_fixed_pitch: Some(metadata.is_fixed_pitch()),
             ..Default::default()
         }
     }

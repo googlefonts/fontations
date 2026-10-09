@@ -111,8 +111,10 @@ impl<'a> GlyphMetrics<'a> {
             // a table, so it reaches here and is measured another way. The
             // test sits inside this branch so that a font with `hmtx`, which
             // is nearly all of them, never makes it.
-            if let Kind::Type1(font) = self.font.kind() {
-                return self.h_advance_batched_type1(font, convert, glyphs);
+            match self.font.kind() {
+                Kind::Type1(font) => return self.h_advance_batched_type1(font, convert, glyphs),
+                Kind::Cff(cff, _) => return self.h_advance_batched_bare_cff(&cff, convert, glyphs),
+                _ => {}
             }
             // Otherwise the font states no widths at all, and every glyph
             // gets half an em; no location can move that.
@@ -299,6 +301,9 @@ impl<'a> GlyphMetrics<'a> {
         if let Some(cff) = self.font.cff() {
             return self.extents_batched_cff(cff, convert, glyphs);
         }
+        if let Kind::Cff(cff, _) = self.font.kind() {
+            return self.extents_batched_cff(&cff, convert, glyphs);
+        }
         if let Kind::Type1(font) = self.font.kind() {
             return self.extents_batched_type1(font, convert, glyphs);
         }
@@ -484,7 +489,11 @@ impl<'a> GlyphMetrics<'a> {
             let subfont = cff.subfont_index(glyph).and_then(|index| match last {
                 Some((cached, subfont)) if cached == index => Some(subfont),
                 _ => {
-                    let subfont = cff.subfont(index, self.coords).ok()?;
+                    let subfont = self
+                        .font
+                        .bare_cff_subfonts()
+                        .and_then(|subfonts| subfonts.get(index as usize).copied())
+                        .or_else(|| cff.subfont(index, self.coords).ok())?;
                     last = Some((index, subfont));
                     Some(subfont)
                 }
@@ -623,6 +632,32 @@ impl<'a> GlyphMetrics<'a> {
         }
         // A location, but nothing stating what it changes.
         raw.run(self.num_glyphs, convert, glyphs)
+    }
+
+    /// Reads widths from standalone CFF charstrings.
+    #[inline(never)]
+    fn h_advance_batched_bare_cff<'o, V: 'o>(
+        &self,
+        cff: &CffFontRef<'_>,
+        convert: impl Fn(F48Dot16) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        let subfonts = self.font.bare_cff_subfonts().unwrap_or(&[]);
+        for (glyph, out) in glyphs {
+            let width = (glyph.to_u32() < self.num_glyphs)
+                .then(|| cff.subfont_index(glyph))
+                .flatten()
+                .and_then(|index| subfonts.get(index as usize))
+                .and_then(|subfont| {
+                    cff.evaluate_width(subfont, glyph, self.coords)
+                        .ok()
+                        .flatten()
+                })
+                .map(|width| width.to_f48dot16())
+                .unwrap_or(F48Dot16::ZERO)
+                .max(F48Dot16::ZERO);
+            *out = convert(width);
+        }
     }
 
     /// The Type 1 half of [`h_advance_batched`](Self::h_advance_batched).
