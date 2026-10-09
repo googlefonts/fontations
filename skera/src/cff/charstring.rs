@@ -39,6 +39,9 @@ pub(super) struct Blend {
 
 pub(super) trait BlendScalars {
     fn scalars(&self, ivs: usize) -> Result<&[f64]>;
+    fn finish_blend(&self, value: f64) -> f64 {
+        value.round()
+    }
 }
 impl BlendScalars for [Vec<f64>] {
     fn scalars(&self, ivs: usize) -> Result<&[f64]> {
@@ -120,7 +123,7 @@ impl Value {
         for (delta, gain) in blend.deltas.iter().zip(gains) {
             delta_sum += delta.resolve(scalars, remaining)? * gain;
         }
-        Ok((blend.base.resolve(scalars, remaining)? + delta_sum).round())
+        Ok(scalars.finish_blend(blend.base.resolve(scalars, remaining)? + delta_sum))
     }
     pub fn remap_ivs(&mut self, map: &BTreeMap<usize, usize>) -> Result<()> {
         if let Some(blend) = &mut self.blend {
