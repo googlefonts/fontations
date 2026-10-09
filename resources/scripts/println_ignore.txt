@@ -1,6 +1,7 @@
 font-codegen/src/bin/preprocessor.rs
 incremental-font-transfer/src/bin/ift_extend.rs
 incremental-font-transfer/src/bin/ift_graph.rs
+read-fonts/benches/system_charmap.rs
 read-fonts/build.rs
 shared-brotli-patch-decoder/build.rs
 skera/src/main.rs
