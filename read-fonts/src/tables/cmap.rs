@@ -545,9 +545,9 @@ impl CmapIterLimits {
     /// glyphs will be limited to `u16::MAX`.
     pub fn default_for_font(font: &FontRef) -> Self {
         let glyph_count = font
-            .maxp()
+            .maxp_table()
             .map(|maxp| maxp.num_glyphs())
-            .unwrap_or(u16::MAX) as u32;
+            .unwrap_or(u16::MAX as u32);
         Self {
             // Limit to the valid range of Unicode characters
             // per https://github.com/googlefonts/fontations/issues/952#issuecomment-2161510184

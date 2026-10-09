@@ -54,3 +54,36 @@ table Hhea {
     /// Number of hMetric entries in 'hmtx' table
     number_of_h_metrics: u16,
 }
+
+/// HHEA header table (ISO/IEC 14496-22:2026, 5.1.10).
+#[tag = "HHEA"]
+table HheaExtended {
+    #[compile(MajorMinor::VERSION_1_0)]
+    version: MajorMinor,
+    ascender: FWord,
+    descender: FWord,
+    line_gap: FWord,
+    advance_width_max: UfWord,
+    min_left_side_bearing: FWord,
+    min_right_side_bearing: FWord,
+    x_max_extent: FWord,
+    caret_slope_rise: i16,
+    caret_slope_run: i16,
+    caret_offset: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved1: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved2: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved3: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved4: i16,
+    #[compile(0)]
+    metric_data_format: i16,
+    /// Number of long metric records in HMTX.
+    number_of_h_metrics: u32,
+}

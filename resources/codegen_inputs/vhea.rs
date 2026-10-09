@@ -53,3 +53,36 @@ table Vhea {
     /// Number of advance heights in the vertical metrics (`vmtx`) table.
     number_of_long_ver_metrics: u16,
 }
+
+/// VHEA header table (ISO/IEC 14496-22:2026, 5.6.13).
+#[tag = "VHEA"]
+table VheaExtended {
+    #[default(Version16Dot16::VERSION_1_1)]
+    version: Version16Dot16,
+    ascender: FWord,
+    descender: FWord,
+    line_gap: FWord,
+    advance_height_max: FWord,
+    min_top_side_bearing: FWord,
+    min_bottom_side_bearing: FWord,
+    y_max_extent: FWord,
+    caret_slope_rise: i16,
+    caret_slope_run: i16,
+    caret_offset: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved1: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved2: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved3: i16,
+    #[skip_getter]
+    #[compile(0)]
+    reserved4: i16,
+    #[compile(0)]
+    metric_data_format: i16,
+    /// Number of long metric records in VMTX.
+    number_of_long_ver_metrics: u32,
+}

@@ -15,10 +15,19 @@ table Hmtx {
     left_side_bearings: [i16],
 }
 
+/// HMTX horizontal metrics (ISO/IEC 14496-22:2026, 5.1.11).
+#[read_args(number_of_h_metrics: u32)]
+#[tag = "HMTX"]
+table HmtxExtended {
+    #[count($number_of_h_metrics)]
+    h_metrics: [LongMetric],
+    #[count(..)]
+    left_side_bearings: [i16],
+}
+
 record LongMetric {
     /// Advance width/height, in font design units.
     advance: u16,
     /// Glyph leading (left/top) side bearing, in font design units.
     side_bearing: i16,
 }
-

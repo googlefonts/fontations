@@ -135,3 +135,118 @@ impl<'a> FontRead<'a> for Hhea {
         <read_fonts::tables::hhea::Hhea as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
+
+/// HHEA header table (ISO/IEC 14496-22:2026, 5.1.10).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HheaExtended {
+    pub ascender: FWord,
+    pub descender: FWord,
+    pub line_gap: FWord,
+    pub advance_width_max: UfWord,
+    pub min_left_side_bearing: FWord,
+    pub min_right_side_bearing: FWord,
+    pub x_max_extent: FWord,
+    pub caret_slope_rise: i16,
+    pub caret_slope_run: i16,
+    pub caret_offset: i16,
+    /// Number of long metric records in HMTX.
+    pub number_of_h_metrics: u32,
+}
+
+impl HheaExtended {
+    /// Construct a new `HheaExtended`
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        ascender: FWord,
+        descender: FWord,
+        line_gap: FWord,
+        advance_width_max: UfWord,
+        min_left_side_bearing: FWord,
+        min_right_side_bearing: FWord,
+        x_max_extent: FWord,
+        caret_slope_rise: i16,
+        caret_slope_run: i16,
+        caret_offset: i16,
+        number_of_h_metrics: u32,
+    ) -> Self {
+        Self {
+            ascender,
+            descender,
+            line_gap,
+            advance_width_max,
+            min_left_side_bearing,
+            min_right_side_bearing,
+            x_max_extent,
+            caret_slope_rise,
+            caret_slope_run,
+            caret_offset,
+            number_of_h_metrics,
+        }
+    }
+}
+
+impl FontWrite for HheaExtended {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        self.ascender.write_into(writer);
+        self.descender.write_into(writer);
+        self.line_gap.write_into(writer);
+        self.advance_width_max.write_into(writer);
+        self.min_left_side_bearing.write_into(writer);
+        self.min_right_side_bearing.write_into(writer);
+        self.x_max_extent.write_into(writer);
+        self.caret_slope_rise.write_into(writer);
+        self.caret_slope_run.write_into(writer);
+        self.caret_offset.write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        self.number_of_h_metrics.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(HheaExtended::TAG)
+    }
+}
+
+impl Validate for HheaExtended {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl TopLevelTable for HheaExtended {
+    const TAG: Tag = Tag::new(b"HHEA");
+}
+
+impl<'a> FromObjRef<read_fonts::tables::hhea::HheaExtended<'a>> for HheaExtended {
+    fn from_obj_ref(obj: &read_fonts::tables::hhea::HheaExtended<'a>, _: FontData) -> Self {
+        HheaExtended {
+            ascender: obj.ascender(),
+            descender: obj.descender(),
+            line_gap: obj.line_gap(),
+            advance_width_max: obj.advance_width_max(),
+            min_left_side_bearing: obj.min_left_side_bearing(),
+            min_right_side_bearing: obj.min_right_side_bearing(),
+            x_max_extent: obj.x_max_extent(),
+            caret_slope_rise: obj.caret_slope_rise(),
+            caret_slope_run: obj.caret_slope_run(),
+            caret_offset: obj.caret_offset(),
+            number_of_h_metrics: obj.number_of_h_metrics(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::hhea::HheaExtended<'a>> for HheaExtended {}
+
+impl ReadArgs for HheaExtended {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for HheaExtended {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::hhea::HheaExtended as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}

@@ -42,8 +42,8 @@ impl<'a> GlyphNames<'a> {
     /// Creates a new object for accessing glyph names from the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
         let num_glyphs = font
-            .maxp()
-            .map(|maxp| maxp.num_glyphs() as u32)
+            .maxp_table()
+            .map(|maxp| maxp.num_glyphs())
             .unwrap_or_default();
         if let Ok(post) = font.post() {
             if post.num_names() != 0 {

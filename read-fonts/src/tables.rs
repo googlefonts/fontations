@@ -1,5 +1,17 @@
 //! The various font tables
 
+// Getters shared by normalized views of legacy and extended tables.
+macro_rules! extended_table_getters {
+    ($($method:ident -> $result:ty),* $(,)?) => {
+        $(pub fn $method(&self) -> $result {
+            match self {
+                Self::Standard(table) => table.$method(),
+                Self::Extended(table) => table.$method(),
+            }
+        })*
+    };
+}
+
 pub mod aat;
 pub mod ankr;
 pub mod avar;

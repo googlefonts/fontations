@@ -15,3 +15,13 @@ table Vmtx {
     #[count(..)]
     top_side_bearings: [i16],
 }
+
+/// VMTX vertical metrics (ISO/IEC 14496-22:2026, 5.6.14).
+#[read_args(number_of_long_ver_metrics: u32)]
+#[tag = "VMTX"]
+table VmtxExtended {
+    #[count($number_of_long_ver_metrics)]
+    v_metrics: [LongMetric],
+    #[count(..)]
+    top_side_bearings: [i16],
+}
