@@ -947,7 +947,7 @@ impl SharedFont {
                 if cff.is_cid() {
                     return crate::ps::charmap::Charmap::default();
                 }
-                return crate::ps::charmap::Charmap::from_glyph_names(
+                crate::ps::charmap::Charmap::from_glyph_names(
                     cff.charset()
                         .into_iter()
                         .flat_map(|charset| charset.iter())
@@ -955,7 +955,7 @@ impl SharedFont {
                             let name = core::str::from_utf8(cff.string(sid)?).ok()?;
                             Some((glyph, name))
                         }),
-                );
+                )
             }
             #[cfg(not(feature = "agl"))]
             {
