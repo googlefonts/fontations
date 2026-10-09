@@ -2,6 +2,9 @@
 
 include!("../../generated/generated_name.rs");
 
+mod language;
+
+pub use language::language_id_to_bcp47;
 pub use types::NameId;
 
 impl<'a> Name<'a> {
