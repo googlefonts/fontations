@@ -45,6 +45,7 @@ pub(super) struct Source<'a> {
     pub strings: Index<'a>,
     pub fds: Vec<FontDict<'a>>,
     pub cid: bool,
+    pub instanced_store: Option<Vec<u8>>,
 }
 
 pub(super) trait CharStringSource {
@@ -148,6 +149,7 @@ impl<'a> Source<'a> {
             strings,
             fds,
             cid,
+            instanced_store: None,
         })
     }
     pub fn fd(&self, gid: GlyphId) -> Result<usize> {

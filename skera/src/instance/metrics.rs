@@ -1,5 +1,5 @@
 //! Update CFF2 metrics at the instance's new default, including empty glyphs.
-use super::AxisPlan;
+use super::{AxisPlan, StorePlan};
 use crate::SubsetError;
 use std::collections::BTreeMap;
 use write_fonts::{
@@ -185,6 +185,51 @@ pub(super) fn instance(
         }
     }
     apply_mvar(font, axes, tables)?;
+    if !axes.all_pinned() {
+        use write_fonts::{
+            from_obj::ToOwnedTable,
+            tables::{hvar::Hvar, mvar::Mvar, vvar::Vvar},
+        };
+        if let Some(table) = &hvar {
+            let store = table
+                .item_variation_store()
+                .map_err(|_| error(Tag::new(b"HVAR")))?;
+            let mut table: Hvar = table.to_owned_table();
+            table.item_variation_store = StorePlan::new(&store, axes)?.rebuild(&store)?.into();
+            tables.insert(
+                Tag::new(b"HVAR"),
+                write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"HVAR")))?,
+            );
+        }
+        if let Some(table) = &vvar {
+            let store = table
+                .item_variation_store()
+                .map_err(|_| error(Tag::new(b"VVAR")))?;
+            let mut table: Vvar = table.to_owned_table();
+            table.item_variation_store = StorePlan::new(&store, axes)?.rebuild(&store)?.into();
+            tables.insert(
+                Tag::new(b"VVAR"),
+                write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"VVAR")))?,
+            );
+        }
+        if let Ok(table) = font.mvar() {
+            let store = table
+                .item_variation_store()
+                .transpose()
+                .map_err(|_| error(Tag::new(b"MVAR")))?;
+            let mut table: Mvar = table.to_owned_table();
+            table.item_variation_store = store
+                .as_ref()
+                .map(|s| StorePlan::new(s, axes)?.rebuild(s))
+                .transpose()?
+                .map(Into::into)
+                .unwrap_or_default();
+            tables.insert(
+                Tag::new(b"MVAR"),
+                write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"MVAR")))?,
+            );
+        }
+    }
     if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
         for &(tag, value) in &axes.values {
             let (offset, value) = if tag == Tag::new(b"wght") {
