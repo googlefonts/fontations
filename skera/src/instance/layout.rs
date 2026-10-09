@@ -558,6 +558,74 @@ fn rebuild_store(
     Ok(Some(result))
 }
 
+// ComputedArray cannot infer the number of zero-byte PairPos records from
+// their byte slice. Recover their dimensions from the borrowed table before
+// instancing, preserving the subtable's coverage and lookup matching behavior.
+fn own_gpos(source: &write_fonts::read::tables::gpos::Gpos) -> Result<Gpos, SubsetError> {
+    use write_fonts::read::tables::gpos as read;
+    let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
+    let mut table: Gpos = source.to_owned_table();
+    for (source, target) in source
+        .lookup_list()
+        .map_err(|_| error())?
+        .lookups()
+        .iter()
+        .zip(&mut table.lookup_list.lookups)
+    {
+        match (source.map_err(|_| error())?, target.as_mut()) {
+            (read::PositionLookup::Pair(source), PositionLookup::Pair(target)) => {
+                for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
+                    own_empty_pairs(source.map_err(|_| error())?, target.as_mut())?;
+                }
+            }
+            (read::PositionLookup::Extension(source), PositionLookup::Extension(target)) => {
+                for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
+                    if let (
+                        read::ExtensionSubtable::Pair(source),
+                        ExtensionSubtable::Pair(target),
+                    ) = (source.map_err(|_| error())?, target.as_mut())
+                    {
+                        own_empty_pairs(
+                            source.extension().map_err(|_| error())?,
+                            target.extension.as_mut(),
+                        )?;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(table)
+}
+
+fn own_empty_pairs(
+    source: write_fonts::read::tables::gpos::PairPos,
+    target: &mut PairPos,
+) -> Result<(), SubsetError> {
+    if let (write_fonts::read::tables::gpos::PairPos::Format2(source), PairPos::Format2(target)) =
+        (source, target)
+    {
+        if source.value_format1().is_empty() && source.value_format2().is_empty() {
+            let rows = source.class1_count() as usize;
+            let columns = source.class2_count() as usize;
+            if rows.saturating_mul(columns) > 200_000 {
+                return Err(SubsetError::SubsetTableError(Tag::new(b"GPOS")));
+            }
+            target.class1_records = vec![
+                Class1Record::new(vec![
+                    Class2Record::new(
+                        ValueRecord::new(),
+                        ValueRecord::new()
+                    );
+                    columns
+                ]);
+                rows
+            ];
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn instance(
     font: &FontRef,
     axes: &AxisPlan,
@@ -580,7 +648,7 @@ pub(super) fn instance(
                 .transpose()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
         )?;
-        let mut table: Gpos = gpos.to_owned_table();
+        let mut table = own_gpos(&gpos)?;
         table.lookup_list.apply(&context)?;
         features(
             &mut table.feature_list,
@@ -690,6 +758,72 @@ mod tests {
             .into()],
         })
         .unwrap()
+    }
+
+    #[test]
+    fn zero_byte_pair_matrices_survive_full_instancing() {
+        use write_fonts::types::GlyphId16;
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(
+            &font,
+            &crate::parse_axis_limits("wght=900,CNTR=100").unwrap(),
+        )
+        .unwrap();
+        let pair = PairPos::format_2(
+            CoverageTable::from_iter([GlyphId16::new(1), GlyphId16::new(2)]),
+            ClassDef::from_iter([(GlyphId16::new(2), 1)]),
+            ClassDef::from_iter([(GlyphId16::new(1), 2), (GlyphId16::new(2), 1)]),
+            vec![
+                Class1Record::new(vec![
+                    Class2Record::new(
+                        ValueRecord::new(),
+                        ValueRecord::new()
+                    );
+                    3
+                ]);
+                2
+            ],
+        );
+        let mut oversized = write_fonts::dump_table(&pair).unwrap();
+        oversized[12..16].copy_from_slice(&[0xff; 4]);
+        let borrowed =
+            write_fonts::read::tables::gpos::PairPos::read(FontData::new(&oversized)).unwrap();
+        let mut owned = borrowed.to_owned_table();
+        assert!(own_empty_pairs(borrowed, &mut owned).is_err());
+        for extension in [false, true] {
+            let lookup = if extension {
+                PositionLookup::Extension(Lookup::new(
+                    LookupFlag::empty(),
+                    vec![ExtensionSubtable::Pair(ExtensionPosFormat1::new(
+                        2,
+                        pair.clone(),
+                    ))],
+                ))
+            } else {
+                PositionLookup::Pair(Lookup::new(LookupFlag::empty(), vec![pair.clone()]))
+            };
+            let gpos = Gpos::new(
+                ScriptList::default(),
+                FeatureList::default(),
+                LookupList::new(vec![lookup]),
+            );
+            let mut builder = write_fonts::FontBuilder::new();
+            for record in font.table_directory().table_records() {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+            builder.add_table(&gpos).unwrap();
+            let bytes = builder.build();
+            let font = FontRef::new(&bytes).unwrap();
+            let mut tables = BTreeMap::new();
+            instance(&font, &axes, &mut tables).unwrap();
+            let output = write_fonts::read::tables::gpos::Gpos::read(FontData::new(
+                &tables[&Tag::new(b"GPOS")],
+            ))
+            .unwrap();
+            let output = own_gpos(&output).unwrap();
+            assert_eq!(output, gpos);
+        }
     }
 
     #[test]
