@@ -259,6 +259,28 @@ impl<'a> Cmap4<'a> {
             return None;
         }
         let codepoint = codepoint as u16;
+        let (index, start_code, _) = self.find_segment(codepoint)?;
+        self.lookup_glyph_id(codepoint, index, start_code)
+    }
+
+    /// Reuses the segment of the preceding lookup when it covers `codepoint`.
+    pub(crate) fn map_codepoint_cached(
+        &self,
+        codepoint: u32,
+        cached: &mut Option<(u16, u16, usize)>,
+    ) -> Option<GlyphId> {
+        let codepoint = u16::try_from(codepoint).ok()?;
+        let (index, start_code, end_code) = match *cached {
+            Some(segment @ (start, end, _)) if (start..=end).contains(&codepoint) => {
+                (segment.2, start, end)
+            }
+            _ => self.find_segment(codepoint)?,
+        };
+        *cached = Some((start_code, end_code, index));
+        self.lookup_glyph_id(codepoint, index, start_code)
+    }
+
+    fn find_segment(&self, codepoint: u16) -> Option<(usize, u16, u16)> {
         let mut lo = 0;
         let mut hi = self.seg_count_x2() as usize / 2;
         let start_codes = self.start_code();
@@ -271,7 +293,7 @@ impl<'a> Cmap4<'a> {
             } else if codepoint > end_codes.get(i)?.get() {
                 lo = i + 1;
             } else {
-                return self.lookup_glyph_id(codepoint, i, start_code);
+                return Some((i, start_code, end_codes.get(i)?.get()));
             }
         }
         None
@@ -508,6 +530,15 @@ fn cmap1213_map_codepoint<T: AnyMapGroup>(
     codepoint: impl Into<u32>,
 ) -> Option<GlyphId> {
     let codepoint = codepoint.into();
+    let group = cmap1213_find_group(groups, codepoint)?;
+    Some(T::compute_glyph_id(
+        codepoint,
+        group.start_char_code(),
+        group.ref_glyph_id(),
+    ))
+}
+
+fn cmap1213_find_group<T: AnyMapGroup>(groups: &[T], codepoint: u32) -> Option<&T> {
     let mut lo = 0;
     let mut hi = groups.len();
     while lo < hi {
@@ -518,11 +549,7 @@ fn cmap1213_map_codepoint<T: AnyMapGroup>(
         } else if codepoint > group.end_char_code() {
             lo = i + 1;
         } else {
-            return Some(T::compute_glyph_id(
-                codepoint,
-                group.start_char_code(),
-                group.ref_glyph_id(),
-            ));
+            return Some(group);
         }
     }
     None
@@ -666,6 +693,29 @@ impl<'a> Cmap12<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         cmap1213_map_codepoint(self.groups(), codepoint)
+    }
+
+    /// Reuses the group of the preceding lookup when it covers `codepoint`.
+    pub(crate) fn map_codepoint_cached(
+        &self,
+        codepoint: u32,
+        cached: &mut Option<(u32, u32, u32)>,
+    ) -> Option<GlyphId> {
+        let (start, end, start_glyph) = match *cached {
+            Some(group @ (start, end, _)) if (start..=end).contains(&codepoint) => group,
+            _ => {
+                let group = cmap1213_find_group(self.groups(), codepoint)?;
+                (
+                    group.start_char_code(),
+                    group.end_char_code(),
+                    group.start_glyph_id(),
+                )
+            }
+        };
+        *cached = Some((start, end, start_glyph));
+        Some(GlyphId::new(
+            start_glyph.wrapping_add(codepoint.wrapping_sub(start)),
+        ))
     }
 
     /// Returns an iterator over all (codepoint, glyph identifier) pairs
