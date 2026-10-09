@@ -387,7 +387,10 @@ impl IftTable {
             PatchId::String(vec![])
         };
 
-        let mut entries = Vec::<Entry>::with_capacity(entry_count as usize);
+        // Clamp the maximum size to avoid the case where a malicious font requests u24::MAX
+        // entries.
+        let max_decodable_entries = (entry_count as usize).min(entries_data.len());
+        let mut entries = Vec::<Entry>::with_capacity(max_decodable_entries);
         for _ in 0..entry_count {
             let consumed_bytes;
             (entries_data, consumed_bytes) = EntryDecoder {
