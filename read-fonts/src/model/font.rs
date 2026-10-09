@@ -33,7 +33,10 @@ use crate::tables::{
     vvar::Vvar,
 };
 use crate::{
-    ps::{cff::CffFontRef, type1::Type1Font},
+    ps::{
+        cff::{CffFontRef, Subfont},
+        type1::Type1Font,
+    },
     TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -44,6 +47,7 @@ use core::{
     sync::atomic::{self, AtomicU32},
 };
 use types::{F2Dot14, Fixed, GlyphId, Point, Tag};
+use yoke::Yoke;
 
 /// A font at one location in its design space.
 ///
@@ -167,6 +171,7 @@ impl Font {
     pub fn names(&self) -> Names<'_> {
         match self.kind() {
             Kind::Type1(font) => Names::from_type1(font),
+            Kind::Cff(ref font, _) => Names::from_cff(font),
             _ => Names::from_sfnt(self.tables()),
         }
     }
@@ -342,10 +347,14 @@ impl Font {
         }
     }
 
-    /// Returns the charstring outlines.
+    /// Returns the charstring outlines from SFNT tables.
     #[inline]
     pub(crate) fn cff(&self) -> Option<&CffFontRef<'_>> {
         self.shared().cff()
+    }
+
+    pub(crate) fn bare_cff_subfonts(&self) -> Option<&[Subfont]> {
+        self.shared().bare_cff_subfonts()
     }
 
     /// Returns `VORG`.
@@ -848,7 +857,23 @@ impl SharedFont {
                 Some(Format::Type1) => Type1Font::new(blob)
                     .ok()
                     .map(|font| KindRepr::Type1(Box::new(font))),
-                // TODO: pure CFF fonts
+                Some(Format::Cff(count)) if index < count => {
+                    let font = Yoke::<CffFontRef<'static>, Arc<Blob>>::try_attach_to_cart(
+                        Arc::new(blob.clone()),
+                        |blob| CffFontRef::new_cff(blob, index, None),
+                    )
+                    .ok()?;
+                    let subfonts = (0..font.get().num_subfonts())
+                        .map(|index| font.get().subfont(index, &[]))
+                        .collect::<Result<Vec<_>, _>>()
+                        .ok()?;
+                    Some(KindRepr::BareCff(Box::new(BareCffData {
+                        font,
+                        subfonts,
+                        index,
+                        unicode_charmap: Once::new(),
+                    })))
+                }
                 _ => None,
             }
         } else {
@@ -885,6 +910,7 @@ impl SharedFont {
         match &self.0.kind {
             KindRepr::Sfnt(tables, index) => Kind::Sfnt(tables, *index),
             KindRepr::Type1(font) => Kind::Type1(font),
+            KindRepr::BareCff(cff) => Kind::Cff(cff.font.get().clone(), cff.index),
         }
     }
 
@@ -894,6 +920,7 @@ impl SharedFont {
     fn metrics(&self) -> &Metrics {
         self.0.metrics.get_or_init(|| match self.kind() {
             Kind::Type1(font) => Metrics::from_type1(font),
+            Kind::Cff(font, _) => Metrics::from_cff(&font),
             _ => Metrics::from_sfnt(&self.tables(), &[]),
         })
     }
@@ -905,6 +932,7 @@ impl SharedFont {
             .get_or_init(|| {
                 Box::new(match self.kind() {
                     Kind::Type1(font) => StyleMetrics::from_type1(font),
+                    Kind::Cff(font, _) => StyleMetrics::from_cff(&font),
                     _ => StyleMetrics::from_sfnt(&self.tables(), &[]),
                 })
             })
@@ -961,6 +989,35 @@ impl SharedFont {
                 })
                 .get(),
         )
+    }
+
+    pub(super) fn bare_cff_unicode_charmap(&self) -> Option<&crate::ps::charmap::Charmap> {
+        let KindRepr::BareCff(cff) = &self.0.kind else {
+            return None;
+        };
+        Some(cff.unicode_charmap.get_or_init(|| {
+            #[cfg(feature = "agl")]
+            {
+                let cff = cff.font.get();
+                if cff.is_cid() {
+                    return crate::ps::charmap::Charmap::default();
+                }
+                crate::ps::charmap::Charmap::from_glyph_names(
+                    cff.charset()
+                        .into_iter()
+                        .flat_map(|charset| charset.iter())
+                        .filter_map(|(glyph, sid)| {
+                            let name = core::str::from_utf8(cff.string(sid)?).ok()?;
+                            Some((glyph, name))
+                        }),
+                )
+            }
+            #[cfg(not(feature = "agl"))]
+            {
+                let _ = cff;
+                crate::ps::charmap::Charmap::default()
+            }
+        }))
     }
 
     /// Returns what `hmtx` states, parsed once for the font.
@@ -1060,7 +1117,7 @@ impl SharedFont {
             .as_ref()
     }
 
-    /// Returns the charstring outlines, parsed once for the font.
+    /// Returns the charstring outlines from SFNT tables, parsed once.
     ///
     /// Reading one means running it, so nothing here is parsed per glyph
     /// beyond what a charstring itself needs.
@@ -1073,6 +1130,13 @@ impl SharedFont {
             .get()
             .0
             .as_ref()
+    }
+
+    fn bare_cff_subfonts(&self) -> Option<&[Subfont]> {
+        match &self.0.kind {
+            KindRepr::BareCff(cff) => Some(&cff.subfonts),
+            _ => None,
+        }
     }
 
     /// Returns an object that provides access to individual font tables.
@@ -1130,7 +1194,7 @@ pub enum Kind<'a> {
     Sfnt(&'a Tables, u32),
     /// An Adobe Type1 font.
     Type1(&'a Type1Font),
-    /// A CFF font with an associated index.
+    /// A standalone CFF font with an associated index.
     Cff(CffFontRef<'a>, u32),
 }
 
@@ -1140,6 +1204,15 @@ enum KindRepr {
     // Boxed: a `Type1Font` is an order of magnitude larger than the sfnt
     // variant, and inline it would be paid by every font that is not one.
     Type1(Box<Type1Font>),
+    // Standalone CFF is rare, so keep its data off the inline enum.
+    BareCff(Box<BareCffData>),
+}
+
+struct BareCffData {
+    font: Yoke<CffFontRef<'static>, Arc<Blob>>,
+    subfonts: Vec<Subfont>,
+    index: u32,
+    unicode_charmap: Once<crate::ps::charmap::Charmap>,
 }
 
 #[cfg(test)]
@@ -1147,6 +1220,102 @@ mod tests {
     use super::*;
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
+
+    #[test]
+    fn standalone_cff_uses_selected_font_data() {
+        let sfnt = crate::FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let raw = sfnt.cff().unwrap().offset_data().as_bytes();
+        let direct = CffFontRef::new_cff(raw, 0, None).unwrap();
+        let font = Font::new(raw.to_vec(), 0).unwrap();
+        assert!(matches!(font.kind(), Kind::Cff(_, 0)));
+        assert!(Font::new(raw.to_vec(), 1).is_none());
+        assert_eq!(font.num_glyphs(), direct.num_glyphs());
+        assert_eq!(font.units_per_em(), direct.upem() as u16);
+        let bbox = direct.metadata().unwrap().bbox();
+        assert_eq!(font.metrics().bounds.x_min, bbox.x_min.to_f48dot16());
+        assert_eq!(font.metrics().bounds.y_max, bbox.y_max.to_f48dot16());
+        assert_eq!(
+            font.style_metrics().italic_angle,
+            Some(direct.metadata().unwrap().italic_angle())
+        );
+        assert_eq!(
+            font.bare_cff_subfonts().unwrap().len(),
+            direct.num_subfonts() as usize
+        );
+        assert!(font.tables().cff().is_err());
+        assert!(font.cff().is_none());
+        let metadata = direct.metadata().unwrap();
+        assert_eq!(metadata.version(), Some("2.9"));
+        assert_eq!(
+            metadata.notice(),
+            Some("Noto is a trademark of Google LLC.")
+        );
+        assert!(metadata.copyright().unwrap().starts_with("Copyright 2022"));
+        for (id, expected) in [
+            (types::NameId::COPYRIGHT_NOTICE, metadata.copyright()),
+            (types::NameId::FAMILY_NAME, metadata.family_name()),
+            (types::NameId::SUBFAMILY_NAME, metadata.weight()),
+            (types::NameId::FULL_NAME, metadata.full_name()),
+            (types::NameId::VERSION_STRING, metadata.version()),
+            (types::NameId::POSTSCRIPT_NAME, metadata.name()),
+            (types::NameId::TRADEMARK, metadata.notice()),
+        ] {
+            let entries: Vec<_> = font.names().get(id).iter().collect();
+            assert_eq!(entries.len(), usize::from(expected.is_some()));
+            if let Some(expected) = expected {
+                assert_eq!(entries[0].name(), expected);
+                assert!(entries[0].language().is_none());
+                assert!(entries[0].sfnt_record().is_none());
+            }
+        }
+        assert!(font
+            .glyph_metrics()
+            .extents_exact(GlyphId::new(1))
+            .is_some());
+        assert_eq!(font.glyph_name(GlyphId::new(1)).unwrap().as_str(), "i");
+        #[cfg(feature = "agl")]
+        assert_eq!(font.charmap().map_unicode('i'), Some(GlyphId::new(1)));
+        let native = font
+            .charmap()
+            .encodings()
+            .find(|encoding| encoding.kind() != super::super::charmap::EncodingKind::Unicode)
+            .unwrap();
+        assert_eq!(native.sfnt_index(), None);
+        assert_eq!(
+            font.charmap().map_code(native, b'i' as u32),
+            direct.encoding().unwrap().map(b'i')
+        );
+        assert!(font
+            .charmap()
+            .iter_codes(native)
+            .any(|(code, glyph)| code == b'i' as u32 && glyph == GlyphId::new(1)));
+
+        let names: Vec<_> = font.glyph_names().collect();
+        assert_eq!(names.len(), font.num_glyphs() as usize);
+        for (glyph, name) in names.iter().take(8) {
+            assert_eq!(font.glyph_name(*glyph).unwrap().as_str(), name.as_str());
+            let subfont = direct
+                .subfont(direct.subfont_index(*glyph).unwrap(), &[])
+                .unwrap();
+            let width = direct.evaluate_width(&subfont, *glyph, &[]).unwrap();
+            assert_eq!(
+                font.glyph_metrics().h_advance_exact(*glyph),
+                width.map(|width| width.to_f48dot16()).unwrap_or_default(),
+            );
+        }
+        assert_eq!(
+            font.glyph_metrics()
+                .h_advance_exact(GlyphId::new(font.num_glyphs())),
+            types::F48Dot16::ZERO
+        );
+        assert_eq!(
+            font.default_instance()
+                .glyph_name(GlyphId::new(1))
+                .unwrap()
+                .as_str(),
+            font.glyph_name(GlyphId::new(1)).unwrap().as_str()
+        );
+    }
 
     #[cfg(feature = "std")]
     #[test]
