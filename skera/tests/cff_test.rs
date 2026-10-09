@@ -196,3 +196,70 @@ fn seac_components_join_the_glyph_mapping() {
             .unwrap();
     }
 }
+
+#[test]
+fn full_cff2_instances_match_harfbuzz() {
+    for (filename, request) in [
+        ("AdobeVFPrototype.otf", "wght=650,CNTR=40"),
+        ("Cantarell-VF-ABC.otf", "wght=650"),
+        ("NotoSansJP-VF.subset.otf", "wght=500"),
+        (
+            "SourceSerif4Variable-Roman-HelloWorld.otf",
+            "wght=650,opsz=48",
+        ),
+    ] {
+        let data = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+        let font = FontRef::new(&data).unwrap();
+        let instanced =
+            skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()).unwrap();
+        let instance = FontRef::new(&instanced).unwrap();
+        let p = plan(&instance, SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE, "*");
+        let out = subset_font(&instance, &p).unwrap();
+        let output = FontRef::new(&out).unwrap();
+        let reference =
+            std::fs::read(format!("test-data/expected/cff2-instances/hb-{filename}")).unwrap();
+        let reference = FontRef::new(&reference).unwrap();
+        let a = CffFontRef::new(
+            output.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        let b = CffFontRef::new(
+            reference
+                .data_for_tag(Tag::new(b"CFF2"))
+                .unwrap()
+                .as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        assert!(a.var_store().is_none());
+        assert!(output.fvar().is_err());
+        assert!(output.hvar().is_err());
+        assert_eq!(a.num_glyphs(), b.num_glyphs());
+        for gid in 0..a.num_glyphs() {
+            let gid = GlyphId::new(gid);
+            let sa = a.subfont(a.subfont_index(gid).unwrap(), &[]).unwrap();
+            let sb = b.subfont(b.subfont_index(gid).unwrap(), &[]).unwrap();
+            let mut pa = Vec::<PathElement>::new();
+            let mut pb = Vec::<PathElement>::new();
+            a.draw(&sa, gid, &[], None, &mut pa).unwrap();
+            b.draw(&sb, gid, &[], None, &mut pb).unwrap();
+            assert_eq!(pa, pb, "{filename} {gid:?}");
+            assert_eq!(
+                output.hmtx().unwrap().advance(gid),
+                reference.hmtx().unwrap().advance(gid)
+            );
+            assert_eq!(
+                output.hmtx().unwrap().side_bearing(gid),
+                reference.hmtx().unwrap().side_bearing(gid),
+                "{filename} {gid:?}"
+            );
+            if let (Ok(a), Ok(b)) = (output.vmtx(), reference.vmtx()) {
+                assert_eq!(a.advance(gid), b.advance(gid));
+                assert_eq!(a.side_bearing(gid), b.side_bearing(gid));
+            }
+        }
+    }
+}

@@ -7,6 +7,12 @@ desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
 retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,
 custom and expert encodings, glyph names, and `seac` component closure.
 
+CFF2 fonts can be fully instantiated with `--instance wght=650,opsz=48`.
+Every axis must be pinned; `tag=drop` pins an axis at its default. Instancing
+resolves outline blends and variation deltas in metrics and layout tables.
+The library's `instance_font` preserves glyph IDs; create a `Plan` from the
+returned font to subset the instance.
+
 ## Installation
 
 ### Library
