@@ -4,8 +4,6 @@
 
 include!("../../generated/generated_gpos.rs");
 
-use std::collections::HashSet;
-
 //use super::layout::value_record::ValueRecord;
 use super::{
     layout::{
@@ -162,6 +160,10 @@ impl PairPosFormat2 {
     fn check_length_and_format_conformance(&self, ctx: &mut ValidationCtx) {
         let n_class_1s = self.class_def1.class_count();
         let n_class_2s = self.class_def2.class_count();
+        if self.class_def1.max_class() == u16::MAX || self.class_def2.max_class() == u16::MAX {
+            ctx.report("class 65535 cannot be represented by a u16 class count");
+        }
+
         let format_1 = self.compute_value_format1();
         let format_2 = self.compute_value_format2();
         if self.class1_records.len() != n_class_1s as usize {
@@ -205,8 +207,8 @@ impl MarkArray {
         self.mark_records
             .iter()
             .map(|rec| rec.mark_class)
-            .collect::<HashSet<_>>()
-            .len() as u16
+            .max()
+            .map_or(0, |class| class.saturating_add(1))
     }
 }
 
@@ -539,6 +541,101 @@ mod tests {
         assert_eq!(sub2.value_format(), ValueFormat::X_ADVANCE);
         assert_eq!(sub2.value_record().x_advance(), Some(500));
         assert_eq!(sub2.value_record().y_advance(), None);
+    }
+
+    #[test]
+    fn pairpos_class_counts_include_unused_slots() {
+        let class1 = ClassDef::from_iter([(GlyphId16::new(5), 2)]);
+        let class2 = ClassDef::from_iter([(GlyphId16::new(8), 4)]);
+        assert_eq!(class1.class_count(), 3);
+        assert_eq!(class2.class_count(), 5);
+        let records = (0..3)
+            .map(|row| {
+                Class1Record::new(
+                    (0..5)
+                        .map(|col| {
+                            Class2Record::new(
+                                ValueRecord::new().with_x_advance(row * 10 + col),
+                                ValueRecord::new(),
+                            )
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        let table = PairPos::format_2(
+            [GlyphId16::new(5)].into_iter().collect(),
+            class1,
+            class2,
+            records,
+        );
+        let bytes = crate::dump_table(&table).unwrap();
+        let read = read_gpos::PairPosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.class1_count(), 3);
+        assert_eq!(read.class2_count(), 5);
+        assert_eq!(
+            read.value_record_refs(2, 4).unwrap()[0].x_advance(),
+            Some(24)
+        );
+        let invalid = ClassDef::from_iter([(GlyphId16::new(8), u16::MAX)]);
+        assert_eq!(invalid.class_count(), u16::MAX);
+        let mut owned: PairPosFormat2 = read.to_owned_table();
+        owned.class_def2 = invalid.into();
+        assert!(crate::dump_table(&owned).is_err());
+    }
+
+    #[test]
+    fn mark_class_counts_include_unused_slots() {
+        let mark = MarkArray::new(vec![MarkRecord::new(2, AnchorTable::format_1(10, 20))]);
+        let anchors = vec![None, None, Some(AnchorTable::format_1(30, 40))];
+        let coverage = || [GlyphId16::new(5)].into_iter().collect();
+        let base = MarkBasePosFormat1::new(
+            coverage(),
+            coverage(),
+            mark.clone(),
+            BaseArray::new(vec![BaseRecord::new(anchors.clone())]),
+        );
+        let lig = MarkLigPosFormat1::new(
+            coverage(),
+            coverage(),
+            mark.clone(),
+            LigatureArray::new(vec![LigatureAttach::new(vec![ComponentRecord::new(
+                anchors.clone(),
+            )])]),
+        );
+        let mark2 = MarkMarkPosFormat1::new(
+            coverage(),
+            coverage(),
+            mark,
+            Mark2Array::new(vec![Mark2Record::new(anchors)]),
+        );
+        let bytes = crate::dump_table(&base).unwrap();
+        let read = read_gpos::MarkBasePosFormat1::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.mark_class_count(), 3);
+        assert_eq!(
+            read.base_array()
+                .unwrap()
+                .base_records()
+                .get(0)
+                .unwrap()
+                .base_anchors(FontData::new(&bytes))
+                .len(),
+            3
+        );
+        let bytes = crate::dump_table(&lig).unwrap();
+        assert_eq!(
+            read_gpos::MarkLigPosFormat1::read(FontData::new(&bytes))
+                .unwrap()
+                .mark_class_count(),
+            3
+        );
+        let bytes = crate::dump_table(&mark2).unwrap();
+        assert_eq!(
+            read_gpos::MarkMarkPosFormat1::read(FontData::new(&bytes))
+                .unwrap()
+                .mark_class_count(),
+            3
+        );
     }
 
     // shared between a pair of tests below

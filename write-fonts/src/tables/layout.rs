@@ -1,6 +1,6 @@
 //! OpenType layout.
 
-use std::{collections::HashSet, hash::Hash};
+use std::hash::Hash;
 
 pub use read_fonts::tables::layout::LookupFlag;
 use read_fonts::FontRead;
@@ -318,15 +318,18 @@ impl ClassDef {
         }
     }
 
+    pub(crate) fn max_class(&self) -> u16 {
+        match self {
+            Self::Format1(table) => table.class_value_array.iter().copied().max(),
+            Self::Format2(table) => table.class_range_records.iter().map(|r| r.class).max(),
+        }
+        .unwrap_or(0)
+    }
+
+    /// Number of slots needed by a class-indexed array, including unused classes.
+    /// The result saturates if a class requires more than a u16-sized array.
     pub fn class_count(&self) -> u16 {
-        //TODO: implement a good integer set!!
-        self.iter()
-            .map(|(_gid, cls)| cls)
-            .chain(std::iter::once(0))
-            .collect::<HashSet<_>>()
-            .len()
-            .try_into()
-            .unwrap()
+        self.max_class().saturating_add(1)
     }
 
     /// Returns `true` if no glyphs are explicitly assigned to a class in this table
