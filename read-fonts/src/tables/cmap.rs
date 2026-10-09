@@ -202,6 +202,7 @@ impl<'a> CmapSubtable<'a> {
     /// in the subtable within the given limits.    
     pub fn iter_with_limits(&self, limits: CmapIterLimits) -> CmapSubtableIter<'a> {
         match self {
+            Self::Format0(item) => CmapSubtableIter::Format0(item.iter()),
             Self::Format4(item) => CmapSubtableIter::Format4(item.iter()),
             Self::Format6(item) => CmapSubtableIter::Format6(item.iter()),
             Self::Format10(item) => CmapSubtableIter::Format10(item.iter()),
@@ -218,6 +219,7 @@ impl<'a> CmapSubtable<'a> {
 #[non_exhaustive]
 pub enum CmapSubtableIter<'a> {
     None,
+    Format0(Cmap0Iter<'a>),
     Format4(Cmap4Iter<'a>),
     Format6(Cmap6Iter<'a>),
     Format10(Cmap10Iter<'a>),
@@ -232,6 +234,7 @@ impl Iterator for CmapSubtableIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::None => None,
+            Self::Format0(iter) => iter.next(),
             Self::Format4(iter) => iter.next(),
             Self::Format6(iter) => iter.next(),
             Self::Format10(iter) => iter.next(),
@@ -241,13 +244,41 @@ impl Iterator for CmapSubtableIter<'_> {
     }
 }
 
-impl Cmap0<'_> {
+impl<'a> Cmap0<'a> {
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
 
         self.glyph_id_array()
             .get(codepoint as usize)
             .map(|g| GlyphId::new(*g as u32))
+    }
+
+    /// Returns an iterator over all (codepoint, glyph identifier) pairs
+    /// in the subtable, including mappings to glyph zero.
+    pub fn iter(&self) -> Cmap0Iter<'a> {
+        Cmap0Iter {
+            glyph_ids: self.glyph_id_array(),
+            pos: 0,
+        }
+    }
+}
+
+/// Iterator over all (codepoint, glyph identifier) pairs in
+/// a format 0 subtable.
+#[derive(Clone)]
+pub struct Cmap0Iter<'a> {
+    glyph_ids: &'a [u8],
+    pos: u32,
+}
+
+impl Iterator for Cmap0Iter<'_> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let glyph_id = GlyphId::new(*self.glyph_ids.get(self.pos as usize)? as u32);
+        let codepoint = self.pos;
+        self.pos += 1;
+        Some((codepoint, glyph_id))
     }
 }
 
@@ -1098,6 +1129,39 @@ mod tests {
         assert_eq!(glyph_set.len(), 2);
         assert!(glyph_set.contains(GlyphId::new(18)));
         assert!(glyph_set.contains(GlyphId::new(25)));
+    }
+
+    #[test]
+    fn cmap0_iter() {
+        let data = cmap0_data();
+        let cmap = Cmap::read(FontData::new(data.data())).unwrap();
+        let subtable = cmap.subtable(0).unwrap();
+        let CmapSubtable::Format0(cmap0) = &subtable else {
+            panic!("expected format 0");
+        };
+
+        let mappings = cmap0.iter().collect::<Vec<_>>();
+        assert_eq!(mappings.len(), 256);
+        assert_eq!(mappings[0], (0, GlyphId::NOTDEF));
+        assert_eq!(mappings[32], (32, GlyphId::new(178)));
+        assert_eq!(mappings[255], (255, GlyphId::new(3)));
+        for (index, &(codepoint, glyph_id)) in mappings.iter().enumerate() {
+            assert_eq!(codepoint, index as u32);
+            assert_eq!(cmap0.map_codepoint(codepoint), Some(glyph_id));
+        }
+
+        assert_eq!(subtable.iter().collect::<Vec<_>>(), mappings);
+        assert_eq!(
+            subtable
+                .iter_with_limits(CmapIterLimits::default())
+                .collect::<Vec<_>>(),
+            mappings
+        );
+
+        let mut iter = cmap0.iter();
+        assert_eq!(iter.nth(255), Some((255, GlyphId::new(3))));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
