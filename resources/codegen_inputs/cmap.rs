@@ -13,14 +13,27 @@ table Cmap {
     encoding_records: [EncodingRecord],
 }
 
+/// Delta map table (ISO/IEC 14496-22:2026, 5.6.15).
+#[tag = "DMAP"]
+table Dmap {
+    /// Table version number (0).
+    #[compile(0)]
+    version: u16,
+    /// Number of encoding tables that follow.
+    #[compile(array_len($encoding_records))]
+    num_tables: u16,
+    #[count($num_tables)]
+    encoding_records: [EncodingRecord],
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 record EncodingRecord {
     /// Platform ID.
     platform_id: PlatformId,
     /// Platform-specific encoding ID.
     encoding_id: u16,
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     subtable_offset: Offset32<CmapSubtable>,
 }
 
@@ -45,6 +58,7 @@ format u16 CmapSubtable {
     Format12(Cmap12),
     Format13(Cmap13),
     Format14(Cmap14),
+    Format15(Cmap15),
 }
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
@@ -304,6 +318,31 @@ table Cmap14 {
     var_selector: [VariationSelector],
 }
 
+/// Extended glyph repertoire UVS mapping (ISO/IEC 14496-22:2026, 5.1.2.5.11).
+#[skip_font_write]
+table Cmap15 {
+    /// Subtable format. Set to 15.
+    #[format = 15]
+    format: u16,
+    /// Byte length of this subtable (including this header).
+    #[compile(self.compute_length())]
+    length: u32,
+    /// Number of variation selector records.
+    #[compile(array_len($var_selector))]
+    num_var_selector_records: u32,
+    #[count($num_var_selector_records)]
+    var_selector: [VariationSelector15],
+}
+
+/// Part of [Cmap15].
+record VariationSelector15 {
+    var_selector: Uint24,
+    #[nullable]
+    default_uvs_offset: Offset32<DefaultUvs>,
+    #[nullable]
+    non_default_uvs_offset: Offset32<NonDefaultUvs24>,
+}
+
 /// Part of [Cmap14]
 record VariationSelector {
     /// Variation selector
@@ -333,6 +372,20 @@ table NonDefaultUvs {
     #[count($num_uvs_mappings)]
     uvs_mapping: [UvsMapping]
 
+}
+
+/// Non-default UVS mappings with 24-bit glyph IDs, used by [Cmap15].
+table NonDefaultUvs24 {
+    #[compile(array_len($uvs_mapping))]
+    num_uvs_mappings: u32,
+    #[count($num_uvs_mappings)]
+    uvs_mapping: [UvsMapping24],
+}
+
+/// UVSMapping24 record (ISO/IEC 14496-22:2026, 5.1.2.5.11).
+record UvsMapping24 {
+    unicode_value: Uint24,
+    glyph_id: Uint24,
 }
 
 /// Part of [Cmap14]

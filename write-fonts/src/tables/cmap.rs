@@ -8,6 +8,33 @@ use std::collections::HashMap;
 
 use crate::search_range::SearchRange;
 
+#[cfg(test)]
+mod dmap_tests {
+    use super::*;
+    use crate::{dump_table, FontBuilder};
+    use read_fonts::{FontRef, TableProvider};
+
+    #[test]
+    fn dmap_roundtrip() {
+        let dmap = Dmap::new(vec![EncodingRecord::new(
+            PlatformId::Windows,
+            10,
+            CmapSubtable::format_12(0, vec![SequentialMapGroup::new(65, 65, 70000)]),
+        )]);
+        let bytes = dump_table(&dmap).unwrap();
+        assert_eq!(Dmap::read(FontData::new(&bytes)).unwrap(), dmap);
+        let mut builder = FontBuilder::new();
+        builder.add_table(&dmap).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert_eq!(
+            font.dmap().unwrap().as_cmap().map_codepoint('A'),
+            Some(GlyphId::new(70000))
+        );
+        assert!(font.cmap().is_err());
+    }
+}
+
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
 const WINDOWS_BMP_ENCODING: u16 = 1;
 const WINDOWS_FULL_REPERTOIRE_ENCODING: u16 = 10;
@@ -556,83 +583,86 @@ impl Cmap12 {
 // table's children directly after it, and cmap's 32-bit offsets never trigger
 // the fallback sort, so it would happen to work out; but writing the tables
 // ourselves makes the layout (and so 'length') correct by construction.
-impl FontWrite for Cmap14 {
-    fn write_into(&self, writer: &mut TableWriter) {
-        14u16.write_into(writer);
-        self.compute_length().write_into(writer);
-        u32::try_from(self.var_selector.len())
-            .unwrap()
-            .write_into(writer);
+macro_rules! impl_uvs_writer {
+    ($cmap:ident, $format:literal) => {
+        impl FontWrite for $cmap {
+            fn write_into(&self, writer: &mut TableWriter) {
+                ($format as u16).write_into(writer);
+                self.compute_length().write_into(writer);
+                u32::try_from(self.var_selector.len())
+                    .unwrap()
+                    .write_into(writer);
 
-        // offsets are relative to the start of this subtable; the UVS tables
-        // follow the record array, in record order, default before non-default
-        let mut next_offset = Self::HEADER_LEN + self.var_selector.len() * Self::RECORD_LEN;
-        let mut write_offset = |writer: &mut TableWriter, len: Option<usize>| match len {
-            Some(len) => {
-                (next_offset as u32).write_into(writer);
-                next_offset += len;
+                // offsets are relative to the start of this subtable; the UVS tables
+                // follow the record array, in record order, default before non-default
+                let mut next_offset = Self::HEADER_LEN + self.var_selector.len() * Self::RECORD_LEN;
+                let mut write_offset = |writer: &mut TableWriter, len: Option<usize>| match len {
+                    Some(len) => {
+                        (next_offset as u32).write_into(writer);
+                        next_offset += len;
+                    }
+                    None => 0u32.write_into(writer),
+                };
+                for record in &self.var_selector {
+                    record.var_selector.write_into(writer);
+                    write_offset(
+                        writer,
+                        record.default_uvs.as_ref().map(DefaultUvs::compute_len),
+                    );
+                    write_offset(
+                        writer,
+                        record.non_default_uvs.as_ref().map(|uvs| uvs.compute_len()),
+                    );
+                }
+                for record in &self.var_selector {
+                    if let Some(uvs) = record.default_uvs.as_ref() {
+                        uvs.write_into(writer);
+                    }
+                    if let Some(uvs) = record.non_default_uvs.as_ref() {
+                        uvs.write_into(writer);
+                    }
+                }
             }
-            None => 0u32.write_into(writer),
-        };
-        for record in &self.var_selector {
-            record.var_selector.write_into(writer);
-            write_offset(
-                writer,
-                record.default_uvs.as_ref().map(DefaultUvs::compute_len),
-            );
-            write_offset(
-                writer,
-                record
-                    .non_default_uvs
-                    .as_ref()
-                    .map(NonDefaultUvs::compute_len),
-            );
-        }
-        for record in &self.var_selector {
-            if let Some(uvs) = record.default_uvs.as_ref() {
-                uvs.write_into(writer);
-            }
-            if let Some(uvs) = record.non_default_uvs.as_ref() {
-                uvs.write_into(writer);
-            }
-        }
-    }
 
-    fn table_type(&self) -> TableType {
-        TableType::Named("Cmap14")
-    }
+            fn table_type(&self) -> TableType {
+                TableType::Named(stringify!($cmap))
+            }
+        }
+
+        impl $cmap {
+            // format, length, numVarSelectorRecords
+            const HEADER_LEN: usize = u16::RAW_BYTE_LEN + 2 * u32::RAW_BYTE_LEN;
+            // varSelector, defaultUVSOffset, nonDefaultUVSOffset
+            const RECORD_LEN: usize = Uint24::RAW_BYTE_LEN + 2 * u32::RAW_BYTE_LEN;
+
+            fn compute_length(&self) -> u32 {
+                let uvs_len: usize = self
+                    .var_selector
+                    .iter()
+                    .map(|record| {
+                        record
+                            .default_uvs
+                            .as_ref()
+                            .map(DefaultUvs::compute_len)
+                            .unwrap_or(0)
+                            + record
+                                .non_default_uvs
+                                .as_ref()
+                                .map(|uvs| uvs.compute_len())
+                                .unwrap_or(0)
+                    })
+                    .sum();
+
+                (Self::HEADER_LEN + self.var_selector.len() * Self::RECORD_LEN + uvs_len)
+                    .try_into()
+                    .expect("UVS subtable overflow")
+            }
+        }
+    };
 }
 
-impl Cmap14 {
-    // format, length, numVarSelectorRecords
-    const HEADER_LEN: usize = u16::RAW_BYTE_LEN + 2 * u32::RAW_BYTE_LEN;
-    // varSelector, defaultUVSOffset, nonDefaultUVSOffset
-    const RECORD_LEN: usize = Uint24::RAW_BYTE_LEN + 2 * u32::RAW_BYTE_LEN;
-
-    fn compute_length(&self) -> u32 {
-        // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences
-        let uvs_len: usize = self
-            .var_selector
-            .iter()
-            .map(|record| {
-                record
-                    .default_uvs
-                    .as_ref()
-                    .map(DefaultUvs::compute_len)
-                    .unwrap_or(0)
-                    + record
-                        .non_default_uvs
-                        .as_ref()
-                        .map(NonDefaultUvs::compute_len)
-                        .unwrap_or(0)
-            })
-            .sum();
-
-        (Self::HEADER_LEN + self.var_selector.len() * Self::RECORD_LEN + uvs_len)
-            .try_into()
-            .expect("cmap14 overflow")
-    }
-}
+impl_uvs_writer!(Cmap14, 14);
+impl_uvs_writer!(Cmap15, 15);
 
 impl DefaultUvs {
     fn compute_len(&self) -> usize {
@@ -645,6 +675,12 @@ impl NonDefaultUvs {
     fn compute_len(&self) -> usize {
         // numUVSMappings, then (unicodeValue, glyphID) per mapping
         u32::RAW_BYTE_LEN + self.uvs_mapping.len() * (Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN)
+    }
+}
+
+impl NonDefaultUvs24 {
+    fn compute_len(&self) -> usize {
+        u32::RAW_BYTE_LEN + self.uvs_mapping.len() * (2 * Uint24::RAW_BYTE_LEN)
     }
 }
 
@@ -1138,6 +1174,80 @@ mod tests {
             bytes,
             &cmap14.offset_data().as_bytes()[..cmap14.length() as usize]
         );
+    }
+
+    #[test]
+    fn cmap15_round_trip() {
+        use font_test_data::cmap::format15;
+        let bytes = format15(0xe0100, &[65], &[(66, 65536), (67, 70000), (68, 0xffffff)]);
+        let read = read_fonts::tables::cmap::Cmap15::read(bytes.as_slice().into()).unwrap();
+        let owned: write::Cmap15 = read.to_owned_table();
+        assert_eq!(dump_table(&owned).unwrap(), bytes);
+        let cmap = write::Cmap::new(vec![write::EncodingRecord::new(
+            PlatformId::Unicode,
+            5,
+            owned.into(),
+        )]);
+        let bytes = dump_table(&cmap).unwrap();
+        let dmap = write::Dmap::new(cmap.encoding_records.clone());
+        assert_eq!(dump_table(&dmap).unwrap(), bytes);
+        let cmap = Cmap::read(bytes.as_slice().into()).unwrap();
+        let (_, subtable) = cmap.variation_subtable().unwrap();
+        assert_eq!(
+            subtable.map_variant(67u32, 0xe0100u32),
+            Some(read_fonts::tables::cmap::MapVariant::Variant(GlyphId::new(
+                70000
+            )))
+        );
+    }
+
+    #[test]
+    fn cmap15_offsets_and_record_widths() {
+        let non_default = write::NonDefaultUvs24::new(vec![write::UvsMapping24::new(
+            Uint24::new(0x4e08),
+            Uint24::new(70000),
+        )]);
+        let cmap = write::Cmap15::new(vec![
+            write::VariationSelector15::new(
+                Uint24::new(0xe0100),
+                Some(default_uvs()),
+                Some(non_default.clone()),
+            ),
+            write::VariationSelector15::new(
+                Uint24::new(0xe0101),
+                Some(default_uvs()),
+                Some(non_default.clone()),
+            ),
+            write::VariationSelector15::new(Uint24::new(0xe0102), None, Some(non_default)),
+            write::VariationSelector15::new(Uint24::new(0xe0103), Some(default_uvs()), None),
+        ]);
+        let bytes = dump_table(&cmap).unwrap();
+        let read = read_fonts::tables::cmap::Cmap15::read(bytes.as_slice().into()).unwrap();
+        // 10-byte header + four 11-byte records, then 8-byte default and
+        // 10-byte non-default UVS tables. Identical targets are not shared.
+        let offsets: Vec<_> = read
+            .var_selector()
+            .iter()
+            .flat_map(|record| {
+                [
+                    record.default_uvs_offset().offset().to_u32(),
+                    record.non_default_uvs_offset().offset().to_u32(),
+                ]
+            })
+            .collect();
+        assert_eq!(offsets, [54, 62, 72, 80, 0, 90, 100, 0]);
+        assert_eq!(read.length(), 108);
+        assert_eq!(bytes.len(), 108);
+        for selector in 0xe0100..=0xe0102u32 {
+            assert_eq!(
+                read.map_variant(0x4e08u32, selector),
+                Some(read_fonts::tables::cmap::MapVariant::Variant(GlyphId::new(
+                    70000
+                )))
+            );
+        }
+        let owned: write::Cmap15 = read.to_owned_table();
+        assert_eq!(dump_table(&owned).unwrap(), bytes);
     }
 
     fn default_uvs() -> write::DefaultUvs {

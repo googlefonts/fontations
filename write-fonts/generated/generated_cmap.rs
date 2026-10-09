@@ -72,6 +72,71 @@ impl<'a> FontRead<'a> for Cmap {
     }
 }
 
+/// Delta map table (ISO/IEC 14496-22:2026, 5.6.15).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Dmap {
+    pub encoding_records: Vec<EncodingRecord>,
+}
+
+impl Dmap {
+    /// Construct a new `Dmap`
+    pub fn new(encoding_records: Vec<EncodingRecord>) -> Self {
+        Self { encoding_records }
+    }
+}
+
+impl FontWrite for Dmap {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (0 as u16).write_into(writer);
+        (u16::try_from(array_len(&self.encoding_records)).unwrap()).write_into(writer);
+        self.encoding_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Dmap::TAG)
+    }
+}
+
+impl Validate for Dmap {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Dmap", |ctx| {
+            ctx.in_field("encoding_records", |ctx| {
+                if self.encoding_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.encoding_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl TopLevelTable for Dmap {
+    const TAG: Tag = Tag::new(b"DMAP");
+}
+
+impl<'a> FromObjRef<read_fonts::tables::cmap::Dmap<'a>> for Dmap {
+    fn from_obj_ref(obj: &read_fonts::tables::cmap::Dmap<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Dmap {
+            encoding_records: obj.encoding_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::cmap::Dmap<'a>> for Dmap {}
+
+impl ReadArgs for Dmap {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Dmap {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::cmap::Dmap as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -80,8 +145,8 @@ pub struct EncodingRecord {
     pub platform_id: PlatformId,
     /// Platform-specific encoding ID.
     pub encoding_id: u16,
-    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
-    /// encoding.
+    /// Byte offset from beginning of the [`Cmap`] or [`Dmap`] table to the
+    /// subtable for this encoding.
     pub subtable: OffsetMarker<CmapSubtable, WIDTH_32>,
 }
 
@@ -147,6 +212,7 @@ pub enum CmapSubtable {
     Format12(Cmap12),
     Format13(Cmap13),
     Format14(Cmap14),
+    Format15(Cmap15),
 }
 
 impl CmapSubtable {
@@ -241,6 +307,11 @@ impl CmapSubtable {
     pub fn format_14(var_selector: Vec<VariationSelector>) -> Self {
         Self::Format14(Cmap14::new(var_selector))
     }
+
+    /// Construct a new `Cmap15` subtable
+    pub fn format_15(var_selector: Vec<VariationSelector15>) -> Self {
+        Self::Format15(Cmap15::new(var_selector))
+    }
 }
 
 impl Default for CmapSubtable {
@@ -261,6 +332,7 @@ impl FontWrite for CmapSubtable {
             Self::Format12(item) => item.write_into(writer),
             Self::Format13(item) => item.write_into(writer),
             Self::Format14(item) => item.write_into(writer),
+            Self::Format15(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
@@ -274,6 +346,7 @@ impl FontWrite for CmapSubtable {
             Self::Format12(item) => item.table_type(),
             Self::Format13(item) => item.table_type(),
             Self::Format14(item) => item.table_type(),
+            Self::Format15(item) => item.table_type(),
         }
     }
 }
@@ -290,6 +363,7 @@ impl Validate for CmapSubtable {
             Self::Format12(item) => item.validate_impl(ctx),
             Self::Format13(item) => item.validate_impl(ctx),
             Self::Format14(item) => item.validate_impl(ctx),
+            Self::Format15(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -307,6 +381,7 @@ impl FromObjRef<read_fonts::tables::cmap::CmapSubtable<'_>> for CmapSubtable {
             ObjRefType::Format12(item) => CmapSubtable::Format12(item.to_owned_table()),
             ObjRefType::Format13(item) => CmapSubtable::Format13(item.to_owned_table()),
             ObjRefType::Format14(item) => CmapSubtable::Format14(item.to_owned_table()),
+            ObjRefType::Format15(item) => CmapSubtable::Format15(item.to_owned_table()),
         }
     }
 }
@@ -374,6 +449,12 @@ impl From<Cmap13> for CmapSubtable {
 impl From<Cmap14> for CmapSubtable {
     fn from(src: Cmap14) -> CmapSubtable {
         CmapSubtable::Format14(src)
+    }
+}
+
+impl From<Cmap15> for CmapSubtable {
+    fn from(src: Cmap15) -> CmapSubtable {
+        CmapSubtable::Format15(src)
     }
 }
 
@@ -1212,6 +1293,116 @@ impl<'a> FontRead<'a> for Cmap14 {
     }
 }
 
+/// Extended glyph repertoire UVS mapping (ISO/IEC 14496-22:2026, 5.1.2.5.11).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Cmap15 {
+    pub var_selector: Vec<VariationSelector15>,
+}
+
+impl Cmap15 {
+    /// Construct a new `Cmap15`
+    pub fn new(var_selector: Vec<VariationSelector15>) -> Self {
+        Self { var_selector }
+    }
+}
+
+impl Validate for Cmap15 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Cmap15", |ctx| {
+            ctx.in_field("var_selector", |ctx| {
+                if self.var_selector.len() > to_usize(u32::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.var_selector.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap15<'a>> for Cmap15 {
+    fn from_obj_ref(obj: &read_fonts::tables::cmap::Cmap15<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Cmap15 {
+            var_selector: obj.var_selector().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap15<'a>> for Cmap15 {}
+
+impl ReadArgs for Cmap15 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Cmap15 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::cmap::Cmap15 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// Part of [Cmap15].
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VariationSelector15 {
+    pub var_selector: Uint24,
+    pub default_uvs: NullableOffsetMarker<DefaultUvs, WIDTH_32>,
+    pub non_default_uvs: NullableOffsetMarker<NonDefaultUvs24, WIDTH_32>,
+}
+
+impl VariationSelector15 {
+    /// Construct a new `VariationSelector15`
+    pub fn new(
+        var_selector: Uint24,
+        default_uvs: Option<DefaultUvs>,
+        non_default_uvs: Option<NonDefaultUvs24>,
+    ) -> Self {
+        Self {
+            var_selector,
+            default_uvs: default_uvs.into(),
+            non_default_uvs: non_default_uvs.into(),
+        }
+    }
+}
+
+impl FontWrite for VariationSelector15 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.var_selector.write_into(writer);
+        self.default_uvs.write_into(writer);
+        self.non_default_uvs.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationSelector15")
+    }
+}
+
+impl Validate for VariationSelector15 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("VariationSelector15", |ctx| {
+            ctx.in_field("default_uvs", |ctx| {
+                self.default_uvs.validate_impl(ctx);
+            });
+            ctx.in_field("non_default_uvs", |ctx| {
+                self.non_default_uvs.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::cmap::VariationSelector15> for VariationSelector15 {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::cmap::VariationSelector15,
+        offset_data: FontData,
+    ) -> Self {
+        VariationSelector15 {
+            var_selector: obj.var_selector(),
+            default_uvs: obj.default_uvs(offset_data).to_owned_table(),
+            non_default_uvs: obj.non_default_uvs(offset_data).to_owned_table(),
+        }
+    }
+}
+
 /// Part of [Cmap14]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1406,6 +1597,108 @@ impl<'a> FontRead<'a> for NonDefaultUvs {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::NonDefaultUvs as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+/// Non-default UVS mappings with 24-bit glyph IDs, used by [Cmap15].
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct NonDefaultUvs24 {
+    pub uvs_mapping: Vec<UvsMapping24>,
+}
+
+impl NonDefaultUvs24 {
+    /// Construct a new `NonDefaultUvs24`
+    pub fn new(uvs_mapping: Vec<UvsMapping24>) -> Self {
+        Self { uvs_mapping }
+    }
+}
+
+impl FontWrite for NonDefaultUvs24 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u32::try_from(array_len(&self.uvs_mapping)).unwrap()).write_into(writer);
+        self.uvs_mapping.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("NonDefaultUvs24")
+    }
+}
+
+impl Validate for NonDefaultUvs24 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("NonDefaultUvs24", |ctx| {
+            ctx.in_field("uvs_mapping", |ctx| {
+                if self.uvs_mapping.len() > to_usize(u32::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.uvs_mapping.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::cmap::NonDefaultUvs24<'a>> for NonDefaultUvs24 {
+    fn from_obj_ref(obj: &read_fonts::tables::cmap::NonDefaultUvs24<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        NonDefaultUvs24 {
+            uvs_mapping: obj.uvs_mapping().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::cmap::NonDefaultUvs24<'a>> for NonDefaultUvs24 {}
+
+impl ReadArgs for NonDefaultUvs24 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for NonDefaultUvs24 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::cmap::NonDefaultUvs24 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// UVSMapping24 record (ISO/IEC 14496-22:2026, 5.1.2.5.11).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct UvsMapping24 {
+    pub unicode_value: Uint24,
+    pub glyph_id: Uint24,
+}
+
+impl UvsMapping24 {
+    /// Construct a new `UvsMapping24`
+    pub fn new(unicode_value: Uint24, glyph_id: Uint24) -> Self {
+        Self {
+            unicode_value,
+            glyph_id,
+        }
+    }
+}
+
+impl FontWrite for UvsMapping24 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.unicode_value.write_into(writer);
+        self.glyph_id.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("UvsMapping24")
+    }
+}
+
+impl Validate for UvsMapping24 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::cmap::UvsMapping24> for UvsMapping24 {
+    fn from_obj_ref(obj: &read_fonts::tables::cmap::UvsMapping24, _: FontData) -> Self {
+        UvsMapping24 {
+            unicode_value: obj.unicode_value(),
+            glyph_id: obj.glyph_id(),
+        }
     }
 }
 
