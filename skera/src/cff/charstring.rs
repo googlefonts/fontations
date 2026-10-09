@@ -51,6 +51,7 @@ impl Value {
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Command {
     pub op: u16,
     pub args: Vec<Value>,
