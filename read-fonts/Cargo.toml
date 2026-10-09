@@ -77,3 +77,12 @@ harness = false
 [[bench]]
 name = "type1"
 harness = false
+
+[[bench]]
+name = "charmap"
+harness = false
+
+[[bench]]
+name = "system_charmap"
+harness = false
+
