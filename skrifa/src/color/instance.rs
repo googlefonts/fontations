@@ -10,7 +10,7 @@ use read_fonts::{
         colr::*,
         variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore},
     },
-    types::{BoundingBox, F2Dot14, F48Dot16, GlyphId16, Point},
+    types::{BoundingBox, F2Dot14, F48Dot16, GlyphId, GlyphId16, Point},
 };
 
 /// Unique paint identifier used for detecting cycles in the paint graph.
@@ -236,7 +236,7 @@ pub enum ResolvedPaint<'a> {
         extend: Extend,
     },
     Glyph {
-        glyph_id: GlyphId16,
+        glyph_id: GlyphId,
         paint: Paint<'a>,
     },
     ColrGlyph {
@@ -814,7 +814,11 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::Glyph(glyph) => ResolvedPaint::Glyph {
-            glyph_id: glyph.glyph_id(),
+            glyph_id: glyph.glyph_id().into(),
+            paint: glyph.paint().map_err(|_| PaintError::Malformed)?,
+        },
+        Paint::Glyph2(glyph) => ResolvedPaint::Glyph {
+            glyph_id: glyph.glyph_id().into(),
             paint: glyph.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::ColrGlyph(glyph) => ResolvedPaint::ColrGlyph {
