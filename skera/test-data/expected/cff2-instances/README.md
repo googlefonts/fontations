@@ -34,3 +34,9 @@ locations, where evaluating region scalars as 16.16 values shifts contours.
 It covers nested defaults, higher-order variable deltas, and intermediate
 rounding. Partial instances are compared with the source's decoded outlines:
 HarfBuzz's partial output currently drops the variable delta's higher-order term.
+
+`hb-fractional-source-serif.otf` uses SourceSerif4Variable-Roman-HelloWorld
+with `--gids='*' --notdef-outline` at
+`wght=355.474853515625,opsz=39.33837890625`. It exercises negative half-unit
+coordinate rounding and the distinct normalization paths used for outline
+instancing and runtime metrics.
