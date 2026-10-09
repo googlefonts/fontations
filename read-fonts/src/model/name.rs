@@ -18,8 +18,9 @@ pub use crate::types::NameId;
 /// Access to names in a font.
 ///
 /// SFNT names come from the `name` table. For Type 1 fonts, the available
-/// family, weight, full, and PostScript names are exposed as name IDs 1, 2,
-/// 4, and 6, respectively.
+/// notice, family, weight, full, version, and PostScript names are exposed as
+/// name IDs 0, 1, 2, 4, 5, and 6, respectively. A Type 1 `Notice` may contain
+/// either copyright or trademark text; it is exposed as ID 0.
 #[derive(Clone)]
 pub struct Names<'a> {
     source: Source<'a>,
@@ -112,9 +113,11 @@ impl<'a> Name<'a> {
         });
         let type1 = match &self.source {
             Source::Type1(font) => match id {
+                NameId::COPYRIGHT_NOTICE => font.notice(),
                 NameId::FAMILY_NAME => font.family_name(),
                 NameId::SUBFAMILY_NAME => font.weight(),
                 NameId::FULL_NAME => font.full_name(),
+                NameId::VERSION_STRING => font.version(),
                 NameId::POSTSCRIPT_NAME => font.name(),
                 _ => None,
             },
@@ -419,9 +422,17 @@ mod tests {
         let data = font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB;
         let font = Font::new(data, 0).unwrap();
         for (id, expected) in [
+            (
+                NameId::COPYRIGHT_NOTICE,
+                "Copyright 2015-2021 Google LLC. All Rights Reserved.",
+            ),
             (NameId::FAMILY_NAME, "Noto Serif"),
             (NameId::SUBFAMILY_NAME, "Book"),
             (NameId::FULL_NAME, "Noto Serif Regular"),
+            (
+                NameId::VERSION_STRING,
+                "2.007; ttfautohint (v1.8) -l 8 -r 50 -G 200 -x 14 -D latn -f none -a qsq -X \"\"",
+            ),
             (NameId::POSTSCRIPT_NAME, "NotoSerif-Regular"),
         ] {
             let name = font.names().get(id);
