@@ -11,8 +11,38 @@ use crate::{
     Plan, SubsetFlags,
 };
 use write_fonts::read::{
-    collections::IntSet, tables::variations::ItemVariationStore, types::NameId, FontRef,
+    collections::IntSet,
+    tables::variations::{ItemVariationStore, VariationRegion},
+    types::{F2Dot14, NameId},
+    FontRef,
 };
+
+// HarfBuzz evaluates CFF2 blend scalars in float, then accumulates their
+// products with operands in double. A 16.16 intermediate can move half-unit
+// operands across the rounding boundary and shift the rest of a contour.
+fn region_gain(region: &VariationRegion, coords: &[F2Dot14]) -> f64 {
+    let mut gain = 1f32;
+    for (i, axis) in region.region_axes().iter().enumerate() {
+        let (start, peak, end) = (
+            axis.start_coord().to_bits() as i32,
+            axis.peak_coord().to_bits() as i32,
+            axis.end_coord().to_bits() as i32,
+        );
+        let coord = coords.get(i).copied().unwrap_or_default().to_bits() as i32;
+        if peak == 0 || coord == peak || start > peak || peak > end || start < 0 && end > 0 {
+            continue;
+        }
+        if coord <= start || coord >= end {
+            return 0.;
+        }
+        gain *= if coord < peak {
+            (coord - start) as f32 / (peak - start) as f32
+        } else {
+            (end - coord) as f32 / (end - peak) as f32
+        };
+    }
+    gain as f64
+}
 
 fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<f64>> {
     let data = store.item_variation_data().get(ivs);
@@ -27,11 +57,10 @@ fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<
     data.region_indexes()
         .iter()
         .map(|idx| {
-            Ok(regions
-                .get(idx.get() as usize)
-                .map_err(|_| Error)?
-                .compute_scalar(&axes.coords)
-                .to_f64())
+            Ok(region_gain(
+                &regions.get(idx.get() as usize).map_err(|_| Error)?,
+                &axes.coords,
+            ))
         })
         .collect()
 }
@@ -39,13 +68,7 @@ fn fold(default: f64, deltas: &[f64], gains: &[f64]) -> Result<f64> {
     if deltas.len() != gains.len() {
         return Err(Error);
     }
-    Ok(default
-        + deltas
-            .iter()
-            .zip(gains)
-            .map(|(d, g)| d * g)
-            .sum::<f64>()
-            .round())
+    Ok((default + deltas.iter().zip(gains).map(|(d, g)| d * g).sum::<f64>()).round())
 }
 
 pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
@@ -87,7 +110,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                             .transforms
                             .get(ivs)
                             .ok_or(Error)?;
-                        value.default += transform.fold(&deltas).map_err(|_| Error)?.round();
+                        value.default += fold(0., &deltas, transforms.get(ivs).ok_or(Error)?)?;
                         let residual: Vec<_> = transform
                             .residual(&deltas)
                             .map_err(|_| Error)?
@@ -158,7 +181,10 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                                 .transforms
                                 .get(ivs)
                                 .ok_or(Error)?;
-                            let f = t.fold(&deltas).map_err(|_| Error)?;
+                            if deltas.len() != g.len() {
+                                return Err(Error);
+                            }
+                            let f: f64 = deltas.iter().zip(g).map(|(d, s)| d * s).sum();
                             fold_exact += f;
                             let emitted = fold_exact.round();
                             value.default += emitted - fold_emitted;
@@ -410,4 +436,33 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
             locals,
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use write_fonts::{
+        read::{FontData, FontRead},
+        tables::variations::*,
+    };
+
+    #[test]
+    fn cff_scalars_keep_half_unit_operands_on_the_correct_side() {
+        let bytes = write_fonts::dump_table(&VariationRegionList::new(
+            1,
+            vec![write_fonts::tables::variations::VariationRegion::new(vec![
+                RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::from_f64(0.75), F2Dot14::ONE),
+            ])],
+        ))
+        .unwrap();
+        let list =
+            write_fonts::read::tables::variations::VariationRegionList::read(FontData::new(&bytes))
+                .unwrap();
+        let region = list.variation_regions().get(0).unwrap();
+        let gain = region_gain(&region, &[F2Dot14::from_f64(0.25)]);
+        assert_eq!(fold(0., &[1.5], &[gain]).unwrap(), 1.);
+        assert_eq!(fold(0., &[-1.5], &[gain]).unwrap(), -1.);
+        assert_eq!(fold(0.25, &[0.5], &[gain]).unwrap(), 0.);
+        assert_eq!(fold(0.25, &[1.], &[gain]).unwrap(), 1.);
+    }
 }
