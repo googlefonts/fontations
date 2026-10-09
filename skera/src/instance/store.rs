@@ -76,12 +76,6 @@ pub(crate) struct Transform {
     pub indices: Vec<u16>,
 }
 impl Transform {
-    pub fn fold(&self, deltas: &[f64]) -> Result<f64, SubsetError> {
-        if deltas.len() != self.gains.len() {
-            return Err(error());
-        }
-        Ok(deltas.iter().zip(&self.gains).map(|(d, g)| d * g).sum())
-    }
     pub fn residual(&self, deltas: &[f64]) -> Result<Vec<f64>, SubsetError> {
         if deltas.len() != self.gains.len() {
             return Err(error());
