@@ -252,7 +252,14 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
     }
     if partial {
         if let (Some(plan), Some(store)) = (&store_plan, source.font.var_store()) {
-            let table = plan.rebuild(store).map_err(|_| Error)?;
+            let mut table = plan.rebuild(store).map_err(|_| Error)?;
+            // CFF2 stores carry region indexes only; blend deltas live in
+            // charstrings/DICTs, so both itemCount and wordDeltaCount are zero.
+            for data in &mut table.item_variation_data {
+                if let Some(data) = data.as_mut() {
+                    data.word_delta_count = 0;
+                }
+            }
             let bytes = write_fonts::dump_table(&table).map_err(|_| Error)?;
             let mut data = u16::try_from(bytes.len())
                 .map_err(|_| Error)?
