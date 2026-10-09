@@ -2,6 +2,11 @@
 
 `skera` is a Rust library and binary for subsetting a font file according to provided input.
 
+CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
+desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
+retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,
+custom and expert encodings, glyph names, and `seac` component closure.
+
 ## Installation
 
 ### Library
@@ -100,4 +105,3 @@ perf (Linux-only): The standard system profiler on Linux, useful for command-lin
 perf record -g -- target/release/skera
 perf report
 ```
-
