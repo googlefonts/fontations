@@ -18,7 +18,7 @@ pub mod interop;
 
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, RawGlyphMetrics, StyleMetrics};
-use super::name::{self, GlyphName};
+use super::name::{self, GlyphName, Names};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
 use crate::tables::{
@@ -145,17 +145,50 @@ impl Font {
         self.shared().tables()
     }
 
-    /// Returns the font's character mappings.
-    pub fn charmap(&self) -> Charmap<'_> {
-        Charmap::new(self)
-    }
-
     /// Returns the normalized variation coordinates for this font instance.
     pub fn normalized_coords(&self) -> &[NormalizedCoord] {
         match &self.0 {
             Repr::Default(_) => &[],
             Repr::Varied(varied) => varied.coords.as_slice(),
         }
+    }
+
+    /// Returns the layout feature variations this instance selects.
+    pub fn feature_variations(&self) -> SelectedFeatureVariations {
+        match &self.0 {
+            Repr::Default(_) => SelectedFeatureVariations::default(),
+            Repr::Varied(varied) => varied
+                .feature_vars
+                .load(&varied.font, varied.coords.as_slice()),
+        }
+    }
+
+    /// Returns the font's names and other localized strings.
+    pub fn names(&self) -> Names<'_> {
+        match self.kind() {
+            Kind::Type1(font) => Names::from_type1(font),
+            _ => Names::from_sfnt(self.tables()),
+        }
+    }
+
+    /// Returns the identifier and name of every glyph in the font.
+    ///
+    /// Names come from `post`, then `CFF`, or from Type 1 charstrings. A
+    /// missing name is synthesized as `gidNNN`.
+    pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + '_ {
+        name::glyph_names(self)
+    }
+
+    /// Returns the name of a glyph, synthesizing `gidNNN` if none is stored.
+    ///
+    /// Returns `None` for a glyph outside the font.
+    pub fn glyph_name(&self, glyph: GlyphId) -> Option<GlyphName> {
+        name::glyph_name(self, glyph)
+    }
+
+    /// Returns the font's character mappings.
+    pub fn charmap(&self) -> Charmap<'_> {
+        Charmap::new(self)
     }
 
     /// Returns the metrics describing the font as a whole, at this
@@ -194,31 +227,6 @@ impl Font {
     #[inline]
     pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
         GlyphMetrics::new(self, self.metrics(), self.normalized_coords())
-    }
-
-    /// Returns the name of a glyph, synthesizing `gidNNN` if none is stored.
-    ///
-    /// Returns `None` for a glyph outside the font.
-    pub fn glyph_name(&self, glyph: GlyphId) -> Option<GlyphName> {
-        name::glyph_name(self, glyph)
-    }
-
-    /// Returns the identifier and name of every glyph in the font.
-    ///
-    /// Names come from `post`, then `CFF`, or from Type 1 charstrings. A
-    /// missing name is synthesized as `gidNNN`.
-    pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + '_ {
-        name::glyph_names(self)
-    }
-
-    /// Returns the layout feature variations this instance selects.
-    pub fn feature_variations(&self) -> SelectedFeatureVariations {
-        match &self.0 {
-            Repr::Default(_) => SelectedFeatureVariations::default(),
-            Repr::Varied(varied) => varied
-                .feature_vars
-                .load(&varied.font, varied.coords.as_slice()),
-        }
     }
 }
 
