@@ -194,6 +194,26 @@ impl StorePlan {
             axis_count: axes.pinned.iter().filter(|&&p| !p).count() as u16,
         })
     }
+    /// A constant region lets CFF2 express sums of variable blend operands
+    /// without changing the glyph's active vsindex or adding arithmetic ops.
+    pub fn add_constant_region(
+        &mut self,
+        ivs: &std::collections::BTreeSet<usize>,
+    ) -> Result<BTreeMap<usize, usize>, SubsetError> {
+        if ivs.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let index = u16::try_from(self.regions.len()).map_err(|_| error())?;
+        self.regions.push(vec![(0, 0, 0); self.axis_count as usize]);
+        let mut columns = BTreeMap::new();
+        for &ivs in ivs {
+            let transform = self.transforms.get_mut(ivs).ok_or_else(error)?;
+            columns.insert(ivs, transform.indices.len());
+            transform.indices.push(index);
+            transform.weights.push(vec![0.; transform.gains.len()]);
+        }
+        Ok(columns)
+    }
     pub fn rebuild(
         &self,
         store: &ItemVariationStore,

@@ -1,6 +1,7 @@
 //! CFF1 and CFF2 subsetters. Shared interpreter policies mirror HarfBuzz's
 //! template parameters without exposing them as a public extension API.
 
+mod blend;
 mod charstring;
 mod dict;
 mod downgrade;
