@@ -9,9 +9,9 @@ use write_fonts::{
 /// An axis pin or retained user-coordinate range.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AxisLimits {
-    /// Remove an axis at the specified user coordinate.
+    /// Pin an axis at the specified user coordinate.
     Pin { tag: Tag, value: f32 },
-    /// Remove an axis at its original default.
+    /// Pin an axis at its original default.
     Drop { tag: Tag },
     /// Retain an axis with new bounds and an optional new default.
     Range {
@@ -70,13 +70,17 @@ pub fn parse_axis_limits(input: &str) -> Result<Vec<AxisLimits>, SubsetError> {
         .collect()
 }
 
+#[derive(Clone)]
 pub(crate) struct AxisPlan {
     pub coords: Vec<F2Dot14>,
     pub pinned: Vec<bool>,
     pub values: Vec<(Tag, f32)>,
     pub normalized: Vec<Triple>,
     pub distances: Vec<(f64, f64)>,
-    user: Vec<Triple>,
+    pub(super) user: Vec<Triple>,
+    pub(super) user_pinned: Vec<bool>,
+    // avar2 retains the old final-coordinate space in all other tables.
+    pub(super) coupled: bool,
 }
 impl AxisPlan {
     pub fn new(font: &FontRef, limits: &[AxisLimits]) -> Result<Self, SubsetError> {
@@ -94,6 +98,9 @@ impl AxisPlan {
                 )
             })
             .collect();
+        for axis in axes.iter() {
+            pinned[axis.index()] = axis.min_value() == axis.max_value();
+        }
         for &limit in limits {
             let tag = limit.tag();
             let axis = axes
@@ -149,15 +156,10 @@ impl AxisPlan {
         }
         let mut coords = axes.location(settings.iter().copied()).coords().to_vec();
         let avar = font.avar().ok();
-        if !pinned.iter().all(|p| *p)
+        let coupled = !pinned.iter().all(|p| *p)
             && avar
                 .as_ref()
-                .is_some_and(|a| a.version().major >= 2 && a.var_store().is_some())
-        {
-            return Err(SubsetError::InvalidAxis(
-                "partial instancing of avar version 2 is not supported".into(),
-            ));
-        }
+                .is_some_and(|a| a.version().major >= 2 && a.var_store().is_some());
         let maps = avar
             .as_ref()
             .map(|a| a.axis_segment_maps().iter().collect::<Result<Vec<_>, _>>())
@@ -219,6 +221,10 @@ impl AxisPlan {
                 }
             }
         }
+        let user_pinned = pinned.clone();
+        if coupled {
+            pinned.fill(false);
+        }
         Ok(Self {
             coords,
             pinned,
@@ -226,6 +232,8 @@ impl AxisPlan {
             normalized,
             distances,
             user,
+            user_pinned,
+            coupled,
         })
     }
     pub fn all_pinned(&self) -> bool {
@@ -264,6 +272,9 @@ impl AxisPlan {
                 a.min_value = Fixed::from_f64(self.user[i].0);
                 a.default_value = Fixed::from_f64(self.user[i].1);
                 a.max_value = Fixed::from_f64(self.user[i].2);
+                if self.coupled && self.user_pinned[i] {
+                    a.flags |= 1; // Hidden, but its final coordinate can still vary.
+                }
                 a
             })
             .collect();
@@ -300,6 +311,15 @@ impl AxisPlan {
             .filter(|(i, _)| !self.pinned[*i])
         {
             let u = self.user[i];
+            if self.coupled && self.user_pinned[i] {
+                segment_maps.push(SegmentMaps::new(
+                    [-1., 0., 1.]
+                        .into_iter()
+                        .map(|v| AxisValueMap::new(F2Dot14::from_f64(v), F2Dot14::from_f64(v)))
+                        .collect(),
+                ));
+                continue;
+            }
             let normalize = |v| {
                 F2Dot14::from_f64(axis_to_normalized(
                     v,
@@ -351,14 +371,19 @@ impl AxisPlan {
                     .collect(),
             ));
         }
+        let avar = if self.coupled {
+            super::avar2::instance(font, self, segment_maps)?
+        } else {
+            Avar::new(segment_maps)
+        };
         tables.insert(
             Tag::new(b"avar"),
-            write_fonts::dump_table(&Avar::new(segment_maps)).map_err(|_| err(b"avar"))?,
+            write_fonts::dump_table(&avar).map_err(|_| err(b"avar"))?,
         );
         Ok(())
     }
 }
-fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
+pub(super) fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
     if v == def {
         0.
     } else if v < def {
@@ -376,7 +401,11 @@ fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
 
 // HarfBuzz reconstructs the pre-avar interval from the quantized mapped
 // interval. Use the same float interpolation, including duplicate-cap recovery.
-fn map_float(map: &write_fonts::read::tables::avar::SegmentMaps, v: f64, inverse: bool) -> f64 {
+pub(super) fn map_float(
+    map: &write_fonts::read::tables::avar::SegmentMaps,
+    v: f64,
+    inverse: bool,
+) -> f64 {
     let v = v as f32;
     let mut pairs: Vec<_> = map
         .axis_value_maps()
