@@ -289,10 +289,10 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
         let rule_sets = self.class_seq_rule_sets();
         let n = self
             .class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap());
+            .min(cov_classes.last().unwrap().saturating_add(1));
 
         let mut snap = s.snapshot();
-        for (i, c) in (0..=n).filter(|c| class_map.contains_key(c)).enumerate() {
+        for (i, c) in (0..n).filter(|c| class_map.contains_key(c)).enumerate() {
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
             if !cov_classes.contains(c) {
                 continue;
@@ -313,7 +313,9 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
                     }
                 }
                 None => continue,
-                Some(Err(_)) => return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR),
+                Some(Err(_)) => {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
             }
         }
 
@@ -716,7 +718,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
         let rule_sets = self.chained_class_seq_rule_sets();
         let n = self
             .chained_class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap());
+            .min(cov_classes.last().unwrap().saturating_add(1));
 
         let mut snap = s.snapshot();
         let subset_struct = ChainedContextSubsetStruct {
@@ -725,7 +727,7 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             input_class_map: &input_class_map,
             lookahead_class_map: &lookahead_class_map,
         };
-        for (i, c) in (0..=n)
+        for (i, c) in (0..n)
             .filter(|c| input_class_map.contains_key(c))
             .enumerate()
         {
@@ -743,7 +745,9 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
                     }
                 }
                 None => continue,
-                Some(Err(_)) => return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR),
+                Some(Err(_)) => {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
             }
         }
 
