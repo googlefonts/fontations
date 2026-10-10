@@ -282,13 +282,21 @@ pub(super) fn instance(
             }
         }
     }
+    finish(font, axes, tables)
+}
+
+pub(super) fn finish(
+    font: &FontRef,
+    axes: &AxisPlan,
+    tables: &mut Tables,
+) -> Result<(), SubsetError> {
     apply_mvar(font, axes, tables)?;
     if !axes.all_pinned() {
         use write_fonts::{
             from_obj::ToOwnedTable,
             tables::{hvar::Hvar, mvar::Mvar, vvar::Vvar},
         };
-        if let Some(table) = &hvar {
+        if let Ok(table) = font.hvar() {
             let store = table
                 .item_variation_store()
                 .map_err(|_| error(Tag::new(b"HVAR")))?;
@@ -299,7 +307,7 @@ pub(super) fn instance(
                 write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"HVAR")))?,
             );
         }
-        if let Some(table) = &vvar {
+        if let Ok(table) = font.vvar() {
             let store = table
                 .item_variation_store()
                 .map_err(|_| error(Tag::new(b"VVAR")))?;
