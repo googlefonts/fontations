@@ -281,6 +281,9 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// With retained glyph IDs, keep the source glyph count by appending empty glyphs.
+    pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
+
     /// If set full CFF2 instances are converted to CID-keyed CFF1 outlines.
     /// Applies when instancing with `instance_font_with_flags`; retained
     /// variation axes and TrueType outlines are unaffected.
@@ -503,6 +506,11 @@ impl Plan {
         } else {
             max as usize + 1
         };
+        if self.subset_flags.contains(
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        ) {
+            self.num_output_glyphs = self.font_num_glyphs;
+        }
         self.glyph_map.extend(
             self.new_to_old_gid_list
                 .iter()
@@ -776,7 +784,6 @@ impl Plan {
         self.reverse_glyph_map.reserve(pop as usize);
         self.new_to_old_gid_list.reserve(pop as usize);
 
-        //TODO: Add support for requested_glyph_map, command line option --gid-map
         if !self
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
@@ -795,6 +802,12 @@ impl Plan {
                 return;
             };
             self.num_output_glyphs = max_glyph.to_u32() as usize + 1;
+            if self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS)
+            {
+                self.num_output_glyphs = self.font_num_glyphs;
+            }
         }
         self.glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
