@@ -35,6 +35,23 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     Ok(result)
 }
 
+/// Parse comma-separated original:new glyph ID pairs, as in `1:4,2:7`.
+pub fn parse_glyph_mapping(input: &str) -> Result<Vec<(GlyphId, GlyphId)>, SubsetError> {
+    if input.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    input
+        .split(',')
+        .map(|pair| {
+            let invalid = || SubsetError::InvalidGlyphMapping(pair.into());
+            let (old, new) = pair.trim().split_once(':').ok_or_else(invalid)?;
+            let old = old.trim().parse::<u32>().map_err(|_| invalid())?;
+            let new = new.trim().parse::<u32>().map_err(|_| invalid())?;
+            Ok((GlyphId::new(old), GlyphId::new(new)))
+        })
+        .collect()
+}
+
 /// parse input unicodes string, which is a comma/whitespace-separated list of Unicode codepoints or ranges as hex numbers,
 /// optionally prefixed with 'U+', 'u', etc. For example: --unicodes=41-5a,61-7a adds ASCII letters, so does the more verbose --unicodes=U+0041-005A,U+0061-007A.
 /// The special strings '*' will choose all Unicode characters mapped by the font.
