@@ -288,3 +288,69 @@ fn partial_instancing_folds_constant_conditions_using_their_unrounded_sign() {
         }
     }
 }
+
+#[test]
+fn partial_instances_drop_devices_whose_residual_deltas_vanish() {
+    let source = synthetic_font(0, 0);
+    for weight in [525, 650, 900] {
+        let bytes = instance_font(
+            &FontRef::new(&source).unwrap(),
+            &parse_axis_limits(&format!("wght={weight}")).unwrap(),
+        )
+        .unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let gpos: Gpos = font.gpos().unwrap().to_owned_table();
+        for (i, lookup) in gpos.lookup_list.lookups.iter().enumerate() {
+            let PositionLookup::Single(lookup) = lookup.as_ref() else {
+                panic!()
+            };
+            let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
+                panic!()
+            };
+            // Weight-only rows are constant. The two-axis row also vanishes
+            // at weight 525, since its residual -0.5 rounds to zero.
+            let variable = i == 4 || (i == 5 && weight != 525);
+            assert_eq!(pos.value_record.x_advance_device.is_some(), variable);
+            assert_eq!(
+                pos.value_record.format(),
+                ValueFormat::X_ADVANCE
+                    | if variable {
+                        ValueFormat::X_ADVANCE_DEVICE
+                    } else {
+                        ValueFormat::empty()
+                    }
+            );
+        }
+        let gdef: Gdef = font.gdef().unwrap().to_owned_table();
+        assert_eq!(
+            gdef.lig_caret_list.as_ref().unwrap().lig_glyphs[0].caret_values[0].as_ref(),
+            &CaretValue::format_1(if weight == 900 { 99 } else { 100 })
+        );
+        if weight == 525 {
+            let bytes = subset(&bytes);
+            let font = FontRef::new(&bytes).unwrap();
+            for tag in [b"GPOS", b"GDEF"] {
+                let reference = std::fs::read(format!(
+                    "test-data/expected/layout-instance/partial-525-{}.bin",
+                    String::from_utf8_lossy(tag)
+                ))
+                .unwrap();
+                if tag == b"GPOS" {
+                    let expected: Gpos =
+                        write_fonts::read::tables::gpos::Gpos::read(FontData::new(&reference))
+                            .unwrap()
+                            .to_owned_table();
+                    let actual: Gpos = font.gpos().unwrap().to_owned_table();
+                    assert_eq!(actual, expected);
+                } else {
+                    let expected: Gdef =
+                        write_fonts::read::tables::gdef::Gdef::read(FontData::new(&reference))
+                            .unwrap()
+                            .to_owned_table();
+                    let actual: Gdef = font.gdef().unwrap().to_owned_table();
+                    assert_eq!(actual, expected);
+                }
+            }
+        }
+    }
+}
