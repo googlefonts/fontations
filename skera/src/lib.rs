@@ -22,6 +22,7 @@ mod inc_bimap;
 mod instance;
 pub use instance::{downgrade_cff2, instance_font, parse_axis_limits, AxisLimits};
 mod layout;
+mod math;
 mod maxp;
 mod name;
 mod offset;
@@ -82,6 +83,7 @@ use write_fonts::{
             hmtx::Hmtx,
             hvar::Hvar,
             loca::Loca,
+            math::Math,
             maxp::Maxp,
             name::Name,
             os2::Os2,
@@ -323,6 +325,8 @@ impl std::ops::BitOrAssign for SubsetFlags {
 pub struct Plan {
     unicodes: IntSet<u32>,
     glyphs_requested: IntSet<GlyphId>,
+    glyphset_cmaped: IntSet<GlyphId>,
+    glyphset_mathed: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset_varced: IntSet<GlyphId>,
@@ -588,12 +592,18 @@ impl Plan {
         if let Ok(cmap) = font.cmap() {
             cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         }
+        self.glyphset_cmaped = self.glyphset_gsub.clone();
+
+        // HarfBuzz closes math variants before layout, color and components.
+        if !self.drop_tables.contains(Math::TAG) {
+            math::closure(font, &mut self.glyphset_gsub);
+            remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
+        }
+        self.glyphset_mathed = self.glyphset_gsub.clone();
 
         // layout closure
         self.layout_populate_gids_to_retain(font);
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
-
-        //skip glyph closure for MATH table, it's not supported yet
 
         //glyph closure for COLR
         if !self.drop_tables.contains(Tag::new(b"COLR")) {
@@ -1350,6 +1360,7 @@ fn subset_table<'a>(
         Cff::TAG => cff::subset(font, plan, s, false),
         Cff2::TAG => cff::subset(font, plan, s, true),
         Varc::TAG => varc::subset(font, plan, s),
+        Math::TAG => math::subset(font, plan, s),
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?

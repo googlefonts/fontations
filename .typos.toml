@@ -28,6 +28,8 @@ BENG = "BENG"
 fo = "fo"
 FO = "FO"
 inner_typ = "inner_typ"
+# HarfBuzz's glyph set after MATH closure.
+glyphset_mathed = "glyphset_mathed"
 nd = "nd"
 offset_typ = "offset_typ"
 pn = "pn"
