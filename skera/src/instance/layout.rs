@@ -10,7 +10,7 @@ use write_fonts::{
         FontRef, TableProvider,
     },
     tables::{base::*, gdef::*, gpos::*, layout::*, math::*},
-    types::{F2Dot14, Tag},
+    types::{Compatible, F2Dot14, Tag},
     NullableOffsetMarker, OffsetMarker,
 };
 
@@ -405,11 +405,6 @@ impl Apply for BaseCoord {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         if let Self::Format3(a) = self {
             c.apply(&mut a.coordinate, &mut a.device)?;
-            if a.device.is_none() {
-                *self = Self::Format1(BaseCoordFormat1 {
-                    coordinate: a.coordinate,
-                });
-            }
         }
         Ok(())
     }
@@ -957,10 +952,31 @@ pub(super) fn instance(
                 .map(Into::into)
                 .unwrap_or_default()
         };
-        save(tables, b"BASE", &table)?;
+        save(tables, b"BASE", &VersionedBase(&table, base.version()))?;
     }
     Ok(())
 }
+
+// The owned BASE writer chooses a version from the presence of its store.
+// HarfBuzz preserves the source version after dropping an instantiated store,
+// including the null Offset32 field required by a BASE 1.1 header.
+struct VersionedBase<'a>(&'a Base, write_fonts::types::MajorMinor);
+impl write_fonts::FontWrite for VersionedBase<'_> {
+    fn write_into(&self, writer: &mut write_fonts::TableWriter) {
+        self.1.write_into(writer);
+        self.0.horiz_axis.write_into(writer);
+        self.0.vert_axis.write_into(writer);
+        if self.1.compatible((1, 1)) {
+            self.0.item_var_store.write_into(writer);
+        }
+    }
+}
+impl write_fonts::validate::Validate for VersionedBase<'_> {
+    fn validate_impl(&self, ctx: &mut write_fonts::validate::ValidationCtx) {
+        self.0.validate_impl(ctx);
+    }
+}
+
 fn save(
     tables: &mut BTreeMap<Tag, Vec<u8>>,
     tag: &[u8; 4],
