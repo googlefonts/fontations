@@ -23,14 +23,17 @@
 //! Follows HarfBuzz's avar2 offset compensation: delta rows are rebased in
 //! intermediate space, then inverse-normalization offsets restore old outputs.
 use super::{
-    axes::{axis_to_normalized, map_float},
+    axes::map_float,
     rebase::{scalar, Triple},
     AxisPlan, StorePlan,
 };
 use crate::SubsetError;
 use std::collections::BTreeMap;
 use write_fonts::{
-    read::{tables::variations::DeltaSetIndex, FontRead, FontRef, TableProvider},
+    read::{
+        tables::{avar::SegmentMaps as ReadSegmentMaps, variations::DeltaSetIndex},
+        FontRead, FontRef, TableProvider,
+    },
     tables::{
         avar::{Avar, SegmentMaps},
         variations::{
@@ -46,9 +49,165 @@ fn error() -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(b"avar"))
 }
 fn add(row: &mut BTreeMap<Region, i64>, region: Region, delta: f64) {
-    let delta = delta.round().clamp(i32::MIN as f64, i32::MAX as f64) as i64;
+    let delta = (delta + 0.5)
+        .floor()
+        .clamp(i32::MIN as f64, i32::MAX as f64) as i64;
     if delta != 0 {
         *row.entry(region).or_default() += delta;
+    }
+}
+
+type OffsetKnots = BTreeMap<F2Dot14, f64>;
+
+fn normalize_value(value: f64, user: Triple) -> f64 {
+    let value = value.clamp(user.0, user.2);
+    if value == user.1 {
+        0.
+    } else if value < user.1 {
+        if user.0 == user.1 {
+            0.
+        } else {
+            (value - user.1) / (user.1 - user.0)
+        }
+    } else if user.1 == user.2 {
+        0.
+    } else {
+        (value - user.1) / (user.2 - user.1)
+    }
+}
+
+fn denormalize_value(value: f64, user: Triple) -> f64 {
+    user.1
+        + value
+            * if value < 0. {
+                user.1 - user.0
+            } else {
+                user.2 - user.1
+            }
+}
+
+fn round_units(value: f64) -> i32 {
+    let value = (value * 16384.) as f32 as f64;
+    (value + 0.5).floor() as i32
+}
+
+// HarfBuzz's _avar2_map_new_mapping evaluates the instantiated map in double.
+// Its inverse only supplies extra samples to the error estimator.
+fn map_new_mapping(map: &ReadSegmentMaps, value: f64, inverse: bool) -> f64 {
+    let mut before = None;
+    for mapping in map.axis_value_maps() {
+        let from = mapping.from_coordinate().to_f64();
+        let to = mapping.to_coordinate().to_f64();
+        let (from, to) = if inverse { (to, from) } else { (from, to) };
+        if value == from {
+            return to;
+        }
+        if value < from {
+            return before.map_or(value - from + to, |(prev_from, prev_to)| {
+                if from == prev_from {
+                    prev_to
+                } else {
+                    prev_to + (to - prev_to) * (value - prev_from) / (from - prev_from)
+                }
+            });
+        }
+        before = Some((from, to));
+    }
+    before.map_or(value, |(from, to)| value - from + to)
+}
+
+fn eval_offset(knots: &OffsetKnots, value: f64) -> f64 {
+    let mut before = None;
+    for (&z, &offset) in knots {
+        let z = z.to_f64();
+        if value == z {
+            return offset;
+        }
+        if value < z {
+            return before.map_or(offset, |(prev_z, prev_offset)| {
+                prev_offset + (offset - prev_offset) * (value - prev_z) / (z - prev_z)
+            });
+        }
+        before = Some((z, offset));
+    }
+    before.map_or(0., |(_, offset)| offset)
+}
+
+// Sample the same uniform grid and kink preimages as HarfBuzz's
+// _avar2_estimate_offset_error. This estimates requantization error; it is
+// not an exact bound on the final avar2 variation-store evaluation.
+fn estimate_offset_error(
+    old_map: &ReadSegmentMaps,
+    new_map: &ReadSegmentMaps,
+    original: Triple,
+    user: Triple,
+    knots: &OffsetKnots,
+) -> u32 {
+    let samples = (0..257).map(|i| user.0 + (user.2 - user.0) * i as f64 / 256.);
+    let old_kinks = old_map
+        .axis_value_maps()
+        .iter()
+        .map(|m| denormalize_value(m.from_coordinate().to_f64(), original));
+    let new_kinks = new_map
+        .axis_value_maps()
+        .iter()
+        .map(|m| denormalize_value(m.from_coordinate().to_f64(), user));
+    let offset_kinks = knots
+        .keys()
+        .map(|z| denormalize_value(map_new_mapping(new_map, z.to_f64(), true), user));
+    samples
+        .chain(old_kinks)
+        .chain(new_kinks)
+        .chain(offset_kinks)
+        .filter(|u| user.0 <= *u && *u <= user.2)
+        .map(|u| {
+            let old_final = map_float(old_map, normalize_value(u, original), false);
+            let z = map_new_mapping(new_map, normalize_value(u, user), false);
+            round_units(old_final).abs_diff(round_units(z + eval_offset(knots, z)))
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn offset_knots(
+    old_map: &ReadSegmentMaps,
+    new_map: &ReadSegmentMaps,
+    original: Triple,
+    user: Triple,
+    intermediate: Triple,
+) -> OffsetKnots {
+    let mut knots = BTreeMap::from([
+        (F2Dot14::NEG_ONE, intermediate.0 + 1.),
+        (F2Dot14::ZERO, intermediate.1),
+        (F2Dot14::ONE, intermediate.2 - 1.),
+    ]);
+    let z = map_new_mapping(new_map, normalize_value(original.1, user), false);
+    let z = F2Dot14::from_bits(round_units(z) as i16);
+    if F2Dot14::NEG_ONE < z && z < F2Dot14::ONE {
+        // Like _avar2_add_knot, first insertion wins, preserving anchors.
+        knots.entry(z).or_insert(-z.to_f64());
+    }
+    let mut with_breakpoints = knots.clone();
+    for mapping in new_map.axis_value_maps() {
+        let from = mapping.from_coordinate().to_f64();
+        let z = mapping.to_coordinate();
+        if [-1., 0., 1.].contains(&from) || !(F2Dot14::NEG_ONE < z && z < F2Dot14::ONE) {
+            continue;
+        }
+        let u = denormalize_value(from, user);
+        let old = map_float(old_map, normalize_value(u, original), false);
+        let old = round_units(old) as f64 / 16384.;
+        with_breakpoints.entry(z).or_insert(old - z.to_f64());
+    }
+    // Extra tents can increase rounding noise on steep segments. Keep the
+    // breakpoint set only if it does not worsen the sampled residual.
+    if with_breakpoints.len() != knots.len()
+        && estimate_offset_error(old_map, new_map, original, user, &with_breakpoints)
+            <= estimate_offset_error(old_map, new_map, original, user, &knots)
+    {
+        with_breakpoints
+    } else {
+        knots
     }
 }
 
@@ -242,8 +401,8 @@ pub(super) fn reachable_ranges(
             // Round the delta alone, then add it to the quantized intermediate.
             // HarfBuzz uses roundf here, including its negative half ties.
             let intermediate = axes.normalized[i].1;
-            let value = (intermediate as f32 * 16384.).round() as i32
-                + (min as f32).round().clamp(-32768., 32768.) as i32;
+            let value = round_units(intermediate)
+                + (min as f32 as f64 + 0.5).floor().clamp(-32768., 32768.) as i32;
             *pin = Some(F2Dot14::from_bits(value.clamp(-16384, 16384) as i16));
             continue;
         }
@@ -347,12 +506,12 @@ pub(super) fn instance(
         }
         let default_delta = store
             .compute_delta(index, &inputs.coords)
-            .map_or(0., |v| v.to_f64().round());
+            .map_or(0., |v| (v.to_f64() + 0.5).floor());
         let u = axes.user[i];
         let original = (
-            axis.min_value().to_f64(),
-            axis.default_value().to_f64(),
-            axis.max_value().to_f64(),
+            axis.min_value().to_f32() as f64,
+            axis.default_value().to_f32() as f64,
+            axis.max_value().to_f32() as f64,
         );
         let restricted = (u.0, u.1, u.2) != original || axes.user_pinned[i];
         let middle = if restricted { axes.normalized[i].1 } else { 0. };
@@ -364,36 +523,15 @@ pub(super) fn instance(
             let new_map =
                 write_fonts::read::tables::avar::SegmentMaps::read(bytes.as_slice().into())
                     .map_err(|_| error())?;
-            let mut knots = BTreeMap::new();
-            for (z, offset) in [(-1., t.0 + 1.), (0., t.1), (1., t.2 - 1.)] {
-                knots.insert(F2Dot14::from_f64(z), offset);
-            }
-            let z = axis_to_normalized(original.1, u.0, u.1, u.2);
-            if z > -1. && z < 1. && z != 0. {
-                let z = F2Dot14::from_f64(map_float(&new_map, z, false));
-                if z != F2Dot14::ZERO {
-                    knots.insert(z, -z.to_f64());
-                }
-            }
-            // New segment-map kinks can move with rounding. Put matching
-            // compensation knots there to avoid joining across a kink.
-            for value in new_map.axis_value_maps() {
-                let from = value.from_coordinate().to_f64();
-                let z = value.to_coordinate();
-                if !(-1. < from && from < 1.) || z == F2Dot14::ZERO {
-                    continue;
-                }
-                let user = u.1 + from * if from < 0. { u.1 - u.0 } else { u.2 - u.1 };
-                let n =
-                    F2Dot14::from_f64(axis_to_normalized(user, original.0, original.1, original.2));
-                let x = F2Dot14::from_f64(map_float(
-                    old_maps.get(i).ok_or_else(error)?,
-                    n.to_f64(),
-                    false,
-                ));
-                knots.insert(z, x.to_f64() - z.to_f64());
-            }
-            let knots: Vec<_> = knots.into_iter().collect();
+            let knots: Vec<_> = offset_knots(
+                old_maps.get(i).ok_or_else(error)?,
+                &new_map,
+                Triple(original.0, original.1, original.2),
+                u,
+                t,
+            )
+            .into_iter()
+            .collect();
             for (j, &(z, offset)) in knots.iter().enumerate() {
                 if z == F2Dot14::ZERO {
                     continue;
@@ -551,6 +689,135 @@ mod tests {
         builder.build()
     }
 
+    #[test]
+    fn compensation_preserves_anchor_offsets_when_breakpoints_share_outputs() {
+        use write_fonts::tables::avar::AxisValueMap;
+        let old = SegmentMaps::new(
+            [-1., 0., 1.]
+                .into_iter()
+                .map(|v| AxisValueMap::new(F2Dot14::from_f64(v), F2Dot14::from_f64(v)))
+                .collect(),
+        );
+        let new = SegmentMaps::new(
+            [(-1., -1.), (-0.5, 0.), (0., 0.), (0.5, 1.), (1., 1.)]
+                .into_iter()
+                .map(|(from, to)| AxisValueMap::new(F2Dot14::from_f64(from), F2Dot14::from_f64(to)))
+                .collect(),
+        );
+        let old = write_fonts::dump_table(&old).unwrap();
+        let new = write_fonts::dump_table(&new).unwrap();
+        let old = ReadSegmentMaps::read(old.as_slice().into()).unwrap();
+        let new = ReadSegmentMaps::read(new.as_slice().into()).unwrap();
+        let knots = offset_knots(
+            &old,
+            &new,
+            Triple(-1., 0., 1.),
+            Triple(-0.5, 0.5, 1.),
+            Triple(-0.5, 0.5, 1.),
+        );
+        assert_eq!(knots.len(), 3);
+        assert_eq!(knots[&F2Dot14::NEG_ONE], 0.5);
+        assert_eq!(knots[&F2Dot14::ZERO], 0.5);
+        assert_eq!(knots[&F2Dot14::ONE], 0.);
+    }
+
+    #[test]
+    fn compensation_selects_harfbuzz_knots_without_extra_rounding_noise() {
+        let bytes = font(false, true);
+        let original = FontRef::new(&bytes).unwrap();
+        let cases = [
+            (
+                "wght=242.80209350585938:705.5397338867188:706.1061401367188",
+                include_bytes!(
+                    "../../test-data/expected/avar2-compensation/reject-breakpoints.fvar"
+                )
+                .as_slice(),
+                include_bytes!(
+                    "../../test-data/expected/avar2-compensation/reject-breakpoints.avar"
+                )
+                .as_slice(),
+                4,
+                1,
+            ),
+            (
+                "wght=400:800:900",
+                include_bytes!("../../test-data/expected/avar2-compensation/keep-breakpoints.fvar")
+                    .as_slice(),
+                include_bytes!("../../test-data/expected/avar2-compensation/keep-breakpoints.avar")
+                    .as_slice(),
+                5,
+                1,
+            ),
+            (
+                "wght=300:500:800",
+                include_bytes!("../../test-data/expected/avar2-compensation/moved-default.fvar")
+                    .as_slice(),
+                include_bytes!("../../test-data/expected/avar2-compensation/moved-default.avar")
+                    .as_slice(),
+                7,
+                1,
+            ),
+        ];
+        let old_map = original
+            .avar()
+            .unwrap()
+            .axis_segment_maps()
+            .get(0)
+            .unwrap()
+            .unwrap();
+        let axis = original.fvar().unwrap().axes().unwrap()[0];
+        let old_user = Triple(
+            axis.min_value().to_f32() as f64,
+            axis.default_value().to_f32() as f64,
+            axis.max_value().to_f32() as f64,
+        );
+        for (request, fvar, avar, count, residual) in cases {
+            let limits = crate::parse_axis_limits(request).unwrap();
+            let axes = AxisPlan::new(&original, &limits).unwrap();
+            let bytes = crate::instance_font(&original, &limits).unwrap();
+            let actual = FontRef::new(&bytes).unwrap();
+            let mut reference = FontBuilder::new();
+            reference.add_raw(Tag::new(b"fvar"), fvar);
+            reference.add_raw(Tag::new(b"avar"), avar);
+            let reference = reference.build();
+            let expected = FontRef::new(&reference).unwrap();
+            let new_map = actual
+                .avar()
+                .unwrap()
+                .axis_segment_maps()
+                .get(0)
+                .unwrap()
+                .unwrap();
+            let knots = offset_knots(
+                &old_map,
+                &new_map,
+                old_user,
+                axes.user[0],
+                axes.normalized[0],
+            );
+            assert_eq!(knots.len(), count, "{request}");
+            assert_eq!(
+                estimate_offset_error(&old_map, &new_map, old_user, axes.user[0], &knots),
+                residual,
+                "{request}"
+            );
+            let user = axes.user[0];
+            for i in 0..=256 {
+                let weight = (user.0 + (user.2 - user.0) * i as f64 / 256.) as f32;
+                for contrast in [0., 25., 50., 100.] {
+                    let location = [(Tag::new(b"wght"), weight), (Tag::new(b"CNTR"), contrast)];
+                    let actual = actual.axes().location(location);
+                    let expected = expected.axes().location(location);
+                    assert_eq!(
+                        actual.coords(),
+                        expected.coords(),
+                        "{request} weight={weight} contrast={contrast}"
+                    );
+                }
+            }
+        }
+    }
+
     fn truetype_font(cancel: bool) -> Vec<u8> {
         let bytes = std::fs::read("test-data/fonts/RobotoFlex-Variable.ABC.ttf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
@@ -620,6 +887,32 @@ mod tests {
         }
         builder.add_table(&avar).unwrap();
         builder.build()
+    }
+
+    #[test]
+    fn self_contained_pin_rounds_negative_half_deltas_towards_positive_infinity() {
+        let bytes = truetype_font(true);
+        let font = FontRef::new(&bytes).unwrap();
+        let mut avar: Avar = font.avar().unwrap().to_owned_table();
+        let data = avar.var_store.as_mut().unwrap().item_variation_data[0]
+            .as_mut()
+            .unwrap();
+        data.delta_sets.fill(0);
+        data.delta_sets[..4].copy_from_slice(&(-1i32).to_be_bytes());
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&avar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        // At weight 700 the tent scalar is 0.5, so the delta is -0.5.
+        // The pin must preserve the runtime's rounding of that delta to zero.
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=700").unwrap()).unwrap();
+        assert!(axes.pinned[0]);
+        assert_eq!(axes.coords[0], F2Dot14::from_bits(8192));
     }
 
     #[test]
