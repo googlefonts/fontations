@@ -21,6 +21,7 @@ struct Context<'a> {
     condition_biases: RefCell<Vec<(DeltaSetIndex, i64)>>,
     scalars: OnceCell<Option<VariationScalars>>,
     store_plan: OnceCell<StorePlan>,
+    constant_indices: RefCell<BTreeMap<u32, bool>>,
 }
 impl Context<'_> {
     fn scalars(&self) -> Option<&VariationScalars> {
@@ -58,9 +59,12 @@ impl Context<'_> {
             })
             .unwrap_or(0.)
     }
-    fn condition_is_constant(&self, index: u32) -> Result<bool, SubsetError> {
+    fn index_is_constant(&self, index: u32) -> Result<bool, SubsetError> {
         if index == u32::MAX {
             return Ok(true);
+        }
+        if let Some(&constant) = self.constant_indices.borrow().get(&index) {
+            return Ok(constant);
         }
         let Some(data) = self
             .store
@@ -78,10 +82,12 @@ impl Context<'_> {
             .map(|d| d as f64)
             .collect::<Vec<_>>();
         let transform = &self.store_plan()?.unwrap().transforms[(index >> 16) as usize];
-        Ok(transform
+        let constant = transform
             .residual(&deltas)?
             .iter()
-            .all(|delta| (delta + 0.5).floor() == 0.))
+            .all(|delta| (delta + 0.5).floor() == 0.);
+        self.constant_indices.borrow_mut().insert(index, constant);
+        Ok(constant)
     }
     fn wide_delta(&self, outer: u16, inner: u16) -> Result<i64, SubsetError> {
         if (DeltaSetIndex { outer, inner }) == DeltaSetIndex::NO_VARIATION_INDEX {
@@ -137,6 +143,17 @@ impl Context<'_> {
             _ => Err(SubsetError::SubsetTableError(Tag::new(b"GDEF"))),
         }
     }
+    fn device_is_constant(&self, device: &DeviceOrVariationIndex) -> Result<bool, SubsetError> {
+        Ok(match device {
+            DeviceOrVariationIndex::VariationIndex(v) => {
+                self.axes.all_pinned()
+                    || self.index_is_constant(
+                        ((v.delta_set_outer_index as u32) << 16) | v.delta_set_inner_index as u32,
+                    )?
+            }
+            _ => false,
+        })
+    }
     fn apply(
         &self,
         value: &mut i16,
@@ -149,7 +166,7 @@ impl Context<'_> {
             .flatten()
         {
             *value = add(*value, delta);
-            if self.axes.all_pinned() {
+            if self.device_is_constant(device.as_ref().unwrap())? {
                 *device = Default::default();
             }
         }
@@ -357,7 +374,7 @@ impl Apply for ValueRecord {
                     fmt |= value_flag;
                 }
                 *value = Some(add(value.unwrap_or(0), delta));
-                if c.axes.all_pinned() {
+                if c.device_is_constant(device.as_ref().unwrap())? {
                     *device = Default::default();
                 }
             }
@@ -391,7 +408,7 @@ impl Apply for CaretValue {
         if let Self::Format3(a) = self {
             if let Some(delta) = c.device(&a.device)? {
                 a.coordinate = add(a.coordinate, delta);
-                if c.axes.all_pinned() {
+                if c.device_is_constant(&a.device)? {
                     *self = Self::Format1(CaretValueFormat1 {
                         coordinate: a.coordinate,
                     });
@@ -548,7 +565,7 @@ fn partial_condition(
             }
         }
         Condition::Format2VariableValue(v) => {
-            if c.condition_is_constant(v.var_index)? {
+            if c.index_is_constant(v.var_index)? {
                 return Ok(PartialCondition::Constant(
                     v.default_value as f64 + c.condition_delta(v.var_index) > 0.,
                 ));
@@ -877,6 +894,7 @@ pub(super) fn instance(
         condition_biases: RefCell::default(),
         scalars: OnceCell::new(),
         store_plan: OnceCell::new(),
+        constant_indices: RefCell::default(),
     };
     if let Ok(gpos) = font.gpos() {
         let vars = own_feature_variations(
@@ -937,6 +955,7 @@ pub(super) fn instance(
             condition_biases: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
         };
         let mut table: Base = base.to_owned_table();
         table.horiz_axis.apply(&context)?;
@@ -1038,6 +1057,7 @@ mod tests {
                 condition_biases: RefCell::new(Vec::new()),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
+                constant_indices: RefCell::default(),
             };
             assert_eq!(c.wide_delta(0, 1).unwrap(), 0);
             assert_eq!(c.wide_delta(1, 0).unwrap(), 0);
@@ -1068,6 +1088,7 @@ mod tests {
                 condition_biases: RefCell::default(),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
+                constant_indices: RefCell::default(),
             };
             assert!(condition(&Condition::format_2_variable_value(0, 0), &c, 0).unwrap());
             assert_eq!(
@@ -1101,6 +1122,7 @@ mod tests {
             condition_biases: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
         };
         assert_eq!(c.wide_delta(0, 0).unwrap(), 0);
         for (default, index, expected) in [
@@ -1119,6 +1141,104 @@ mod tests {
             };
             assert_eq!(value, expected);
         }
+    }
+
+    #[test]
+    fn partial_instances_drop_constant_devices_and_keep_variable_and_hint_devices() {
+        let source = std::fs::read("test-data/fonts/Roboto-Variable.composite.ttf").unwrap();
+        let source = FontRef::new(&source).unwrap();
+        let mut builder = write_fonts::FontBuilder::new();
+        for r in source.table_directory().table_records() {
+            if r.tag() != Tag::new(b"avar") {
+                builder.add_raw(r.tag(), source.data_for_tag(r.tag()).unwrap());
+            }
+        }
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let raw = store_bytes(&[[3, 0], [-1, 0], [0, 5], [1, 5]]);
+        let mut store: write_fonts::tables::variations::ItemVariationStore =
+            ItemVariationStore::read(FontData::new(&raw))
+                .unwrap()
+                .to_owned_table();
+        // Roboto's width axis varies below its default. Use a reachable tent.
+        store.variation_region_list.variation_regions[1].region_axes[1] =
+            write_fonts::tables::variations::RegionAxisCoordinates::new(
+                F2Dot14::NEG_ONE,
+                F2Dot14::NEG_ONE,
+                F2Dot14::ZERO,
+            );
+        let store = write_fonts::dump_table(&store).unwrap();
+        for (weight, gain) in [(525, 1), (650, 2), (900, 3)] {
+            let axes = AxisPlan::new(
+                &font,
+                &crate::parse_axis_limits(&format!("wght={weight}")).unwrap(),
+            )
+            .unwrap();
+            let c = Context {
+                store: Some(ItemVariationStore::read(FontData::new(&store)).unwrap()),
+                coords: &axes.coords,
+                axes: &axes,
+                condition_biases: RefCell::default(),
+                scalars: OnceCell::new(),
+                store_plan: OnceCell::new(),
+                constant_indices: RefCell::default(),
+            };
+            let mut value = ValueRecord::new().with_x_advance_device(VariationIndex::new(0, 0));
+            value.apply(&c).unwrap();
+            assert_eq!(value.x_advance, Some(gain));
+            assert_eq!(value.format(), ValueFormat::X_ADVANCE);
+            assert!(value.x_advance_device.is_none());
+            let hint = Device::new(10, 12, &[1, 0, -1]);
+            let mut anchor = AnchorTable::Format3(AnchorFormat3 {
+                x_coordinate: 100,
+                y_coordinate: 200,
+                x_device: Some(VariationIndex::new(0, 0).into()).into(),
+                y_device: Some(hint.clone().into()).into(),
+            });
+            anchor.apply(&c).unwrap();
+            let AnchorTable::Format3(anchor) = anchor else {
+                panic!()
+            };
+            assert_eq!(anchor.x_coordinate, 100 + gain);
+            assert!(anchor.x_device.is_none());
+            assert_eq!(anchor.y_device.as_ref(), Some(&hint.clone().into()));
+            let mut caret = CaretValue::format_3(100, VariationIndex::new(0, 1).into());
+            caret.apply(&c).unwrap();
+            assert_eq!(
+                caret,
+                CaretValue::format_1(if weight == 900 { 99 } else { 100 })
+            );
+            let mut base = BaseCoord::format_3(100, Some(VariationIndex::new(0, 0).into()));
+            base.apply(&c).unwrap();
+            assert_eq!(base, BaseCoord::format_3(100 + gain, None));
+            for index in [2, 3] {
+                let mut value =
+                    ValueRecord::new().with_x_advance_device(VariationIndex::new(0, index));
+                value.apply(&c).unwrap();
+                assert!(value.x_advance_device.is_some());
+            }
+            let mut value = ValueRecord::new().with_x_advance_device(hint.clone());
+            value.apply(&c).unwrap();
+            assert_eq!(value.x_advance_device.as_ref(), Some(&hint.into()));
+        }
+
+        let axes =
+            AxisPlan::new(&font, &crate::parse_axis_limits("wght=100:400").unwrap()).unwrap();
+        let c = Context {
+            store: Some(ItemVariationStore::read(FontData::new(&store)).unwrap()),
+            coords: &axes.coords,
+            axes: &axes,
+            condition_biases: RefCell::default(),
+            scalars: OnceCell::new(),
+            store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
+        };
+        assert!(c
+            .device_is_constant(&VariationIndex::new(0, 0).into())
+            .unwrap());
+        assert!(!c
+            .device_is_constant(&VariationIndex::new(0, 2).into())
+            .unwrap());
     }
 
     #[test]
@@ -1141,6 +1261,7 @@ mod tests {
             condition_biases: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
         };
         for mixed in [false, true] {
             let empty =
@@ -1359,6 +1480,7 @@ mod tests {
             condition_biases: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
         };
         for (inner, base, expected) in [(0, 100, i16::MAX), (1, -100, i16::MIN)] {
             let mut value = ValueRecord::new()
@@ -1394,6 +1516,7 @@ mod tests {
             condition_biases: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
         };
         let cond = Condition::Format2VariableValue(ConditionFormat2 {
             default_value: 100,
@@ -1620,6 +1743,7 @@ mod tests {
             condition_biases: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
         };
         let range = |axis| {
             Condition::Format1AxisRange(ConditionFormat1 {
@@ -1687,6 +1811,7 @@ mod tests {
                 condition_biases: RefCell::default(),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
+                constant_indices: RefCell::default(),
             };
             let mut list = list.clone();
             let mut vars = vars.clone();
