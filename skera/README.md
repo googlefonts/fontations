@@ -51,6 +51,12 @@ The optional `spec_next` feature preserves experimental cubic glyf control
 points through full and partial instancing.
 Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
 instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
+Empty range fields use original axis bounds or defaults, for example
+`wght=300::700` or `wght=:500:`. Requests are clamped to the original axis
+range. `*=drop` pins all axes at their defaults; later requests override
+earlier ones, including repeated `--instance` or `--variations` options.
+The library's `parse_axis_limits_for_font` resolves the same syntax against
+a source font.
 Instancing resolves outline blends and variation deltas in metrics, layout,
 and COLRv1 paint tables.
 Nested CFF2 blends, including variable deltas, are preserved through subsetting

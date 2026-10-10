@@ -70,6 +70,90 @@ pub fn parse_axis_limits(input: &str) -> Result<Vec<AxisLimits>, SubsetError> {
         .collect()
 }
 
+/// Parse HarfBuzz-style requests using the font's original axis bounds.
+///
+/// Empty range fields use the original minimum, default, or maximum;
+/// requested bounds and defaults are clamped to the original range.
+/// `*=drop` pins all axes at their original defaults. Commas and whitespace
+/// separate requests, and the last request for each axis takes precedence.
+pub fn parse_axis_limits_for_font(
+    font: &FontRef,
+    input: &str,
+) -> Result<Vec<AxisLimits>, SubsetError> {
+    let axes = font.axes();
+    let mut limits = std::collections::BTreeMap::new();
+    for part in input
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .filter(|part| !part.is_empty())
+    {
+        let invalid = || SubsetError::InvalidAxis(part.into());
+        let (tag, value) = part.split_once('=').ok_or_else(invalid)?;
+        if tag == "*" {
+            if value != "drop" {
+                return Err(invalid());
+            }
+            for axis in axes.iter() {
+                limits.insert(axis.tag(), AxisLimits::Drop { tag: axis.tag() });
+            }
+            continue;
+        }
+        let tag = Tag::new_checked(tag.as_bytes()).map_err(|_| invalid())?;
+        let axis = axes.get_by_tag(tag).ok_or_else(invalid)?;
+        let (axis_min, axis_default, axis_max) =
+            (axis.min_value(), axis.default_value(), axis.max_value());
+        if axis_min > axis_default || axis_default > axis_max {
+            return Err(SubsetError::SubsetTableError(Tag::new(b"fvar")));
+        }
+        if value == "drop" {
+            limits.insert(tag, AxisLimits::Drop { tag });
+            continue;
+        }
+        let values = value
+            .split(':')
+            .map(|value| {
+                if value.is_empty() {
+                    Ok(None)
+                } else {
+                    let value = value.parse::<f32>().map_err(|_| invalid())?;
+                    if !value.is_finite() {
+                        return Err(invalid());
+                    }
+                    Ok(Some(value))
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let limit = match values.as_slice() {
+            [Some(value)] => AxisLimits::Pin {
+                tag,
+                value: value.clamp(axis_min, axis_max),
+            },
+            [min, max] | [min, _, max] => {
+                let min = min.unwrap_or(axis_min);
+                let max = max.unwrap_or(axis_max);
+                if min > max {
+                    return Err(invalid());
+                }
+                let min = min.clamp(axis_min, axis_max);
+                let max = max.clamp(axis_min, axis_max);
+                let default = if values.len() == 3 {
+                    values[1].unwrap_or(axis_default)
+                } else {
+                    axis_default
+                };
+                AxisLimits::Range {
+                    tag,
+                    min,
+                    default: Some(default.clamp(min, max)),
+                    max,
+                }
+            }
+            _ => return Err(invalid()),
+        };
+        limits.insert(tag, limit);
+    }
+    Ok(limits.into_values().collect())
+}
+
 #[derive(Clone)]
 pub(crate) struct AxisPlan {
     pub coords: Vec<F2Dot14>,
@@ -693,6 +777,75 @@ mod tests {
         ));
         for invalid in ["wght=NaN", "abc=1", "wght=1:2:3:4", "wght", "wght="] {
             assert!(parse_axis_limits(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn font_axis_request_syntax_resolves_open_bounds_and_clamps_like_harfbuzz() {
+        let bytes = std::fs::read("test-data/fonts/Roboto-Variable.ABC.ttf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (input, expected) in [
+            ("wght=:500:", (100., 500., 900.)),
+            ("wght=::850", (100., 400., 850.)),
+            ("wght=200::", (200., 400., 900.)),
+            ("wght=200:300:", (200., 300., 900.)),
+            ("wght=:300:500", (100., 300., 500.)),
+            ("wght=300::700", (300., 400., 700.)),
+            ("wght=300:700", (300., 400., 700.)),
+            ("wght=:700", (100., 400., 700.)),
+            ("wght=200:", (200., 400., 900.)),
+            ("wght=-200:1000", (100., 400., 900.)),
+            ("wght=300:50:700", (300., 300., 700.)),
+            ("wght=300:1000:700", (300., 700., 700.)),
+            ("wght=950:1000", (900., 900., 900.)),
+        ] {
+            let limits = parse_axis_limits_for_font(&font, input).unwrap();
+            assert_eq!(
+                limits,
+                vec![AxisLimits::Range {
+                    tag: Tag::new(b"wght"),
+                    min: expected.0,
+                    default: Some(expected.1),
+                    max: expected.2
+                }],
+                "{input}"
+            );
+        }
+        for invalid in [
+            "wght=NaN",
+            "wght=inf",
+            "wght=1:2:3:4",
+            "wght",
+            "wght=",
+            "wght=700:300",
+            "TEST=5",
+            "*=500",
+            "*=",
+            "wght=:NaN:",
+        ] {
+            assert!(
+                parse_axis_limits_for_font(&font, invalid).is_err(),
+                "{invalid}"
+            );
+        }
+    }
+
+    #[test]
+    fn font_axis_request_syntax_preserves_last_request_and_wildcard_order() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (input, expected) in [
+            ("wght=650 CNTR=drop", "wght=650,CNTR=drop"),
+            ("wght=650,wght=700", "wght=700"),
+            ("wght=650,*=drop", "wght=drop,CNTR=drop"),
+            ("*=drop,wght=650", "wght=650,CNTR=drop"),
+            ("*=drop wght=650 CNTR=50", "wght=650,CNTR=50"),
+            ("CNTR=50,*=drop,wght=650", "wght=650,CNTR=drop"),
+            ("wght=650,wght=:700", "wght=:700"),
+        ] {
+            let actual = parse_axis_limits_for_font(&font, input).unwrap();
+            let reference = parse_axis_limits_for_font(&font, expected).unwrap();
+            assert_eq!(actual, reference, "{input}");
         }
     }
 }
