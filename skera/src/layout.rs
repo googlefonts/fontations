@@ -26,7 +26,8 @@ use write_fonts::{
             variations::NO_VARIATION_INDEX,
         },
         types::{GlyphId, GlyphId16, NameId},
-        ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
+        ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, ResolveOffset,
+        TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
 };
@@ -79,6 +80,41 @@ impl NameIdClosure for Feature<'_> {
             FeatureParams::StylisticSet(table) => table.collect_name_ids(plan),
             FeatureParams::Size(table) => table.collect_name_ids(plan),
             FeatureParams::CharacterVariant(table) => table.collect_name_ids(plan),
+        }
+    }
+}
+
+/// Alternate features inherit their parameter format from the original tag.
+pub(crate) fn collect_alternate_feature_name_ids(
+    variations: &FeatureVariations,
+    features: &FeatureList,
+    table_tag: Tag,
+    plan: &mut Plan,
+) {
+    for record in variations.feature_variation_records() {
+        let Some(Ok(substitutions)) = record.feature_table_substitution(variations.offset_data())
+        else {
+            continue;
+        };
+        for substitution in substitutions.substitutions() {
+            let index = substitution.feature_index();
+            let retained = if table_tag == Gsub::TAG {
+                plan.gsub_features.contains_key(&index)
+            } else {
+                plan.gpos_features.contains_key(&index)
+            };
+            if !retained {
+                continue;
+            }
+            let Some(feature) = features.feature_records().get(index as usize) else {
+                continue;
+            };
+            if let Ok(alternate) = substitution
+                .alternate_feature_offset()
+                .resolve_with_args::<Feature>(substitutions.offset_data(), feature.feature_tag())
+            {
+                alternate.collect_name_ids(plan);
+            }
         }
     }
 }
@@ -1153,6 +1189,7 @@ pub(crate) struct SubsetLayoutContext {
     feature_index_count: u16,
     lookup_count: u16,
     table_tag: Tag,
+    feature_tags: Vec<Tag>,
 }
 
 impl SubsetLayoutContext {
@@ -1163,6 +1200,7 @@ impl SubsetLayoutContext {
             feature_index_count: 0,
             lookup_count: 0,
             table_tag,
+            feature_tags: Vec::new(),
         }
     }
 
@@ -1428,6 +1466,11 @@ impl<'a> SubsetTable<'a> for FeatureList<'_> {
         s: &mut Serializer,
         c: &mut SubsetLayoutContext,
     ) -> Result<(), SerializeErrorFlags> {
+        c.feature_tags = self
+            .feature_records()
+            .iter()
+            .map(FeatureRecord::feature_tag)
+            .collect();
         let feature_count_pos = s.embed(0_u16)?;
         let mut num_records = 0_u16;
         let font_data = self.offset_data();
@@ -1887,8 +1930,13 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
 
+        let tag = *c
+            .feature_tags
+            .get(self.feature_index() as usize)
+            .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         let alternate_feature = self
-            .alternate_feature(font_data)
+            .alternate_feature_offset()
+            .resolve_with_args::<Feature>(font_data, tag)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         s.embed(*new_feature_index)?;
 

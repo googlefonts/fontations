@@ -28,7 +28,6 @@ use write_fonts::{
 };
 
 impl NameIdClosure for Gsub<'_> {
-    //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {
             return;
@@ -41,6 +40,14 @@ impl NameIdClosure for Gsub<'_> {
                 continue;
             };
             feature.collect_name_ids(plan);
+        }
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::collect_alternate_feature_name_ids(
+                &variations,
+                &feature_list,
+                Self::TAG,
+                plan,
+            );
         }
     }
 }
