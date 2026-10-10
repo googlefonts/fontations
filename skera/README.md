@@ -45,9 +45,10 @@ also exposes `downgrade_cff2`; it preserves glyph IDs and encodes CFF1 widths
 from the instanced metrics.
 
 Full and partial instancing support `avar` versions 1 and 2. For coupled
-`avar` version 2 maps, pinned axes remain hidden until the font is fully
-instantiated. Range compensation preserves the original final-coordinate
-space, subject to F2Dot14 quantization.
+`avar` version 2 maps, TrueType pins whose final coordinates are constant
+are removed and baked into outlines, metrics, and layout. Other pins remain
+hidden until the font is fully instantiated. Range compensation preserves
+the original final-coordinate space, subject to F2Dot14 quantization.
 
 ## Installation
 
