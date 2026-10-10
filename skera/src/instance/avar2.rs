@@ -913,6 +913,20 @@ mod tests {
         );
         let ao = actual.outline_glyphs();
         let eo = expected.outline_glyphs();
+        // A pin outside a tuple's support must remove that tuple rather than
+        // retaining a zero-scaled residual on the other axes.
+        let tuple_count = |font: &FontRef| {
+            let gvar = font.gvar().unwrap();
+            (0..gvar.glyph_count())
+                .map(|gid| {
+                    gvar.glyph_variation_data(write_fonts::types::GlyphId::new(gid as u32))
+                        .unwrap()
+                        .map_or(0, |data| data.tuples().count())
+                })
+                .sum::<usize>()
+        };
+        assert_eq!(tuple_count(&actual), 98);
+        assert_eq!(tuple_count(&actual), tuple_count(&expected));
         for width in [25., 62.5, 100., 125.5, 151.] {
             for size in [8., 14., 76., 144.] {
                 let settings = [(Tag::new(b"wdth"), width), (Tag::new(b"opsz"), size)];
