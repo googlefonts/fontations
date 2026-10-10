@@ -108,3 +108,49 @@ fn text_selectors_match_unicode_lists_and_follow_command_line_order() {
         assert_eq!(cli_subset(input, &options), cli_subset(input, &[expected]));
     }
 }
+
+#[test]
+fn glyph_name_selectors_resolve_post_cff_and_string_fallbacks() {
+    for (input, options, expected) in [
+        (
+            "test-data/fonts/AlegreyaSans-BlackItalic.ttf",
+            vec!["--glyphs=.notdef,A,gid31,uni0043"],
+            "--gids=0,3,31,32",
+        ),
+        (
+            "test-data/fonts/AlegreyaSans-BlackItalic.ttf",
+            vec!["--gids=3", "--glyphs=B,C"],
+            "--gids=31,32",
+        ),
+        (
+            "test-data/fonts/AlegreyaSans-BlackItalic.ttf",
+            vec!["--glyphs=A,C", "--gids=31"],
+            "--gids=31",
+        ),
+        (
+            "test-data/fonts/cff1_seac.otf",
+            vec!["--glyphs=Agrave"],
+            "--gids=3",
+        ),
+        (
+            "test-data/fonts/Roboto-Regular.abc.ttf",
+            vec!["--glyphs="],
+            "--gids=",
+        ),
+    ] {
+        assert_eq!(cli_subset(input, &options), cli_subset(input, &[expected]));
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_skera"))
+        .args([
+            "--path",
+            "test-data/fonts/Roboto-Regular.abc.ttf",
+            "--glyphs=missing",
+            "--output-file",
+        ])
+        .arg(directory.path().join("subset.ttf"))
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("Invalid input glyph name missing"));
+}
