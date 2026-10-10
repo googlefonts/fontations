@@ -26,6 +26,36 @@ fn rounded(value: f64) -> i32 {
     value.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
 }
 
+// Match HarfBuzz's CFF vertical-origin fallback when VORG is absent: center
+// the glyph in the horizontal line's advance, including MVAR at this location.
+fn horizontal_span(font: &FontRef, axes: &AxisPlan) -> i64 {
+    use write_fonts::read::tables::os2::SelectionFlags;
+    let typo = font.os2().ok().filter(|os2| {
+        os2.fs_selection()
+            .contains(SelectionFlags::USE_TYPO_METRICS)
+    });
+    let (ascender, descender) = if let Some(os2) = typo {
+        (os2.s_typo_ascender() as f64, os2.s_typo_descender() as f64)
+    } else if let Ok(hhea) = font.hhea() {
+        (
+            hhea.ascender().to_i16() as f64,
+            hhea.descender().to_i16() as f64,
+        )
+    } else {
+        let upem = font.head().map_or(1000., |h| h.units_per_em() as f64);
+        return (upem * 0.8).round() as i64 + (upem * 0.2).round() as i64;
+    };
+    let delta = |tag| {
+        font.mvar()
+            .ok()
+            .and_then(|m| m.metric_delta(Tag::new(tag), &axes.coords))
+            .map_or(0., |d| d.to_f64())
+    };
+    let ascender = rounded((ascender + delta(b"hasc")).abs()) as i64;
+    let descender = rounded((descender + delta(b"hdsc")).abs()) as i64;
+    ascender + descender
+}
+
 pub(super) fn instance(
     font: &FontRef,
     axes: &AxisPlan,
@@ -48,6 +78,7 @@ pub(super) fn instance(
     let hvar = font.hvar().ok();
     let vvar = font.vvar().ok();
     let vorg = font.vorg().ok();
+    let horizontal_span = horizontal_span(font, axes);
     let mut bounds = Vec::new();
     let mut union: Option<[i32; 4]> = None;
     for gid in 0..count {
@@ -126,13 +157,19 @@ pub(super) fn instance(
             }
             .unwrap_or(0) as i32;
             let origin = if vertical {
-                let origin = vorg.as_ref().map_or_else(
-                    || font.hhea().ok().map_or(0, |h| h.ascender().to_i16() as i32),
-                    |v| v.vertical_origin_y(gid) as i32,
-                ) + vvar
-                    .as_ref()
-                    .and_then(|v| v.v_origin_y_delta(gid, &axes.coords))
-                    .map_or(0, |d| rounded(d.to_f64()));
+                let origin = if let Some(vorg) = &vorg {
+                    (vorg.vertical_origin_y(gid) as i32).saturating_add(
+                        vvar.as_ref()
+                            .and_then(|v| v.v_origin_y_delta(gid, &axes.coords))
+                            .map_or(0, |d| rounded(d.to_f64())),
+                    )
+                } else {
+                    bound.map_or(0, |b| {
+                        let height = b[3] as i64 - b[1] as i64;
+                        (b[3] as i64 + ((horizontal_span - height) >> 1))
+                            .clamp(i32::MIN as i64, i32::MAX as i64) as i32
+                    })
+                };
                 origins.push((gid, origin));
                 origin
             } else {
@@ -140,20 +177,40 @@ pub(super) fn instance(
             };
             let leading = if let Some(b) = bound {
                 if vertical {
-                    origin - b[3]
+                    origin.saturating_sub(b[3])
                 } else {
                     b[0]
                 }
             } else {
                 old_bearing
             };
-            let extent = bound.map_or(0, |b| if vertical { b[3] - b[1] } else { b[2] - b[0] });
+            let extent = bound.map_or(0, |b| {
+                if vertical {
+                    b[3].saturating_sub(b[1])
+                } else {
+                    b[2].saturating_sub(b[0])
+                }
+            });
             out.extend((advance as u16).to_be_bytes());
             out.extend((leading.clamp(-32768, 32767) as i16).to_be_bytes());
             max_advance = max_advance.max(advance);
             min_leading = min_leading.min(leading);
-            min_trailing = min_trailing.min(advance - leading - extent);
-            max_extent = max_extent.max(leading + extent);
+            min_trailing = min_trailing.min(advance.saturating_sub(leading).saturating_sub(extent));
+            max_extent = max_extent.max(leading.saturating_add(extent));
+        }
+        if !vertical {
+            if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
+                let (sum, count) = out.chunks_exact(4).fold((0u64, 0u64), |(sum, count), m| {
+                    let advance = u16::from_be_bytes([m[0], m[1]]) as u64;
+                    (sum + advance, count + u64::from(advance != 0))
+                });
+                let average = if count == 0 {
+                    0
+                } else {
+                    (sum + count / 2) / count
+                };
+                put(os2, 2, average as i32)?;
+            }
         }
         tables.insert(Tag::new(if vertical { b"vmtx" } else { b"hmtx" }), out);
         if let Some(header) = tables.get_mut(&Tag::new(if vertical { b"vhea" } else { b"hhea" })) {
@@ -330,7 +387,11 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
             if let Some(delta) = instance.get(Tag::new(&metric)) {
                 if let Some(data) = tables.get_mut(&Tag::new(b"hhea")) {
                     let old = signed(data, offset).ok_or_else(|| error(Tag::new(b"hhea")))?;
-                    put(data, offset, old as i32 + rounded(delta.to_f64()))?;
+                    put(
+                        data,
+                        offset,
+                        (old as i32).saturating_add(rounded(delta.to_f64())),
+                    )?;
                 }
             }
         }
@@ -342,7 +403,9 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
             if let Some(delta) = instance.get(Tag::new(&tag)) {
                 if let Some(old) = signed(data, offset) {
                     data[offset..offset + 2].copy_from_slice(
-                        &((old as u16 as i32 + rounded(delta.to_f64())).clamp(0, 65535) as u16)
+                        &((old as u16 as i32)
+                            .saturating_add(rounded(delta.to_f64()))
+                            .clamp(0, 65535) as u16)
                             .to_be_bytes(),
                     );
                 }
@@ -350,4 +413,118 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use write_fonts::{
+        tables::{
+            hvar::Hvar,
+            mvar::{Mvar, ValueRecord},
+            variations::*,
+        },
+        types::{F2Dot14, MajorMinor},
+        FontBuilder,
+    };
+
+    #[test]
+    fn cff_vertical_metrics_without_vorg_match_harfbuzz() {
+        let bytes = std::fs::read("test-data/fonts/NotoSansJP-VF.subset.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"VORG") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let bytes =
+            crate::instance_font(&font, &crate::parse_axis_limits("wght=500").unwrap()).unwrap();
+        let full = FontRef::new(&bytes).unwrap();
+        // HarfBuzz --gids=* --notdef-outline --variations=wght=500 after
+        // removing only VORG from the source. Empty notdef retains its bearing.
+        for (gid, expected) in [0, 262, 262, 258, 261, 259].into_iter().enumerate() {
+            assert_eq!(
+                full.vmtx().unwrap().side_bearing(GlyphId::new(gid as u32)),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn style_metadata_uses_the_effective_clamped_pin() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (request, expected) in [("wght=10000", 900), ("wght=-10000", 200)] {
+            let bytes =
+                crate::instance_font(&font, &crate::parse_axis_limits(request).unwrap()).unwrap();
+            let output = FontRef::new(&bytes).unwrap();
+            assert_eq!(output.os2().unwrap().us_weight_class(), expected);
+        }
+    }
+
+    #[test]
+    fn large_metric_deltas_saturate_without_overflow() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let count = font.maxp().unwrap().num_glyphs();
+        let store = |delta: i32| ItemVariationStore {
+            variation_region_list: VariationRegionList::new(
+                2,
+                vec![VariationRegion::new(vec![
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE),
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO),
+                ])],
+            )
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: count,
+                word_delta_count: 0x8001,
+                region_indexes: vec![0],
+                delta_sets: std::iter::repeat_n(delta, count as usize)
+                    .flat_map(i32::to_be_bytes)
+                    .collect(),
+            }
+            .into()],
+        };
+        for (delta, advance, average, ascent) in [
+            (i32::MAX, u16::MAX, i16::MAX, i16::MAX),
+            (i32::MIN, 0, 0, i16::MIN),
+        ] {
+            let mut builder = FontBuilder::new();
+            for r in font.table_directory().table_records() {
+                builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+            }
+            builder
+                .add_table(&Hvar::new(store(delta), None, None, None))
+                .unwrap();
+            builder
+                .add_table(&Mvar {
+                    version: MajorMinor::VERSION_1_0,
+                    value_record_size: 8,
+                    value_record_count: 1,
+                    item_variation_store: store(delta).into(),
+                    value_records: vec![ValueRecord::new(Tag::new(b"hasc"), 0, 0)],
+                })
+                .unwrap();
+            let bytes = builder.build();
+            let font = FontRef::new(&bytes).unwrap();
+            let bytes = crate::instance_font(
+                &font,
+                &crate::parse_axis_limits("wght=900,CNTR=drop").unwrap(),
+            )
+            .unwrap();
+            let full = FontRef::new(&bytes).unwrap();
+            for gid in 0..count {
+                assert_eq!(
+                    full.hmtx().unwrap().advance(GlyphId::new(gid as u32)),
+                    Some(advance)
+                );
+            }
+            assert_eq!(full.os2().unwrap().x_avg_char_width(), average);
+            assert_eq!(full.os2().unwrap().s_typo_ascender(), ascent);
+        }
+    }
 }

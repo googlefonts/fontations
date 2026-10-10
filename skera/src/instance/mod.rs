@@ -24,6 +24,7 @@ use write_fonts::{
 /// instance, create a `Plan` from the returned font and call `subset_font`.
 /// Coupled avar2 pins remain hidden axes until full instancing; restricted
 /// ranges can introduce F2Dot14 rounding differences in the axis mapping.
+/// VARC component instancing is not supported and returns an error.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
     if limits.is_empty() {
         return Ok(copy_font(font));
@@ -34,6 +35,11 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         ));
     }
     let axes = AxisPlan::new(font, limits)?;
+    if font.data_for_tag(Tag::new(b"VARC")).is_some() {
+        return Err(SubsetError::InvalidAxis(
+            "instancing CFF2 fonts with VARC components is not supported".into(),
+        ));
+    }
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
         .table_records()
@@ -96,4 +102,28 @@ pub fn downgrade_cff2(font: &FontRef) -> Result<Vec<u8>, SubsetError> {
     }
     builder.add_raw(Tag::new(b"CFF "), data);
     Ok(builder.build())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn varc_components_are_rejected_instead_of_copying_stale_axes() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+        }
+        builder
+            .add_table(&write_fonts::tables::varc::Varc::default())
+            .unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(matches!(
+            instance_font(&font,&parse_axis_limits("wght=900").unwrap()),
+            Err(SubsetError::InvalidAxis(message)) if message.contains("VARC")
+        ));
+    }
 }

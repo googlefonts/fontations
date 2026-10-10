@@ -9,6 +9,10 @@ These reference instances were generated with HarfBuzz 14.5.1 at commit
 
 Tests compare decoded outlines and metrics rather than serialization order.
 
+The full-instance `OS/2.xAvgCharWidth` expectations (529, 611, 1000, 530 in
+the order above) use the same command with `--gids='*'` instead of
+`--unicodes='*'`, because `instance_font` preserves every input glyph.
+
 Partial instances use the same command, with these axis requests:
 
 * partial-0, AdobeVFPrototype: `wght=650`
@@ -18,3 +22,8 @@ Partial instances use the same command, with these axis requests:
 * partial-4, Cantarell-VF-ABC: `wght=200:500:700`
 * partial-5, NotoSansJP-VF.subset: `wght=200:500:700`
 * partial-6, AdobeVFPrototype_vsindex: `wght=300:500:700,CNTR=25:75`
+
+The half-unit contour regressions use AdobeVFPrototype with `--gids=0,81`
+at `wght=550,CNTR=50`, and `--gids=0,40` at `wght=725,CNTR=75`, respectively.
+Both preserve the notdef outline. These exercise blend rounding at intermediate
+locations, where evaluating region scalars as 16.16 values shifts contours.

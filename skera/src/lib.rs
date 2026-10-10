@@ -827,6 +827,14 @@ impl Plan {
 
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
+            if let Some(Ok(vars)) = gpos.feature_variations() {
+                vars.collect_variation_indices(self, &mut varidx_set);
+            }
+        }
+        if let Ok(gsub) = font.gsub() {
+            if let Some(Ok(vars)) = gsub.feature_variations() {
+                vars.collect_variation_indices(self, &mut varidx_set);
+            }
         }
 
         let vardata_count = var_store.item_variation_data_count() as u32;
