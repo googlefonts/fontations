@@ -741,8 +741,11 @@ pub(crate) fn map_gsub_glyph(glyph_map: &[GlyphId], gid: GlyphId) -> Option<Glyp
         .filter(|&g| g != INVALID_GID)
 }
 
-/// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
-/// returned glyphs are mapped into new glyph ids
+/// Call `f(coverage_index, new_gid)` for each glyph in the input Coverage table
+/// that intersects with the input glyph set, in increasing glyph id order.
+///
+/// `new_gid` is the glyph id mapped through `glyph_map`. Glyphs not present in
+/// `glyph_map` are skipped.
 ///
 /// A Coverage table is always paired with an array that it indexes into: the
 /// ValueRecord array of a SinglePosFormat2, the SequenceRuleSet array of a
@@ -750,75 +753,120 @@ pub(crate) fn map_gsub_glyph(glyph_map: &[GlyphId], gid: GlyphId) -> Option<Glyp
 /// Coverage entries at or past that index have no corresponding entry and are
 /// skipped, which mirrors harfbuzz's `hb_zip (this+coverage, array)`: zipping
 /// stops at the end of the shorter of the two sequences.
-pub(crate) fn intersected_glyphs_and_indices(
+///
+/// Depending on the relative sizes of the coverage and the glyph set, this
+/// either walks the glyph set and looks each glyph up in the coverage, or walks
+/// the coverage and maps each glyph. Iteration stops at the first `Err`
+/// returned by `f`, which is then propagated.
+#[inline]
+pub(crate) fn for_each_intersected_glyph_and_index<E>(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
     glyph_map: &[GlyphId],
     array_len: u16,
-) -> (Vec<GlyphId>, IntSet<u16>) {
-    let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
-    };
-    let num_bits = 32 - count.leading_zeros();
+    f: impl FnMut(u16, GlyphId) -> Result<(), E>,
+) -> Result<(), E> {
+    for_each_intersection(coverage, glyph_set, Some(glyph_map), array_len, f)
+}
 
+/// Call `f(coverage_index)` for each glyph in the input Coverage table that is
+/// in the input glyph set, in increasing glyph id order.
+///
+/// Unlike [`for_each_intersected_glyph_and_index`] this does not consult the
+/// glyph map, so it can be used before `Plan::glyph_map_gsub` is built, e.g.
+/// when collecting layout variation indices. See that function for how
+/// `array_len` bounds the coverage indices and for the error handling.
+#[inline]
+pub(crate) fn for_each_intersected_coverage_index<E>(
+    coverage: &CoverageTable,
+    glyph_set: &IntSet<GlyphId>,
+    array_len: u16,
+    mut f: impl FnMut(u16) -> Result<(), E>,
+) -> Result<(), E> {
+    for_each_intersection(coverage, glyph_set, None, array_len, |idx, _| f(idx))
+}
+
+/// Shared implementation of the two functions above. With `glyph_map` set,
+/// glyphs are mapped (and filtered) through it; otherwise membership is
+/// checked against `glyph_set` and the original glyph id is passed through.
+#[inline(always)]
+fn for_each_intersection<E>(
+    coverage: &CoverageTable,
+    glyph_set: &IntSet<GlyphId>,
+    glyph_map: Option<&[GlyphId]>,
+    array_len: u16,
+    mut f: impl FnMut(u16, GlyphId) -> Result<(), E>,
+) -> Result<(), E> {
+    let num_bits = coverage.cost();
     let coverage_population = coverage.population();
-    let glyph_set_len = glyph_set.len();
-    let cap = coverage_population
-        .min(glyph_set_len as usize)
-        .min(array_len as usize);
-    let mut glyphs = Vec::with_capacity(cap);
-    let mut indices = IntSet::empty();
 
-    if coverage_population as u32 > (glyph_set_len as u32) * num_bits {
+    if coverage_population as u32 > (glyph_set.len() as u32) * num_bits {
+        // Every glyph here is already in glyph_set, so only map if asked to.
         for (idx, g) in glyph_set
             .iter()
             .filter_map(|g| coverage.get(g).map(|idx| (idx, g)))
             .filter(|(idx, _)| *idx < array_len)
-            .filter_map(|(idx, g)| map_gsub_glyph(glyph_map, g).map(|new_g| (idx, new_g)))
         {
-            glyphs.push(g);
-            indices.insert(idx);
+            let g = match glyph_map {
+                Some(glyph_map) => match map_gsub_glyph(glyph_map, g) {
+                    Some(new_g) => new_g,
+                    None => continue,
+                },
+                None => g,
+            };
+            f(idx, g)?;
         }
     } else {
         for (i, g) in coverage
             .iter()
             .take(array_len as usize)
             .enumerate()
-            .filter_map(|(i, g)| {
-                map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
-            })
+            .map(|(i, g)| (i, GlyphId::from(g)))
         {
-            glyphs.push(g);
-            indices.insert(i as u16);
+            let g = match glyph_map {
+                Some(glyph_map) => match map_gsub_glyph(glyph_map, g) {
+                    Some(new_g) => new_g,
+                    None => continue,
+                },
+                None if glyph_set.contains(g) => g,
+                None => continue,
+            };
+            f(i as u16, g)?;
         }
     }
-    (glyphs, indices)
+    Ok(())
 }
 
-/// Return indices of glyphs in the input Coverage table that intersect with the input glyph set
-pub(crate) fn intersected_coverage_indices(
+/// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
+/// returned glyphs are mapped into new glyph ids
+///
+/// See [`for_each_intersected_glyph_and_index`] for how `array_len` bounds the
+/// coverage indices.
+pub(crate) fn intersected_glyphs_and_indices(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
-) -> IntSet<u16> {
-    let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
-    };
-    let num_bits = 32 - count.leading_zeros();
+    glyph_map: &[GlyphId],
+    array_len: u16,
+) -> (Vec<GlyphId>, IntSet<u16>) {
+    let cap = coverage
+        .population()
+        .min(glyph_set.len() as usize)
+        .min(array_len as usize);
+    let mut glyphs = Vec::with_capacity(cap);
+    let mut indices = IntSet::empty();
 
-    let coverage_population = coverage.population();
-    let glyph_set_len = glyph_set.len();
-
-    if coverage_population as u32 > (glyph_set_len as u32) * num_bits {
-        glyph_set.iter().filter_map(|g| coverage.get(g)).collect()
-    } else {
-        coverage
-            .iter()
-            .enumerate()
-            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i as u16))
-            .collect()
-    }
+    let _ = for_each_intersected_glyph_and_index::<()>(
+        coverage,
+        glyph_set,
+        glyph_map,
+        array_len,
+        |idx, g| {
+            glyphs.push(g);
+            indices.insert(idx);
+            Ok(())
+        },
+    );
+    (glyphs, indices)
 }
 
 /// Return a set of feature indices that have alternate features defined in FeatureVariations table

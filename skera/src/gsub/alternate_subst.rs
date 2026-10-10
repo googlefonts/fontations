@@ -1,7 +1,7 @@
 //! impl subset() for AlternateSubst subtable
 use crate::FastHashMap;
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -35,17 +35,6 @@ impl<'a> SubsetTable<'a> for AlternateSubstFormat1<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let (cov_glyphs, alt_set_idxes) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            &plan.glyph_map_gsub,
-            self.alternate_set_count(),
-        );
-
-        if cov_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
         s.embed(self.subst_format())?;
 
         // cov offset
@@ -53,24 +42,36 @@ impl<'a> SubsetTable<'a> for AlternateSubstFormat1<'_> {
 
         // alternate set count
         let alt_set_count_pos = s.embed(0_u16)?;
-        let mut alt_set_count = 0_u16;
         let alt_sets = self.alternate_sets();
 
-        let mut glyphs = Vec::with_capacity(cov_glyphs.len());
-        for (g, idx) in cov_glyphs.iter().zip(alt_set_idxes.iter()) {
-            if !alt_sets
-                .subset_offset(idx as usize, s, plan, ())
-                .is_empty()?
-            {
-                glyphs.push(*g);
-                alt_set_count += 1;
-            }
-        }
+        let glyph_set = &plan.glyphset_gsub;
+        let alt_set_count = self.alternate_set_count();
+        let mut glyphs = Vec::with_capacity(
+            coverage
+                .population()
+                .min(glyph_set.len() as usize)
+                .min(alt_set_count as usize),
+        );
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            alt_set_count,
+            |idx, g| {
+                if !alt_sets
+                    .subset_offset(idx as usize, s, plan, ())
+                    .is_empty()?
+                {
+                    glyphs.push(g);
+                }
+                Ok(())
+            },
+        )?;
 
         if glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        s.copy_assign(alt_set_count_pos, alt_set_count);
+        s.copy_assign(alt_set_count_pos, glyphs.len() as u16);
         Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
     }
 }

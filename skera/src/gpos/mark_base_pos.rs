@@ -1,8 +1,8 @@
 //! impl subset() for MarkBasePos subtable
 use crate::FastHashMap;
 use crate::{
-    gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
-    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
+    gpos::mark_array::{collect_retained_mark_varidx_and_classes, get_mark_class_map},
+    layout::{for_each_intersected_coverage_index, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
@@ -14,7 +14,7 @@ use write_fonts::{
             gpos::{BaseArray, BaseRecord, MarkBasePosFormat1},
             layout::CoverageTable,
         },
-        FontData, FontRef,
+        FontData, FontRef, ReadError,
     },
     types::{GlyphId, Offset16},
 };
@@ -28,20 +28,8 @@ impl CollectVariationIndices for MarkBasePosFormat1<'_> {
             return;
         };
 
-        let glyph_set = &plan.glyphset_gsub;
-        let mark_array_data = mark_array.offset_data();
-        let mark_records = mark_array.mark_records();
-
-        let mark_record_idxes = intersected_coverage_indices(&mark_coverage, glyph_set);
-        let mut retained_mark_classes = IntSet::empty();
-        for i in mark_record_idxes.iter() {
-            let Some(mark_record) = mark_records.get(i as usize) else {
-                return;
-            };
-            let class = mark_record.mark_class();
-            collect_mark_record_varidx(mark_record, plan, varidx_set, mark_array_data);
-            retained_mark_classes.insert(class);
-        }
+        let retained_mark_classes =
+            collect_retained_mark_varidx_and_classes(&mark_coverage, &mark_array, plan, varidx_set);
 
         let Ok(base_coverage) = self.base_coverage() else {
             return;
@@ -51,19 +39,21 @@ impl CollectVariationIndices for MarkBasePosFormat1<'_> {
         };
         let base_array_data = base_array.offset_data();
         let base_records = base_array.base_records();
-        let base_record_idxes = intersected_coverage_indices(&base_coverage, glyph_set);
-        for i in base_record_idxes.iter() {
-            let Ok(base_record) = base_records.get(i as usize) else {
-                return;
-            };
-
-            let base_anchors = base_record.base_anchors(base_array_data);
-            for j in retained_mark_classes.iter() {
-                if let Some(Ok(anchor)) = base_anchors.get(j as usize) {
-                    anchor.collect_variation_indices(plan, varidx_set);
+        let _ = for_each_intersected_coverage_index(
+            &base_coverage,
+            &plan.glyphset_gsub,
+            base_array.base_count(),
+            |i| {
+                let base_record = base_records.get(i as usize)?;
+                let base_anchors = base_record.base_anchors(base_array_data);
+                for j in retained_mark_classes.iter() {
+                    if let Some(Ok(anchor)) = base_anchors.get(j as usize) {
+                        anchor.collect_variation_indices(plan, varidx_set);
+                    }
                 }
-            }
-        }
+                Ok::<(), ReadError>(())
+            },
+        );
     }
 }
 

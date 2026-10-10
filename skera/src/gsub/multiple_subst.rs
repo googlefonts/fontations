@@ -1,7 +1,7 @@
 //! impl subset() for MultipleSubst subtable
 use crate::FastHashMap;
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -35,18 +35,6 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let glyph_map = &plan.glyph_map_gsub;
-        let (cov_glyphs, seq_idxes) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            glyph_map,
-            self.sequence_count(),
-        );
-
-        if cov_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
         s.embed(self.subst_format())?;
 
         // cov offset
@@ -54,24 +42,36 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
 
         // sequence count
         let seq_count_pos = s.embed(0_u16)?;
-        let mut seq_count = 0_u16;
         let sequences = self.sequences();
 
-        let mut glyphs = Vec::with_capacity(cov_glyphs.len());
-        for (g, idx) in cov_glyphs.iter().zip(seq_idxes.iter()) {
-            if !sequences
-                .subset_offset(idx as usize, s, plan, ())
-                .is_empty()?
-            {
-                glyphs.push(*g);
-                seq_count += 1;
-            }
-        }
+        let glyph_set = &plan.glyphset_gsub;
+        let sequence_count = self.sequence_count();
+        let mut glyphs = Vec::with_capacity(
+            coverage
+                .population()
+                .min(glyph_set.len() as usize)
+                .min(sequence_count as usize),
+        );
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            sequence_count,
+            |idx, g| {
+                if !sequences
+                    .subset_offset(idx as usize, s, plan, ())
+                    .is_empty()?
+                {
+                    glyphs.push(g);
+                }
+                Ok(())
+            },
+        )?;
 
         if glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        s.copy_assign(seq_count_pos, seq_count);
+        s.copy_assign(seq_count_pos, glyphs.len() as u16);
         Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
     }
 }

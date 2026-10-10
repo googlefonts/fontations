@@ -2,7 +2,7 @@
 
 use crate::FastHashMap;
 use crate::{
-    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
+    layout::{for_each_intersected_coverage_index, for_each_intersected_glyph_and_index},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
@@ -38,37 +38,41 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
 
         //entry exit count
         let entryexit_count_pos = s.embed(0_u16)?;
-        let mut entry_exit_count = 0_u16;
 
         let coverage = self
             .coverage()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
         let exit_records = self.entry_exit_record();
+        let entry_exit_count = self.entry_exit_count();
         let font_data = self.offset_data();
 
-        let (glyphs, exit_record_idxes) = intersected_glyphs_and_indices(
+        let glyph_set = &plan.glyphset_gsub;
+        let cap = coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(entry_exit_count as usize);
+        let mut glyphs = Vec::with_capacity(cap);
+        for_each_intersected_glyph_and_index(
             &coverage,
-            &plan.glyphset_gsub,
+            glyph_set,
             &plan.glyph_map_gsub,
-            exit_records.len() as u16,
-        );
-        if glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
-        for i in exit_record_idxes.iter() {
-            let Some(exit_record) = exit_records.get(i as usize) else {
-                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-            };
-            if !exit_record.subset(plan, s, font_data).is_empty()? {
-                entry_exit_count += 1;
-            }
-        }
+            entry_exit_count,
+            |idx, g| {
+                let Some(exit_record) = exit_records.get(idx as usize) else {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                };
+                if !exit_record.subset(plan, s, font_data).is_empty()? {
+                    glyphs.push(g);
+                }
+                Ok(())
+            },
+        )?;
 
         if glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        s.copy_assign(entryexit_count_pos, entry_exit_count);
+
+        s.copy_assign(entryexit_count_pos, glyphs.len() as u16);
         Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
     }
 }
@@ -113,20 +117,24 @@ impl CollectVariationIndices for CursivePosFormat1<'_> {
         };
 
         let font_data = self.offset_data();
-        let glyph_set = &plan.glyphset_gsub;
         let entry_exit_records = self.entry_exit_record();
-        let record_idxes = intersected_coverage_indices(&coverage, glyph_set);
-        for i in record_idxes.iter() {
-            let Some(rec) = entry_exit_records.get(i as usize) else {
-                return;
-            };
-            if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
-                entry_anchor.collect_variation_indices(plan, varidx_set);
-            }
-            if let Some(Ok(exit_anchor)) = rec.exit_anchor(font_data) {
-                exit_anchor.collect_variation_indices(plan, varidx_set);
-            }
-        }
+        let entry_exit_count = self.entry_exit_count();
+
+        let _ = for_each_intersected_coverage_index::<()>(
+            &coverage,
+            &plan.glyphset_gsub,
+            entry_exit_count,
+            |idx| {
+                let rec = entry_exit_records.get(idx as usize).ok_or(())?;
+                if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
+                    entry_anchor.collect_variation_indices(plan, varidx_set);
+                }
+                if let Some(Ok(exit_anchor)) = rec.exit_anchor(font_data) {
+                    exit_anchor.collect_variation_indices(plan, varidx_set);
+                }
+                Ok(())
+            },
+        );
     }
 }
 
