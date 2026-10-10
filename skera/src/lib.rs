@@ -52,7 +52,8 @@ use layout::{
     remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
+    parse_glyph_mapping, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids,
 };
 use unicode_closure::unicode_closure;
 
@@ -421,6 +422,101 @@ impl Plan {
     /// pair has identical original and subset glyph IDs.
     pub fn old_to_new_glyph_mapping(&self) -> impl Iterator<Item = (GlyphId, GlyphId)> + '_ {
         self.glyph_map.iter().map(|(&old, &new)| (old, new))
+    }
+
+    /// Set requested output glyph IDs after closure has selected the glyphs.
+    ///
+    /// Unspecified retained glyphs follow the highest requested output ID,
+    /// in original glyph order. Requests for dropped glyphs are ignored.
+    /// Repeated original IDs use the last request. Output IDs must be unique.
+    /// The resulting mapping must preserve the order of the original glyphs.
+    /// `.notdef` stays at zero, and `SUBSET_FLAGS_RETAIN_GIDS` is incompatible
+    /// with a nonempty custom mapping. Invalid requests leave the plan intact.
+    pub fn set_glyph_mapping(&mut self, mapping: &[(GlyphId, GlyphId)]) -> Result<(), SubsetError> {
+        let invalid = |message: &str| SubsetError::InvalidGlyphMapping(message.into());
+        let requested: std::collections::BTreeMap<_, _> = mapping.iter().copied().collect();
+        if !requested.is_empty()
+            && self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+        {
+            return Err(invalid("custom mapping cannot retain original glyph IDs"));
+        }
+        let mut targets = IntSet::empty();
+        for (&old, &new) in &requested {
+            if new.to_u32() >= u16::MAX as u32 {
+                return Err(invalid("output glyph ID exceeds the glyph-count limit"));
+            }
+            if (old == GlyphId::NOTDEF) != (new == GlyphId::NOTDEF) {
+                return Err(invalid(
+                    "only .notdef can map to zero, and it must remain at zero",
+                ));
+            }
+            if !targets.insert(new) {
+                return Err(invalid("requested output glyph IDs are not unique"));
+            }
+        }
+        let mut mapped = Vec::with_capacity(self.glyphset.len() as usize);
+        let mut remaining = Vec::new();
+        let mut max = 0;
+        for old in self.glyphset.iter() {
+            let new = if old == GlyphId::NOTDEF {
+                Some(GlyphId::NOTDEF)
+            } else {
+                requested.get(&old).copied()
+            };
+            if let Some(new) = new {
+                max = max.max(new.to_u32());
+                mapped.push((new, old));
+            } else {
+                remaining.push(old);
+            }
+        }
+        mapped.sort_unstable();
+        if requested.is_empty()
+            && self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+        {
+            mapped = self.glyphset.iter().map(|old| (old, old)).collect();
+            max = mapped.last().map_or(0, |&(new, _)| new.to_u32());
+        } else {
+            for old in remaining {
+                max += 1;
+                if max >= u16::MAX as u32 {
+                    return Err(invalid(
+                        "unmapped closure glyphs exceed the glyph-count limit",
+                    ));
+                }
+                mapped.push((GlyphId::new(max), old));
+            }
+        }
+        if !mapped.windows(2).all(|pair| pair[0].1 < pair[1].1) {
+            return Err(invalid("custom mapping must preserve original glyph order"));
+        }
+        let unicodes = self.unicode_to_old_glyph_mapping().collect::<Vec<_>>();
+        self.glyph_map.clear();
+        self.reverse_glyph_map.clear();
+        self.new_to_old_gid_list = mapped;
+        self.num_output_glyphs = if self.new_to_old_gid_list.is_empty() {
+            0
+        } else {
+            max as usize + 1
+        };
+        self.glyph_map.extend(
+            self.new_to_old_gid_list
+                .iter()
+                .map(|&(new, old)| (old, new)),
+        );
+        self.reverse_glyph_map
+            .extend(self.new_to_old_gid_list.iter().copied());
+        self.glyph_map_gsub.clear();
+        self.create_glyph_map_gsub();
+        self.unicode_to_new_gid_list = unicodes
+            .into_iter()
+            .filter_map(|(unicode, old)| self.glyph_map.get(&old).map(|&new| (unicode, new)))
+            .collect();
+        Ok(())
     }
 
     /// Returns retained Unicode codepoints and their original glyph IDs.
@@ -1086,6 +1182,8 @@ pub struct SubsetState {
 pub enum SubsetError {
     #[error("Invalid axis request: {0}")]
     InvalidAxis(String),
+    #[error("Invalid glyph mapping: {0}")]
+    InvalidGlyphMapping(String),
     #[error("Invalid input gid {0}")]
     InvalidGid(String),
 

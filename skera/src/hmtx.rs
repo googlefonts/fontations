@@ -24,7 +24,7 @@ impl Subset for Hmtx<'_> {
         let h_metrics = self.h_metrics();
         let side_bearings = self.left_side_bearings();
 
-        let last_gid = plan.num_output_glyphs - 1;
+        let last_gid = plan.glyphset.last().map_or(0, |gid| gid.to_u32() as usize);
         if last_gid >= h_metrics.len() + side_bearings.len() {
             return Err(SubsetTableError(Hmtx::TAG));
         }
