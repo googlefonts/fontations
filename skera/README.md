@@ -71,6 +71,11 @@ Use `--text` (or `-t`) to select Unicode characters directly from text.
 Repeated `--text` and `--unicodes` selectors replace the Unicode set in
 command-line order.
 
+Use `--glyphs` to select names from post or CFF, numeric glyph IDs,
+`gid123`, or mapped Unicode strings such as `uni0041`. Repeated `--glyphs`
+and `--gids` selectors replace the glyph set in command-line order. The
+library exposes `parse_glyph_names` for the same resolution.
+
 For font collections, `--face-index` selects a face; the default is zero.
 
 ## Installation
