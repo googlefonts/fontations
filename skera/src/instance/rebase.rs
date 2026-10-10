@@ -134,7 +134,12 @@ pub(super) fn rebase(tent: Triple, limit: Triple, dist: (f64, f64)) -> Vec<(f64,
         return vec![(1., None)];
     }
     if limit.0 == limit.2 {
-        return vec![(scalar(limit.1, tent), None)];
+        let gain = scalar(limit.1, tent);
+        return if gain == 0. {
+            vec![]
+        } else {
+            vec![(gain, None)]
+        };
     }
     solve(tent, limit)
         .into_iter()
