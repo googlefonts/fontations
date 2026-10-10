@@ -14,6 +14,10 @@ and CFF/CFF2 CharStrings offsets for incremental font transfer patches.
 `--no-bidi-closure` omits mirrored Unicode variants from the subset.
 Use `--name-IDs` and `--name-languages` to select naming records;
 `--name-legacy` also keeps records for non-Unicode platforms.
+The library's `Plan::override_name_table` replaces or inserts individual
+records, including records excluded by those filters. Passing `None` or an
+empty string removes a record. Macintosh overrides accept ASCII text;
+other platforms encode text as UTF-16BE.
 
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
