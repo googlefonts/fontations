@@ -67,6 +67,10 @@ are removed and baked into outlines, metrics, and layout. Other pins remain
 hidden until the font is fully instantiated. Range compensation preserves
 the original final-coordinate space, subject to F2Dot14 quantization.
 
+Use `--text` (or `-t`) to select Unicode characters directly from text.
+Repeated `--text` and `--unicodes` selectors replace the Unicode set in
+command-line order.
+
 For font collections, `--face-index` selects a face; the default is zero.
 
 ## Installation
