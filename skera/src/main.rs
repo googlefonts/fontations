@@ -74,6 +74,10 @@ struct Args {
     #[arg(long)]
     retain_num_glyphs: bool,
 
+    /// Force 32-bit outline offsets for incremental font transfer patches.
+    #[arg(long)]
+    iftb_requirements: bool,
+
     /// Remove CFF/CFF2 use of subroutines
     #[arg(long)]
     desubroutinize: bool,
@@ -336,6 +340,10 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
 
     if args.retain_num_glyphs {
         flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS;
+    }
+
+    if args.iftb_requirements {
+        flags |= SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS;
     }
 
     if args.desubroutinize {
