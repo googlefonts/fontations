@@ -6,7 +6,9 @@ Custom glyph IDs are supported through `--gid-map 1:4,2:7` or
 `Plan::set_glyph_mapping`. Unspecified retained glyphs follow the highest
 requested output ID; gaps become empty glyphs. The final mapping must preserve
 original glyph order, keep `.notdef` at zero, and use unique output IDs.
-Custom mappings cannot be combined with `--retain-gids`.
+Custom mappings cannot be combined with `--retain-gids`. Add
+`--retain-num-glyphs` alongside `--retain-gids` to keep the source glyph count
+by appending empty glyphs.
 
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
