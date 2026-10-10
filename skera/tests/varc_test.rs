@@ -333,3 +333,97 @@ fn malformed_component_records_fail_without_losing_closure_errors() {
         matches!(subset_font(&font,&plan),Err(skera::SubsetError::SubsetTableError(tag)) if tag==Tag::new(b"VARC"))
     );
 }
+
+#[test]
+fn null_conditions_preserve_component_paths_and_format_zero_is_invalid() {
+    use write_fonts::{
+        ps::cff::v2::Index,
+        read::{FontData, FontRead},
+        tables::{
+            layout::Condition,
+            varc::{ConditionList, Varc},
+        },
+        FontBuilder,
+    };
+    let bytes = std::fs::read("test-data/fonts/Roboto-Variable.composite.ttf").unwrap();
+    let source = FontRef::new(&bytes).unwrap();
+    for kind in [0, 3, 4, 5, 255] {
+        let table = Varc::new(
+            write_fonts::tables::layout::CoverageTable::from_iter([
+                write_fonts::types::GlyphId16::new(1),
+            ]),
+            None,
+            Some(ConditionList::new(
+                1,
+                vec![Condition::format_2_variable_value(1, u32::MAX)],
+            )),
+            None,
+            // HAVE_CONDITION, component glyph 3, condition index 0.
+            Index::from_items(vec![vec![0x80, 0x80, 0, 3, 0]]),
+        );
+        let mut raw = write_fonts::dump_table(&table).unwrap();
+        let varc = write_fonts::read::tables::varc::Varc::read(FontData::new(&raw)).unwrap();
+        let list = varc.condition_list().unwrap().unwrap();
+        let base = list.offset_data().as_bytes().as_ptr() as usize - raw.as_ptr() as usize;
+        let offset = if kind == 0 {
+            0
+        } else {
+            let offset = (raw.len() - base) as u32;
+            match kind {
+                3 | 4 => raw.extend([0, kind, 1, 0, 0, 0]),
+                5 => raw.extend([0, 5, 0, 0, 0]),
+                _ => raw.extend([0, 0]),
+            }
+            offset
+        };
+        raw[base + 4..base + 8].copy_from_slice(&offset.to_be_bytes());
+        let mut builder = FontBuilder::new();
+        for record in source.table_directory().table_records() {
+            builder.add_raw(record.tag(), source.data_for_tag(record.tag()).unwrap());
+        }
+        builder.add_raw(Tag::new(b"VARC"), raw);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        for retain in [false, true] {
+            let flags = SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
+                | if retain {
+                    SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                } else {
+                    SubsetFlags::default()
+                };
+            let plan = plan(&font, "1", flags);
+            let subset_bytes = subset_font(&font, &plan);
+            if kind == 255 {
+                assert!(
+                    matches!(subset_bytes, Err(skera::SubsetError::SubsetTableError(t)) if t == Tag::new(b"VARC"))
+                );
+                continue;
+            }
+            let subset_bytes = subset_bytes.unwrap();
+            let subset = FontRef::new(&subset_bytes).unwrap();
+            let new = plan
+                .old_to_new_glyph_mapping()
+                .find(|(g, _)| g.to_u32() == 1)
+                .unwrap()
+                .1;
+            for weight in [100., 400., 900.] {
+                let location = font.axes().location([(Tag::new(b"wght"), weight)]);
+                let mut a = Path::default();
+                let mut b = Path::default();
+                font.outline_glyphs()
+                    .get(GlyphId::new(1))
+                    .unwrap()
+                    .draw(DrawSettings::unhinted(Size::unscaled(), &location), &mut a)
+                    .unwrap();
+                subset
+                    .outline_glyphs()
+                    .get(new)
+                    .unwrap()
+                    .draw(DrawSettings::unhinted(Size::unscaled(), &location), &mut b)
+                    .unwrap();
+                assert_eq!(a, b, "kind={kind} retain={retain} weight={weight}");
+                assert_eq!(a.0.is_empty(), kind == 5);
+            }
+        }
+    }
+}
