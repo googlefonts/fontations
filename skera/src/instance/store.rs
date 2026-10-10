@@ -194,6 +194,59 @@ impl StorePlan {
             axis_count: axes.pinned.iter().filter(|&&p| !p).count() as u16,
         })
     }
+    /// HarfBuzz keeps surviving original regions ahead of newly rebased ones.
+    pub fn preserve_original_region_order(
+        &mut self,
+        store: &ItemVariationStore,
+        axes: &AxisPlan,
+    ) -> Result<(), SubsetError> {
+        let existing: BTreeMap<_, _> = self.regions.iter().cloned().zip(0..).collect();
+        let mut order = Vec::new();
+        let mut seen = vec![false; self.regions.len()];
+        for region in store
+            .variation_region_list()
+            .map_err(|_| error())?
+            .variation_regions()
+            .iter()
+        {
+            let region = region.map_err(|_| error())?;
+            let mut original = Vec::new();
+            let mut survives = true;
+            for (i, axis) in region.region_axes().iter().enumerate() {
+                if axes.pinned[i] {
+                    survives &= axis.peak_coord() == F2Dot14::ZERO;
+                } else if axis.peak_coord() == F2Dot14::ZERO {
+                    original.push((0, 0, 0));
+                } else {
+                    original.push((
+                        axis.start_coord().to_bits(),
+                        axis.peak_coord().to_bits(),
+                        axis.end_coord().to_bits(),
+                    ));
+                }
+            }
+            if survives {
+                if let Some(&index) = existing.get(&original) {
+                    if !seen[index] {
+                        seen[index] = true;
+                        order.push(index);
+                    }
+                }
+            }
+        }
+        order.extend((0..self.regions.len()).filter(|&i| !seen[i]));
+        let mut mapping = vec![0; order.len()];
+        for (new, &old) in order.iter().enumerate() {
+            mapping[old] = new as u16;
+        }
+        self.regions = order.into_iter().map(|i| self.regions[i].clone()).collect();
+        for transform in &mut self.transforms {
+            for index in &mut transform.indices {
+                *index = mapping[*index as usize];
+            }
+        }
+        Ok(())
+    }
     /// A constant region lets CFF2 express sums of variable blend operands
     /// without changing the glyph's active vsindex or adding arithmetic ops.
     pub fn add_constant_region(
