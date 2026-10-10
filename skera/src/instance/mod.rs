@@ -2,6 +2,7 @@
 mod avar2;
 mod axes;
 mod color;
+mod iup;
 mod layout;
 mod metrics;
 mod optimize;
@@ -15,7 +16,7 @@ pub(crate) use axes::AxisPlan;
 pub use axes::{parse_axis_limits, AxisLimits};
 pub(crate) use store::StorePlan;
 
-use crate::{cff, SubsetError};
+use crate::{cff, SubsetError, SubsetFlags};
 use std::collections::BTreeMap;
 use write_fonts::{
     read::{FontRef, TableProvider},
@@ -31,6 +32,19 @@ use write_fonts::{
 /// ranges can introduce F2Dot14 rounding differences in the axis mapping.
 /// VARC component instancing is not supported and returns an error.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
+    instance_font_with_flags(font, limits, SubsetFlags::default())
+}
+
+/// Instantiate a font, applying instancing options from `flags`.
+///
+/// `SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS` optimizes residual TrueType tuples after
+/// rebasing and merging. Other subsetting flags apply when `subset_font` is
+/// called on the resulting font. See `instance_font` for axis semantics.
+pub fn instance_font_with_flags(
+    font: &FontRef,
+    limits: &[AxisLimits],
+    flags: SubsetFlags,
+) -> Result<Vec<u8>, SubsetError> {
     if limits.is_empty() {
         return Ok(copy_font(font));
     }
@@ -54,7 +68,12 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         .collect();
     if !axes.coupled {
         if is_truetype {
-            truetype::instance(font, &axes, &mut tables)?;
+            truetype::instance(
+                font,
+                &axes,
+                &mut tables,
+                flags.contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS),
+            )?;
         } else {
             let cff2 = cff::instance(font, &axes)?;
             tables.insert(Tag::new(b"CFF2"), cff2);

@@ -141,7 +141,7 @@ fn main() {
         .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
     let instance_bytes = args.instance.as_deref().map(|input| {
         skera::parse_axis_limits(input)
-            .and_then(|limits| skera::instance_font(&font, &limits))
+            .and_then(|limits| skera::instance_font_with_flags(&font, &limits, subset_flags))
             .unwrap_or_else(|err| {
                 eprintln!("{err}");
                 std::process::exit(1);
