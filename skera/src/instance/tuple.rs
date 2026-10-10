@@ -1,6 +1,7 @@
 //! HarfBuzz's tuple_variations_t pipeline: change axis limits, infer missing
 //! deltas, merge equal tents, discard constants, and compile residual tuples.
 use super::{
+    iup,
     rebase::{self, Triple},
     AxisPlan,
 };
@@ -11,7 +12,7 @@ use write_fonts::{
         tables::variations::{TupleDelta, TupleVariation},
         FontRef, TableProvider,
     },
-    tables::variations::{PackedDeltas, Tuple, TupleVariationHeader},
+    tables::variations::{PackedDeltas, PackedPointNumbers, Tuple, TupleVariationHeader},
     types::{F2Dot14, Tag},
 };
 
@@ -20,7 +21,7 @@ fn error() -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(b"gvar"))
 }
 fn rounded(value: f32) -> Result<i32, SubsetError> {
-    let value = (value + 0.5).floor() as f64;
+    let value = (value as f64 + 0.5).floor();
     if !value.is_finite() || value < i32::MIN as f64 || value > i32::MAX as f64 {
         return Err(error());
     }
@@ -75,6 +76,7 @@ impl TupleVariations {
         font: &FontRef,
         axes: &AxisPlan,
         points: Option<(&[Point], &[usize])>,
+        default_points: Option<&mut [Point]>,
     ) -> Result<(), SubsetError> {
         let fvar = font.fvar().map_err(|_| error())?;
         let mut order: Vec<_> = fvar
@@ -128,7 +130,7 @@ impl TupleVariations {
                 tuple.calc_inferred_deltas(points, contours)?;
             }
         }
-        self.merge_tuple_variations()?;
+        self.merge_tuple_variations(default_points)?;
         // Keep only the output axis order; constant contributions have already
         // been applied to the outline or CVT by the default-location pass.
         for tuple in &mut self.tuples {
@@ -142,11 +144,25 @@ impl TupleVariations {
         Ok(())
     }
 
-    fn merge_tuple_variations(&mut self) -> Result<(), SubsetError> {
+    fn merge_tuple_variations(
+        &mut self,
+        mut default_points: Option<&mut [Point]>,
+    ) -> Result<(), SubsetError> {
         let mut result: Vec<TupleDeltaData> = Vec::new();
         let mut map = BTreeMap::new();
         for tuple in std::mem::take(&mut self.tuples) {
             if tuple.tents.iter().all(Option::is_none) {
+                // IUP uses the float outline after rebased constant tuples
+                // have been applied, in tuple order, just as HB does.
+                if let Some(points) = default_points.as_deref_mut() {
+                    if points.len() != tuple.deltas.len() {
+                        return Err(error());
+                    }
+                    for (point, delta) in points.iter_mut().zip(&tuple.deltas) {
+                        point[0] += delta[0];
+                        point[1] += delta[1];
+                    }
+                }
                 continue;
             }
             let key: Vec<_> = tuple
@@ -186,6 +202,45 @@ impl TupleVariations {
         self.tuples.iter().map(|t| t.coords().1)
     }
 
+    pub fn optimize(
+        &mut self,
+        points: &[Point],
+        contours: &[usize],
+        is_composite: bool,
+    ) -> Result<(), SubsetError> {
+        for tuple in &mut self.tuples {
+            let rounded = tuple
+                .deltas
+                .iter()
+                .map(|d| Ok([rounded(d[0])?, rounded(d[1])?]))
+                .collect::<Result<Vec<_>, SubsetError>>()?;
+            let mut selected = iup::optimize(points, &rounded, contours).ok_or_else(error)?;
+            if is_composite && selected.iter().all(|&v| !v) && !selected.is_empty() {
+                selected[0] = true;
+            }
+            let count = selected.iter().filter(|&&v| v).count();
+            // The packed count has 15 bits and packed point indices have 16.
+            // Dense tuples can still represent larger point arrays.
+            if count > 0x7fff || selected.iter().rposition(|&v| v).is_some_and(|i| i > 65535) {
+                continue;
+            }
+            if count == 0 {
+                tuple.referenced = selected;
+                continue;
+            }
+            let size = |refs: &[bool]| -> Result<usize, SubsetError> {
+                Ok(point_bytes(refs)?.len() + delta_bytes(&tuple.deltas, refs, 2)?.len())
+            };
+            // As in HB, keep an optimization only when the actual packed
+            // point and delta streams are smaller than their dense encoding.
+            if size(&selected)? < size(&tuple.referenced)? {
+                tuple.referenced = selected;
+            }
+        }
+        self.tuples.retain(|t| t.referenced.iter().any(|&v| v));
+        Ok(())
+    }
+
     pub fn compile_bytes(
         &self,
         shared: &BTreeMap<Vec<i16>, u16>,
@@ -195,22 +250,46 @@ impl TupleVariations {
             return Ok(Vec::new());
         }
         let mut headers = Vec::new();
-        // After gvar IUP inference every tuple references every point. Share
-        // that point set, matching compile_all_point_sets/compile_bytes.
-        let mut data = if is_gvar { vec![0] } else { Vec::new() };
+        let mut point_sets: BTreeMap<Vec<bool>, (usize, Vec<u8>)> = BTreeMap::new();
+        if is_gvar {
+            for tuple in &self.tuples {
+                let entry = point_sets
+                    .entry(tuple.referenced.clone())
+                    .or_insert((0, point_bytes(&tuple.referenced)?));
+                entry.0 += 1;
+            }
+        }
+        // Preserve the dense default encoding. For optimized sparse tuples,
+        // use HB's point-set counts and packed-byte savings calculation.
+        let dense = point_sets.keys().all(|refs| refs.iter().all(|&v| v));
+        let shared_points = if is_gvar && (dense || point_sets.values().all(|(n, _)| *n > 1)) {
+            point_sets
+                .iter()
+                .max_by_key(|(_, (n, bytes))| (n - 1) * bytes.len())
+                .map(|(refs, (_, bytes))| (refs, bytes))
+        } else {
+            None
+        };
+        let mut data = shared_points.map_or_else(Vec::new, |(_, bytes)| bytes.clone());
         for tuple in &self.tuples {
             let (start, peak, end) = tuple.coords();
-            let mut deltas = if is_gvar { Vec::new() } else { vec![0] };
-            for axis in 0..if is_gvar { 2 } else { 1 } {
-                let values = tuple
-                    .deltas
-                    .iter()
-                    .map(|d| rounded(d[axis]))
-                    .collect::<Result<Vec<_>, _>>()?;
-                deltas.extend(
-                    write_fonts::dump_table(&PackedDeltas::new(values)).map_err(|_| error())?,
-                );
-            }
+            let private = shared_points.is_none_or(|(refs, _)| *refs != tuple.referenced);
+            let mut deltas = if is_gvar && private {
+                point_sets
+                    .get(&tuple.referenced)
+                    .ok_or_else(error)?
+                    .1
+                    .clone()
+            } else if !is_gvar {
+                vec![0]
+            } else {
+                Vec::new()
+            };
+            deltas.extend(delta_bytes(
+                &tuple.deltas,
+                &tuple.referenced,
+                if is_gvar { 2 } else { 1 },
+            )?);
             let shared_index = shared.get(&peak).copied();
             let intermediate = start
                 .iter()
@@ -223,20 +302,52 @@ impl TupleVariations {
                 shared_index,
                 shared_index.is_none().then(|| tup(peak)),
                 intermediate.then(|| (tup(start), tup(end))),
-                !is_gvar,
+                private,
             );
             headers.extend(write_fonts::dump_table(&header).map_err(|_| error())?);
             data.extend(deltas);
         }
         let offset =
             u16::try_from(if is_gvar { 4 } else { 8 } + headers.len()).map_err(|_| error())?;
-        let count = self.tuples.len() as u16 | if is_gvar { 0x8000 } else { 0 };
+        let count = self.tuples.len() as u16 | if shared_points.is_some() { 0x8000 } else { 0 };
         let mut out = count.to_be_bytes().to_vec();
         out.extend(offset.to_be_bytes());
         out.extend(headers);
         out.extend(data);
         Ok(out)
     }
+}
+
+fn point_bytes(referenced: &[bool]) -> Result<Vec<u8>, SubsetError> {
+    let points = if referenced.iter().all(|&v| v) {
+        PackedPointNumbers::All
+    } else {
+        let points = referenced
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| **v)
+            .map(|(i, _)| u16::try_from(i).map_err(|_| error()))
+            .collect::<Result<Vec<_>, _>>()?;
+        if points.is_empty() || points.len() > 0x7fff {
+            return Err(error());
+        }
+        PackedPointNumbers::Some(points)
+    };
+    write_fonts::dump_table(&points).map_err(|_| error())
+}
+
+fn delta_bytes(deltas: &[Point], referenced: &[bool], axes: usize) -> Result<Vec<u8>, SubsetError> {
+    let mut bytes = Vec::new();
+    for axis in 0..axes {
+        let values = deltas
+            .iter()
+            .zip(referenced)
+            .filter(|(_, v)| axes == 1 || **v)
+            .map(|(d, _)| rounded(d[axis]))
+            .collect::<Result<Vec<_>, _>>()?;
+        bytes.extend(write_fonts::dump_table(&PackedDeltas::new(values)).map_err(|_| error())?);
+    }
+    Ok(bytes)
 }
 
 impl TupleDeltaData {
@@ -389,7 +500,7 @@ mod tests {
         let mut tuples = TupleVariations {
             tuples: vec![make(), make()],
         };
-        tuples.merge_tuple_variations().unwrap();
+        tuples.merge_tuple_variations(None).unwrap();
         let bytes = compile_gvar(&[tuples], 1).unwrap();
         let gvar = Gvar::read(FontData::new(&bytes)).unwrap();
         let data = gvar.glyph_variation_data(GlyphId::new(0)).unwrap().unwrap();
