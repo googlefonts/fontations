@@ -604,3 +604,31 @@ fn keep_everything_resets_selections_and_flags_in_command_line_order() {
         )
     );
 }
+
+#[test]
+fn variation_options_accept_open_bounds_wildcards_and_repeated_requests() {
+    let input = "test-data/fonts/AdobeVFPrototype.otf";
+    for (options, expected) in [
+        (
+            vec!["--instance=wght=650", "--variations=CNTR=drop"],
+            "wght=650,CNTR=drop",
+        ),
+        (
+            vec!["--instance=wght=650", "--instance=wght=700"],
+            "wght=700",
+        ),
+        (vec!["--instance=wght=650 CNTR=drop"], "wght=650,CNTR=drop"),
+        (vec!["--instance=*=drop,wght=650"], "wght=650,CNTR=drop"),
+        (vec!["--instance=wght=650,*=drop"], "wght=drop,CNTR=drop"),
+        (vec!["--instance=wght=300::700"], "wght=300:700"),
+        (vec!["--instance=wght=-100:2000"], "wght=:"),
+    ] {
+        let mut options = options;
+        options.push("--gids=0-3");
+        assert_eq!(
+            cli_subset(input, &options),
+            cli_subset(input, &["--gids=0-3", &format!("--instance={expected}")]),
+            "{options:?}"
+        );
+    }
+}

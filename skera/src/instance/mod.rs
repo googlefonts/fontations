@@ -14,7 +14,7 @@ mod store;
 mod truetype;
 mod tuple;
 pub(crate) use axes::AxisPlan;
-pub use axes::{parse_axis_limits, AxisLimits};
+pub use axes::{parse_axis_limits, parse_axis_limits_for_font, AxisLimits};
 pub(crate) use store::StorePlan;
 
 use crate::{cff, SubsetError, SubsetFlags};

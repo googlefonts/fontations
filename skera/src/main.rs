@@ -187,9 +187,9 @@ struct Args {
     #[arg(long)]
     desubroutinize: bool,
 
-    /// Instance axes or ranges, for example wght=650,CNTR=drop or wght=300:500:700.
-    #[arg(long, alias = "variations")]
-    instance: Option<String>,
+    /// Instance axes or ranges, for example wght=650, *=drop, or wght=300::700.
+    #[arg(long, alias = "variations", action = clap::ArgAction::Append)]
+    instance: Vec<String>,
 
     /// Convert a full CFF2 instance to CFF1 outlines.
     #[arg(long)]
@@ -412,7 +412,7 @@ fn main() {
     // Instancing must consider only retained VARC references. Preserve source
     // glyph IDs and count during this preliminary subset so all selectors and
     // custom mappings still refer to the original glyph IDs in the final plan.
-    let varc_subset = (args.instance.is_some() && font.data_for_tag(Tag::new(b"VARC")).is_some())
+    let varc_subset = (!args.instance.is_empty() && font.data_for_tag(Tag::new(b"VARC")).is_some())
         .then(|| {
             let plan = Plan::new(
                 &gids,
@@ -438,8 +438,8 @@ fn main() {
         .transpose()
         .unwrap()
         .unwrap_or(font);
-    let instance_bytes = args.instance.as_deref().map(|input| {
-        skera::parse_axis_limits(input)
+    let instance_bytes = (!args.instance.is_empty()).then(|| {
+        skera::parse_axis_limits_for_font(&font, &args.instance.join(","))
             .and_then(|limits| skera::instance_font_with_flags(&font, &limits, subset_flags))
             .unwrap_or_else(|err| {
                 eprintln!("{err}");

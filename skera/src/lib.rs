@@ -22,7 +22,8 @@ mod hvar;
 mod inc_bimap;
 mod instance;
 pub use instance::{
-    downgrade_cff2, instance_font, instance_font_with_flags, parse_axis_limits, AxisLimits,
+    downgrade_cff2, instance_font, instance_font_with_flags, parse_axis_limits,
+    parse_axis_limits_for_font, AxisLimits,
 };
 mod layout;
 mod math;
