@@ -57,10 +57,27 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn alpha(&self, base: u32, offset: u32, value: &mut F2Dot14) -> Result<(), SubsetError> {
+        self.field(base, offset, value)?;
+        // Keep the unbounded base while retained axes can still change it.
+        if self.axes.all_pinned() {
+            *value = F2Dot14::from_bits(value.to_bits().clamp(0, 16384));
+        }
+        Ok(())
+    }
+    fn angle(&self, base: u32, offset: u32, value: &mut F2Dot14) -> Result<(), SubsetError> {
+        if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+            let bits = (value.to_bits() as f32 + self.delta(base, offset)? + 0.5).floor();
+            // Rotation and skew are periodic. Reduce the rounded angle modulo
+            // 720 degrees, preserving its effect when it exceeds F2Dot14.
+            *value = F2Dot14::from_bits(bits.rem_euclid(65536.) as u16 as i16);
+        }
+        Ok(())
+    }
     fn line(&self, line: &mut VarColorLine) -> Result<(), SubsetError> {
         for stop in &mut line.color_stops {
             self.field(stop.var_index_base, 0, &mut stop.stop_offset)?;
-            self.field(stop.var_index_base, 1, &mut stop.alpha)?;
+            self.alpha(stop.var_index_base, 1, &mut stop.alpha)?;
         }
         Ok(())
     }
@@ -72,7 +89,7 @@ impl Context<'_> {
             Paint::ColrLayers(_) => {}
             Paint::Solid(_) => {}
             Paint::VarSolid(v) => {
-                self.field(v.var_index_base, 0, &mut v.alpha)?;
+                self.alpha(v.var_index_base, 0, &mut v.alpha)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Solid(PaintSolid {
                         palette_index: v.palette_index,
@@ -254,7 +271,7 @@ impl Context<'_> {
             }
             Paint::VarRotate(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
-                self.field(v.var_index_base, 0, &mut v.angle)?;
+                self.angle(v.var_index_base, 0, &mut v.angle)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Rotate(PaintRotate {
                         paint: v.paint.clone(),
@@ -267,7 +284,7 @@ impl Context<'_> {
             }
             Paint::VarRotateAroundCenter(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
-                self.field(v.var_index_base, 0, &mut v.angle)?;
+                self.angle(v.var_index_base, 0, &mut v.angle)?;
                 self.field(v.var_index_base, 1, &mut v.center_x)?;
                 self.field(v.var_index_base, 2, &mut v.center_y)?;
                 if self.axes.all_pinned() {
@@ -284,8 +301,8 @@ impl Context<'_> {
             }
             Paint::VarSkew(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
-                self.field(v.var_index_base, 0, &mut v.x_skew_angle)?;
-                self.field(v.var_index_base, 1, &mut v.y_skew_angle)?;
+                self.angle(v.var_index_base, 0, &mut v.x_skew_angle)?;
+                self.angle(v.var_index_base, 1, &mut v.y_skew_angle)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Skew(PaintSkew {
                         paint: v.paint.clone(),
@@ -299,8 +316,8 @@ impl Context<'_> {
             }
             Paint::VarSkewAroundCenter(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
-                self.field(v.var_index_base, 0, &mut v.x_skew_angle)?;
-                self.field(v.var_index_base, 1, &mut v.y_skew_angle)?;
+                self.angle(v.var_index_base, 0, &mut v.x_skew_angle)?;
+                self.angle(v.var_index_base, 1, &mut v.y_skew_angle)?;
                 self.field(v.var_index_base, 2, &mut v.center_x)?;
                 self.field(v.var_index_base, 3, &mut v.center_y)?;
                 if self.axes.all_pinned() {
