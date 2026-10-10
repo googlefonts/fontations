@@ -7,7 +7,7 @@ use write_fonts::{
     from_obj::ToOwnedTable,
     read::{
         tables::variations::{DeltaSetIndex, ItemVariationStore},
-        FontRef, TableProvider,
+        FontRef, ResolveOffset, TableProvider,
     },
     tables::{base::*, gdef::*, gpos::*, layout::*, math::*},
     types::{Compatible, F2Dot14, Tag},
@@ -657,6 +657,7 @@ fn partial_condition(
 
 fn own_feature_variations(
     vars: Option<write_fonts::read::tables::layout::FeatureVariations>,
+    features: &write_fonts::read::tables::layout::FeatureList,
     tag: Tag,
 ) -> Result<Option<FeatureVariations>, SubsetError> {
     let err = || SubsetError::SubsetTableError(tag);
@@ -666,9 +667,9 @@ fn own_feature_variations(
         {
             return Err(err());
         }
-        let mut sets = Vec::new();
+        let mut records = Vec::new();
         for record in vars.feature_variation_records() {
-            if let Some(set) = record
+            let condition_set = if let Some(set) = record
                 .condition_set(vars.offset_data())
                 .transpose()
                 .map_err(|_| err())?
@@ -690,16 +691,52 @@ fn own_feature_variations(
                         .map_err(|_| err())
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                sets.push(Some(ConditionSet { conditions }));
+                Some(ConditionSet { conditions })
             } else {
-                sets.push(None);
-            }
+                None
+            };
+            let feature_table_substitution = if let Some(source) = record
+                .feature_table_substitution(vars.offset_data())
+                .transpose()
+                .map_err(|_| err())?
+            {
+                if source.substitutions().len() != source.substitution_count() as usize {
+                    return Err(err());
+                }
+                let mut owned = FeatureTableSubstitution::default();
+                for substitution in source.substitutions() {
+                    let feature_index = substitution.feature_index();
+                    let tag = features
+                        .feature_records()
+                        .get(feature_index as usize)
+                        .ok_or_else(err)?
+                        .feature_tag();
+                    let alternate = substitution
+                        .alternate_feature_offset()
+                        .resolve_with_args::<write_fonts::read::tables::layout::Feature>(
+                            source.offset_data(),
+                            tag,
+                        )
+                        .map_err(|_| err())?;
+                    alternate.feature_params().transpose().map_err(|_| err())?;
+                    let alternate: Feature = alternate.to_owned_table();
+                    owned.substitutions.push(FeatureTableSubstitutionRecord {
+                        feature_index,
+                        alternate_feature: alternate.into(),
+                    });
+                }
+                Some(owned)
+            } else {
+                None
+            };
+            records.push(FeatureVariationRecord {
+                condition_set: condition_set.into(),
+                feature_table_substitution: feature_table_substitution.into(),
+            });
         }
-        let mut table: FeatureVariations = vars.to_owned_table();
-        for (record, set) in table.feature_variation_records.iter_mut().zip(sets) {
-            record.condition_set = set.into();
-        }
-        return Ok(Some(table));
+        return Ok(Some(FeatureVariations {
+            feature_variation_records: records,
+        }));
     }
     Ok(None)
 }
@@ -901,6 +938,9 @@ pub(super) fn instance(
             gpos.feature_variations()
                 .transpose()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
+            &gpos
+                .feature_list()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
             Tag::new(b"GPOS"),
         )?;
         let mut table = own_gpos(&gpos)?;
@@ -917,6 +957,9 @@ pub(super) fn instance(
         let vars = own_feature_variations(
             gsub.feature_variations()
                 .transpose()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
+            &gsub
+                .feature_list()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             Tag::new(b"GSUB"),
         )?;
