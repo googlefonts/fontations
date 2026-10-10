@@ -38,7 +38,8 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
 /// Instantiate a font, applying instancing options from `flags`.
 ///
 /// `SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS` optimizes residual TrueType tuples after
-/// rebasing and merging. Other subsetting flags apply when `subset_font` is
+/// rebasing and merging. `SUBSET_FLAGS_DOWNGRADE_CFF2` converts full CFF2
+/// instances to CFF1. Other subsetting flags apply when `subset_font` is
 /// called on the resulting font. See `instance_font` for axis semantics.
 pub fn instance_font_with_flags(
     font: &FontRef,
@@ -97,7 +98,15 @@ pub fn instance_font_with_flags(
     for (tag, data) in tables {
         builder.add_raw(tag, data);
     }
-    Ok(builder.build())
+    let bytes = builder.build();
+    if !is_truetype && axes.all_pinned() && flags.contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
+    {
+        downgrade_cff2(
+            &FontRef::new(&bytes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?,
+        )
+    } else {
+        Ok(bytes)
+    }
 }
 fn copy_font(font: &FontRef) -> Vec<u8> {
     let mut builder = FontBuilder::new();

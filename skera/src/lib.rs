@@ -280,6 +280,11 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// If set full CFF2 instances are converted to CID-keyed CFF1 outlines.
+    /// Applies when instancing with `instance_font_with_flags`; retained
+    /// variation axes and TrueType outlines are unaffected.
+    pub const SUBSET_FLAGS_DOWNGRADE_CFF2: Self = Self(0x4000);
+
     /// If set CID-keyed CFF charsets use sequential CIDs equal to the output
     /// glyph IDs. Name-keyed CFF and CFF2 fonts are unaffected.
     pub const SUBSET_FLAGS_CFF_IDENTITY_CHARSET: Self = Self(0x8000);
