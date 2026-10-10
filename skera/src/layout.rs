@@ -938,16 +938,42 @@ pub(crate) fn prune_features(
     out
 }
 
+fn feature_params_bytes(params: FeatureParams<'_>) -> &[u8] {
+    match params {
+        FeatureParams::StylisticSet(params) => params.min_table_bytes(),
+        FeatureParams::Size(params) => params.min_table_bytes(),
+        FeatureParams::CharacterVariant(params) => params.min_table_bytes(),
+    }
+}
+
 pub(crate) fn find_duplicate_features(
     feature_list: &FeatureList,
     lookup_indices: &IntSet<u16>,
     feature_indices: IntSet<u16>,
+    variations: Option<&FeatureVariations>,
 ) -> FastHashMap<u16, u16> {
     let mut out = FastHashMap::default();
     if feature_indices.is_empty() {
         return out;
     }
 
+    // An alternate can distinguish features whose base lookup lists match.
+    // Preserve its feature index rather than merging language-system entries.
+    let mut variable_features = IntSet::empty();
+    if let Some(variations) = variations {
+        for record in variations.feature_variation_records() {
+            if let Some(Ok(substitutions)) =
+                record.feature_table_substitution(variations.offset_data())
+            {
+                variable_features.extend_unsorted(
+                    substitutions
+                        .substitutions()
+                        .iter()
+                        .map(|s| s.feature_index()),
+                );
+            }
+        }
+    }
     let feature_recs = feature_list.feature_records();
     let mut unique_features = FastHashMap::default();
     for i in feature_indices.iter() {
@@ -969,6 +995,9 @@ pub(crate) fn find_duplicate_features(
         }
 
         for other_f_idx in same_tag_features.iter() {
+            if variable_features.contains(i) || variable_features.contains(other_f_idx) {
+                continue;
+            }
             let Some(other_rec) = feature_recs.get(other_f_idx as usize) else {
                 continue;
             };
@@ -977,6 +1006,14 @@ pub(crate) fn find_duplicate_features(
                 return out;
             };
 
+            let same_params = match (f.feature_params(), other_f.feature_params()) {
+                (None, None) => true,
+                (Some(Ok(a)), Some(Ok(b))) => feature_params_bytes(a) == feature_params_bytes(b),
+                _ => false,
+            };
+            if !same_params {
+                continue;
+            }
             let f_iter = f
                 .lookup_list_indices()
                 .iter()
