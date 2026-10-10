@@ -14,11 +14,21 @@ use write_fonts::{
     NullableOffsetMarker, OffsetMarker,
 };
 
+#[derive(Default)]
+struct ConditionRows {
+    rows: Vec<ConditionRow>,
+    mapping: BTreeMap<(u32, i16), (u32, i16)>,
+}
+struct ConditionRow {
+    indices: Vec<u16>,
+    deltas: Vec<f64>,
+    bias: Option<i32>,
+}
 struct Context<'a> {
     store: Option<ItemVariationStore<'a>>,
     coords: &'a [F2Dot14],
     axes: &'a AxisPlan,
-    condition_biases: RefCell<Vec<(DeltaSetIndex, i64)>>,
+    condition_rows: RefCell<ConditionRows>,
     scalars: OnceCell<Option<VariationScalars>>,
     store_plan: OnceCell<StorePlan>,
     constant_indices: RefCell<BTreeMap<u32, bool>>,
@@ -565,43 +575,82 @@ fn partial_condition(
             }
         }
         Condition::Format2VariableValue(v) => {
-            if c.index_is_constant(v.var_index)? {
-                return Ok(PartialCondition::Constant(
-                    v.default_value as f64 + c.condition_delta(v.var_index) > 0.,
+            let err = || SubsetError::SubsetTableError(Tag::new(b"GDEF"));
+            let key = (v.var_index, v.default_value);
+            if let Some(&(var_index, default_value)) = c.condition_rows.borrow().mapping.get(&key) {
+                return Ok(PartialCondition::Variable(
+                    Condition::format_2_variable_value(default_value, var_index),
                 ));
             }
+            let value = v.default_value as f64 + c.condition_delta(v.var_index);
+            let data = c
+                .store
+                .as_ref()
+                .and_then(|store| {
+                    store
+                        .item_variation_data()
+                        .get((v.var_index >> 16) as usize)
+                })
+                .and_then(Result::ok);
+            let Some(data) = data.filter(|data| (v.var_index as u16) < data.item_count()) else {
+                return Ok(PartialCondition::Constant(value > 0.));
+            };
+            let transform = &c.store_plan()?.unwrap().transforms[(v.var_index >> 16) as usize];
+            let deltas: Vec<_> = data
+                .delta_set(v.var_index as u16)
+                .map(|d| d as f64)
+                .collect();
+            let residual = transform.residual(&deltas)?;
+            // Condition signs depend on unrounded deltas, even when a shared
+            // positioning row rounds to zero and loses its devices.
+            if residual.iter().all(|&delta| delta == 0.) {
+                return Ok(PartialCondition::Constant(value > 0.));
+            }
+            // Positive rescaling preserves the Boolean boundary. Prefer exact
+            // integers, otherwise use the available signed 32-bit precision.
+            let maximum = residual.iter().fold(value.abs(), |m, d| m.max(d.abs()));
+            if !maximum.is_finite() {
+                return Err(err());
+            }
+            let mut scale = 1.;
+            while maximum * scale > i32::MAX as f64 {
+                scale *= 0.5;
+            }
+            while maximum * scale * 2. <= i32::MAX as f64 {
+                if value * scale == (value * scale).round()
+                    && residual.iter().all(|d| d * scale == (d * scale).round())
+                {
+                    break;
+                }
+                scale *= 2.;
+            }
+            let default = (value * scale).round() as i32;
             let mut v = v.clone();
-            let value = v.default_value as i64
-                + c.wide_delta((v.var_index >> 16) as u16, v.var_index as u16)?;
-            if let Ok(default) = i16::try_from(value) {
-                v.default_value = default;
-            } else {
-                // Preserve the sign threshold with an added store row when
-                // its folded default cannot fit the condition's i16 field.
-                let mut biases = c.condition_biases.borrow_mut();
-                let index = DeltaSetIndex {
-                    outer: (v.var_index >> 16) as u16,
-                    inner: v.var_index as u16,
-                };
-                let slot = biases
-                    .iter()
-                    .position(|b| *b == (index, value))
-                    .unwrap_or(biases.len());
+            let mut rows = c.condition_rows.borrow_mut();
+            if scale != 1. || i16::try_from(default).is_err() {
+                // Give conditions a private row so scaling cannot change the
+                // positioning values that share the original VariationIndex.
                 let outer = c
                     .store
                     .as_ref()
-                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GDEF")))?
+                    .ok_or_else(err)?
                     .item_variation_data_count() as usize
-                    + slot;
+                    + rows.rows.len();
                 if outer >= u16::MAX as usize {
-                    return Err(SubsetError::SubsetTableError(Tag::new(b"GDEF")));
+                    return Err(err());
                 }
-                if slot == biases.len() {
-                    biases.push((index, value));
-                }
+                let bias = i16::try_from(default).is_err().then_some(default);
+                rows.rows.push(ConditionRow {
+                    indices: transform.indices.clone(),
+                    deltas: residual.iter().map(|d| (d * scale).round()).collect(),
+                    bias,
+                });
                 v.var_index = (outer as u32) << 16;
-                v.default_value = 0;
+                v.default_value = if bias.is_some() { 0 } else { default as i16 };
+            } else {
+                v.default_value = default as i16;
             }
+            rows.mapping.insert(key, (v.var_index, v.default_value));
             PartialCondition::Variable(Condition::Format2VariableValue(v))
         }
         Condition::Format3And(v) => {
@@ -751,16 +800,19 @@ fn rebuild_store(
     };
     let plan = c.store_plan()?.unwrap();
     let mut result = plan.rebuild(store)?;
-    if c.condition_biases.borrow().is_empty() {
+    let rows = c.condition_rows.borrow();
+    if rows.rows.is_empty() {
         return Ok(Some(result));
     }
     let regions = result.variation_region_list.as_mut();
-    let neutral = if let Some(i) = regions
+    let neutral = if !rows.rows.iter().any(|row| row.bias.is_some()) {
+        None
+    } else if let Some(i) = regions
         .variation_regions
         .iter()
         .position(|r| r.region_axes.iter().all(|a| a.peak_coord == F2Dot14::ZERO))
     {
-        i
+        Some(i as u16)
     } else {
         let index = regions.variation_regions.len();
         if index >= u16::MAX as usize {
@@ -776,20 +828,15 @@ fn rebuild_store(
                 regions.axis_count as usize
             ],
         });
-        index
-    } as u16;
-    for &(index, bias) in c.condition_biases.borrow().iter() {
-        let data = store
-            .item_variation_data()
-            .get(index.outer as usize)
-            .ok_or_else(err)?
-            .map_err(|_| err())?;
-        let transform = &plan.transforms[index.outer as usize];
-        let values: Vec<_> = data.delta_set(index.inner).map(|v| v as f64).collect();
-        let mut region_indexes = transform.indices.clone();
-        let mut deltas = transform.residual(&values)?;
-        region_indexes.push(neutral);
-        deltas.push(bias as f64);
+        Some(index as u16)
+    };
+    for row in &rows.rows {
+        let mut region_indexes = row.indices.clone();
+        let mut deltas = row.deltas.clone();
+        if let Some(bias) = row.bias {
+            region_indexes.push(neutral.unwrap());
+            deltas.push(bias as f64);
+        }
         result
             .item_variation_data
             .push(super::store::encode_rows(&region_indexes, &[deltas])?.into());
@@ -928,7 +975,7 @@ pub(super) fn instance(
             .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GDEF")))?,
         coords: &axes.coords,
         axes,
-        condition_biases: RefCell::default(),
+        condition_rows: RefCell::default(),
         scalars: OnceCell::new(),
         store_plan: OnceCell::new(),
         constant_indices: RefCell::default(),
@@ -995,7 +1042,7 @@ pub(super) fn instance(
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"BASE")))?,
             coords: &axes.coords,
             axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1097,7 +1144,7 @@ mod tests {
                 store,
                 coords: &axes.coords,
                 axes: &axes,
-                condition_biases: RefCell::new(Vec::new()),
+                condition_rows: RefCell::default(),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
@@ -1128,7 +1175,7 @@ mod tests {
                 store: Some(ItemVariationStore::read(FontData::new(&bytes)).unwrap()),
                 coords: &coords,
                 axes: &axes,
-                condition_biases: RefCell::default(),
+                condition_rows: RefCell::default(),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
@@ -1162,7 +1209,7 @@ mod tests {
             store: Some(ItemVariationStore::read(FontData::new(&bytes)).unwrap()),
             coords: &axes.coords,
             axes: &axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1221,7 +1268,7 @@ mod tests {
                 store: Some(ItemVariationStore::read(FontData::new(&store)).unwrap()),
                 coords: &axes.coords,
                 axes: &axes,
-                condition_biases: RefCell::default(),
+                condition_rows: RefCell::default(),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
@@ -1271,7 +1318,7 @@ mod tests {
             store: Some(ItemVariationStore::read(FontData::new(&store)).unwrap()),
             coords: &axes.coords,
             axes: &axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1301,7 +1348,7 @@ mod tests {
             store: Some(ItemVariationStore::read(FontData::new(&store)).unwrap()),
             coords: &coords,
             axes: &axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1520,7 +1567,7 @@ mod tests {
             store: Some(ItemVariationStore::read(FontData::new(&bytes)).unwrap()),
             coords: &axes.coords,
             axes: &axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1556,7 +1603,7 @@ mod tests {
             store: Some(ItemVariationStore::read(FontData::new(&bytes)).unwrap()),
             coords: &axes.coords,
             axes: &axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1579,11 +1626,72 @@ mod tests {
                 .compute_delta(DeltaSetIndex { outer: 1, inner: 0 }, &[coord])
                 .unwrap()
                 .to_f64();
-            assert_eq!(
-                delta.round() as i64,
-                (100. + i32::MAX as f64 * (1. - coord.to_f64())).round() as i64
-            );
+            // The folded default exceeds i32::MAX, so HarfBuzz scales this
+            // Boolean expression by one half before storing its private row.
+            assert_eq!(delta, 1073741874. - 1073741824. * coord.to_f64());
             assert!(delta > 0.);
+        }
+    }
+
+    #[test]
+    fn scaled_condition_rows_preserve_thresholds_and_are_shared_by_matching_conditions() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=650").unwrap()).unwrap();
+        let bytes = store_bytes(&[[1, -2]]);
+        let original = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
+        let c = Context {
+            store: Some(original.clone()),
+            coords: &axes.coords,
+            axes: &axes,
+            condition_rows: RefCell::default(),
+            scalars: OnceCell::new(),
+            store_plan: OnceCell::new(),
+            constant_indices: RefCell::default(),
+        };
+        let mut conditions = Vec::new();
+        for default in [0, 1, 2, 0, 1, 2] {
+            let condition = Condition::format_2_variable_value(default, 0);
+            let PartialCondition::Variable(Condition::Format2VariableValue(condition)) =
+                partial_condition(&condition, &c, 0).unwrap()
+            else {
+                panic!()
+            };
+            conditions.push((default, condition));
+        }
+        assert_eq!(c.condition_rows.borrow().rows.len(), 3);
+        for i in 0..3 {
+            assert_eq!(conditions[i].1, conditions[i + 3].1);
+        }
+        let rebuilt = write_fonts::dump_table(&rebuild_store(&c).unwrap().unwrap()).unwrap();
+        let rebuilt = ItemVariationStore::read(FontData::new(&rebuilt)).unwrap();
+        let gain = c.condition_delta(0);
+        for (default, condition) in conditions {
+            let threshold = F2Dot14::from_f64((default as f64 + gain) * 0.5).to_bits();
+            for bits in [0, threshold - 1, threshold, threshold + 1, 16384] {
+                let coord = F2Dot14::from_bits(bits.clamp(0, 16384));
+                let expected = default as f64
+                    + VariationScalars::new(&original, &[axes.coords[0], coord])
+                        .unwrap()
+                        .condition_delta(&original, DeltaSetIndex { outer: 0, inner: 0 })
+                        .unwrap();
+                let actual = condition.default_value as f64
+                    + VariationScalars::new(&rebuilt, &[coord])
+                        .unwrap()
+                        .condition_delta(
+                            &rebuilt,
+                            DeltaSetIndex {
+                                outer: (condition.var_index >> 16) as u16,
+                                inner: condition.var_index as u16,
+                            },
+                        )
+                        .unwrap();
+                assert_eq!(
+                    actual > 0.,
+                    expected > 0.,
+                    "default={default} coord={coord}"
+                );
+            }
         }
     }
 
@@ -1783,7 +1891,7 @@ mod tests {
             store: None,
             coords: &axes.coords,
             axes: &axes,
-            condition_biases: RefCell::default(),
+            condition_rows: RefCell::default(),
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
@@ -1851,7 +1959,7 @@ mod tests {
                 store: None,
                 coords: &coords,
                 axes: &axes,
-                condition_biases: RefCell::default(),
+                condition_rows: RefCell::default(),
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
