@@ -4,7 +4,6 @@ use crate::{NameIdClosure, Plan};
 use read_fonts::tables::stat::Stat;
 
 impl NameIdClosure for Stat<'_> {
-    //TODO: support instancing
     fn collect_name_ids(&self, plan: &mut Plan) {
         if let Ok(axis_records) = self.design_axes() {
             plan.name_ids
