@@ -5,7 +5,7 @@ use skera::{instance_font, parse_axis_limits, subset_font, Plan, SubsetFlags};
 use write_fonts::{
     from_obj::ToOwnedTable,
     read::{collections::IntSet, FontData, FontRead, FontRef, TableProvider},
-    tables::{gdef::*, gpos::*, gsub::*, layout::*, math::*, variations::*},
+    tables::{base::*, gdef::*, gpos::*, gsub::*, layout::*, math::*, variations::*},
     types::{F2Dot14, GlyphId16, Tag},
     FontBuilder,
 };
@@ -394,6 +394,111 @@ fn partial_positioning_values_match_harfbuzz_float_precision() {
                 );
             }
         }
+    }
+}
+
+fn residual_reference_font() -> Vec<u8> {
+    let bytes = synthetic_font(0, 0);
+    let font = FontRef::new(&bytes).unwrap();
+    let mut gdef: Gdef = font.gdef().unwrap().to_owned_table();
+    gdef.lig_caret_list.as_mut().unwrap().lig_glyphs[0].caret_values[0] =
+        CaretValue::format_3(100, VariationIndex::new(0, 5).into()).into();
+    let mut gpos: Gpos = font.gpos().unwrap().to_owned_table();
+    gpos.feature_list.feature_records[0]
+        .feature
+        .lookup_list_indices
+        .push(6);
+    gpos.lookup_list.lookups.push(
+        PositionLookup::Cursive(Lookup::new(
+            LookupFlag::empty(),
+            vec![CursivePosFormat1::new(
+                coverage(),
+                vec![EntryExitRecord::new(
+                    Some(AnchorTable::format_3(
+                        10,
+                        20,
+                        Some(VariationIndex::new(0, 5).into()),
+                        None,
+                    )),
+                    Some(AnchorTable::format_3(
+                        30,
+                        40,
+                        Some(VariationIndex::new(0, 6).into()),
+                        Some(Device::new(10, 12, &[1, 0, -1]).into()),
+                    )),
+                )],
+            )],
+        ))
+        .into(),
+    );
+    let mut base = Base::new(
+        Some(Axis::new(
+            Some(BaseTagList::new(vec![Tag::new(b"ideo"), Tag::new(b"romn")])),
+            BaseScriptList::new(vec![BaseScriptRecord::new(
+                Tag::new(b"latn"),
+                BaseScript::new(
+                    Some(BaseValues::new(
+                        0,
+                        vec![
+                            BaseCoord::format_3(100, Some(VariationIndex::new(0, 5).into())),
+                            BaseCoord::format_3(200, Some(VariationIndex::new(0, 6).into())),
+                        ],
+                    )),
+                    None,
+                    vec![],
+                ),
+            )]),
+        )),
+        None,
+    );
+    base.item_var_store = gdef.item_var_store.clone();
+    let mut builder = FontBuilder::new();
+    for record in font.table_directory().table_records() {
+        if record.tag() != Tag::new(b"MATH") {
+            builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+        }
+    }
+    builder.add_table(&gdef).unwrap();
+    builder.add_table(&gpos).unwrap();
+    builder.add_table(&base).unwrap();
+    builder.build()
+}
+
+#[test]
+fn optimized_stores_and_surviving_devices_match_harfbuzz() {
+    let source = residual_reference_font();
+    for weight in [525, 650, 900] {
+        let bytes = instance_font(
+            &FontRef::new(&source).unwrap(),
+            &parse_axis_limits(&format!("wght={weight}")).unwrap(),
+        )
+        .unwrap();
+        let bytes = subset(&bytes);
+        let font = FontRef::new(&bytes).unwrap();
+        let reference = |tag| {
+            std::fs::read(format!(
+                "test-data/expected/layout-instance/residual-{weight}-{tag}.bin"
+            ))
+            .unwrap()
+        };
+        let raw = reference("GPOS");
+        let expected: Gpos = write_fonts::read::tables::gpos::Gpos::read(FontData::new(&raw))
+            .unwrap()
+            .to_owned_table();
+        let actual: Gpos = font.gpos().unwrap().to_owned_table();
+        assert_eq!(actual, expected, "GPOS weight={weight}");
+        let raw = reference("GDEF");
+        let expected: Gdef = write_fonts::read::tables::gdef::Gdef::read(FontData::new(&raw))
+            .unwrap()
+            .to_owned_table();
+        let actual: Gdef = font.gdef().unwrap().to_owned_table();
+        assert_eq!(actual, expected, "GDEF weight={weight}");
+        let raw = reference("BASE");
+        let expected: Base = write_fonts::read::tables::base::Base::read(FontData::new(&raw))
+            .unwrap()
+            .to_owned_table();
+        let actual: Base = font.base().unwrap().to_owned_table();
+        assert_eq!(actual, expected, "BASE weight={weight}");
     }
 }
 

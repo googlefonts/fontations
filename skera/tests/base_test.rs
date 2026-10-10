@@ -123,7 +123,7 @@ fn null_stores_preserve_versions_axes_coordinates_and_hint_devices() {
 #[test]
 fn instancing_a_base_store_keeps_a_null_version_1_1_store_field() {
     let source = font(&base(true, 1));
-    for (limits, store) in [("wght=650,wdth=100", false), ("wght=650", true)] {
+    for limits in ["wght=650,wdth=100", "wght=650"] {
         let bytes = instance_font(
             &FontRef::new(&source).unwrap(),
             &parse_axis_limits(limits).unwrap(),
@@ -132,7 +132,7 @@ fn instancing_a_base_store_keeps_a_null_version_1_1_store_field() {
         let font = FontRef::new(&bytes).unwrap();
         let base = font.base().unwrap();
         assert_eq!(base.version(), MajorMinor::VERSION_1_1);
-        assert_eq!(base.item_var_store_offset().unwrap().is_null(), !store);
+        assert!(base.item_var_store_offset().unwrap().is_null());
         for axis in [base.horiz_axis(), base.vert_axis()] {
             let axis = axis.unwrap().unwrap();
             let list = axis.base_script_list().unwrap();

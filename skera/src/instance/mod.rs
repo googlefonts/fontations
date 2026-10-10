@@ -4,6 +4,7 @@ mod axes;
 mod color;
 mod layout;
 mod metrics;
+mod optimize;
 mod rebase;
 pub(crate) mod scalars;
 mod stat;
