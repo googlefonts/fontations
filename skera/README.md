@@ -7,8 +7,11 @@ desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
 retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,
 custom and expert encodings, glyph names, and `seac` component closure.
 
-CFF2 fonts can be fully instantiated with `--instance wght=650,opsz=48`.
-Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
+CFF2 and TrueType fonts can be fully instantiated with `--instance wght=650,opsz=48`.
+TrueType instancing preserves composite glyphs, point order, and hint programs,
+and applies `gvar` phantom-point metrics and `cvar` control-value deltas.
+Unspecified axes are retained; `tag=drop` pins an axis at its default. Full
+TrueType instancing requires pinning every axis. Partial CFF2
 instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
 Instancing resolves outline blends and variation deltas in metrics, layout,
 and COLRv1 paint tables.
