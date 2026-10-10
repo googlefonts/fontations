@@ -9,11 +9,7 @@ use std::{collections::BTreeMap, collections::BTreeSet, ops::Range};
 use write_fonts::{
     from_obj::ToOwnedTable,
     ps::cff::v2::Index,
-    read::{
-        collections::IntSet,
-        tables::{layout::Condition as ReadCondition, varc::Varc as ReadVarc},
-        FontData, FontRead, FontRef, TableProvider,
-    },
+    read::{collections::IntSet, tables::varc::Varc as ReadVarc, FontRef, TableProvider},
     tables::{layout::*, varc::*},
     types::{GlyphId, GlyphId16, Tag},
 };
@@ -343,8 +339,9 @@ impl SubsetPlan {
                     .ok_or(())?
                     .get()
                     .to_u32();
-                let data = offset_data(list.offset_data(), offset)?;
-                let condition = own_condition(data, 64, &mut budget)?;
+                let condition =
+                    crate::conditions::at_offset(list.offset_data(), offset, 64, &mut budget)
+                        .map_err(|_| ())?;
                 collect_condition_vars(&condition, &mut vars);
                 self.conditions.push(condition);
             }
@@ -473,65 +470,6 @@ fn dense_map(indices: &BTreeSet<u32>) -> Map {
         .map(|(i, &v)| (v, i as u32))
         .collect()
 }
-fn offset_data(data: FontData, offset: u32) -> Result<FontData> {
-    // Required condition offsets cannot be null.
-    if offset == 0 {
-        return Err(());
-    }
-    Ok(FontData::new(
-        data.as_bytes().get(offset as usize..).ok_or(())?,
-    ))
-}
-fn own_condition(data: FontData, depth: usize, budget: &mut usize) -> Result<Condition> {
-    if depth == 0 || *budget == 0 {
-        return Err(());
-    }
-    *budget -= 1;
-    let format: u16 = data.read_at(0).map_err(|_| ())?;
-    // HarfBuzz's format 0 condition is always true; encode its equivalent
-    // variable-value condition, since write-fonts has no format 0 variant.
-    if format == 0 {
-        return Ok(Condition::format_2_variable_value(1, NO_VARIATION));
-    }
-    match ReadCondition::read(data).map_err(|_| ())? {
-        ReadCondition::Format1AxisRange(c) => Ok(Condition::Format1AxisRange(c.to_owned_table())),
-        ReadCondition::Format2VariableValue(c) => Ok(Condition::format_2_variable_value(
-            c.default_value(),
-            c.var_index(),
-        )),
-        ReadCondition::Format3And(c) => {
-            if c.condition_offsets().len() != c.condition_count() as usize {
-                return Err(());
-            }
-            let children = c
-                .condition_offsets()
-                .iter()
-                .map(|offset| {
-                    own_condition(offset_data(data, offset.get().to_u32())?, depth - 1, budget)
-                })
-                .collect::<Result<Vec<_>>>()?;
-            Ok(Condition::format_3_and(c.condition_count(), children))
-        }
-        ReadCondition::Format4Or(c) => {
-            if c.condition_offsets().len() != c.condition_count() as usize {
-                return Err(());
-            }
-            let children = c
-                .condition_offsets()
-                .iter()
-                .map(|offset| {
-                    own_condition(offset_data(data, offset.get().to_u32())?, depth - 1, budget)
-                })
-                .collect::<Result<Vec<_>>>()?;
-            Ok(Condition::format_4_or(c.condition_count(), children))
-        }
-        ReadCondition::Format5Negate(c) => Ok(Condition::format_5_negate(own_condition(
-            offset_data(data, c.condition_offset().to_u32())?,
-            depth - 1,
-            budget,
-        )?)),
-    }
-}
 fn collect_condition_vars(condition: &Condition, vars: &mut BTreeSet<u32>) {
     match condition {
         Condition::Format2VariableValue(c) if c.var_index != NO_VARIATION => {
@@ -615,6 +553,8 @@ pub(crate) fn subset(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conditions::own as own_condition;
+    use write_fonts::read::FontData;
 
     #[test]
     fn reserved_fields_and_24_bit_gids_survive_record_rewriting() {
@@ -675,8 +615,9 @@ mod tests {
     }
 
     #[test]
-    fn condition_zero_and_nested_variation_indices() {
-        let c = own_condition(FontData::new(&[0, 0]), 64, &mut 100).unwrap();
+    fn null_conditions_and_nested_variation_indices() {
+        assert!(own_condition(FontData::new(&[0, 0]), 64, &mut 100).is_err());
+        let c = crate::conditions::at_offset(FontData::new(&[]), 0, 64, &mut 100).unwrap();
         assert_eq!(c, Condition::format_2_variable_value(1, NO_VARIATION));
         let condition = Condition::format_3_and(
             2,

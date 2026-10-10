@@ -4,13 +4,12 @@ use std::{cmp::Ordering, mem};
 
 use crate::FastHashMap;
 use crate::{
-    offset::SerializeSubset,
+    offset::{SerializeCopy, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable, INVALID_GID,
 };
 use write_fonts::{
-    from_obj::ToOwnedTable,
     read::{
         collections::IntSet,
         tables::{
@@ -1682,19 +1681,25 @@ impl SubsetTable<'_> for ConditionSet<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let count_pos = s.embed(0_u16)?;
-        let mut count = 0_u16;
-
-        let conditions = self.conditions();
-        let condition_count = self.condition_count() as usize;
-        for i in 0..condition_count {
-            if !conditions.subset_offset(i, s, plan, ()).is_empty()? {
-                count += 1;
-            }
+        if self.condition_offsets().len() != self.condition_count() as usize {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         }
-
-        if count != 0 {
-            s.copy_assign(count_pos, count);
+        s.embed(self.condition_count())?;
+        let mut budget = 200_000;
+        for offset in self.condition_offsets() {
+            let mut owned = crate::conditions::at_offset(
+                self.offset_data(),
+                offset.get().to_u32(),
+                33,
+                &mut budget,
+            )
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            remap_condition(&mut owned, plan)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            let bytes = write_fonts::dump_table(&owned)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
+            let pos = s.embed(0u32)?;
+            Offset32::serialize_copy_from_bytes(&bytes, s, pos)?;
         }
         Ok(())
     }
@@ -1709,9 +1714,8 @@ impl SubsetTable<'_> for Condition<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        walk_conditions(self, 0, &mut 200_000, &mut |_| {})
+        let mut owned = crate::conditions::own(self.offset_data(), 33, &mut 200_000)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let mut owned: write_fonts::tables::layout::Condition = self.to_owned_table();
         remap_condition(&mut owned, plan)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         let bytes = write_fonts::dump_table(&owned)
@@ -1734,17 +1738,31 @@ pub(crate) fn walk_conditions(
     visit(condition);
     match condition {
         Condition::Format3And(v) => {
-            for child in v.conditions().iter() {
+            if v.condition_offsets().len() != v.condition_count() as usize {
+                return Err(ReadError::OutOfBounds);
+            }
+            for (offset, child) in v.condition_offsets().iter().zip(v.conditions().iter()) {
+                if offset.get().is_null() {
+                    continue;
+                }
                 walk_conditions(&child?, depth + 1, remaining, visit)?;
             }
         }
         Condition::Format4Or(v) => {
-            for child in v.conditions().iter() {
+            if v.condition_offsets().len() != v.condition_count() as usize {
+                return Err(ReadError::OutOfBounds);
+            }
+            for (offset, child) in v.condition_offsets().iter().zip(v.conditions().iter()) {
+                if offset.get().is_null() {
+                    continue;
+                }
                 walk_conditions(&child?, depth + 1, remaining, visit)?;
             }
         }
         Condition::Format5Negate(v) => {
-            walk_conditions(&v.condition()?, depth + 1, remaining, visit)?
+            if !v.condition_offset().is_null() {
+                walk_conditions(&v.condition()?, depth + 1, remaining, visit)?
+            }
         }
         _ => {}
     }

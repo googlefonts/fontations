@@ -5,6 +5,7 @@ mod cblc;
 mod cff;
 mod cmap;
 mod colr;
+mod conditions;
 mod cpal;
 mod fvar;
 mod gdef;
