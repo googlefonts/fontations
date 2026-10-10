@@ -48,10 +48,40 @@ pub(super) fn packed_deltas(values: &[i32], out: &mut Vec<u8>) {
     }
 }
 
+pub(super) fn packed_points(points: &[u16], out: &mut Vec<u8>) {
+    if points.len() < 128 {
+        out.push(points.len() as u8);
+    } else {
+        out.extend((points.len() as u16 | 0x8000).to_be_bytes());
+    }
+    let mut start = 0;
+    let mut previous = 0;
+    while start < points.len() {
+        let wide = points[start] - previous > 255;
+        let mut end = start;
+        let mut last = previous;
+        while end < points.len() && end - start < 128 && (points[end] - last > 255) == wide {
+            last = points[end];
+            end += 1;
+        }
+        out.push((u8::from(wide) * 0x80) | (end - start - 1) as u8);
+        for &point in &points[start..end] {
+            let delta = point - previous;
+            previous = point;
+            if wide {
+                out.extend(delta.to_be_bytes());
+            } else {
+                out.push(delta as u8);
+            }
+        }
+        start = end;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use write_fonts::tables::variations::PackedDeltas;
+    use write_fonts::tables::variations::{PackedDeltas, PackedPointNumbers};
 
     #[test]
     fn delta_streams_match_writer_at_run_and_integer_boundaries() {
@@ -82,6 +112,27 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn point_streams_match_writer_at_count_and_distance_boundaries() {
+        for points in [
+            vec![],
+            vec![0],
+            vec![255, 256, 511, 767, 768, 65535],
+            (0..127).collect(),
+            (0..128).collect(),
+            (0..129).collect(),
+            (0..255).map(|v| v * 256).collect(),
+            (0..=32766).collect(),
+        ] {
+            let mut bytes = Vec::new();
+            packed_points(&points, &mut bytes);
+            assert_eq!(
+                bytes,
+                write_fonts::dump_table(&PackedPointNumbers::Some(points)).unwrap()
+            );
         }
     }
 }
