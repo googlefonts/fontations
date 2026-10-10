@@ -68,8 +68,8 @@ struct Args {
     keep_everything: Vec<bool>,
 
     /// Original:new glyph ID pairs preserving glyph order, for example 1:4,2:7.
-    #[arg(long = "gid-map", alias = "glyph-map")]
-    glyph_map: Option<String>,
+    #[arg(long = "gid-map", alias = "glyph-map", action = clap::ArgAction::Append)]
+    glyph_map: Vec<String>,
 
     /// List of Unicode codepoints
     #[arg(short, long, action = clap::ArgAction::Append)]
@@ -245,7 +245,13 @@ fn main() {
     let args = Args::from_arg_matches(&matches).unwrap();
 
     let subset_flags = parse_subset_flags(&matches);
-    let glyph_mapping = parse_glyph_mapping(args.glyph_map.as_deref().unwrap_or_default())
+    let glyph_mapping = args
+        .glyph_map
+        .iter()
+        .try_fold(Vec::new(), |mut mapping, input| {
+            mapping.extend(parse_glyph_mapping(input)?);
+            Ok::<_, SubsetError>(mapping)
+        })
         .unwrap_or_else(|err| {
             eprintln!("{err}");
             std::process::exit(1);
@@ -309,10 +315,23 @@ fn main() {
             "glyphs_add",
             "glyphs_remove",
             "glyphs_file",
+            "glyph_map",
         ],
     ) {
         if name == "keep_everything" {
             gids = IntSet::all();
+            continue;
+        }
+        if name == "glyph_map" {
+            gids.extend(
+                parse_glyph_mapping(input)
+                    .unwrap_or_else(|err| {
+                        eprintln!("{err}");
+                        std::process::exit(1);
+                    })
+                    .into_iter()
+                    .map(|(old, _)| old),
+            );
             continue;
         }
         let from_file = name.ends_with("_file");
@@ -334,7 +353,6 @@ fn main() {
             apply_selection(&mut gids, name, selected);
         }
     }
-    gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
     let default_drop_tables = {
         [
             // Layout disabled by default.
@@ -490,7 +508,7 @@ fn main() {
             &name_ids,
             &name_languages,
         );
-        if args.glyph_map.is_some() {
+        if !args.glyph_map.is_empty() {
             plan.set_glyph_mapping(&glyph_mapping)
                 .unwrap_or_else(|err| {
                     eprintln!("{err}");
