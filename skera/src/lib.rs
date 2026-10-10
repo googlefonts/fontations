@@ -20,7 +20,7 @@ mod hmtx;
 mod hvar;
 mod inc_bimap;
 mod instance;
-pub use instance::{instance_font, parse_axis_limits, AxisLimits};
+pub use instance::{downgrade_cff2, instance_font, parse_axis_limits, AxisLimits};
 mod layout;
 mod maxp;
 mod name;

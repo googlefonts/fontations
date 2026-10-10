@@ -367,3 +367,56 @@ fn partial_cff2_instances_match_harfbuzz() {
         }
     }
 }
+
+#[test]
+fn cff2_downgrade_preserves_outlines_and_cff1_widths() {
+    for (filename, request) in [
+        ("AdobeVFPrototype.otf", "wght=650,CNTR=40"),
+        ("Cantarell-VF-ABC.otf", "wght=650"),
+        ("NotoSansJP-VF.subset.otf", "wght=500"),
+        (
+            "SourceSerif4Variable-Roman-HelloWorld.otf",
+            "wght=650,opsz=48",
+        ),
+    ] {
+        let data = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+        let font = FontRef::new(&data).unwrap();
+        assert!(skera::downgrade_cff2(&font).is_err());
+        let bytes =
+            skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()).unwrap();
+        let instance = FontRef::new(&bytes).unwrap();
+        let bytes = skera::downgrade_cff2(&instance).unwrap();
+        let converted = FontRef::new(&bytes).unwrap();
+        assert!(converted.cff2().is_err());
+        let a = CffFontRef::new(
+            instance.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        let b = CffFontRef::new(
+            converted
+                .data_for_tag(Tag::new(b"CFF "))
+                .unwrap()
+                .as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        assert_eq!(a.num_glyphs(), b.num_glyphs());
+        for gid in 0..a.num_glyphs() {
+            let gid = GlyphId::new(gid);
+            let sa = a.subfont(a.subfont_index(gid).unwrap(), &[]).unwrap();
+            let sb = b.subfont(b.subfont_index(gid).unwrap(), &[]).unwrap();
+            let mut pa = Vec::<PathElement>::new();
+            let mut pb = Vec::<PathElement>::new();
+            a.draw(&sa, gid, &[], None, &mut pa).unwrap();
+            b.draw(&sb, gid, &[], None, &mut pb).unwrap();
+            assert_eq!(pa, pb, "{filename} {gid:?}");
+            assert_eq!(
+                b.evaluate_width(&sb, gid, &[]).unwrap().unwrap().to_i32(),
+                instance.hmtx().unwrap().advance(gid).unwrap() as i32
+            );
+        }
+    }
+}

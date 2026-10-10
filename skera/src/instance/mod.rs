@@ -67,3 +67,26 @@ fn copy_font(font: &FontRef) -> Vec<u8> {
     }
     builder.build()
 }
+
+/// Convert a fully instantiated CFF2 font to CID-keyed CFF1 outlines.
+///
+/// Glyph IDs and metrics are preserved. Variable fonts must first be fully
+/// instantiated with `instance_font`.
+pub fn downgrade_cff2(font: &FontRef) -> Result<Vec<u8>, SubsetError> {
+    if font.fvar().is_ok() {
+        return Err(SubsetError::InvalidAxis(
+            "CFF2 downgrade requires a full instance".into(),
+        ));
+    }
+    let data = cff::downgrade(font)?;
+    let mut builder = FontBuilder::new();
+    for r in font.table_directory().table_records() {
+        if r.tag() != Tag::new(b"CFF2") {
+            if let Some(data) = font.data_for_tag(r.tag()) {
+                builder.add_raw(r.tag(), data);
+            }
+        }
+    }
+    builder.add_raw(Tag::new(b"CFF "), data);
+    Ok(builder.build())
+}
