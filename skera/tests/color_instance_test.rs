@@ -179,3 +179,90 @@ fn half_deltas_and_large_cancellation_match_harfbuzz_paints() {
         .to_owned_table();
     assert_eq!(actual, expected);
 }
+
+#[test]
+fn full_alpha_is_clamped_after_variation_and_partial_bases_remain_unclamped() {
+    // Synthetic fixture generated with fontTools FontBuilder. Weight increases
+    // the first alpha above one; width can bring it back into range. The second
+    // alpha becomes negative. Both also appear in gradient stops.
+    let source = std::fs::read("test-data/fonts/colr-alpha.ttf").unwrap();
+    let check = |bytes: &[u8], expected: f64, variable: bool| {
+        let table: Colr = FontRef::new(bytes)
+            .unwrap()
+            .colr()
+            .unwrap()
+            .to_owned_table();
+        let paints = &table
+            .base_glyph_list
+            .as_ref()
+            .unwrap()
+            .base_glyph_paint_records;
+        let first = match paints[0].paint.as_ref() {
+            Paint::Solid(v) => v.alpha,
+            Paint::VarSolid(v) => v.alpha,
+            _ => panic!("expected solid"),
+        };
+        assert_eq!(first, F2Dot14::from_f64(expected));
+        if !variable {
+            let Paint::Solid(second) = paints[1].paint.as_ref() else {
+                panic!("expected solid")
+            };
+            assert_eq!(second.alpha, F2Dot14::ZERO);
+            let Paint::LinearGradient(gradient) = paints[2].paint.as_ref() else {
+                panic!("expected gradient")
+            };
+            assert_eq!(gradient.color_line.color_stops[0].alpha, first);
+            assert_eq!(gradient.color_line.color_stops[1].alpha, F2Dot14::ZERO);
+        }
+    };
+    for (request, alpha) in [("wght=900,wdth=drop", 1.), ("wght=650,wdth=125", 0.5)] {
+        let bytes = instance_font(
+            &FontRef::new(&source).unwrap(),
+            &parse_axis_limits(request).unwrap(),
+        )
+        .unwrap();
+        check(&bytes, alpha, false);
+    }
+    let partial = instance_font(
+        &FontRef::new(&source).unwrap(),
+        &parse_axis_limits("wght=650").unwrap(),
+    )
+    .unwrap();
+    check(&partial, 1.5, true);
+    let bytes = instance_font(
+        &FontRef::new(&partial).unwrap(),
+        &parse_axis_limits("wdth=125").unwrap(),
+    )
+    .unwrap();
+    check(&bytes, 0.5, false);
+}
+
+#[test]
+fn rotations_outside_the_stored_angle_range_preserve_their_periodic_effect() {
+    let source = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+    let fvar = source.fvar().unwrap();
+    let request = fvar
+        .axes()
+        .unwrap()
+        .iter()
+        .map(|a| {
+            if a.axis_tag() == Tag::new(b"ROTA") {
+                "ROTA=539.989".to_owned()
+            } else {
+                format!("{}=drop", a.axis_tag())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let bytes = instance_font(&source, &parse_axis_limits(&request).unwrap()).unwrap();
+    let expected = std::fs::read("test-data/expected/color-instance/rotation-COLR.bin").unwrap();
+    let expected: Colr = write_fonts::read::tables::colr::Colr::read(FontData::new(&expected))
+        .unwrap()
+        .to_owned_table();
+    let actual: Colr = FontRef::new(&bytes)
+        .unwrap()
+        .colr()
+        .unwrap()
+        .to_owned_table();
+    assert_eq!(actual, expected);
+}
