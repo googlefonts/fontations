@@ -368,6 +368,7 @@ pub struct Plan {
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
     name_languages: IntSet<u16>,
+    name_table_overrides: std::collections::BTreeMap<name::RecordKey, Vec<u8>>,
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
 
@@ -536,6 +537,42 @@ impl Plan {
             .filter_map(|&(unicode, new)| {
                 self.reverse_glyph_map.get(&new).map(|&old| (unicode, old))
             })
+    }
+
+    /// Replace, insert, or remove a naming record, matching HarfBuzz's override API.
+    ///
+    /// Nonempty overrides are inserted even when their name ID, language, or
+    /// platform would otherwise be filtered out. `None` or an empty string
+    /// removes the record. Macintosh strings must be ASCII; other platforms
+    /// use UTF-16BE. Invalid requests leave the previous override intact.
+    /// Drop-table and table passthrough rules still take precedence.
+    pub fn override_name_table(
+        &mut self,
+        name_id: NameId,
+        platform_id: u16,
+        encoding_id: u16,
+        language_id: u16,
+        text: Option<&str>,
+    ) -> Result<(), SubsetError> {
+        let text = text.unwrap_or_default();
+        if platform_id == 1 && !text.is_ascii() {
+            return Err(SubsetError::InvalidNameOverride(
+                "Macintosh overrides require ASCII text".into(),
+            ));
+        }
+        let bytes = if platform_id == 1 {
+            text.as_bytes().to_vec()
+        } else {
+            text.encode_utf16().flat_map(u16::to_be_bytes).collect()
+        };
+        if bytes.len() > u16::MAX as usize {
+            return Err(SubsetError::InvalidNameOverride(
+                "encoded name exceeds 65535 bytes".into(),
+            ));
+        }
+        self.name_table_overrides
+            .insert((platform_id, encoding_id, language_id, name_id), bytes);
+        Ok(())
     }
 
     /// Replaces the table tags that are copied without subsetting.
@@ -1197,6 +1234,8 @@ pub struct SubsetState {
 pub enum SubsetError {
     #[error("Invalid axis request: {0}")]
     InvalidAxis(String),
+    #[error("Invalid name override: {0}")]
+    InvalidNameOverride(String),
     #[error("Invalid glyph mapping: {0}")]
     InvalidGlyphMapping(String),
     #[error("Invalid input gid {0}")]
@@ -1643,6 +1682,13 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
 
     let table_len = table_data.len();
     let mut bulk: usize = 8192;
+    if table_tag == Name::TAG {
+        bulk += plan
+            .name_table_overrides
+            .values()
+            .map(|bytes| bytes.len() + 12)
+            .sum::<usize>();
+    }
     let src_glyphs = plan.font_num_glyphs;
     let dst_glyphs = plan.num_output_glyphs;
 
