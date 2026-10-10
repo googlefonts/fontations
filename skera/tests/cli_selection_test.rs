@@ -53,3 +53,58 @@ fn collections_select_the_requested_face_and_default_to_the_first() {
         .unwrap();
     assert!(!result.status.success());
 }
+
+fn cli_subset(input: &str, options: &[&str]) -> Vec<u8> {
+    let directory = tempfile::tempdir().unwrap();
+    let output = directory.path().join("subset.ttf");
+    let result = Command::new(env!("CARGO_BIN_EXE_skera"))
+        .args(["--path", input, "--output-file"])
+        .arg(&output)
+        .args(options)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    std::fs::read(output).unwrap()
+}
+
+#[test]
+fn text_selectors_match_unicode_lists_and_follow_command_line_order() {
+    for (input, options, expected) in [
+        (
+            "test-data/fonts/Roboto-Regular.ttf",
+            vec!["--text=ABé"],
+            "--unicodes=41,42,E9",
+        ),
+        (
+            "test-data/fonts/Roboto-Regular.ttf",
+            vec!["--unicodes=41,42", "--text=C"],
+            "--unicodes=43",
+        ),
+        (
+            "test-data/fonts/Roboto-Regular.ttf",
+            vec!["--text=A", "--unicodes=42,43"],
+            "--unicodes=42,43",
+        ),
+        (
+            "test-data/fonts/Roboto-Regular.ttf",
+            vec!["--text=A", "--text=B"],
+            "--unicodes=42",
+        ),
+        (
+            "test-data/fonts/varc-unrelated-axis.ttf",
+            vec!["--text=각"],
+            "--unicodes=AC01",
+        ),
+        (
+            "test-data/fonts/Roboto-Regular.ttf",
+            vec!["--text="],
+            "--unicodes=",
+        ),
+    ] {
+        assert_eq!(cli_subset(input, &options), cli_subset(input, &[expected]));
+    }
+}

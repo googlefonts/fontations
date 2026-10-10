@@ -4,7 +4,7 @@
 //! font file containing only the data specified in the input.
 //!
 
-use clap::Parser;
+use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 use skera::{
     parse_glyph_mapping, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
     populate_gids, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC,
@@ -43,8 +43,12 @@ struct Args {
     glyph_map: Option<String>,
 
     /// List of Unicode codepoints
-    #[arg(short, long)]
-    unicodes: Option<String>,
+    #[arg(short, long, action = clap::ArgAction::Append)]
+    unicodes: Vec<String>,
+
+    /// Text whose Unicode characters will be included in the subset.
+    #[arg(short = 't', long, action = clap::ArgAction::Append)]
+    text: Vec<String>,
 
     /// The output font file
     #[arg(short, long)]
@@ -144,7 +148,8 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
+    let matches = Args::command().get_matches();
+    let args = Args::from_arg_matches(&matches).unwrap();
 
     let subset_flags = parse_subset_flags(&args);
     let glyph_mapping = parse_glyph_mapping(args.glyph_map.as_deref().unwrap_or_default())
@@ -166,18 +171,23 @@ fn main() {
 
     gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
 
-    let unicodes =
-        match parse_unicodes(args.unicodes.as_deref().unwrap_or(if args.keep_everything {
-            "*"
+    let mut unicodes = if args.keep_everything {
+        IntSet::all()
+    } else {
+        IntSet::empty()
+    };
+    // Like HarfBuzz's parse_text/parse_unicodes, each plain selector replaces
+    // the current Unicode set. Apply mixed selectors in command-line order.
+    for (_, name, input) in selector_values(&matches, &["unicodes", "text"]) {
+        unicodes = if name == "text" {
+            input.chars().map(u32::from).collect()
         } else {
-            ""
-        })) {
-            Ok(unicodes) => unicodes,
-            Err(e) => {
-                eprintln!("{e}");
+            parse_unicodes(input).unwrap_or_else(|err| {
+                eprintln!("{err}");
                 std::process::exit(1);
-            }
+            })
         };
+    }
 
     let font_bytes = std::fs::read(&args.path)
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
@@ -451,4 +461,26 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
         flags |= SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2;
     }
     flags
+}
+
+// Clap retains the positions of every option value, including repeated
+// selectors. HarfBuzz's callbacks naturally process them in the same order.
+fn selector_values<'a>(
+    matches: &'a ArgMatches,
+    names: &[&'static str],
+) -> Vec<(usize, &'static str, &'a str)> {
+    let mut values = Vec::new();
+    for &name in names {
+        if let (Some(indices), Some(inputs)) =
+            (matches.indices_of(name), matches.get_many::<String>(name))
+        {
+            values.extend(
+                indices
+                    .zip(inputs)
+                    .map(|(i, input)| (i, name, input.as_str())),
+            );
+        }
+    }
+    values.sort_unstable_by_key(|v| v.0);
+    values
 }
