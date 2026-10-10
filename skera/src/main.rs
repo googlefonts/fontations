@@ -110,6 +110,10 @@ struct Args {
     #[arg(long)]
     optimize: bool,
 
+    /// Emit an identity CFF charset (CID = output GID) for CID-keyed CFF
+    #[arg(long)]
+    cff_identity_charset: bool,
+
     ///run subsetter N times
     #[arg(short, long)]
     num_iterations: Option<u32>,
@@ -341,6 +345,9 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
 
     if args.optimize {
         flags |= SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS;
+    }
+    if args.cff_identity_charset {
+        flags |= SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET;
     }
     flags
 }
