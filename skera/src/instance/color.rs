@@ -1,5 +1,5 @@
 //! Fold COLRv1 values and rebase its item variation store with the outline axes.
-use super::{scalars::VariationScalars, AxisPlan, StorePlan};
+use super::{optimize, scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
 use std::{cell::OnceCell, collections::BTreeMap};
 use write_fonts::{
@@ -496,13 +496,47 @@ pub(super) fn instance(
         table.var_index_map = Default::default();
         table.item_variation_store = Default::default();
     } else {
-        table.item_variation_store = c
+        let mut residual = c
             .store
             .as_ref()
-            .map(|s| StorePlan::new(s, axes)?.rebuild(s))
-            .transpose()?
-            .map(Into::into)
-            .unwrap_or_default();
+            .map(|s| {
+                let mut plan = StorePlan::new(s, axes)?;
+                plan.preserve_original_region_order(s, axes)?;
+                plan.rebuild(s)
+            })
+            .transpose()?;
+        if let (Some(store), Some(map)) = (residual.as_mut(), c.map.as_ref()) {
+            let count = match map {
+                DeltaSetIndexMap::Format0(map) => u64::from(map.map_count()),
+                DeltaSetIndexMap::Format1(map) => u64::from(map.map_count()),
+            };
+            // Empty maps have implicit identity indices, like a missing map.
+            // Keep them stable; bound allocation for explicit map rebuilding.
+            if count != 0 && count <= 4_000_000 {
+                let (optimized, indices) =
+                    optimize::optimize(std::mem::take(store)).map_err(|_| error())?;
+                let mapping = (0..count as u32)
+                    .map(|i| {
+                        let old = map.get(i).map_err(|_| error())?;
+                        let old = (u32::from(old.outer) << 16) | u32::from(old.inner);
+                        Ok(indices.get(&old).copied().unwrap_or(u32::MAX))
+                    })
+                    .collect::<Result<Vec<_>, SubsetError>>()?;
+                table.var_index_map = Some(
+                    mapping
+                        .into_iter()
+                        .collect::<write_fonts::tables::variations::DeltaSetIndexMap>(),
+                )
+                .into();
+                *store = optimized;
+                if store.item_variation_data.is_empty() {
+                    residual = None;
+                }
+            }
+        }
+        // Without an index map, paint fields address consecutive rows directly;
+        // retain those row indices instead of applying store optimization.
+        table.item_variation_store = residual.map(Into::into).unwrap_or_default();
     }
     tables.insert(
         Tag::new(b"COLR"),
