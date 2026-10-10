@@ -248,3 +248,84 @@ fn partial_instances_and_second_stage_instances_match_harfbuzz() {
         }
     }
 }
+
+#[cfg(feature = "spec_next")]
+#[test]
+fn cubic_control_points_survive_full_partial_and_second_stage_instances() {
+    use skrifa::{
+        instance::Size,
+        outline::{pen::PathElement, DrawSettings},
+        MetadataProvider,
+    };
+    use write_fonts::types::{Point, Tag};
+
+    fn path(font: &FontRef, settings: &[(Tag, f32)]) -> Vec<PathElement> {
+        let location = font.axes().location(settings.iter().copied());
+        let mut path = Vec::new();
+        font.outline_glyphs()
+            .get(GlyphId::new(2))
+            .unwrap()
+            .draw(
+                DrawSettings::unhinted(Size::unscaled(), &location),
+                &mut path,
+            )
+            .unwrap();
+        path
+    }
+
+    fn flags(font: &FontRef) -> Vec<write_fonts::read::tables::glyf::PointFlags> {
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        let Glyph::Simple(g) = loca
+            .get(GlyphId::new(2), &glyf)
+            .unwrap()
+            .into_glyph()
+            .unwrap()
+        else {
+            panic!("expected a simple cubic glyph");
+        };
+        let mut points = vec![Point::<i32>::default(); g.num_points()];
+        let mut flags = vec![Default::default(); g.num_points()];
+        g.read_points_fast(&mut points, &mut flags).unwrap();
+        flags
+    }
+
+    let source = std::fs::read("test-data/fonts/cubic-glyf-variable.ttf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    assert_eq!(
+        flags(&font)
+            .iter()
+            .filter(|f| f.is_off_curve_cubic())
+            .count(),
+        2
+    );
+    for (mode, request) in [("full", "TEST=0.5,AXIS=0.5"), ("partial", "TEST=0:0.5:1")] {
+        let bytes = instance_font(&font, &parse_axis_limits(request).unwrap()).unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        let reference =
+            std::fs::read(format!("test-data/expected/cubic-instancing/{mode}.ttf")).unwrap();
+        let expected = FontRef::new(&reference).unwrap();
+        assert_eq!(flags(&actual), flags(&font), "{mode}");
+        assert_eq!(flags(&actual), flags(&expected), "{mode}");
+        assert_same_outline_and_metrics(&actual, &expected);
+        let locations = if mode == "full" {
+            vec![(0.5, 0.5)]
+        } else {
+            vec![(0., 0.), (0.25, 0.25), (0.5, 0.5), (0.75, 0.75), (1., 1.)]
+        };
+        for (test, other) in locations {
+            let settings = [(Tag::new(b"TEST"), test), (Tag::new(b"AXIS"), other)];
+            let a = path(&actual, &settings);
+            assert!(a.iter().any(|p| matches!(p, PathElement::CurveTo { .. })));
+            assert_eq!(a, path(&font, &settings));
+            assert_eq!(a, path(&expected, &settings));
+            if mode == "partial" {
+                let limits = parse_axis_limits(&format!("TEST={test},AXIS={other}")).unwrap();
+                let bytes = instance_font(&actual, &limits).unwrap();
+                let final_font = FontRef::new(&bytes).unwrap();
+                assert_eq!(flags(&final_font), flags(&font));
+                assert_eq!(a, path(&final_font, &settings));
+            }
+        }
+    }
+}
