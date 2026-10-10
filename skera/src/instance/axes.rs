@@ -82,6 +82,7 @@ pub(crate) struct AxisPlan {
     pub(super) user_pinned: Vec<bool>,
     // avar2 retains the old final-coordinate space in all other tables.
     pub(super) coupled: bool,
+    pub(super) reachable: Vec<Option<(i16, i16)>>,
 }
 impl AxisPlan {
     pub fn new(font: &FontRef, limits: &[AxisLimits]) -> Result<Self, SubsetError> {
@@ -298,12 +299,12 @@ impl AxisPlan {
             user,
             user_pinned,
             coupled,
+            reachable: vec![None; axes.len()],
         };
         if coupled {
-            for (i, pin) in super::avar2::self_contained_pins(font, &plan)?
-                .into_iter()
-                .enumerate()
-            {
+            let reachability = super::avar2::reachable_ranges(font, &plan)?;
+            plan.reachable = reachability.ranges;
+            for (i, pin) in reachability.pins.into_iter().enumerate() {
                 if let Some(coord) = pin {
                     plan.pinned[i] = true;
                     plan.coords[i] = coord;
