@@ -21,7 +21,9 @@ mod hmtx;
 mod hvar;
 mod inc_bimap;
 mod instance;
-pub use instance::{downgrade_cff2, instance_font, parse_axis_limits, AxisLimits};
+pub use instance::{
+    downgrade_cff2, instance_font, instance_font_with_flags, parse_axis_limits, AxisLimits,
+};
 mod layout;
 mod math;
 mod maxp;
@@ -272,7 +274,7 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_NO_LAYOUT_CLOSURE: Self = Self(0x0200);
 
     /// If set perform IUP delta optimization on the remaining gvar table's deltas.
-    /// This flag is UNIMPLEMENTED yet
+    /// Applies when instancing with `instance_font_with_flags`.
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
 
     /// If set do not pull mirrored versions of input codepoints into the subset.
