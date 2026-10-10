@@ -280,6 +280,10 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// If set CID-keyed CFF charsets use sequential CIDs equal to the output
+    /// glyph IDs. Name-keyed CFF and CFF2 fonts are unaffected.
+    pub const SUBSET_FLAGS_CFF_IDENTITY_CHARSET: Self = Self(0x8000);
+
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
     pub const fn contains(&self, other: Self) -> bool {
