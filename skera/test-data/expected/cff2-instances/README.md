@@ -8,3 +8,13 @@ These reference instances were generated with HarfBuzz 14.5.1 at commit
 * SourceSerif4Variable-Roman-HelloWorld: `wght=650,opsz=48`
 
 Tests compare decoded outlines and metrics rather than serialization order.
+
+Partial instances use the same command, with these axis requests:
+
+* partial-0, AdobeVFPrototype: `wght=650`
+* partial-1, AdobeVFPrototype: `CNTR=40`
+* partial-2, SourceSerif4Variable-Roman-HelloWorld: `wght=650`
+* partial-3, SourceSerif4Variable-Roman-HelloWorld: `wght=300:550:700,opsz=12:30:48`
+* partial-4, Cantarell-VF-ABC: `wght=200:500:700`
+* partial-5, NotoSansJP-VF.subset: `wght=200:500:700`
+* partial-6, AdobeVFPrototype_vsindex: `wght=300:500:700,CNTR=25:75`

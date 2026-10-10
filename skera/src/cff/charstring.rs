@@ -26,6 +26,12 @@ pub(super) struct Value {
     origins: Vec<Origin>,
 }
 impl Value {
+    pub fn plain(default: f64) -> Self {
+        Self {
+            default,
+            ..Self::default()
+        }
+    }
     fn number(v: f64, origin: Origin) -> Self {
         Self {
             default: v,

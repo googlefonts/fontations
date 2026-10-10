@@ -33,7 +33,9 @@ pub(super) fn parse(data: &[u8]) -> Result<Vec<Entry>> {
             });
             start = p;
         }
-        if args.len() > 513 {
+        // These are raw operands, including ones consumed by earlier blends.
+        // The interpreter, rather than this token collector, checks stack depth.
+        if args.len() > 65_535 {
             return Err(Error);
         }
     }
