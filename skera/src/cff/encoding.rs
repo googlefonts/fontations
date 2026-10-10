@@ -131,6 +131,17 @@ pub(super) fn encode(out: &mut Vec<u8>, value: f64, dict: bool) -> Result<()> {
 }
 
 pub(super) fn index(items: &[Vec<u8>], cff2: bool) -> Result<Vec<u8>> {
+    index_with_min_off_size(items, cff2, 1)
+}
+
+pub(super) fn index_with_min_off_size(
+    items: &[Vec<u8>],
+    cff2: bool,
+    min_off_size: usize,
+) -> Result<Vec<u8>> {
+    if !(1..=4).contains(&min_off_size) {
+        return Err(Error);
+    }
     let count = u32::try_from(items.len()).map_err(|_| Error)?;
     let mut out = Vec::new();
     if cff2 {
@@ -153,7 +164,8 @@ pub(super) fn index(items: &[Vec<u8>], cff2: bool) -> Result<Vec<u8>> {
         3
     } else {
         4
-    };
+    }
+    .max(min_off_size);
     out.push(width as u8);
     let mut offset = 1u32;
     for s in items {
