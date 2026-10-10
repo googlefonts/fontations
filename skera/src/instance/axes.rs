@@ -368,9 +368,13 @@ impl AxisPlan {
             .filter(|(i, _)| !self.pinned[*i])
             .map(|(i, a)| {
                 let mut a = a.clone();
-                a.min_value = Fixed::from_f64(self.user[i].0);
-                a.default_value = Fixed::from_f64(self.user[i].1);
-                a.max_value = Fixed::from_f64(self.user[i].2);
+                // HarfBuzz copies free axis records verbatim. Converting an
+                // untouched 16.16 value through float can lose its low bit.
+                if self.values.iter().any(|(tag, _)| *tag == a.axis_tag) {
+                    a.min_value = Fixed::from_f64(self.user[i].0);
+                    a.default_value = Fixed::from_f64(self.user[i].1);
+                    a.max_value = Fixed::from_f64(self.user[i].2);
+                }
                 if self.coupled && self.user_pinned[i] {
                     a.flags |= 1; // Hidden, but its final coordinate can still vary.
                 }
@@ -620,6 +624,25 @@ mod tests {
                 ),
                 Err(SubsetError::InvalidAxis(_))
             ));
+        }
+    }
+
+    #[test]
+    fn untouched_axis_records_preserve_all_fixed_point_bits() {
+        use write_fonts::{from_obj::ToOwnedTable, tables::fvar::Fvar};
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let original: Fvar = font.fvar().unwrap().to_owned_table();
+        let expected = &original.axis_instance_arrays.axes[0];
+        assert_ne!(
+            expected.default_value.to_f64(),
+            expected.default_value.to_f32() as f64
+        );
+        for request in ["CNTR=drop", "CNTR=25:50:75"] {
+            let bytes = crate::instance_font(&font, &parse_axis_limits(request).unwrap()).unwrap();
+            let instance = FontRef::new(&bytes).unwrap();
+            let actual: Fvar = instance.fvar().unwrap().to_owned_table();
+            assert_eq!(&actual.axis_instance_arrays.axes[0], expected, "{request}");
         }
     }
 
