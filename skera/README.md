@@ -46,6 +46,8 @@ kerning and device adjustments.
 CFF2 and TrueType fonts can be fully instantiated with `--instance wght=650,opsz=48`.
 TrueType instancing preserves composite glyphs, point order, and hint programs,
 and applies `gvar` phantom-point metrics and `cvar` control-value deltas.
+The optional `spec_next` feature preserves experimental cubic glyf control
+points through full and partial instancing.
 Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
 instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
 Instancing resolves outline blends and variation deltas in metrics, layout,

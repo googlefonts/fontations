@@ -12,7 +12,7 @@ use write_fonts::{
     from_obj::ToOwnedTable,
     read::{
         tables::{
-            glyf::Glyph as ReadGlyph,
+            glyf::{Glyph as ReadGlyph, PointFlags},
             gvar::GlyphDelta,
             variations::{TupleDelta, TupleVariation},
         },
@@ -86,6 +86,7 @@ fn put(data: &mut [u8], offset: usize, value: i16) -> Result<(), SubsetError> {
 struct InstanceGlyph {
     glyph: Glyph,
     points: Vec<Point>,
+    curve_flags: Vec<PointFlags>,
     phantoms: [Point; 4],
 }
 
@@ -223,13 +224,16 @@ pub(super) fn instance(
             .into_glyph();
         let mut points = Vec::new();
         let mut contours = Vec::new();
+        let mut curve_flags = Vec::new();
         let glyph = match source {
             None => Glyph::Empty,
             Some(ReadGlyph::Simple(g)) => {
-                points.extend(g.points().map(|p| [p.x as f32, p.y as f32]));
-                if points.len() != g.num_points() {
-                    return Err(error(b"glyf"));
-                }
+                let mut raw_points =
+                    vec![write_fonts::types::Point::<i32>::default(); g.num_points()];
+                curve_flags.resize(g.num_points(), PointFlags::default());
+                g.read_points_fast(&mut raw_points, &mut curve_flags)
+                    .map_err(|_| error(b"glyf"))?;
+                points.extend(raw_points.iter().map(|p| [p.x as f32, p.y as f32]));
                 contours.extend(g.end_pts_of_contours().iter().map(|n| n.get() as usize));
                 Glyph::Simple(g.to_owned_table())
             }
@@ -319,6 +323,7 @@ pub(super) fn instance(
         glyphs.push(InstanceGlyph {
             glyph,
             points,
+            curve_flags,
             phantoms,
         });
     }
@@ -338,7 +343,7 @@ pub(super) fn instance(
                 simple.bbox = bbox.unwrap_or_default();
                 // Encode coordinate differences with wrapping arithmetic: the
                 // format stores signed 16-bit deltas even across the full range.
-                encode_simple(simple, &g.points, &mut glyf_out)?;
+                encode_simple(simple, &g.points, &g.curve_flags, &mut glyf_out)?;
             }
             Glyph::Composite(composite) => {
                 composite.bbox = bbox.unwrap_or_default();
@@ -491,6 +496,7 @@ fn get_points(
 fn encode_simple(
     g: &write_fonts::tables::glyf::SimpleGlyph,
     points: &[Point],
+    curve_flags: &[PointFlags],
     out: &mut Vec<u8>,
 ) -> Result<(), SubsetError> {
     if g.contours.is_empty() {
@@ -519,8 +525,15 @@ fn encode_simple(
             .to_be_bytes(),
     );
     out.extend(&g.instructions);
-    for (i, p) in g.contours.iter().flat_map(|c| c.iter()).enumerate() {
-        out.push(u8::from(p.on_curve) | if i == 0 && g.overlaps { 0x40 } else { 0 });
+    // HarfBuzz's simple-glyph compiler preserves the curve-kind bits while
+    // rebuilding coordinate and repeat flags. The owned glyph representation
+    // only stores on-curve booleans, so retain these bits from the reader.
+    for (i, flags) in curve_flags.iter().enumerate() {
+        out.push(
+            u8::from(flags.is_on_curve())
+                | if flags.is_off_curve_cubic() { 0x80 } else { 0 }
+                | if i == 0 && g.overlaps { 0x40 } else { 0 },
+        );
     }
     for axis in 0..2 {
         let mut prev = 0i16;
@@ -668,6 +681,7 @@ mod tests {
                 Bbox::default(),
             )),
             points: vec![[0.; 2]],
+            curve_flags: Vec::new(),
             phantoms: [[0.; 2]; 4],
         };
         assert!(get_points(0, &[glyph], 0, &mut 1000).is_err());
