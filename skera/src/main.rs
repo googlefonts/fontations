@@ -55,7 +55,7 @@ struct Args {
     layout_scripts: Option<String>,
 
     /// List of 'name' table entry nameIDs
-    #[arg(long)]
+    #[arg(long = "name-IDs", alias = "name-i-ds")]
     name_IDs: Option<String>,
 
     /// List of 'name' table entry langIDs
@@ -109,6 +109,10 @@ struct Args {
     /// Don't perform glyph closure for layout substitution (GSUB)
     #[arg(long)]
     no_layout_closure: bool,
+
+    /// Do not add Unicode codepoints for mirrored glyphs.
+    #[arg(long)]
+    no_bidi_closure: bool,
 
     /// Keep PS glyph names in TT-flavored fonts
     #[arg(long)]
@@ -368,6 +372,10 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
 
     if args.no_layout_closure {
         flags |= SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE;
+    }
+
+    if args.no_bidi_closure {
+        flags |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE;
     }
 
     if args.glyph_names {

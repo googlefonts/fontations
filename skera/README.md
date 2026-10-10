@@ -11,6 +11,10 @@ Custom mappings cannot be combined with `--retain-gids`. Add
 by appending empty glyphs. `--iftb-requirements` forces 32-bit `loca`, `gvar`,
 and CFF/CFF2 CharStrings offsets for incremental font transfer patches.
 
+`--no-bidi-closure` omits mirrored Unicode variants from the subset.
+Use `--name-IDs` and `--name-languages` to select naming records;
+`--name-legacy` also keeps records for non-Unicode platforms.
+
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
 retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,

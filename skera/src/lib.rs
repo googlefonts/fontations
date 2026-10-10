@@ -253,7 +253,6 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
 
     /// If set non-unicode name records will be retained in the subset.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NAME_LEGACY: Self = Self(0x0008);
 
     /// If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
