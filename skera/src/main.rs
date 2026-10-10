@@ -14,7 +14,7 @@ use write_fonts::read::{
     collections::IntSet,
     tables::{ebdt, eblc, feat, svg},
     types::{NameId, Tag},
-    FontRef, TopLevelTable,
+    FontRef, TableProvider, TopLevelTable,
 };
 
 #[derive(Parser, Debug)]
@@ -157,12 +157,13 @@ fn main() {
         .transpose()
         .unwrap()
         .unwrap_or(font);
-    let cff1_bytes = args.downgrade_cff2.then(|| {
-        skera::downgrade_cff2(&font).unwrap_or_else(|err| {
-            eprintln!("{err}");
-            std::process::exit(1);
-        })
-    });
+    let cff1_bytes =
+        (args.downgrade_cff2 && font.cff2().is_ok() && font.fvar().is_err()).then(|| {
+            skera::downgrade_cff2(&font).unwrap_or_else(|err| {
+                eprintln!("{err}");
+                std::process::exit(1);
+            })
+        });
     let font = cff1_bytes
         .as_deref()
         .map(FontRef::new)
@@ -348,6 +349,9 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
     }
     if args.cff_identity_charset {
         flags |= SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET;
+    }
+    if args.downgrade_cff2 {
+        flags |= SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2;
     }
     flags
 }
