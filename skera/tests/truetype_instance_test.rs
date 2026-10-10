@@ -214,6 +214,19 @@ fn partial_instances_and_second_stage_instances_match_harfbuzz() {
             actual.gvar().unwrap().axis_count(),
             actual.fvar().unwrap().axis_count()
         );
+        let (ag, eg) = (actual.gvar().unwrap(), expected.gvar().unwrap());
+        for gid in 0..ag.glyph_count() {
+            let gid = GlyphId::new(gid as u32);
+            assert_eq!(
+                ag.glyph_variation_data(gid)
+                    .unwrap()
+                    .map_or(0, |v| v.tuples().count()),
+                eg.glyph_variation_data(gid)
+                    .unwrap()
+                    .map_or(0, |v| v.tuples().count()),
+                "{file} {gid:?}",
+            );
+        }
         for fraction in [0., 0.25, 0.5, 0.75, 1.] {
             let limits = expected
                 .fvar()
