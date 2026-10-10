@@ -354,3 +354,74 @@ fn partial_instances_drop_devices_whose_residual_deltas_vanish() {
         }
     }
 }
+
+#[test]
+fn partial_conditions_keep_fractional_sign_boundaries_without_changing_positions() {
+    for (gain, delta) in [(0i32, -1i32), (0, 1), (1, -2)] {
+        let original = synthetic_font(6, 0);
+        let font = FontRef::new(&original).unwrap();
+        let mut gdef: Gdef = font.gdef().unwrap().to_owned_table();
+        let data = gdef.item_var_store.as_mut().unwrap().item_variation_data[0]
+            .as_mut()
+            .unwrap();
+        data.delta_sets[6 * 16..6 * 16 + 4].copy_from_slice(&gain.to_be_bytes());
+        data.delta_sets[6 * 16 + 12..7 * 16].copy_from_slice(&delta.to_be_bytes());
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+        }
+        builder.add_table(&gdef).unwrap();
+        let source = builder.build();
+        for weight in [525, 650, 900] {
+            let partial = instance_font(
+                &FontRef::new(&source).unwrap(),
+                &parse_axis_limits(&format!("wght={weight}")).unwrap(),
+            )
+            .unwrap();
+            let partial = subset(&partial);
+            let font = FontRef::new(&partial).unwrap();
+            let variations = font.gsub().unwrap().feature_variations().unwrap().unwrap();
+            assert_eq!(variations.feature_variation_record_count(), 1);
+            let set = variations.feature_variation_records()[0]
+                .condition_set(variations.offset_data())
+                .unwrap()
+                .unwrap();
+            assert_eq!(set.condition_count(), 1);
+            for width in [100, 99, 87, 75] {
+                let second = instance_font(
+                    &FontRef::new(&partial).unwrap(),
+                    &parse_axis_limits(&format!("wdth={width}")).unwrap(),
+                )
+                .unwrap();
+                let direct = instance_font(
+                    &FontRef::new(&source).unwrap(),
+                    &parse_axis_limits(&format!("wght={weight},wdth={width}")).unwrap(),
+                )
+                .unwrap();
+                assert_eq!(
+                    selected_glyph(&second),
+                    selected_glyph(&direct),
+                    "gain={gain} delta={delta} weight={weight} width={width}",
+                );
+                let position = |bytes: &[u8]| {
+                    let font = FontRef::new(bytes).unwrap();
+                    let table: Gpos = font.gpos().unwrap().to_owned_table();
+                    let PositionLookup::Single(lookup) = table.lookup_list.lookups[5].as_ref()
+                    else {
+                        panic!()
+                    };
+                    let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
+                        panic!()
+                    };
+                    pos.value_record.x_advance
+                };
+                // Positioning rounds at each instancing stage. At weight 525
+                // the residual +/-0.25 vanishes, while the condition varies.
+                if weight == 525 && gain == 0 {
+                    assert_eq!(position(&second), Some(100));
+                    assert_eq!(position(&direct), Some(100));
+                }
+            }
+        }
+    }
+}
