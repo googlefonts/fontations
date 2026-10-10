@@ -7,11 +7,12 @@
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 use skera::{
     parse_glyph_mapping, parse_glyph_names, parse_name_ids, parse_name_languages, parse_tag_list,
-    parse_unicodes, populate_gids, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG,
-    EBSC, GLAT, GLOC, JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
+    parse_unicodes, populate_gids, subset_font, Plan, SubsetError, SubsetFlags,
+    DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT,
+    SILF, SILL,
 };
 use write_fonts::read::{
-    collections::IntSet,
+    collections::{int_set::Domain, IntSet},
     tables::{ebdt, eblc, feat, svg},
     types::{NameId, Tag},
     FontRef, TableProvider, TopLevelTable,
@@ -34,6 +35,14 @@ struct Args {
     #[arg(short, long, action = clap::ArgAction::Append)]
     gids: Vec<String>,
 
+    /// Add glyph IDs or ranges to the current selection.
+    #[arg(long = "gids+", action = clap::ArgAction::Append)]
+    gids_add: Vec<String>,
+
+    /// Remove glyph IDs or ranges from the current selection.
+    #[arg(long = "gids-", action = clap::ArgAction::Append)]
+    gids_remove: Vec<String>,
+
     /// Read gids selections from a file, or - for standard input.
     #[arg(long, action = clap::ArgAction::Append)]
     gids_file: Vec<String>,
@@ -41,6 +50,14 @@ struct Args {
     /// Glyph names or glyph strings (for example A,gid42,uni0041).
     #[arg(long, action = clap::ArgAction::Append)]
     glyphs: Vec<String>,
+
+    /// Add glyph names to the current selection.
+    #[arg(long = "glyphs+", action = clap::ArgAction::Append)]
+    glyphs_add: Vec<String>,
+
+    /// Remove glyph names from the current selection.
+    #[arg(long = "glyphs-", action = clap::ArgAction::Append)]
+    glyphs_remove: Vec<String>,
 
     /// Read glyphs selections from a file, or - for standard input.
     #[arg(long, action = clap::ArgAction::Append)]
@@ -58,6 +75,14 @@ struct Args {
     #[arg(short, long, action = clap::ArgAction::Append)]
     unicodes: Vec<String>,
 
+    /// Add Unicode codepoints or ranges to the current selection.
+    #[arg(long = "unicodes+", action = clap::ArgAction::Append)]
+    unicodes_add: Vec<String>,
+
+    /// Remove Unicode codepoints or ranges from the current selection.
+    #[arg(long = "unicodes-", action = clap::ArgAction::Append)]
+    unicodes_remove: Vec<String>,
+
     /// Read unicodes selections from a file, or - for standard input.
     #[arg(long, action = clap::ArgAction::Append)]
     unicodes_file: Vec<String>,
@@ -65,6 +90,14 @@ struct Args {
     /// Text whose Unicode characters will be included in the subset.
     #[arg(short = 't', long, action = clap::ArgAction::Append)]
     text: Vec<String>,
+
+    /// Add text's Unicode characters to the current selection.
+    #[arg(long = "text+", action = clap::ArgAction::Append)]
+    text_add: Vec<String>,
+
+    /// Remove text's Unicode characters from the current selection.
+    #[arg(long = "text-", action = clap::ArgAction::Append)]
+    text_remove: Vec<String>,
 
     /// Read text selections from a file, or - for standard input.
     #[arg(long, action = clap::ArgAction::Append)]
@@ -75,24 +108,64 @@ struct Args {
     output_file: std::path::PathBuf,
 
     /// Drop the specified tables.
-    #[arg(long)]
-    drop_tables: Option<String>,
+    #[arg(long, action = clap::ArgAction::Append)]
+    drop_tables: Vec<String>,
+
+    /// Add tables to the current drop set.
+    #[arg(long = "drop-tables+", action = clap::ArgAction::Append)]
+    drop_tables_add: Vec<String>,
+
+    /// Remove tables from the current drop set.
+    #[arg(long = "drop-tables-", action = clap::ArgAction::Append)]
+    drop_tables_remove: Vec<String>,
 
     /// List of layout features tags that will be preserved
-    #[arg(long)]
-    layout_features: Option<String>,
+    #[arg(long, action = clap::ArgAction::Append)]
+    layout_features: Vec<String>,
+
+    /// Add layout feature tags to the current selection.
+    #[arg(long = "layout-features+", action = clap::ArgAction::Append)]
+    layout_features_add: Vec<String>,
+
+    /// Remove layout feature tags from the current selection.
+    #[arg(long = "layout-features-", action = clap::ArgAction::Append)]
+    layout_features_remove: Vec<String>,
 
     /// List of layout script tags that will be preserved
-    #[arg(long)]
-    layout_scripts: Option<String>,
+    #[arg(long, action = clap::ArgAction::Append)]
+    layout_scripts: Vec<String>,
+
+    /// Add layout script tags to the current selection.
+    #[arg(long = "layout-scripts+", action = clap::ArgAction::Append)]
+    layout_scripts_add: Vec<String>,
+
+    /// Remove layout script tags from the current selection.
+    #[arg(long = "layout-scripts-", action = clap::ArgAction::Append)]
+    layout_scripts_remove: Vec<String>,
 
     /// List of 'name' table entry nameIDs
-    #[arg(long = "name-IDs", alias = "name-i-ds")]
-    name_IDs: Option<String>,
+    #[arg(long = "name-IDs", alias = "name-i-ds", action = clap::ArgAction::Append)]
+    name_IDs: Vec<String>,
+
+    /// Add name IDs to the current selection.
+    #[arg(long = "name-IDs+", action = clap::ArgAction::Append)]
+    name_IDs_add: Vec<String>,
+
+    /// Remove name IDs from the current selection.
+    #[arg(long = "name-IDs-", action = clap::ArgAction::Append)]
+    name_IDs_remove: Vec<String>,
 
     /// List of 'name' table entry langIDs
-    #[arg(long)]
-    name_languages: Option<String>,
+    #[arg(long, action = clap::ArgAction::Append)]
+    name_languages: Vec<String>,
+
+    /// Add name language IDs to the current selection.
+    #[arg(long = "name-languages+", action = clap::ArgAction::Append)]
+    name_languages_add: Vec<String>,
+
+    /// Remove name language IDs from the current selection.
+    #[arg(long = "name-languages-", action = clap::ArgAction::Append)]
+    name_languages_remove: Vec<String>,
 
     /// drop hints
     #[arg(long)]
@@ -186,7 +259,16 @@ fn main() {
     // the current Unicode set. Apply mixed selectors in command-line order.
     for (_, name, input) in selector_values(
         &matches,
-        &["unicodes", "text", "unicodes_file", "text_file"],
+        &[
+            "unicodes",
+            "unicodes_add",
+            "unicodes_remove",
+            "unicodes_file",
+            "text",
+            "text_add",
+            "text_remove",
+            "text_file",
+        ],
     ) {
         let from_file = name.ends_with("_file");
         let inputs = if from_file {
@@ -196,18 +278,18 @@ fn main() {
         };
         for input in inputs {
             let selected = if name.starts_with("text") {
-                input.chars().map(u32::from).collect()
+                if input == "*" {
+                    IntSet::all()
+                } else {
+                    input.chars().map(u32::from).collect()
+                }
             } else {
                 parse_unicodes(&input).unwrap_or_else(|err| {
                     eprintln!("{err}");
                     std::process::exit(1);
                 })
             };
-            if from_file {
-                unicodes.union(&selected);
-            } else {
-                unicodes = selected;
-            }
+            apply_selection(&mut unicodes, name, selected);
         }
     }
 
@@ -220,9 +302,19 @@ fn main() {
     } else {
         IntSet::empty()
     };
-    for (_, name, input) in
-        selector_values(&matches, &["gids", "glyphs", "gids_file", "glyphs_file"])
-    {
+    for (_, name, input) in selector_values(
+        &matches,
+        &[
+            "gids",
+            "gids_add",
+            "gids_remove",
+            "gids_file",
+            "glyphs",
+            "glyphs_add",
+            "glyphs_remove",
+            "glyphs_file",
+        ],
+    ) {
         let from_file = name.ends_with("_file");
         let inputs = if from_file {
             read_selector_file(input, true)
@@ -239,118 +331,95 @@ fn main() {
                 eprintln!("{err}");
                 std::process::exit(1);
             });
-            if from_file {
-                gids.union(&selected);
-            } else {
-                gids = selected;
-            }
+            apply_selection(&mut gids, name, selected);
         }
     }
     gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
-    let drop_tables = match &args.drop_tables {
-        Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
-            Ok(drop_tables) => drop_tables,
-            Err(e) => {
-                eprintln!("{e}");
-                std::process::exit(1);
-            }
-        },
-        //default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L46>
-        None if args.keep_everything => IntSet::empty(),
-        None => {
-            let default_drop_tables = [
-                // Layout disabled by default
-                MORX,
-                MORT,
-                KERX,
-                KERN,
-                // Copied from fontTools
-                JSTF,
-                DSIG,
-                ebdt::Ebdt::TAG,
-                eblc::Eblc::TAG,
-                EBSC,
-                svg::Svg::TAG,
-                PCLT,
-                LTSH,
-                // Graphite tables
-                feat::Feat::TAG,
-                GLAT,
-                GLOC,
-                SILF,
-                SILL,
-            ];
-            let drop_tables: IntSet<Tag> = default_drop_tables.iter().copied().collect();
-            drop_tables
-        }
+    let default_drop_tables = if args.keep_everything {
+        IntSet::empty()
+    } else {
+        [
+            // Layout disabled by default.
+            MORX,
+            MORT,
+            KERX,
+            KERN,
+            // Copied from fontTools.
+            JSTF,
+            DSIG,
+            ebdt::Ebdt::TAG,
+            eblc::Eblc::TAG,
+            EBSC,
+            svg::Svg::TAG,
+            PCLT,
+            LTSH,
+            // Graphite tables.
+            feat::Feat::TAG,
+            GLAT,
+            GLOC,
+            SILF,
+            SILL,
+        ]
+        .into_iter()
+        .collect()
     };
-
-    let name_ids = match &args.name_IDs {
-        Some(name_ids_input) => match parse_name_ids(name_ids_input) {
-            Ok(name_ids) => name_ids,
-            Err(e) => {
-                eprintln!("{e}");
-                std::process::exit(1);
-            }
-        },
-        // default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L43>
-        None if args.keep_everything => IntSet::all(),
-        None => {
-            let mut default_name_ids = IntSet::<NameId>::empty();
-            default_name_ids.insert_range(NameId::from(0)..=NameId::from(6));
-            default_name_ids
-        }
+    let drop_tables = select_options(
+        &matches,
+        &["drop_tables", "drop_tables_add", "drop_tables_remove"],
+        default_drop_tables,
+        parse_tag_list,
+    );
+    let default_name_ids = if args.keep_everything {
+        IntSet::all()
+    } else {
+        let mut ids = IntSet::empty();
+        ids.insert_range(NameId::new(0)..=NameId::new(6));
+        ids
     };
-
-    let name_languages = match &args.name_languages {
-        Some(name_languages_input) => match parse_name_languages(name_languages_input) {
-            Ok(name_languages) => name_languages,
-            Err(e) => {
-                eprintln!("{e}");
-                std::process::exit(1);
-            }
+    let name_ids = select_options(
+        &matches,
+        &["name_IDs", "name_IDs_add", "name_IDs_remove"],
+        default_name_ids,
+        parse_name_ids,
+    );
+    let name_languages = select_options(
+        &matches,
+        &[
+            "name_languages",
+            "name_languages_add",
+            "name_languages_remove",
+        ],
+        if args.keep_everything {
+            IntSet::all()
+        } else {
+            [0x0409].into_iter().collect()
         },
-        // default value: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-subset-input.cc#L44
-        None if args.keep_everything => IntSet::all(),
-        None => {
-            let mut default_name_languages = IntSet::<u16>::empty();
-            default_name_languages.insert(0x0409);
-            default_name_languages
-        }
-    };
-
-    let layout_scripts = match &args.layout_scripts {
-        Some(layout_scripts_input) => match parse_tag_list(layout_scripts_input) {
-            Ok(layout_scripts) => layout_scripts,
-            Err(e) => {
-                eprintln!("{e}");
-                std::process::exit(1);
-            }
+        parse_name_languages,
+    );
+    let layout_scripts = select_options(
+        &matches,
+        &[
+            "layout_scripts",
+            "layout_scripts_add",
+            "layout_scripts_remove",
+        ],
+        IntSet::all(),
+        parse_tag_list,
+    );
+    let layout_features = select_options(
+        &matches,
+        &[
+            "layout_features",
+            "layout_features_add",
+            "layout_features_remove",
+        ],
+        if args.keep_everything {
+            IntSet::all()
+        } else {
+            DEFAULT_LAYOUT_FEATURES.iter().copied().collect()
         },
-        // default value: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L189>
-        None => {
-            let mut default_layout_scripts = IntSet::<Tag>::empty();
-            default_layout_scripts.invert();
-            default_layout_scripts
-        }
-    };
-
-    let layout_features = match &args.layout_features {
-        Some(layout_features_input) => match parse_tag_list(layout_features_input) {
-            Ok(layout_features) => layout_features,
-            Err(e) => {
-                eprintln!("{e}");
-                std::process::exit(1);
-            }
-        },
-        // default value: <https://github.com/harfbuzz/harfbuzz/blob/689383d05b2609a67efa307a9860b85cf40bf8c3/src/hb-subset-input.cc#L82>
-        None if args.keep_everything => IntSet::all(),
-        None => {
-            let mut default_layout_features = IntSet::<Tag>::empty();
-            default_layout_features.extend(DEFAULT_LAYOUT_FEATURES.iter().copied());
-            default_layout_features
-        }
-    };
+        parse_tag_list,
+    );
 
     // Instancing must consider only retained VARC references. Preserve source
     // glyph IDs and count during this preliminary subset so all selectors and
@@ -537,6 +606,35 @@ fn selector_values<'a>(
     }
     values.sort_unstable_by_key(|v| v.0);
     values
+}
+
+// Follow HarfBuzz's callbacks: plain selectors replace, + and file selectors
+// add, and - selectors remove. IntSet supports these operations on inverted
+// sets without enumerating the domain.
+fn apply_selection<T: Domain>(set: &mut IntSet<T>, name: &str, selected: IntSet<T>) {
+    if name.ends_with("_remove") {
+        set.subtract(&selected);
+    } else if name.ends_with("_add") || name.ends_with("_file") {
+        set.union(&selected);
+    } else {
+        *set = selected;
+    }
+}
+
+fn select_options<T: Domain>(
+    matches: &ArgMatches,
+    names: &[&'static str],
+    mut selected: IntSet<T>,
+    parse: impl Fn(&str) -> Result<IntSet<T>, SubsetError>,
+) -> IntSet<T> {
+    for (_, name, input) in selector_values(matches, names) {
+        let input = parse(input).unwrap_or_else(|err| {
+            eprintln!("{err}");
+            std::process::exit(1);
+        });
+        apply_selection(&mut selected, name, input);
+    }
+    selected
 }
 
 // HarfBuzz's file callbacks append each line. Numeric/name files allow #
