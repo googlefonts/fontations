@@ -26,7 +26,7 @@ pub(super) fn encode_rows(
             return Err(error());
         }
         for (copies, &value) in copies.iter_mut().zip(row) {
-            let value = value.round();
+            let value = (value + 0.5).floor();
             if !value.is_finite() || value.abs() > (1u64 << 48) as f64 {
                 return Err(error());
             }
@@ -49,7 +49,7 @@ pub(super) fn encode_rows(
     let mut delta_sets = Vec::new();
     for row in rows {
         for (&value, &copies) in row.iter().zip(&copies) {
-            let mut value = value.round() as i64;
+            let mut value = (value + 0.5).floor() as i64;
             for _ in 0..copies {
                 let part = value.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
                 delta_sets.extend(part.to_be_bytes());
@@ -263,6 +263,16 @@ impl StorePlan {
 mod tests {
     use super::*;
     use write_fonts::read::{FontData, FontRead, FontRef};
+
+    #[test]
+    fn rebased_rows_round_half_units_toward_positive_infinity() {
+        let row = encode_rows(&[0, 1, 2], &[vec![-0.5, 0.5, -1.5]]).unwrap();
+        let bytes = write_fonts::dump_table(&row).unwrap();
+        let row =
+            write_fonts::read::tables::variations::ItemVariationData::read(FontData::new(&bytes))
+                .unwrap();
+        assert_eq!(row.delta_set(0).collect::<Vec<_>>(), [0, 1, -1]);
+    }
 
     #[test]
     fn merged_long_word_columns_preserve_large_delta_sums() {
