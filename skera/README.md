@@ -5,8 +5,9 @@
 Use `--keep-everything` or the library's `Plan::keep_everything` to select all
 glyphs, Unicode mappings, names, layout items, and tables. The preset also
 preserves glyph names, legacy naming records, the `.notdef` outline, and
-Unicode range bits. CLI selectors explicitly supplied alongside the preset
-replace their corresponding selections; other flags add to the preset.
+Unicode range bits. The CLI preset resets selections and flags at its
+command-line position. Later plain selectors replace their corresponding
+selections, and later flags add to the preset. The preset can be repeated.
 Tables are still subset and can be optimized or re-encoded.
 
 Custom glyph IDs are supported through `--gid-map 1:4,2:7` or

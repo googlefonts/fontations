@@ -21,7 +21,7 @@ use write_fonts::read::{
 #[derive(Parser, Debug)]
 //Allow name_IDs, so we keep the option name consistent with HB and fonttools
 #[allow(non_snake_case)]
-#[command(version, about, long_about = None)]
+#[command(version, about, long_about = None, args_override_self = true)]
 struct Args {
     /// The input font file.
     #[arg(short, long)]
@@ -63,9 +63,9 @@ struct Args {
     #[arg(long, action = clap::ArgAction::Append)]
     glyphs_file: Vec<String>,
 
-    /// Start with all glyphs, names, layout items, and tables selected.
-    #[arg(long)]
-    keep_everything: bool,
+    /// Keep all glyphs, names, layout items, and tables; later options can override this.
+    #[arg(long, action = clap::ArgAction::Append, num_args = 0, default_missing_value = "true")]
+    keep_everything: Vec<bool>,
 
     /// Original:new glyph ID pairs preserving glyph order, for example 1:4,2:7.
     #[arg(long = "gid-map", alias = "glyph-map")]
@@ -244,17 +244,13 @@ fn main() {
     let matches = Args::command().get_matches();
     let args = Args::from_arg_matches(&matches).unwrap();
 
-    let subset_flags = parse_subset_flags(&args);
+    let subset_flags = parse_subset_flags(&matches);
     let glyph_mapping = parse_glyph_mapping(args.glyph_map.as_deref().unwrap_or_default())
         .unwrap_or_else(|err| {
             eprintln!("{err}");
             std::process::exit(1);
         });
-    let mut unicodes = if args.keep_everything {
-        IntSet::all()
-    } else {
-        IntSet::empty()
-    };
+    let mut unicodes = IntSet::empty();
     // Like HarfBuzz's parse_text/parse_unicodes, each plain selector replaces
     // the current Unicode set. Apply mixed selectors in command-line order.
     for (_, name, input) in selector_values(
@@ -270,6 +266,10 @@ fn main() {
             "text_file",
         ],
     ) {
+        if name == "keep_everything" {
+            unicodes = IntSet::all();
+            continue;
+        }
         let from_file = name.ends_with("_file");
         let inputs = if from_file {
             read_selector_file(input, !name.starts_with("text"))
@@ -297,11 +297,7 @@ fn main() {
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
     let font = FontRef::from_index(&font_bytes, args.face_index)
         .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
-    let mut gids = if args.keep_everything {
-        IntSet::all()
-    } else {
-        IntSet::empty()
-    };
+    let mut gids = IntSet::empty();
     for (_, name, input) in selector_values(
         &matches,
         &[
@@ -315,6 +311,10 @@ fn main() {
             "glyphs_file",
         ],
     ) {
+        if name == "keep_everything" {
+            gids = IntSet::all();
+            continue;
+        }
         let from_file = name.ends_with("_file");
         let inputs = if from_file {
             read_selector_file(input, true)
@@ -335,9 +335,7 @@ fn main() {
         }
     }
     gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
-    let default_drop_tables = if args.keep_everything {
-        IntSet::empty()
-    } else {
+    let default_drop_tables = {
         [
             // Layout disabled by default.
             MORX,
@@ -369,9 +367,7 @@ fn main() {
         default_drop_tables,
         parse_tag_list,
     );
-    let default_name_ids = if args.keep_everything {
-        IntSet::all()
-    } else {
+    let default_name_ids = {
         let mut ids = IntSet::empty();
         ids.insert_range(NameId::new(0)..=NameId::new(6));
         ids
@@ -389,11 +385,7 @@ fn main() {
             "name_languages_add",
             "name_languages_remove",
         ],
-        if args.keep_everything {
-            IntSet::all()
-        } else {
-            [0x0409].into_iter().collect()
-        },
+        [0x0409].into_iter().collect(),
         parse_name_languages,
     );
     let layout_scripts = select_options(
@@ -413,11 +405,7 @@ fn main() {
             "layout_features_add",
             "layout_features_remove",
         ],
-        if args.keep_everything {
-            IntSet::all()
-        } else {
-            DEFAULT_LAYOUT_FEATURES.iter().copied().collect()
-        },
+        DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
         parse_tag_list,
     );
 
@@ -464,13 +452,15 @@ fn main() {
         .transpose()
         .unwrap()
         .unwrap_or(font);
-    let cff1_bytes =
-        (args.downgrade_cff2 && font.cff2().is_ok() && font.fvar().is_err()).then(|| {
-            skera::downgrade_cff2(&font).unwrap_or_else(|err| {
-                eprintln!("{err}");
-                std::process::exit(1);
-            })
-        });
+    let cff1_bytes = (subset_flags.contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
+        && font.cff2().is_ok()
+        && font.fvar().is_err())
+    .then(|| {
+        skera::downgrade_cff2(&font).unwrap_or_else(|err| {
+            eprintln!("{err}");
+            std::process::exit(1);
+        })
+    });
     let font = cff1_bytes
         .as_deref()
         .map(FontRef::new)
@@ -516,72 +506,62 @@ fn main() {
     });
 }
 
-fn parse_subset_flags(args: &Args) -> SubsetFlags {
-    let mut flags = if args.keep_everything {
-        SubsetFlags::KEEP_EVERYTHING
-    } else {
-        SubsetFlags::default()
-    };
-    if args.no_hinting {
-        flags |= SubsetFlags::SUBSET_FLAGS_NO_HINTING;
+fn parse_subset_flags(matches: &ArgMatches) -> SubsetFlags {
+    let mut operations = Vec::new();
+    for (name, flag) in [
+        ("no_hinting", SubsetFlags::SUBSET_FLAGS_NO_HINTING),
+        ("retain_gids", SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS),
+        (
+            "retain_num_glyphs",
+            SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        ),
+        (
+            "iftb_requirements",
+            SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS,
+        ),
+        ("desubroutinize", SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE),
+        ("name_legacy", SubsetFlags::SUBSET_FLAGS_NAME_LEGACY),
+        (
+            "set_overlaps_flag",
+            SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG,
+        ),
+        ("notdef_outline", SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE),
+        (
+            "no_prune_unicode_ranges",
+            SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES,
+        ),
+        (
+            "no_layout_closure",
+            SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE,
+        ),
+        ("no_bidi_closure", SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE),
+        ("glyph_names", SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES),
+        (
+            "passthrough_tables",
+            SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED,
+        ),
+        ("optimize", SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS),
+        (
+            "cff_identity_charset",
+            SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET,
+        ),
+        ("downgrade_cff2", SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2),
+    ] {
+        if matches.get_flag(name) {
+            operations.push((matches.index_of(name).unwrap(), Some(flag)));
+        }
     }
-
-    if args.retain_gids {
-        flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+    if let Some(indices) = matches.indices_of("keep_everything") {
+        operations.extend(indices.map(|index| (index, None)));
     }
-
-    if args.retain_num_glyphs {
-        flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS;
-    }
-
-    if args.iftb_requirements {
-        flags |= SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS;
-    }
-
-    if args.desubroutinize {
-        flags |= SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE;
-    }
-
-    if args.name_legacy {
-        flags |= SubsetFlags::SUBSET_FLAGS_NAME_LEGACY;
-    }
-
-    if args.set_overlaps_flag {
-        flags |= SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG;
-    }
-
-    if args.notdef_outline {
-        flags |= SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE;
-    }
-
-    if args.no_prune_unicode_ranges {
-        flags |= SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES;
-    }
-
-    if args.no_layout_closure {
-        flags |= SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE;
-    }
-
-    if args.no_bidi_closure {
-        flags |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE;
-    }
-
-    if args.glyph_names {
-        flags |= SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES;
-    }
-
-    if args.passthrough_tables {
-        flags |= SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED;
-    }
-
-    if args.optimize {
-        flags |= SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS;
-    }
-    if args.cff_identity_charset {
-        flags |= SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET;
-    }
-    if args.downgrade_cff2 {
-        flags |= SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2;
+    operations.sort_unstable_by_key(|operation| operation.0);
+    let mut flags = SubsetFlags::default();
+    for (_, flag) in operations {
+        if let Some(flag) = flag {
+            flags |= flag;
+        } else {
+            flags = SubsetFlags::KEEP_EVERYTHING;
+        }
     }
     flags
 }
@@ -603,6 +583,9 @@ fn selector_values<'a>(
                     .map(|(i, input)| (i, name, input.as_str())),
             );
         }
+    }
+    if let Some(indices) = matches.indices_of("keep_everything") {
+        values.extend(indices.map(|index| (index, "keep_everything", "")));
     }
     values.sort_unstable_by_key(|v| v.0);
     values
@@ -628,6 +611,14 @@ fn select_options<T: Domain>(
     parse: impl Fn(&str) -> Result<IntSet<T>, SubsetError>,
 ) -> IntSet<T> {
     for (_, name, input) in selector_values(matches, names) {
+        if name == "keep_everything" {
+            selected = if names[0] == "drop_tables" {
+                IntSet::empty()
+            } else {
+                IntSet::all()
+            };
+            continue;
+        }
         let input = parse(input).unwrap_or_else(|err| {
             eprintln!("{err}");
             std::process::exit(1);
