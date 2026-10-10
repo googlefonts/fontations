@@ -356,6 +356,48 @@ fn partial_instances_drop_devices_whose_residual_deltas_vanish() {
 }
 
 #[test]
+fn partial_positioning_values_match_harfbuzz_float_precision() {
+    let source = synthetic_font(0, 0);
+    for weight in [650, 900] {
+        let instance = instance_font(
+            &FontRef::new(&source).unwrap(),
+            &parse_axis_limits(&format!("wght={weight}")).unwrap(),
+        )
+        .unwrap();
+        let font = FontRef::new(&instance).unwrap();
+        let actual: Gpos = font.gpos().unwrap().to_owned_table();
+        let reference = std::fs::read(format!(
+            "test-data/expected/layout-instance/partial-{weight}-GPOS.bin"
+        ))
+        .unwrap();
+        let expected: Gpos = write_fonts::read::tables::gpos::Gpos::read(FontData::new(&reference))
+            .unwrap()
+            .to_owned_table();
+        // Compare the weight-only rows, which are constant after this pin.
+        // Residual store optimization can remap other rows' device indices.
+        for i in 0..4 {
+            assert_eq!(
+                actual.lookup_list.lookups[i],
+                expected.lookup_list.lookups[i]
+            );
+        }
+        for width in [100., 87.5, 75.] {
+            let second =
+                instance_font(&font, &parse_axis_limits(&format!("wdth={width}")).unwrap())
+                    .unwrap();
+            let second = FontRef::new(&second).unwrap();
+            let second: Gpos = second.gpos().unwrap().to_owned_table();
+            for i in 0..4 {
+                assert_eq!(
+                    second.lookup_list.lookups[i],
+                    expected.lookup_list.lookups[i]
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn partial_conditions_keep_fractional_sign_boundaries_without_changing_positions() {
     for (gain, delta) in [(0i32, -1i32), (0, 1), (1, -2)] {
         let original = synthetic_font(6, 0);
