@@ -67,6 +67,8 @@ are removed and baked into outlines, metrics, and layout. Other pins remain
 hidden until the font is fully instantiated. Range compensation preserves
 the original final-coordinate space, subject to F2Dot14 quantization.
 
+For font collections, `--face-index` selects a face; the default is zero.
+
 ## Installation
 
 ### Library
