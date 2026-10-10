@@ -76,6 +76,12 @@ Use `--glyphs` to select names from post or CFF, numeric glyph IDs,
 and `--gids` selectors replace the glyph set in command-line order. The
 library exposes `parse_glyph_names` for the same resolution.
 
+Use `--gids-file`, `--glyphs-file`, `--unicodes-file`, or `--text-file` to
+add selections from files; `-` reads standard input. Numeric and glyph-name
+files accept one or more entries per line and `#` comments. Text files retain
+`#` characters and omit line-feed separators. File selectors add to the
+current selection in command-line order.
+
 For font collections, `--face-index` selects a face; the default is zero.
 
 ## Installation

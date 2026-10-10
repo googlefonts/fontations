@@ -13,7 +13,10 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     if gid_str.is_empty() {
         return Ok(result);
     }
-    for gid in gid_str.split(',') {
+    for gid in gid_str
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .filter(|s| !s.is_empty())
+    {
         if let Some((start, end)) = gid.split_once('-') {
             let start: u32 = start
                 .parse::<u32>()
