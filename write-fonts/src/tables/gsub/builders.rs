@@ -203,6 +203,9 @@ impl Builder for MultipleSubBuilder {
     type Output = Vec<super::MultipleSubstFormat1>;
 
     fn build(self, _: &mut VariationStoreBuilder) -> Self::Output {
+        if self.items.is_empty() {
+            return Default::default();
+        }
         let coverage = self.items.keys().copied().collect();
         let seq_tables = self.items.into_values().map(super::Sequence::new).collect();
         vec![super::MultipleSubstFormat1::new(coverage, seq_tables)]
@@ -283,6 +286,9 @@ impl Builder for AlternateSubBuilder {
     type Output = Vec<super::AlternateSubstFormat1>;
 
     fn build(self, _: &mut VariationStoreBuilder) -> Self::Output {
+        if self.items.is_empty() {
+            return Default::default();
+        }
         let coverage = self.items.keys().copied().collect();
         let seq_tables = self
             .items
@@ -454,5 +460,15 @@ mod tests {
         splitter.add(GlyphId16::new(32), ligset);
         // 32 * 2048 < u16::MAX
         assert_eq!(splitter.finish().len(), 2)
+    }
+
+    // a `subtable` statement with no rules after it leaves an empty builder
+    #[test]
+    fn empty_builders_build_no_subtables() {
+        let vs = &mut VariationStoreBuilder::new(0);
+        assert!(SingleSubBuilder::default().build(vs).is_empty());
+        assert!(MultipleSubBuilder::default().build(vs).is_empty());
+        assert!(AlternateSubBuilder::default().build(vs).is_empty());
+        assert!(LigatureSubBuilder::default().build(vs).is_empty());
     }
 }
