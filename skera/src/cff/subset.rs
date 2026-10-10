@@ -436,7 +436,15 @@ pub(super) fn assemble<F: CffFlavor>(
     let name_index = encoding::index(&source.names, false)?;
     let string_index = encoding::index(&strings, false)?;
     let global_index = encoding::index(&programs.globals, F::CFF2)?;
-    let char_index = encoding::index(&programs.chars, F::CFF2)?;
+    let min_off_size = if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS)
+    {
+        4
+    } else {
+        1
+    };
+    let char_index = encoding::index_with_min_off_size(&programs.chars, F::CFF2, min_off_size)?;
     let select = fdselect(&fds, F::CFF2)?;
     let charset = if F::CFF2 { vec![] } else { charset(&codes)? };
     let enc = if F::CFF2 || source.cid {

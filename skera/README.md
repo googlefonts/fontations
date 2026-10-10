@@ -8,7 +8,8 @@ requested output ID; gaps become empty glyphs. The final mapping must preserve
 original glyph order, keep `.notdef` at zero, and use unique output IDs.
 Custom mappings cannot be combined with `--retain-gids`. Add
 `--retain-num-glyphs` alongside `--retain-gids` to keep the source glyph count
-by appending empty glyphs.
+by appending empty glyphs. `--iftb-requirements` forces 32-bit `loca`, `gvar`,
+and CFF/CFF2 CharStrings offsets for incremental font transfer patches.
 
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
