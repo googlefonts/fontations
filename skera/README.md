@@ -14,6 +14,9 @@ Custom glyph IDs are supported through `--gid-map 1:4,2:7` or
 `Plan::set_glyph_mapping`. Unspecified retained glyphs follow the highest
 requested output ID; gaps become empty glyphs. The final mapping must preserve
 original glyph order, keep `.notdef` at zero, and use unique output IDs.
+CLI mappings add their source glyphs at their command-line position; later
+selectors can remove them. Repeated mappings accumulate, with the last
+request for each source glyph taking precedence.
 Custom mappings cannot be combined with `--retain-gids`. Add
 `--retain-num-glyphs` alongside `--retain-gids` to keep the source glyph count
 by appending empty glyphs. `--iftb-requirements` forces 32-bit `loca`, `gvar`,

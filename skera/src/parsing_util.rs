@@ -87,7 +87,8 @@ pub fn parse_glyph_mapping(input: &str) -> Result<Vec<(GlyphId, GlyphId)>, Subse
         return Ok(Vec::new());
     }
     input
-        .split(',')
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .filter(|pair| !pair.is_empty())
         .map(|pair| {
             let invalid = || SubsetError::InvalidGlyphMapping(pair.into());
             let (old, new) = pair.trim().split_once(':').ok_or_else(invalid)?;

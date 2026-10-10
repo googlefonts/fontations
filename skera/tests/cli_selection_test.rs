@@ -690,3 +690,62 @@ fn varc_preliminary_subsets_keep_inputs_until_instancing_and_selection_finish() 
         expected.maxp().unwrap().num_glyphs()
     );
 }
+
+#[test]
+fn glyph_maps_include_glyphs_in_order_and_accumulate_repeated_options() {
+    use write_fonts::read::TableProvider;
+    let input = "test-data/fonts/Roboto-Regular.abc.ttf";
+    for (options, expected) in [
+        (vec!["--gid-map=1:5", "--gids=2"], vec!["--gids=2"]),
+        (vec!["--gid-map=1:5", "--gids-=1"], vec!["--gids="]),
+        (
+            vec!["--gids=2", "--gid-map=1:5"],
+            vec!["--gid-map=1:5", "--gids=1,2"],
+        ),
+        (
+            vec![
+                "--gid-map=1:5",
+                "--keep-everything",
+                "--gids-=1",
+                "--unicodes-=61",
+            ],
+            vec!["--keep-everything", "--gids=2,3", "--unicodes="],
+        ),
+        (
+            vec!["--gid-map=1:5", "--gid-map=2:7"],
+            vec!["--gid-map=1:5,2:7"],
+        ),
+        (vec!["--gid-map=1:5 2:7,"], vec!["--gid-map=1:5,2:7"]),
+        (
+            vec!["--gid-map=1:5", "--glyph-map=1:7"],
+            vec!["--gid-map=1:7"],
+        ),
+        (
+            vec!["--gid-map=1:5", "--gid-map=", "--glyph-map=2:7"],
+            vec!["--gid-map=1:5,2:7"],
+        ),
+        (
+            vec!["--gid-map=1:5", "--glyphs=uni0062", "--gid-map=2:7"],
+            vec!["--gid-map=2:7"],
+        ),
+    ] {
+        assert_eq!(
+            cli_subset(input, &options),
+            cli_subset(input, &expected),
+            "{options:?}"
+        );
+    }
+    let bytes = cli_subset(input, &["--gid-map=1:5", "--gids=2"]);
+    assert_eq!(
+        FontRef::new(&bytes).unwrap().maxp().unwrap().num_glyphs(),
+        2
+    );
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("glyphs.txt");
+    std::fs::write(&file, "gid2\n").unwrap();
+    let option = format!("--glyphs-file={}", file.display());
+    assert_eq!(
+        cli_subset(input, &["--gid-map=1:5", &option, "--gids-=1"]),
+        cli_subset(input, &["--gids=2"])
+    );
+}
