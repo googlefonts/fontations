@@ -52,20 +52,24 @@ fn add(row: &mut BTreeMap<Region, i64>, region: Region, delta: f64) {
     }
 }
 
-// HarfBuzz's _compute_avar2_reachable_ranges: a pin is self-contained when
-// its delta is constant over the retained intermediate-coordinate box. Use
+pub(super) struct Reachability {
+    pub pins: Vec<Option<F2Dot14>>,
+    pub ranges: Vec<Option<(i16, i16)>>,
+}
+
+// HarfBuzz's _compute_avar2_reachable_ranges: bound final coordinates over
+// the retained intermediate-coordinate box and detect constant pins. Use
 // the grid of tent breakpoints to preserve correlations between regions;
 // fall back to conservative per-region intervals when the grid is too large.
-pub(super) fn self_contained_pins(
+pub(super) fn reachable_ranges(
     font: &FontRef,
     axes: &AxisPlan,
-) -> Result<Vec<Option<F2Dot14>>, SubsetError> {
+) -> Result<Reachability, SubsetError> {
     let mut pins = vec![None; axes.pinned.len()];
+    let mut reachable = vec![None; axes.pinned.len()];
     // Match HarfBuzz's retained CFF2/VARC axes. VARC instancing is rejected by
     // the caller; HarfBuzz cannot currently partially pin CFF2 blends.
-    if font.cff2().is_ok() || font.data_for_tag(Tag::new(b"VARC")).is_some() {
-        return Ok(pins);
-    }
+    let detect_pins = font.cff2().is_err() && font.data_for_tag(Tag::new(b"VARC")).is_none();
     let avar = font.avar().map_err(|_| error())?;
     let store = avar.var_store().ok_or_else(error)?.map_err(|_| error())?;
     let map = avar.axis_index_map().transpose().map_err(|_| error())?;
@@ -106,9 +110,6 @@ pub(super) fn self_contained_pins(
         })
         .collect::<Result<_, SubsetError>>()?;
     for (i, pin) in pins.iter_mut().enumerate() {
-        if !axes.user_pinned[i] {
-            continue;
-        }
         let index = map
             .as_ref()
             .map(|m| m.get(i as u32))
@@ -171,6 +172,7 @@ pub(super) fn self_contained_pins(
             size *= points.len();
         }
         let (mut min, mut max) = (0., 0.);
+        let (mut vmin, mut vmax) = (0., 0.);
         if exact {
             let mut odometer = vec![0; grid.len()];
             let mut first = true;
@@ -186,13 +188,18 @@ pub(super) fn self_contained_pins(
                                 .product::<f64>()
                     })
                     .sum();
+                let value = grid[0][odometer[0]] + delta / 16384.;
                 if first {
                     min = delta;
                     max = delta;
+                    vmin = value;
+                    vmax = value;
                     first = false;
                 } else {
                     min = min.min(delta);
                     max = max.max(delta);
+                    vmin = vmin.min(value);
+                    vmax = vmax.max(value);
                 }
                 let mut k = 0;
                 while k < odometer.len() {
@@ -228,17 +235,30 @@ pub(super) fn self_contained_pins(
                     max += smin * delta;
                 }
             }
+            vmin = ranges[i].0 + min / 16384.;
+            vmax = ranges[i].1 + max / 16384.;
         }
-        if min == max {
+        if detect_pins && axes.user_pinned[i] && min == max {
             // Round the delta alone, then add it to the quantized intermediate.
             // HarfBuzz uses roundf here, including its negative half ties.
             let intermediate = axes.normalized[i].1;
             let value = (intermediate as f32 * 16384.).round() as i32
                 + (min as f32).round().clamp(-32768., 32768.) as i32;
             *pin = Some(F2Dot14::from_bits(value.clamp(-16384, 16384) as i16));
+            continue;
+        }
+        // Pad outwards by one 2.14 unit against runtime rounding, then
+        // quantize outwards. Only ranges narrower than [-1, 1] constrain.
+        let lo = ((vmin * 16384. - 1.).clamp(-16384., 16384.)).floor() as i16;
+        let hi = ((vmax * 16384. + 1.).clamp(-16384., 16384.)).ceil() as i16;
+        if lo > -16384 || hi < 16384 {
+            reachable[i] = Some((lo, hi));
         }
     }
-    Ok(pins)
+    Ok(Reachability {
+        pins,
+        ranges: reachable,
+    })
 }
 
 pub(super) fn instance(
@@ -603,6 +623,172 @@ mod tests {
     }
 
     #[test]
+    fn dependent_pins_cull_gvar_like_harfbuzz() {
+        let bytes = truetype_font(false);
+        let original = FontRef::new(&bytes).unwrap();
+        let out = crate::instance_font(&original, &crate::parse_axis_limits("wght=700").unwrap())
+            .unwrap();
+        let actual = FontRef::new(&out).unwrap();
+        let reference = include_bytes!("../../test-data/expected/avar2-pins/dependent-pruned.ttf");
+        let expected = FontRef::new(reference).unwrap();
+        let actual = actual.gvar().unwrap();
+        let expected = expected.gvar().unwrap();
+        let coords = |t: write_fonts::read::tables::variations::Tuple<'_>| {
+            (0..t.len()).map(|i| t.get(i).unwrap()).collect::<Vec<_>>()
+        };
+        let tuples = |gvar: &write_fonts::read::tables::gvar::Gvar<'_>, gid| {
+            gvar.glyph_variation_data(gid)
+                .unwrap()
+                .map_or_else(Vec::new, |data| {
+                    data.tuples()
+                        .map(|t| {
+                            (
+                                coords(t.peak()),
+                                t.intermediate_start().map(coords),
+                                t.intermediate_end().map(coords),
+                                t.deltas().collect::<Vec<_>>(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+        };
+        let mut count = 0;
+        for gid in 0..actual.glyph_count() {
+            let gid = write_fonts::types::GlyphId::new(gid as u32);
+            let actual = tuples(&actual, gid);
+            let expected = tuples(&expected, gid);
+            count += actual.len();
+            assert_eq!(actual, expected, "{gid:?}");
+        }
+        assert_eq!(count, 149);
+    }
+
+    #[test]
+    fn reachable_ranges_cull_all_final_space_stores_without_changing_indices() {
+        use write_fonts::tables::{
+            base::Base, colr::Colr, gdef::Gdef, hvar::Hvar, mvar::Mvar, vvar::Vvar,
+        };
+        let bytes = truetype_font(false);
+        let original = FontRef::new(&bytes).unwrap();
+        let axes = original.axes().len();
+        let region = |negative| {
+            VariationRegion::new(
+                (0..axes)
+                    .map(|i| {
+                        let (a, b, c) = if i != 0 {
+                            (0., 0., 0.)
+                        } else if negative {
+                            (-1., -1., 0.)
+                        } else {
+                            (0., 1., 1.)
+                        };
+                        RegionAxisCoordinates::new(
+                            F2Dot14::from_f64(a),
+                            F2Dot14::from_f64(b),
+                            F2Dot14::from_f64(c),
+                        )
+                    })
+                    .collect(),
+            )
+        };
+        let store = ItemVariationStore::new(
+            VariationRegionList::new(axes as u16, vec![region(true), region(false)]),
+            vec![Some(ItemVariationData {
+                item_count: 4,
+                word_delta_count: 2,
+                region_indexes: vec![0, 1],
+                delta_sets: [100i16, 200, -100, -200, 300, 400, -300, -400]
+                    .into_iter()
+                    .flat_map(i16::to_be_bytes)
+                    .collect(),
+            })],
+        );
+        let mut builder = FontBuilder::new();
+        for r in original.table_directory().table_records() {
+            if r.tag() != Tag::new(b"GPOS") {
+                builder.add_raw(r.tag(), original.data_for_tag(r.tag()).unwrap());
+            }
+        }
+        builder.add_raw(
+            Tag::new(b"vhea"),
+            original.data_for_tag(Tag::new(b"hhea")).unwrap(),
+        );
+        builder.add_raw(
+            Tag::new(b"vmtx"),
+            original.data_for_tag(Tag::new(b"hmtx")).unwrap(),
+        );
+        builder
+            .add_table(&Hvar::new(store.clone(), None, None, None))
+            .unwrap();
+        builder
+            .add_table(&Vvar::new(store.clone(), None, None, None, None))
+            .unwrap();
+        builder
+            .add_table(&Mvar {
+                version: write_fonts::types::MajorMinor::VERSION_1_0,
+                value_record_size: 8,
+                value_record_count: 1,
+                value_records: vec![write_fonts::tables::mvar::ValueRecord::new(
+                    Tag::new(b"hasc"),
+                    0,
+                    0,
+                )],
+                item_variation_store: Some(store.clone()).into(),
+            })
+            .unwrap();
+        builder
+            .add_table(&Gdef {
+                item_var_store: Some(store.clone()).into(),
+                ..Default::default()
+            })
+            .unwrap();
+        builder
+            .add_table(&Base {
+                item_var_store: Some(store.clone()).into(),
+                ..Default::default()
+            })
+            .unwrap();
+        builder
+            .add_table(&Colr {
+                item_variation_store: Some(store).into(),
+                ..Default::default()
+            })
+            .unwrap();
+        let source = builder.build();
+        let source = FontRef::new(&source).unwrap();
+        let out =
+            crate::instance_font(&source, &crate::parse_axis_limits("wght=700").unwrap()).unwrap();
+        let out = FontRef::new(&out).unwrap();
+        let stores = [
+            out.hvar().unwrap().item_variation_store().unwrap(),
+            out.vvar().unwrap().item_variation_store().unwrap(),
+            out.mvar().unwrap().item_variation_store().unwrap().unwrap(),
+            out.gdef().unwrap().item_var_store().unwrap().unwrap(),
+            out.base().unwrap().item_var_store().unwrap().unwrap(),
+            out.colr().unwrap().item_variation_store().unwrap().unwrap(),
+        ];
+        for store in stores {
+            assert_eq!(store.variation_region_list().unwrap().region_count(), 1);
+            let data = store.item_variation_data().get(0).unwrap().unwrap();
+            assert_eq!(data.item_count(), 4);
+            assert_eq!(data.delta_set(0).collect::<Vec<_>>(), vec![200]);
+            assert_eq!(data.delta_set(1).collect::<Vec<_>>(), vec![-200]);
+        }
+        // The avar2 transform's regions live in intermediate space, so its
+        // width-dependent weight row is retained rather than culled here.
+        let avar = out.avar().unwrap();
+        let store = avar.var_store().unwrap().unwrap();
+        let map = avar.axis_index_map().unwrap().unwrap();
+        let index = map.get(0).unwrap();
+        let data = store
+            .item_variation_data()
+            .get(index.outer as usize)
+            .unwrap()
+            .unwrap();
+        assert!(data.delta_set(index.inner).any(|delta| delta != 0));
+    }
+
+    #[test]
     fn oversized_grids_conservatively_retain_dependent_pins() {
         let bytes = truetype_font(true);
         let original = FontRef::new(&bytes).unwrap();
@@ -883,7 +1069,7 @@ mod tests {
                     );
                 }
                 // All consumers still interpret the original final coordinates.
-                for tag in [b"CFF2", b"HVAR", b"GPOS", b"GDEF"] {
+                for tag in [b"CFF2", b"GPOS"] {
                     assert_eq!(
                         original.data_for_tag(Tag::new(tag)).map(|d| d.as_bytes()),
                         partial.data_for_tag(Tag::new(tag)).map(|d| d.as_bytes())
@@ -908,6 +1094,19 @@ mod tests {
                         for (x, y) in old.coords().iter().zip(new.coords()) {
                             assert!((x.to_bits() as i32 - y.to_bits() as i32).abs() <= 8,
                                 "{request} shared={shared} implicit={implicit} {settings:?}: {:?} != {:?}", old.coords(),new.coords());
+                        }
+                        // Culling may rewrite stores, but retained final-space
+                        // locations still evaluate to the same metric deltas.
+                        let old_metrics =
+                            original.glyph_metrics(skrifa::instance::Size::unscaled(), &new);
+                        let new_metrics =
+                            partial.glyph_metrics(skrifa::instance::Size::unscaled(), &new);
+                        for gid in 0..partial.maxp().unwrap().num_glyphs() {
+                            let gid = write_fonts::types::GlyphId::new(gid as u32);
+                            assert_eq!(
+                                old_metrics.advance_width(gid),
+                                new_metrics.advance_width(gid)
+                            );
                         }
                     }
                 }

@@ -10,3 +10,9 @@ Command: `hb-subset --gids='*' --layout-features='*' --name-IDs='*'
 
 Only outline, metrics, variation, and layout tables are stored; naming,
 cmap, post, STAT, and hint-program tables are omitted.
+
+`dependent-pruned.ttf` was generated with the same command using HarfBuzz
+0bd344a29 and `truetype_font(false)`, whose weight row uses
+`[1024, 512, -256]`. The dependent weight pin remains hidden. Unreachable
+regions are removed, reducing gvar from 226 tuples to 149; surviving
+tuple headers, point numbers, and packed deltas retain their meaning.

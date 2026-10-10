@@ -2,6 +2,7 @@
 mod avar2;
 mod axes;
 mod color;
+mod cull;
 mod iup;
 mod layout;
 mod metrics;
@@ -31,6 +32,7 @@ use write_fonts::{
 /// TrueType avar2 pins with constant final coordinates are removed. Other
 /// coupled pins remain hidden; restricted ranges can introduce F2Dot14
 /// rounding differences in the axis mapping.
+/// Unreachable final-space variation regions and glyph tuples are removed.
 /// VARC component instancing is not supported and returns an error.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
     instance_font_with_flags(font, limits, SubsetFlags::default())
@@ -69,22 +71,39 @@ pub fn instance_font_with_flags(
         .filter_map(|r| Some((r.tag(), font.data_for_tag(r.tag())?.as_bytes().to_vec())))
         .collect();
     let final_axes = axes.coupled.then(|| axes.final_space(font));
+    // Cull in the original final-coordinate space, before removing any
+    // self-contained axes. avar's own store operates in intermediate space.
+    let pruned = if axes.coupled && cull::tables(font, &axes.reachable, &mut tables)? {
+        let mut builder = FontBuilder::new();
+        for (tag, data) in &tables {
+            builder.add_raw(*tag, data);
+        }
+        Some(builder.build())
+    } else {
+        None
+    };
+    let variation_font = pruned
+        .as_deref()
+        .map(FontRef::new)
+        .transpose()
+        .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+    let variation_font = variation_font.as_ref().unwrap_or(font);
     if !axes.coupled || axes.pinned.iter().any(|&p| p) {
         let axes = final_axes.as_ref().unwrap_or(&axes);
         if is_truetype {
             truetype::instance(
-                font,
+                variation_font,
                 axes,
                 &mut tables,
                 flags.contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS),
             )?;
         } else {
-            let cff2 = cff::instance(font, axes)?;
+            let cff2 = cff::instance(variation_font, axes)?;
             tables.insert(Tag::new(b"CFF2"), cff2);
-            metrics::instance(font, axes, &mut tables)?;
+            metrics::instance(variation_font, axes, &mut tables)?;
         }
-        layout::instance(font, axes, &mut tables)?;
-        color::instance(font, axes, &mut tables)?;
+        layout::instance(variation_font, axes, &mut tables)?;
+        color::instance(variation_font, axes, &mut tables)?;
     }
     if axes.coupled {
         metrics::update_os2(&axes, &mut tables);
