@@ -1,7 +1,7 @@
 //! Fold COLRv1 values and rebase its item variation store with the outline axes.
-use super::{AxisPlan, StorePlan};
+use super::{scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
-use std::collections::BTreeMap;
+use std::{cell::OnceCell, collections::BTreeMap};
 use write_fonts::{
     from_obj::ToOwnedTable,
     read::{
@@ -18,11 +18,12 @@ struct Context<'a> {
     axes: &'a AxisPlan,
     store: Option<ItemVariationStore<'a>>,
     map: Option<DeltaSetIndexMap<'a>>,
+    scalars: OnceCell<Option<VariationScalars>>,
 }
 impl Context<'_> {
-    fn delta(&self, base: u32, offset: u32) -> Result<i64, SubsetError> {
+    fn delta(&self, base: u32, offset: u32) -> Result<f32, SubsetError> {
         if base == u32::MAX {
-            return Ok(0);
+            return Ok(0.);
         }
         let index = base.checked_add(offset).ok_or_else(error)?;
         let index = if let Some(map) = &self.map {
@@ -34,12 +35,13 @@ impl Context<'_> {
             }
         };
         if index == DeltaSetIndex::NO_VARIATION_INDEX {
-            return Ok(0);
+            return Ok(0.);
         }
-        self.store
+        let store = self.store.as_ref().ok_or_else(error)?;
+        self.scalars
+            .get_or_init(|| VariationScalars::new(store, &self.axes.coords))
             .as_ref()
-            .and_then(|s| s.compute_delta(index, &self.axes.coords))
-            .map(|v| v.to_f64().round() as i64)
+            .and_then(|scalars| scalars.delta(store, index))
             .ok_or_else(error)
     }
     fn field<T: ColorValue>(
@@ -48,7 +50,11 @@ impl Context<'_> {
         offset: u32,
         value: &mut T,
     ) -> Result<(), SubsetError> {
-        *value = value.add(self.delta(base, offset)?);
+        // HarfBuzz leaves base values untouched at the original default and
+        // for the no-variation sentinel, including low bits of Fixed values.
+        if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+            *value = value.add(self.delta(base, offset)?);
+        }
         Ok(())
     }
     fn line(&self, line: &mut VarColorLine) -> Result<(), SubsetError> {
@@ -316,26 +322,30 @@ impl Context<'_> {
     }
 }
 trait ColorValue: Copy {
-    fn add(self, delta: i64) -> Self;
+    fn add(self, delta: f32) -> Self;
 }
+// Integer fields round the delta before addition. Fixed fields add it in
+// float precision before rounding back to the field's stored integer units.
 impl ColorValue for FWord {
-    fn add(self, d: i64) -> Self {
-        FWord::new((self.to_i16() as i64 + d).clamp(-32768, 32767) as i16)
+    fn add(self, d: f32) -> Self {
+        FWord::new((self.to_i16() as i64 + (d + 0.5).floor() as i64).clamp(-32768, 32767) as i16)
     }
 }
 impl ColorValue for UfWord {
-    fn add(self, d: i64) -> Self {
-        UfWord::new((self.to_u16() as i64 + d).clamp(0, 65535) as u16)
+    fn add(self, d: f32) -> Self {
+        UfWord::new((self.to_u16() as i64 + (d + 0.5).floor() as i64).clamp(0, 65535) as u16)
     }
 }
 impl ColorValue for F2Dot14 {
-    fn add(self, d: i64) -> Self {
-        Self::from_bits((self.to_bits() as i64 + d).clamp(-32768, 32767) as i16)
+    fn add(self, d: f32) -> Self {
+        Self::from_bits(
+            ((self.to_bits() as f32 + d + 0.5).floor() as i64).clamp(-32768, 32767) as i16,
+        )
     }
 }
 impl ColorValue for Fixed {
-    fn add(self, d: i64) -> Self {
-        Self::from_bits((self.to_bits() as i64 + d).clamp(i32::MIN as i64, i32::MAX as i64) as i32)
+    fn add(self, d: f32) -> Self {
+        Self::from_bits((self.to_bits() as f32 + d + 0.5).floor() as i32)
     }
 }
 fn static_line(v: &VarColorLine) -> ColorLine {
@@ -432,6 +442,7 @@ pub(super) fn instance(
             .transpose()
             .map_err(|_| error())?,
         map: colr.var_index_map().transpose().map_err(|_| error())?,
+        scalars: OnceCell::new(),
     };
     let mut table: Colr = colr.to_owned_table();
     if let Some(list) = table.base_glyph_list.as_mut() {
@@ -489,7 +500,7 @@ mod tests {
     use write_fonts::{tables::variations::*, FontBuilder};
 
     #[test]
-    fn wide_deltas_cancel_fixed_bases_before_clamping() {
+    fn wide_deltas_and_fixed_bases_use_float_precision() {
         use write_fonts::read::{FontData, FontRead};
         let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
@@ -530,8 +541,12 @@ mod tests {
                 .unwrap(),
             ),
             map: None,
+            scalars: OnceCell::new(),
         };
-        for (index, base, expected) in [(0, i32::MIN, i32::MAX - 1), (1, i32::MAX, i32::MIN + 1)] {
+        let mut unchanged = Fixed::from_bits(16777217);
+        c.field(u32::MAX, 0, &mut unchanged).unwrap();
+        assert_eq!(unchanged.to_bits(), 16777217);
+        for (index, base, expected) in [(0, i32::MIN, i32::MAX), (1, i32::MAX, i32::MIN)] {
             let mut value = Fixed::from_bits(base);
             c.field(index, 0, &mut value).unwrap();
             assert_eq!(value.to_bits(), expected);
