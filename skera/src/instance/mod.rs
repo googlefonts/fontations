@@ -1,4 +1,4 @@
-//! CFF2 instancing and the variation tables that share its axes.
+//! Outline instancing and the variation tables that share its axes.
 mod avar2;
 mod axes;
 mod color;
@@ -7,6 +7,7 @@ mod metrics;
 mod rebase;
 pub(crate) mod scalars;
 mod store;
+mod truetype;
 pub(crate) use axes::AxisPlan;
 pub use axes::{parse_axis_limits, AxisLimits};
 pub(crate) use store::StorePlan;
@@ -19,7 +20,7 @@ use write_fonts::{
     FontBuilder,
 };
 
-/// Instantiate a CFF2 font at the requested axis locations.
+/// Instantiate a CFF2 or TrueType font at the requested axis locations.
 ///
 /// Glyph IDs are preserved. Unspecified axes are retained. To subset the
 /// instance, create a `Plan` from the returned font and call `subset_font`.
@@ -30,15 +31,21 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
     if limits.is_empty() {
         return Ok(copy_font(font));
     }
-    if font.cff2().is_err() {
+    let is_truetype = font.glyf().is_ok();
+    if font.cff2().is_err() && !is_truetype {
         return Err(SubsetError::InvalidAxis(
-            "instancing requires CFF2 outlines".into(),
+            "instancing requires CFF2 or TrueType outlines".into(),
         ));
     }
     let axes = AxisPlan::new(font, limits)?;
     if font.data_for_tag(Tag::new(b"VARC")).is_some() {
         return Err(SubsetError::InvalidAxis(
-            "instancing CFF2 fonts with VARC components is not supported".into(),
+            "instancing fonts with VARC components is not supported".into(),
+        ));
+    }
+    if is_truetype && !axes.all_pinned() && !axes.coupled {
+        return Err(SubsetError::InvalidAxis(
+            "partial TrueType instancing is not yet supported".into(),
         ));
     }
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
@@ -48,9 +55,13 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         .filter_map(|r| Some((r.tag(), font.data_for_tag(r.tag())?.as_bytes().to_vec())))
         .collect();
     if !axes.coupled {
-        let cff2 = cff::instance(font, &axes)?;
-        tables.insert(Tag::new(b"CFF2"), cff2);
-        metrics::instance(font, &axes, &mut tables)?;
+        if is_truetype {
+            truetype::instance(font, &axes, &mut tables)?;
+        } else {
+            let cff2 = cff::instance(font, &axes)?;
+            tables.insert(Tag::new(b"CFF2"), cff2);
+            metrics::instance(font, &axes, &mut tables)?;
+        }
         layout::instance(font, &axes, &mut tables)?;
         color::instance(font, &axes, &mut tables)?;
     } else {
