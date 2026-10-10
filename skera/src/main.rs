@@ -26,6 +26,10 @@ struct Args {
     #[arg(short, long)]
     path: std::path::PathBuf,
 
+    /// Face index in a TrueType or OpenType collection.
+    #[arg(short = 'y', long, default_value_t = 0)]
+    face_index: u32,
+
     /// List of glyph ids
     #[arg(short, long)]
     gids: Option<String>,
@@ -177,7 +181,7 @@ fn main() {
 
     let font_bytes = std::fs::read(&args.path)
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
-    let font = FontRef::new(&font_bytes)
+    let font = FontRef::from_index(&font_bytes, args.face_index)
         .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
     let drop_tables = match &args.drop_tables {
         Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
