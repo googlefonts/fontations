@@ -329,3 +329,24 @@ fn cubic_control_points_survive_full_partial_and_second_stage_instances() {
         }
     }
 }
+
+#[test]
+fn a_delta_just_below_half_does_not_move_the_outline_or_side_bearing() {
+    // Two axis scalars produce 8 * (4095/16384) * (4097/16384), the f32
+    // predecessor of 0.5. Adding 0.5 in f32 incorrectly rounds it up to 1.
+    let source = std::fs::read("test-data/fonts/float-rounding-variable.ttf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    let bytes = instance_font(
+        &font,
+        &parse_axis_limits("TEST=0.24993896484375,AXIS=0.25006103515625").unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let reference = std::fs::read("test-data/expected/rounding/truetype.ttf").unwrap();
+    let expected = FontRef::new(&reference).unwrap();
+    assert_same_outline_and_metrics(&actual, &expected);
+    assert_eq!(
+        actual.hmtx().unwrap().side_bearing(GlyphId::new(2)),
+        Some(0)
+    );
+}

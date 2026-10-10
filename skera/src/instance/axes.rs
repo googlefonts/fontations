@@ -222,7 +222,7 @@ impl AxisPlan {
                     };
                     let delta = scalars
                         .delta(&store, index)
-                        .map_or(0, |d| (d.clamp(-32768., 32768.) + 0.5).floor() as i32);
+                        .map_or(0, |d| super::round_f32(d.clamp(-32768., 32768.)) as i32);
                     *coord = F2Dot14::from_bits(
                         (coord.to_bits() as i32 + delta.clamp(-32768, 32768)).clamp(-16384, 16384)
                             as i16,
@@ -242,13 +242,13 @@ impl AxisPlan {
                     axis.default_value() as f64,
                     axis.max_value() as f64,
                 ) as f32;
-                (n * 65536. + 0.5).floor() as i32
+                super::round_f32(n * 65536.) as i32
             })
             .collect();
         if let Some(maps) = &maps {
             for (coord, map) in metric_coords.iter_mut().zip(maps) {
                 let mapped = map_float(map, *coord as f64 / 65536., false) as f32;
-                *coord = (mapped * 65536. + 0.5).floor() as i32;
+                *coord = super::round_f32(mapped * 65536.) as i32;
             }
         }
         if let Some(avar) = &avar {
@@ -276,7 +276,7 @@ impl AxisPlan {
                     };
                     let delta =
                         (scalars.delta(&store, index).unwrap_or(0.) * 4.).clamp(-131072., 131072.);
-                    *coord = (*coord + (delta + 0.5).floor() as i32).clamp(-65536, 65536);
+                    *coord = (*coord + super::round_f32(delta) as i32).clamp(-65536, 65536);
                 }
             }
         }

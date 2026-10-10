@@ -28,7 +28,7 @@ fn error(tag: &[u8; 4]) -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(tag))
 }
 fn round(value: f32) -> i32 {
-    (value + 0.5).floor() as i32
+    super::round_f32(value) as i32
 }
 fn coord(value: f32) -> i16 {
     round(value).clamp(-32768, 32767) as i16

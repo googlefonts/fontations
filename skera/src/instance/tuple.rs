@@ -21,7 +21,7 @@ fn error() -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(b"gvar"))
 }
 fn rounded(value: f32) -> Result<i32, SubsetError> {
-    let value = (value as f64 + 0.5).floor();
+    let value = super::round_f32(value);
     if !value.is_finite() || value < i32::MIN as f64 || value > i32::MAX as f64 {
         return Err(error());
     }
@@ -352,7 +352,7 @@ fn delta_bytes(deltas: &[Point], referenced: &[bool], axes: usize) -> Result<Vec
 
 impl TupleDeltaData {
     fn coords(&self) -> (Vec<i16>, Vec<i16>, Vec<i16>) {
-        let encode = |v: f64| ((v as f32 * 16384. + 0.5).floor().clamp(-32768., 32767.)) as i16;
+        let encode = |v: f64| super::round_f32(v as f32 * 16384.).clamp(-32768., 32767.) as i16;
         let mut start = Vec::new();
         let mut peak = Vec::new();
         let mut end = Vec::new();

@@ -135,6 +135,13 @@ pub fn instance_font_with_flags(
         Ok(bytes)
     }
 }
+// HarfBuzz's roundf keeps ties toward positive infinity. Promote only at
+// the rounding boundary: float addition can turn 0.5's predecessor into a
+// tie, or change an already integral value above 2^23.
+fn round_f32(value: f32) -> f64 {
+    (value as f64 + 0.5).floor()
+}
+
 fn copy_font(font: &FontRef) -> Vec<u8> {
     let mut builder = FontBuilder::new();
     for record in font.table_directory().table_records() {
