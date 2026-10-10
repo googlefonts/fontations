@@ -504,6 +504,57 @@ fn cff2_downgrade_preserves_outlines_and_cff1_widths() {
 }
 
 #[test]
+fn cff2_downgrade_flag_applies_only_to_full_cff2_instances() {
+    for (file, full, partial) in [
+        ("AdobeVFPrototype.otf", "wght=650,CNTR=40", "wght=650"),
+        ("Cantarell-VF-ABC.otf", "wght=650", "wght=500:650:800"),
+        ("NotoSansJP-VF.subset.otf", "wght=500", "wght=300:500:700"),
+        (
+            "SourceSerif4Variable-Roman-HelloWorld.otf",
+            "wght=650,opsz=48",
+            "wght=650",
+        ),
+    ] {
+        let source = std::fs::read(format!("test-data/fonts/{file}")).unwrap();
+        let font = FontRef::new(&source).unwrap();
+        let limits = skera::parse_axis_limits(full).unwrap();
+        let ordinary = skera::instance_font(&font, &limits).unwrap();
+        let converted = skera::instance_font_with_flags(
+            &font,
+            &limits,
+            SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2,
+        )
+        .unwrap();
+        let expected = skera::downgrade_cff2(&FontRef::new(&ordinary).unwrap()).unwrap();
+        assert_eq!(converted, expected, "{file}");
+        let result = FontRef::new(&converted).unwrap();
+        assert!(result.cff().is_ok());
+        assert!(result.cff2().is_err());
+        assert!(result.fvar().is_err());
+        let limits = skera::parse_axis_limits(partial).unwrap();
+        let ordinary = skera::instance_font(&font, &limits).unwrap();
+        let converted = skera::instance_font_with_flags(
+            &font,
+            &limits,
+            SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2,
+        )
+        .unwrap();
+        assert_eq!(ordinary, converted, "{file}: {partial}");
+        let result = FontRef::new(&converted).unwrap();
+        assert!(result.cff2().is_ok());
+        assert!(result.fvar().is_ok());
+    }
+    let source = std::fs::read("test-data/fonts/Roboto-Variable.composite.ttf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    let limits = skera::parse_axis_limits("wght=725,wdth=90").unwrap();
+    assert_eq!(
+        skera::instance_font(&font, &limits).unwrap(),
+        skera::instance_font_with_flags(&font, &limits, SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
+            .unwrap()
+    );
+}
+
+#[test]
 fn full_cff2_instances_preserve_half_unit_contours() {
     let data = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
     let font = FontRef::new(&data).unwrap();
