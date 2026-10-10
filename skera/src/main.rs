@@ -70,6 +70,10 @@ struct Args {
     #[arg(long)]
     retain_gids: bool,
 
+    /// With retained glyph IDs, keep the source glyph count using empty trailing glyphs.
+    #[arg(long)]
+    retain_num_glyphs: bool,
+
     /// Remove CFF/CFF2 use of subroutines
     #[arg(long)]
     desubroutinize: bool,
@@ -328,6 +332,10 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
 
     if args.retain_gids {
         flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+    }
+
+    if args.retain_num_glyphs {
+        flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS;
     }
 
     if args.desubroutinize {
