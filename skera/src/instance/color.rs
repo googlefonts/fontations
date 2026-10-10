@@ -67,7 +67,7 @@ impl Context<'_> {
     }
     fn angle(&self, base: u32, offset: u32, value: &mut F2Dot14) -> Result<(), SubsetError> {
         if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
-            let bits = (value.to_bits() as f32 + self.delta(base, offset)? + 0.5).floor();
+            let bits = super::round_f32(value.to_bits() as f32 + self.delta(base, offset)?);
             // Rotation and skew are periodic. Reduce the rounded angle modulo
             // 720 degrees, preserving its effect when it exceeds F2Dot14.
             *value = F2Dot14::from_bits(bits.rem_euclid(65536.) as u16 as i16);
@@ -345,24 +345,24 @@ trait ColorValue: Copy {
 // float precision before rounding back to the field's stored integer units.
 impl ColorValue for FWord {
     fn add(self, d: f32) -> Self {
-        FWord::new((self.to_i16() as i64 + (d + 0.5).floor() as i64).clamp(-32768, 32767) as i16)
+        FWord::new((self.to_i16() as i64 + super::round_f32(d) as i64).clamp(-32768, 32767) as i16)
     }
 }
 impl ColorValue for UfWord {
     fn add(self, d: f32) -> Self {
-        UfWord::new((self.to_u16() as i64 + (d + 0.5).floor() as i64).clamp(0, 65535) as u16)
+        UfWord::new((self.to_u16() as i64 + super::round_f32(d) as i64).clamp(0, 65535) as u16)
     }
 }
 impl ColorValue for F2Dot14 {
     fn add(self, d: f32) -> Self {
         Self::from_bits(
-            ((self.to_bits() as f32 + d + 0.5).floor() as i64).clamp(-32768, 32767) as i16,
+            (super::round_f32(self.to_bits() as f32 + d) as i64).clamp(-32768, 32767) as i16,
         )
     }
 }
 impl ColorValue for Fixed {
     fn add(self, d: f32) -> Self {
-        Self::from_bits((self.to_bits() as f32 + d + 0.5).floor() as i32)
+        Self::from_bits(super::round_f32(self.to_bits() as f32 + d) as i32)
     }
 }
 fn static_line(v: &VarColorLine) -> ColorLine {
@@ -549,6 +549,20 @@ pub(super) fn instance(
 mod tests {
     use super::*;
     use write_fonts::{tables::variations::*, FontBuilder};
+
+    #[test]
+    fn rounding_preserves_integral_fields_and_deltas_just_below_half() {
+        let below_half = f32::from_bits(0.5f32.to_bits() - 1);
+        assert_eq!(FWord::new(10).add(below_half).to_i16(), 10);
+        assert_eq!(UfWord::new(10).add(below_half).to_u16(), 10);
+        assert_eq!(F2Dot14::ZERO.add(below_half), F2Dot14::ZERO);
+        assert_eq!(Fixed::ZERO.add(below_half), Fixed::ZERO);
+        for bits in [15383929, -15383929] {
+            assert_eq!(Fixed::from_bits(bits).add(0.).to_bits(), bits);
+        }
+        assert_eq!(FWord::new(10).add(-0.5).to_i16(), 10);
+        assert_eq!(FWord::new(10).add(0.5).to_i16(), 11);
+    }
 
     #[test]
     fn wide_deltas_and_fixed_bases_use_float_precision() {
