@@ -33,7 +33,8 @@ use write_fonts::{
 /// coupled pins remain hidden; restricted ranges can introduce F2Dot14
 /// rounding differences in the axis mapping.
 /// Unreachable final-space variation regions and glyph tuples are removed.
-/// VARC component instancing is not supported and returns an error.
+/// Axes referenced by retained VARC data cannot be instanced. Other axes can
+/// be pinned or restricted; VARC's retained axis references are remapped.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
     instance_font_with_flags(font, limits, SubsetFlags::default())
 }
@@ -59,17 +60,20 @@ pub fn instance_font_with_flags(
         ));
     }
     let axes = AxisPlan::new(font, limits)?;
-    if font.data_for_tag(Tag::new(b"VARC")).is_some() {
-        return Err(SubsetError::InvalidAxis(
-            "instancing fonts with VARC components is not supported".into(),
-        ));
-    }
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
         .table_records()
         .iter()
         .filter_map(|r| Some((r.tag(), font.data_for_tag(r.tag())?.as_bytes().to_vec())))
         .collect();
+    if font.data_for_tag(Tag::new(b"VARC")).is_some() {
+        let bytes = crate::varc::instance(font, &axes)?;
+        if bytes.is_empty() {
+            tables.remove(&Tag::new(b"VARC"));
+        } else {
+            tables.insert(Tag::new(b"VARC"), bytes);
+        }
+    }
     let final_axes = axes.coupled.then(|| axes.final_space(font));
     // Cull in the original final-coordinate space, before removing any
     // self-contained axes. avar's own store operates in intermediate space.
@@ -169,21 +173,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn varc_components_are_rejected_instead_of_copying_stale_axes() {
-        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
-        let font = FontRef::new(&bytes).unwrap();
-        let mut builder = FontBuilder::new();
-        for r in font.table_directory().table_records() {
-            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
-        }
-        builder
-            .add_table(&write_fonts::tables::varc::Varc::default())
-            .unwrap();
-        let bytes = builder.build();
+    fn referenced_varc_axes_are_rejected_instead_of_copying_stale_axes() {
+        let bytes = std::fs::read("test-data/fonts/varc-unrelated-axis.ttf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
         assert!(matches!(
-            instance_font(&font,&parse_axis_limits("wght=900").unwrap()),
-            Err(SubsetError::InvalidAxis(message)) if message.contains("VARC")
+            instance_font(&font,&parse_axis_limits("wght=400").unwrap()),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"VARC")
         ));
     }
 }

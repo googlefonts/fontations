@@ -179,33 +179,6 @@ fn main() {
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
     let font = FontRef::new(&font_bytes)
         .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
-    let instance_bytes = args.instance.as_deref().map(|input| {
-        skera::parse_axis_limits(input)
-            .and_then(|limits| skera::instance_font_with_flags(&font, &limits, subset_flags))
-            .unwrap_or_else(|err| {
-                eprintln!("{err}");
-                std::process::exit(1);
-            })
-    });
-    let font = instance_bytes
-        .as_deref()
-        .map(FontRef::new)
-        .transpose()
-        .unwrap()
-        .unwrap_or(font);
-    let cff1_bytes =
-        (args.downgrade_cff2 && font.cff2().is_ok() && font.fvar().is_err()).then(|| {
-            skera::downgrade_cff2(&font).unwrap_or_else(|err| {
-                eprintln!("{err}");
-                std::process::exit(1);
-            })
-        });
-    let font = cff1_bytes
-        .as_deref()
-        .map(FontRef::new)
-        .transpose()
-        .unwrap()
-        .unwrap_or(font);
     let drop_tables = match &args.drop_tables {
         Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
             Ok(drop_tables) => drop_tables,
@@ -310,6 +283,63 @@ fn main() {
             default_layout_features
         }
     };
+
+    // Instancing must consider only retained VARC references. Preserve source
+    // glyph IDs and count during this preliminary subset so all selectors and
+    // custom mappings still refer to the original glyph IDs in the final plan.
+    let varc_subset = (args.instance.is_some() && font.data_for_tag(Tag::new(b"VARC")).is_some())
+        .then(|| {
+            let plan = Plan::new(
+                &gids,
+                &unicodes,
+                &font,
+                subset_flags
+                    | SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                    | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+                &drop_tables,
+                &layout_scripts,
+                &layout_features,
+                &name_ids,
+                &name_languages,
+            );
+            subset_font(&font, &plan).unwrap_or_else(|err| {
+                eprintln!("{err}");
+                std::process::exit(1);
+            })
+        });
+    let font = varc_subset
+        .as_deref()
+        .map(FontRef::new)
+        .transpose()
+        .unwrap()
+        .unwrap_or(font);
+    let instance_bytes = args.instance.as_deref().map(|input| {
+        skera::parse_axis_limits(input)
+            .and_then(|limits| skera::instance_font_with_flags(&font, &limits, subset_flags))
+            .unwrap_or_else(|err| {
+                eprintln!("{err}");
+                std::process::exit(1);
+            })
+    });
+    let font = instance_bytes
+        .as_deref()
+        .map(FontRef::new)
+        .transpose()
+        .unwrap()
+        .unwrap_or(font);
+    let cff1_bytes =
+        (args.downgrade_cff2 && font.cff2().is_ok() && font.fvar().is_err()).then(|| {
+            skera::downgrade_cff2(&font).unwrap_or_else(|err| {
+                eprintln!("{err}");
+                std::process::exit(1);
+            })
+        });
+    let font = cff1_bytes
+        .as_deref()
+        .map(FontRef::new)
+        .transpose()
+        .unwrap()
+        .unwrap_or(font);
 
     let mut output_bytes = Vec::new();
     for _ in 0..args.num_iterations.unwrap_or(1) {

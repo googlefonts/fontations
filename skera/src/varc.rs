@@ -303,7 +303,7 @@ impl SubsetPlan {
         Ok(out)
     }
 
-    fn collect_indices(&mut self, table: &ReadVarc) -> Result<()> {
+    fn collect_indices(&mut self, table: &ReadVarc, axis_remap: Option<&Map>) -> Result<()> {
         let records = table.var_composite_glyphs().map_err(|_| ())?;
         let mut conditions = BTreeSet::new();
         let mut axes = BTreeSet::new();
@@ -363,7 +363,7 @@ impl SubsetPlan {
             }
         }
         for condition in &mut self.conditions {
-            remap_condition_vars(condition, &self.var_map)?;
+            remap_condition(condition, &self.var_map, axis_remap)?;
         }
         Ok(())
     }
@@ -384,7 +384,7 @@ impl SubsetPlan {
         Ok(Index::from_items(out))
     }
 
-    fn select_axis_indices(&self, table: &ReadVarc) -> Result<Option<Index>> {
+    fn select_axis_indices(&self, table: &ReadVarc, axes: Option<&Map>) -> Result<Option<Index>> {
         if self.axis_map.is_empty() {
             return Ok(None);
         }
@@ -392,12 +392,37 @@ impl SubsetPlan {
         Ok(Some(Index::from_items(
             self.axis_map
                 .keys()
-                .map(|&i| list.get(i as usize).map(|v| v.to_vec()).ok_or(()))
+                .map(|&i| {
+                    let bytes = list.get(i as usize).ok_or(())?;
+                    let Some(axes) = axes else {
+                        return Ok(bytes.to_vec());
+                    };
+                    Cursor { bytes, pos: 0 }.packed_values(None)?;
+                    let values = write_fonts::read::tables::variations::PackedDeltas::consume_all(
+                        bytes.into(),
+                    )
+                    .iter()
+                    .map(|index| {
+                        axes.get(&(index as u32))
+                            .copied()
+                            .map(|i| i as i32)
+                            .ok_or(())
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                    write_fonts::dump_table(&write_fonts::tables::variations::PackedDeltas::new(
+                        values,
+                    ))
+                    .map_err(|_| ())
+                })
                 .collect::<Result<Vec<_>>>()?,
         )))
     }
 
-    fn subset_store(&self, table: &ReadVarc) -> Result<Option<MultiItemVariationStore>> {
+    fn subset_store(
+        &self,
+        table: &ReadVarc,
+        axes: Option<&Map>,
+    ) -> Result<Option<MultiItemVariationStore>> {
         if self.var_map.is_empty() {
             return Ok(None);
         }
@@ -439,7 +464,16 @@ impl SubsetPlan {
                 let coordinates = region
                     .axis_coordinates()
                     .iter()
-                    .map(|a| a.map(|a| a.to_owned_table()).map_err(|_| ()))
+                    .map(|a| {
+                        let mut a: SparseRegionAxisCoordinates =
+                            a.map_err(|_| ())?.to_owned_table();
+                        if let Some(axes) = axes {
+                            a.axis_index =
+                                u16::try_from(*axes.get(&(a.axis_index as u32)).ok_or(())?)
+                                    .map_err(|_| ())?;
+                        }
+                        Ok(a)
+                    })
                     .collect::<Result<Vec<_>>>()?;
                 if coordinates.len() != region.region_axis_count() as usize {
                     return Err(());
@@ -489,22 +523,28 @@ fn collect_condition_vars(condition: &Condition, vars: &mut BTreeSet<u32>) {
         _ => (),
     }
 }
-fn remap_condition_vars(condition: &mut Condition, map: &Map) -> Result<()> {
+fn remap_condition(condition: &mut Condition, map: &Map, axes: Option<&Map>) -> Result<()> {
     match condition {
+        Condition::Format1AxisRange(c) => {
+            if let Some(axes) = axes {
+                c.axis_index =
+                    u16::try_from(*axes.get(&(c.axis_index as u32)).ok_or(())?).map_err(|_| ())?;
+            }
+        }
         Condition::Format2VariableValue(c) if c.var_index != NO_VARIATION => {
             c.var_index = *map.get(&c.var_index).ok_or(())?;
         }
         Condition::Format3And(c) => {
             for c in &mut c.conditions {
-                remap_condition_vars(c.as_mut(), map)?;
+                remap_condition(c.as_mut(), map, axes)?;
             }
         }
         Condition::Format4Or(c) => {
             for c in &mut c.conditions {
-                remap_condition_vars(c.as_mut(), map)?;
+                remap_condition(c.as_mut(), map, axes)?;
             }
         }
-        Condition::Format5Negate(c) => remap_condition_vars(c.condition.as_mut(), map)?,
+        Condition::Format5Negate(c) => remap_condition(c.condition.as_mut(), map, axes)?,
         _ => (),
     }
     Ok(())
@@ -515,30 +555,7 @@ pub(crate) fn subset(
     plan: &Plan,
     s: &mut Serializer,
 ) -> std::result::Result<(), SubsetError> {
-    let result = (|| {
-        let table = table(font)?;
-        let mut subset = SubsetPlan::collect_glyphs(&table, plan)?;
-        if subset.old_indices.is_empty() {
-            return Ok(Vec::new());
-        }
-        subset.collect_indices(&table)?;
-        let records = subset.compile_records(&table, plan)?;
-        let axes = subset.select_axis_indices(&table)?;
-        let store = subset.subset_store(&table)?;
-        let conditions = (!subset.conditions.is_empty())
-            .then(|| ConditionList::new(subset.conditions.len() as u32, subset.conditions));
-        let out = Varc::new(
-            CoverageTable::from_iter(subset.new_gids),
-            store,
-            conditions,
-            axes,
-            records,
-        );
-        let mut bytes = write_fonts::dump_table(&out).map_err(|_| ())?;
-        bytes[..4].copy_from_slice(&table.offset_data().as_bytes()[..4]);
-        Ok(bytes)
-    })();
-    match result {
+    match subset_bytes(font, plan, None) {
         Ok(bytes) => s
             .embed_bytes(&bytes)
             .map(|_| ())
@@ -548,6 +565,56 @@ pub(crate) fn subset(
             Err(SubsetError::SubsetTableError(TAG))
         }
     }
+}
+
+// HarfBuzz's varc_subset_plan_t excludes requested axes from its axis map,
+// rejecting any change to an axis referenced by retained VARC data. The other
+// axes only need their indices remapped; component values and deltas stay in
+// the original final-coordinate space.
+pub(crate) fn instance(
+    font: &FontRef,
+    axes: &crate::instance::AxisPlan,
+) -> std::result::Result<Vec<u8>, SubsetError> {
+    let error = || SubsetError::SubsetTableError(TAG);
+    let fvar = font.fvar().map_err(|_| error())?;
+    let mut map = Map::new();
+    let mut new_index = 0;
+    for (i, axis) in fvar.axes().map_err(|_| error())?.iter().enumerate() {
+        if axes.pinned[i] {
+            continue;
+        }
+        if !axes.values.iter().any(|(tag, _)| *tag == axis.axis_tag()) {
+            map.insert(i as u32, new_index);
+        }
+        new_index += 1;
+    }
+    let mut plan = Plan::keep_everything(font);
+    plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+    subset_bytes(font, &plan, Some(&map)).map_err(|_| error())
+}
+
+fn subset_bytes(font: &FontRef, plan: &Plan, axes: Option<&Map>) -> Result<Vec<u8>> {
+    let table = table(font)?;
+    let mut subset = SubsetPlan::collect_glyphs(&table, plan)?;
+    if subset.old_indices.is_empty() {
+        return Ok(Vec::new());
+    }
+    subset.collect_indices(&table, axes)?;
+    let records = subset.compile_records(&table, plan)?;
+    let axis_indices = subset.select_axis_indices(&table, axes)?;
+    let store = subset.subset_store(&table, axes)?;
+    let conditions = (!subset.conditions.is_empty())
+        .then(|| ConditionList::new(subset.conditions.len() as u32, subset.conditions));
+    let out = Varc::new(
+        CoverageTable::from_iter(subset.new_gids),
+        store,
+        conditions,
+        axis_indices,
+        records,
+    );
+    let mut bytes = write_fonts::dump_table(&out).map_err(|_| ())?;
+    bytes[..4].copy_from_slice(&table.offset_data().as_bytes()[..4]);
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -636,7 +703,7 @@ mod tests {
         collect_condition_vars(&owned, &mut used);
         assert_eq!(used, [0x20003, 0x30004].into_iter().collect());
         let map = [(0x20003, 0), (0x30004, 0x10000)].into_iter().collect();
-        remap_condition_vars(&mut owned, &map).unwrap();
+        remap_condition(&mut owned, &map, None).unwrap();
         used.clear();
         collect_condition_vars(&owned, &mut used);
         assert_eq!(used, [0, 0x10000].into_iter().collect());
