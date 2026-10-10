@@ -83,7 +83,13 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
-        find_duplicate_features(&feature_list, lookup_indices, feature_indices)
+        let variations = self.feature_variations().and_then(Result::ok);
+        find_duplicate_features(
+            &feature_list,
+            lookup_indices,
+            feature_indices,
+            variations.as_ref(),
+        )
     }
 
     fn prune_langsys(
