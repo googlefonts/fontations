@@ -494,10 +494,11 @@ impl<'a> UnicodeCharmap<'a> {
     pub(crate) fn map(&self, mut codepoint: u32) -> Option<GlyphId> {
         let subtable = self.subtable.as_ref()?;
         if self.is_mac_roman && codepoint > 0x7f {
+            // A codepoint the Mac Roman charset does not cover has no
+            // character code here, so it is unmapped rather than code zero.
             codepoint = char::from_u32(codepoint)
                 .and_then(|value| MacRomanMapping.encode(value))
-                .map(u32::from)
-                .unwrap_or(0);
+                .map(u32::from)?;
         }
         let result = subtable.map_codepoint(codepoint);
         if result.is_none_or(|glyph| glyph == GlyphId::NOTDEF)
@@ -822,6 +823,34 @@ mod tests {
             .charmap()
             .iter_codes(encoding)
             .any(|entry| entry == (0x8e, GlyphId::new(3))));
+    }
+
+    #[test]
+    fn mac_roman_encoding_leaves_untranslatable_codepoints_unmapped() {
+        let mut cmap = vec![0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 12];
+        cmap.extend_from_slice(&[0, 0, 1, 6, 0, 0]);
+        let mut glyphs = [0u8; 256];
+        glyphs[0x00] = 3; // Mac Roman 0x00, which no codepoint above U+007F uses.
+        glyphs[0x8e] = 4; // U+00E9, encoded as Mac Roman 0x8E.
+        cmap.extend_from_slice(&glyphs);
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+            if tag == Tag::new(b"cmap") {
+                return Some(Blob::from(cmap.clone()));
+            }
+            let font = FontRef::new(font_test_data::TINOS_SUBSET).ok()?;
+            font.table_data(tag)
+                .map(|data| Blob::from(data.as_bytes().to_vec()))
+        });
+        let font = Font::new(source, 0).unwrap();
+        let charmap = font.charmap();
+        assert!(charmap.unicode_is_mac_roman());
+        assert_eq!(charmap.map_unicode('é'), Some(GlyphId::new(4)));
+        // Neither of these is in the Mac Roman charset, and the surrogate is
+        // not a scalar value at all.
+        assert_eq!(charmap.map_unicode('Ā'), None);
+        assert_eq!(charmap.map_unicode(0xd800u32), None);
+        // U+0000 does translate, so it keeps its glyph.
+        assert_eq!(charmap.map_unicode(0u32), Some(GlyphId::new(3)));
     }
 
     #[test]
