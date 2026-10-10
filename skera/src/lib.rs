@@ -2,6 +2,7 @@
 //! TODO: make it generic for all tables
 mod base;
 mod cblc;
+mod cff;
 mod cmap;
 mod colr;
 mod cpal;
@@ -239,7 +240,6 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_RETAIN_GIDS: Self = Self(0x0002);
 
     /// If set and subsetting a CFF font the subsetter will attempt to remove subroutines from the CFF glyphs.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
 
     /// If set non-unicode name records will be retained in the subset.
@@ -615,6 +615,10 @@ impl Plan {
             remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
         } else {
             self.glyphset = self.glyphset_colred.clone();
+            if !self.drop_tables.contains(Cff::TAG) {
+                cff::closure(font, &mut self.glyphset);
+                remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+            }
         }
 
         self.nameid_closure(font);
@@ -1310,6 +1314,8 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Cff::TAG => cff::subset(font, plan, s, false),
+        Cff2::TAG => cff::subset(font, plan, s, true),
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
