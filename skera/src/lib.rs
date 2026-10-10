@@ -35,6 +35,7 @@ mod sbix;
 pub mod serialize;
 mod stat;
 mod unicode_closure;
+mod varc;
 mod variations;
 mod vmtx;
 mod vorg;
@@ -87,6 +88,7 @@ use write_fonts::{
             post::Post,
             sbix::Sbix,
             stat::Stat,
+            varc::Varc,
             variations::NO_VARIATION_INDEX,
             vhea::Vhea,
             vmtx::Vmtx,
@@ -323,6 +325,8 @@ pub struct Plan {
     glyphs_requested: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
+    glyphset_varced: IntSet<GlyphId>,
+    varc_closure_failed: bool,
     glyphset: IntSet<GlyphId>,
     /// Old->New glyph id mapping,
     glyph_map: FastHashMap<GlyphId, GlyphId>,
@@ -599,12 +603,19 @@ impl Plan {
             self.glyphset_colred = self.glyphset_gsub.clone();
         }
 
+        // HarfBuzz closes VARC components after color and before glyf.
+        self.glyphset_varced = self.glyphset_colred.clone();
+        if !self.drop_tables.contains(Tag::new(b"VARC")) {
+            self.varc_closure_failed = varc::closure(font, &mut self.glyphset_varced).is_err();
+            remove_invalid_gids(&mut self.glyphset_varced, self.font_num_glyphs);
+        }
+
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
         if let Ok(loca) = font.loca(None) {
             let glyf = font.glyf().expect("Error reading glyf table");
             let operation_count =
-                self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
-            for gid in self.glyphset_colred.iter() {
+                self.glyphset_varced.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
+            for gid in self.glyphset_varced.iter() {
                 glyf_closure_glyphs(
                     &loca,
                     &glyf,
@@ -616,7 +627,7 @@ impl Plan {
             }
             remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
         } else {
-            self.glyphset = self.glyphset_colred.clone();
+            self.glyphset = self.glyphset_varced.clone();
             if !self.drop_tables.contains(Cff::TAG) {
                 cff::closure(font, &mut self.glyphset);
                 remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
@@ -1176,6 +1187,16 @@ trait Serialize<'a> {
 }
 
 pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
+    if !plan.drop_tables.contains(Varc::TAG)
+        && (plan.varc_closure_failed
+            || (font.data_for_tag(Varc::TAG).is_some()
+                && plan.no_subset_tables.contains(Varc::TAG)
+                && !plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)))
+    {
+        return Err(SubsetError::SubsetTableError(Tag::new(b"VARC")));
+    }
     let mut builder = FontBuilder::<'a>::default();
 
     let mut state = SubsetState::default();
@@ -1328,6 +1349,7 @@ fn subset_table<'a>(
     match tag {
         Cff::TAG => cff::subset(font, plan, s, false),
         Cff2::TAG => cff::subset(font, plan, s, true),
+        Varc::TAG => varc::subset(font, plan, s),
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?

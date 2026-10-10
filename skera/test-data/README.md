@@ -24,3 +24,8 @@ generated with the local HarfBuzz subsetter using `--gids=* --notdef-outline
 The `tt-partial-*.ttf` references use the same HarfBuzz command with pin and
 range requests listed in `tests/truetype_instance_test.rs`. Tests compare the
 default outlines, axis records, and second-stage instances at retained locations.
+
+The `expected/varc` references are subsets of the existing VARC fonts in
+`font-test-data/test_data/ttf`, generated with the local HarfBuzz subsetter using
+`--notdef-outline --name-IDs=*` and the glyph selections and retain-GID modes
+listed in `tests/varc_test.rs`. They retain the source fixtures' licenses.
