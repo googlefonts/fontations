@@ -31,7 +31,7 @@ clap = { version = "4.5.4", features = ["derive"], optional = true }
 hashbrown = { version = "0.17.0", default-features = false, features = ["inline-more"] }
 skrifa = { workspace = true }
 thiserror = "2.0"
-write-fonts = { workspace = true, features = ["read"] }
+write-fonts = { workspace = true, features = ["read", "tables"] }
 
 
 [dev-dependencies]
