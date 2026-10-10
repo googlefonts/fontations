@@ -24,6 +24,7 @@ required-features = ["cli"]
 [features]
 default = []
 cli = ["clap"]
+spec_next = ["skrifa/spec_next"]
 
 [dependencies]
 foldhash = { workspace = true }
