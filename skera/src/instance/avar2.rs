@@ -48,6 +48,20 @@ type Region = Vec<(i16, i16, i16)>;
 fn error() -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(b"avar"))
 }
+
+// A null avar2 store contributes zero deltas, but range compensation still
+// needs to preserve the old final-coordinate space, as in HarfBuzz.
+fn empty_store(axes: &AxisPlan) -> Result<Vec<u8>, SubsetError> {
+    write_fonts::dump_table(&ItemVariationStore {
+        variation_region_list: VariationRegionList {
+            axis_count: axes.pinned.len() as u16,
+            variation_regions: Vec::new(),
+        }
+        .into(),
+        item_variation_data: Vec::new(),
+    })
+    .map_err(|_| error())
+}
 fn add(row: &mut BTreeMap<Region, i64>, region: Region, delta: f64) {
     let delta = (delta + 0.5)
         .floor()
@@ -230,7 +244,13 @@ pub(super) fn reachable_ranges(
     // the caller; HarfBuzz cannot currently partially pin CFF2 blends.
     let detect_pins = font.cff2().is_err() && font.data_for_tag(Tag::new(b"VARC")).is_none();
     let avar = font.avar().map_err(|_| error())?;
-    let store = avar.var_store().ok_or_else(error)?.map_err(|_| error())?;
+    let empty = empty_store(axes)?;
+    let store = avar
+        .var_store()
+        .unwrap_or_else(|| {
+            write_fonts::read::tables::variations::ItemVariationStore::read(empty.as_slice().into())
+        })
+        .map_err(|_| error())?;
     let map = avar.axis_index_map().transpose().map_err(|_| error())?;
     let fvar = font.fvar().map_err(|_| error())?;
     let old_axes = fvar.axes().map_err(|_| error())?;
@@ -426,7 +446,13 @@ pub(super) fn instance(
     segment_maps: Vec<SegmentMaps>,
 ) -> Result<Avar, SubsetError> {
     let old = font.avar().map_err(|_| error())?;
-    let store = old.var_store().ok_or_else(error)?.map_err(|_| error())?;
+    let empty = empty_store(axes)?;
+    let store = old
+        .var_store()
+        .unwrap_or_else(|| {
+            write_fonts::read::tables::variations::ItemVariationStore::read(empty.as_slice().into())
+        })
+        .map_err(|_| error())?;
     let map = old.axis_index_map().transpose().map_err(|_| error())?;
     let old_maps = old
         .axis_segment_maps()
@@ -687,6 +713,49 @@ mod tests {
         }
         builder.add_table(&avar).unwrap();
         builder.build()
+    }
+
+    #[test]
+    fn null_store_ranges_compensate_in_the_original_final_coordinate_space() {
+        let bytes = font(false, true);
+        let font = FontRef::new(&bytes).unwrap();
+        let mut avar: Avar = font.avar().unwrap().to_owned_table();
+        avar.var_store = None.into();
+        avar.axis_index_map = None.into();
+        let mut avar = write_fonts::dump_table(&avar).unwrap();
+        // Avar's writer chooses version 1 when both optional tables are null.
+        avar[..2].copy_from_slice(&2u16.to_be_bytes());
+        avar.extend([0; 8]);
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_raw(Tag::new(b"avar"), avar);
+        let bytes = builder.build();
+        let original = FontRef::new(&bytes).unwrap();
+        let original_outlines = original.data_for_tag(Tag::new(b"CFF2")).unwrap();
+        let limits = crate::parse_axis_limits("wght=300:500:800").unwrap();
+        let axes = AxisPlan::new(&original, &limits).unwrap();
+        assert!(axes.coupled);
+        let bytes = crate::instance_font(&original, &limits).unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        assert_eq!(
+            actual.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            original_outlines.as_bytes()
+        );
+        assert_eq!(actual.avar().unwrap().version().major, 2);
+        assert!(actual.avar().unwrap().var_store().is_some());
+        for i in 0..=256 {
+            let weight = 300. + 500. * i as f32 / 256.;
+            let settings = [(Tag::new(b"wght"), weight)];
+            let actual = actual.axes().location(settings);
+            let expected = original.axes().location(settings);
+            for (a, e) in actual.coords().iter().zip(expected.coords()) {
+                assert!((a.to_bits() as i32 - e.to_bits() as i32).abs() <= 1);
+            }
+        }
     }
 
     #[test]
