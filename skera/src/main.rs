@@ -6,9 +6,9 @@
 
 use clap::Parser;
 use skera::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
-    subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN,
-    KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
+    parse_glyph_mapping, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC,
+    JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
 };
 use write_fonts::read::{
     collections::IntSet,
@@ -29,6 +29,10 @@ struct Args {
     /// List of glyph ids
     #[arg(short, long)]
     gids: Option<String>,
+
+    /// Original:new glyph ID pairs preserving glyph order, for example 1:4,2:7.
+    #[arg(long = "gid-map", alias = "glyph-map")]
+    glyph_map: Option<String>,
 
     /// List of Unicode codepoints
     #[arg(short, long)]
@@ -123,13 +127,20 @@ fn main() {
     let args = Args::parse();
 
     let subset_flags = parse_subset_flags(&args);
-    let gids = match populate_gids(&args.gids.unwrap_or_default()) {
+    let glyph_mapping = parse_glyph_mapping(args.glyph_map.as_deref().unwrap_or_default())
+        .unwrap_or_else(|err| {
+            eprintln!("{err}");
+            std::process::exit(1);
+        });
+    let mut gids = match populate_gids(&args.gids.unwrap_or_default()) {
         Ok(gids) => gids,
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(1);
         }
     };
+
+    gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
 
     let unicodes = match parse_unicodes(&args.unicodes.unwrap_or_default()) {
         Ok(unicodes) => unicodes,
@@ -273,7 +284,7 @@ fn main() {
 
     let mut output_bytes = Vec::new();
     for _ in 0..args.num_iterations.unwrap_or(1) {
-        let plan = Plan::new(
+        let mut plan = Plan::new(
             &gids,
             &unicodes,
             &font,
@@ -284,6 +295,13 @@ fn main() {
             &name_ids,
             &name_languages,
         );
+        if args.glyph_map.is_some() {
+            plan.set_glyph_mapping(&glyph_mapping)
+                .unwrap_or_else(|err| {
+                    eprintln!("{err}");
+                    std::process::exit(1);
+                });
+        }
         match subset_font(&font, &plan) {
             Ok(out) => {
                 output_bytes = out;
