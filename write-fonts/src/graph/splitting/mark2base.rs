@@ -23,8 +23,7 @@ fn split_mark_to_base_subtable(graph: &mut Graph, subtable: ObjectId) -> Option<
     debug_assert!(data.reparse::<rgpos::MarkBasePosFormat1>().is_ok());
     let mark_class_count: u16 = data.read_at(6).unwrap_or(0);
     // we split between mark classes, so a subtable without any has nothing
-    // to split. fea-rs produces these for a `subtable` statement that isn't
-    // followed by any rules.
+    // to split.
     if mark_class_count == 0 {
         return None;
     }
@@ -633,9 +632,8 @@ mod tests {
         split_lookup_with_empty_subtable_impl(true)
     }
 
-    // a `subtable` statement with no rules after it leaves an empty builder,
-    // which builds a subtable with no mark classes. We used to panic when
-    // trying to split it, which we do whenever anything in GPOS overflows.
+    // a subtable with no mark classes used to panic when we tried to split
+    // it, which we do whenever anything in GPOS overflows.
     fn split_lookup_with_empty_subtable_impl(use_extension: bool) {
         // big enough that the first subtable needs splitting
         const N_CLASSES: u16 = 100;
@@ -658,10 +656,9 @@ mod tests {
                 subtable.insert_base(GlyphId16::new(base), &class.to_string(), anchor);
             }
         }
-        builder.force_subtable_break();
-        let lookup = builder.build(&mut VariationStoreBuilder::new(0));
-        assert_eq!(lookup.subtables.len(), 2);
-        assert!(lookup.subtables[1].mark_array.mark_records.is_empty());
+        let mut lookup = builder.build(&mut VariationStoreBuilder::new(0));
+        // empty builders produce no subtables, but other code might
+        lookup.subtables.push(MarkBasePosFormat1::default().into());
 
         let lookup = if use_extension {
             let subtables = lookup

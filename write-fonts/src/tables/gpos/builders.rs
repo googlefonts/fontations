@@ -720,6 +720,9 @@ impl Builder for CursivePosBuilder {
     type Output = Vec<CursivePosFormat1>;
 
     fn build(self, var_store: &mut VariationStoreBuilder) -> Self::Output {
+        if self.items.is_empty() {
+            return Default::default();
+        }
         let coverage = self.items.keys().copied().collect();
         let records = self
             .items
@@ -927,6 +930,9 @@ impl Builder for MarkToBaseBuilder {
 
     fn build(self, var_store: &mut VariationStoreBuilder) -> Self::Output {
         let MarkToBaseBuilder { marks, bases } = self;
+        if marks.glyphs.is_empty() && bases.is_empty() {
+            return Default::default();
+        }
         let n_classes = marks.classes.len();
 
         let (mark_coverage, mark_array) = marks.build(var_store);
@@ -1068,6 +1074,9 @@ impl Builder for MarkToLigBuilder {
 
     fn build(self, var_store: &mut VariationStoreBuilder) -> Self::Output {
         let MarkToLigBuilder { marks, ligatures } = self;
+        if marks.glyphs.is_empty() && ligatures.is_empty() {
+            return Default::default();
+        }
         let n_classes = marks.classes.len();
 
         // LigArray:
@@ -1185,6 +1194,9 @@ impl Builder for MarkToMarkBuilder {
             attaching_marks,
             base_marks,
         } = self;
+        if attaching_marks.glyphs.is_empty() && base_marks.is_empty() {
+            return Default::default();
+        }
         let n_classes = attaching_marks.classes.len();
 
         let (mark_coverage, mark_array) = attaching_marks.build(var_store);
@@ -1290,6 +1302,18 @@ mod tests {
             items,
             vec![(gid(1), Some(AnchorBuilder::new(10, 20)), None)]
         );
+    }
+
+    // a `subtable` statement with no rules after it leaves an empty builder
+    #[test]
+    fn empty_builders_build_no_subtables() {
+        let vs = &mut VariationStoreBuilder::new(0);
+        assert!(SinglePosBuilder::default().build(vs).is_empty());
+        assert!(PairPosBuilder::default().build(vs).is_empty());
+        assert!(CursivePosBuilder::default().build(vs).is_empty());
+        assert!(MarkToBaseBuilder::default().build(vs).is_empty());
+        assert!(MarkToLigBuilder::default().build(vs).is_empty());
+        assert!(MarkToMarkBuilder::default().build(vs).is_empty());
     }
 
     #[test]
