@@ -320,3 +320,100 @@ fn retaining_the_source_glyph_count_adds_empty_trailing_glyphs() {
         );
     }
 }
+
+#[test]
+fn iftb_uses_long_outline_offsets_without_changing_geometry() {
+    use write_fonts::read::ps::cff::CffFontRef;
+    for filename in [
+        "RobotoFlex-Variable.ABC.ttf",
+        "Muli-ABC.ttf",
+        "Cantarell-VF-ABC.otf",
+        "SourceHanSans-Regular_subset.otf",
+        "SourceSansPro-Regular.otf",
+    ] {
+        let bytes = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for retain in [false, true] {
+            let flags = SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
+                | if retain {
+                    SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                } else {
+                    SubsetFlags::default()
+                };
+            let compact = subset_font(&font, &plan(&font, flags)).unwrap();
+            let long = subset_font(
+                &font,
+                &plan(&font, flags | SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS),
+            )
+            .unwrap();
+            let compact = FontRef::new(&compact).unwrap();
+            let long = FontRef::new(&long).unwrap();
+            if long.glyf().is_ok() {
+                assert_eq!(long.head().unwrap().index_to_loc_format(), 1);
+                assert_eq!(compact.head().unwrap().index_to_loc_format(), 0);
+                let count = long.maxp().unwrap().num_glyphs() as usize;
+                assert_eq!(
+                    long.data_for_tag(write_fonts::types::Tag::new(b"loca"))
+                        .unwrap()
+                        .len(),
+                    (count + 1) * 4
+                );
+                if let Ok(gvar) = long.gvar() {
+                    assert_eq!(gvar.flags().bits() & 1, 1);
+                    assert_eq!(
+                        gvar.glyph_variation_data_offsets_byte_range().len(),
+                        (count + 1) * 4
+                    );
+                    assert!(
+                        gvar.shared_tuples_offset().to_u32()
+                            <= gvar.glyph_variation_data_array_offset()
+                    );
+                }
+            } else {
+                let tag = if long.cff2().is_ok() {
+                    write_fonts::types::Tag::new(b"CFF2")
+                } else {
+                    write_fonts::types::Tag::new(b"CFF ")
+                };
+                let a = CffFontRef::new(compact.data_for_tag(tag).unwrap().as_bytes(), 0, None)
+                    .unwrap();
+                let b =
+                    CffFontRef::new(long.data_for_tag(tag).unwrap().as_bytes(), 0, None).unwrap();
+                assert_eq!(b.charstrings().off_size(), 4);
+                assert!(a.charstrings().off_size() < 4);
+                assert_eq!(a.charstrings().count(), b.charstrings().count());
+                for gid in 0..a.charstrings().count() as usize {
+                    assert_eq!(
+                        a.charstrings().get(gid),
+                        b.charstrings().get(gid),
+                        "{filename}: {gid}"
+                    );
+                }
+            }
+            for fraction in [0., 0.5, 1.] {
+                let location = font.axes().location(font.axes().iter().map(|axis| {
+                    (
+                        axis.tag(),
+                        axis.min_value() + (axis.max_value() - axis.min_value()) * fraction,
+                    )
+                }));
+                for (_, gid) in plan(&font, flags).old_to_new_glyph_mapping() {
+                    let mut a = Path::default();
+                    let mut b = Path::default();
+                    compact
+                        .outline_glyphs()
+                        .get(gid)
+                        .unwrap()
+                        .draw(DrawSettings::unhinted(Size::unscaled(), &location), &mut a)
+                        .unwrap();
+                    long.outline_glyphs()
+                        .get(gid)
+                        .unwrap()
+                        .draw(DrawSettings::unhinted(Size::unscaled(), &location), &mut b)
+                        .unwrap();
+                    assert_eq!(a, b, "{filename}: {gid:?}, fraction={fraction}");
+                }
+            }
+        }
+    }
+}

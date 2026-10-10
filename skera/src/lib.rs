@@ -281,6 +281,9 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// Force long loca/gvar offsets and CFF/CFF2 CharStrings INDEX offsets for IFTB patches.
+    pub const SUBSET_FLAGS_IFTB_REQUIREMENTS: Self = Self(0x1000);
+
     /// With retained glyph IDs, keep the source glyph count by appending empty glyphs.
     pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
 
