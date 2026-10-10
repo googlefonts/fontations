@@ -414,6 +414,15 @@ fn main() {
     // custom mappings still refer to the original glyph IDs in the final plan.
     let varc_subset = (!args.instance.is_empty() && font.data_for_tag(Tag::new(b"VARC")).is_some())
         .then(|| {
+            // These are inputs to instancing or the final Unicode selection.
+            // Honor their requested drops only after those operations, like
+            // HarfBuzz's plan, which reads from the original source tables.
+            let mut preliminary_drop_tables = drop_tables.clone();
+            for tag in [
+                b"fvar", b"avar", b"gvar", b"cvar", b"HVAR", b"VVAR", b"MVAR", b"GDEF", b"cmap",
+            ] {
+                preliminary_drop_tables.remove(Tag::new(tag));
+            }
             let plan = Plan::new(
                 &gids,
                 &unicodes,
@@ -421,7 +430,7 @@ fn main() {
                 subset_flags
                     | SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
                     | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
-                &drop_tables,
+                &preliminary_drop_tables,
                 &layout_scripts,
                 &layout_features,
                 &name_ids,
