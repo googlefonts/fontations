@@ -82,6 +82,13 @@ files accept one or more entries per line and `#` comments. Text files retain
 `#` characters and omit line-feed separators. File selectors add to the
 current selection in command-line order.
 
+Selection options also accept `+` and `-` suffixes to add or remove entries,
+for example `--text=abc --text-=b --unicodes+=0064`. This applies to `gids`,
+`glyphs`, `unicodes`, `text`, `name-IDs`, `name-languages`, `layout-features`,
+`layout-scripts`, and `drop-tables`. Operations follow command-line order;
+plain options replace their sets, and `*` selects all entries or removes all
+entries with `-`. `--text=*` also selects all mapped Unicode characters.
+
 For font collections, `--face-index` selects a face; the default is zero.
 
 ## Installation

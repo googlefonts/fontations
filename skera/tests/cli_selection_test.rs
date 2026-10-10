@@ -260,4 +260,254 @@ fn wildcard_lines_in_selector_files_keep_the_complete_set() {
         cli_subset(input, &[&option]),
         cli_subset(input, &["--unicodes=*"])
     );
+    std::fs::write(&file, "*\na\n").unwrap();
+    let option = format!("--text-file={}", file.display());
+    assert_eq!(
+        cli_subset(input, &[&option]),
+        cli_subset(input, &["--unicodes=*"])
+    );
+}
+
+#[test]
+fn glyph_and_unicode_operations_add_remove_replace_and_handle_wildcards() {
+    let input = "test-data/fonts/Roboto-Regular.abc.ttf";
+    for (options, expected) in [
+        (
+            vec!["--text=abc", "--text-=b", "--unicodes+=0062"],
+            "--text=abc",
+        ),
+        (
+            vec!["--text=a", "--text+=b", "--text+=c", "--unicodes-=62"],
+            "--text=ac",
+        ),
+        (vec!["--text+=a", "--unicodes=62", "--text+=c"], "--text=bc"),
+        (vec!["--unicodes=61-63", "--unicodes-=61-62"], "--text=c"),
+        (vec!["--text=*", "--text-=b"], "--text=ac"),
+        (
+            vec!["--unicodes=61", "--text+=*", "--unicodes-=62"],
+            "--text=ac",
+        ),
+        (vec!["--text=abc", "--text-=*"], "--text="),
+        (
+            vec!["--unicodes=*", "--unicodes-=*", "--text+=b"],
+            "--text=b",
+        ),
+        (vec!["--gids=1", "--gids+=2-3", "--gids-=2"], "--gids=1,3"),
+        (
+            vec!["--glyphs=uni0061", "--glyphs+=uni0062", "--glyphs-=uni0061"],
+            "--gids=2",
+        ),
+        (
+            vec![
+                "--glyphs=uni0061",
+                "--gids+=2",
+                "--glyphs+=uni0063",
+                "--gids-=1",
+            ],
+            "--gids=2,3",
+        ),
+        (
+            vec!["--gids+=1", "--glyphs=uni0062", "--gids+=3"],
+            "--gids=2,3",
+        ),
+        (vec!["--gids=*", "--glyphs-=uni0062"], "--gids=0,1,3"),
+        (vec!["--gids=1", "--glyphs+=*", "--gids-=2"], "--gids=0,1,3"),
+        (vec!["--gids=*", "--glyphs-=*", "--gids+=3"], "--gids=3"),
+        (vec!["--glyphs=*", "--gids-=*"], "--gids="),
+        (
+            vec!["--keep-everything", "--gids-=*", "--text-=b"],
+            "--unicodes=61,63",
+        ),
+    ] {
+        let expected_options = if options.contains(&"--keep-everything") {
+            vec!["--keep-everything", "--gids=", expected]
+        } else {
+            vec![expected]
+        };
+        assert_eq!(
+            cli_subset(input, &options),
+            cli_subset(input, &expected_options),
+            "{options:?}"
+        );
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("text.txt");
+    std::fs::write(&file, "b\n").unwrap();
+    let option = format!("--text-file={}", file.display());
+    assert_eq!(
+        cli_subset(input, &["--text=a", &option, "--text-=a", "--text+=c"]),
+        cli_subset(input, &["--text=bc"])
+    );
+}
+
+#[test]
+fn metadata_operations_filter_actual_names_layout_items_and_tables() {
+    use write_fonts::{
+        from_obj::ToOwnedTable,
+        read::{types::NameId, TableProvider},
+        tables::name::{Name, NameRecord},
+        types::Tag,
+        FontBuilder,
+    };
+    let source = std::fs::read("test-data/fonts/layout-feature-dedup.ttf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    let mut name: Name = font.name().unwrap().to_owned_table();
+    name.name_record.extend([
+        NameRecord::new(
+            3,
+            1,
+            0x409,
+            NameId::new(500),
+            "English extra".to_owned().into(),
+        ),
+        NameRecord::new(
+            3,
+            1,
+            0x40c,
+            NameId::new(501),
+            "French extra".to_owned().into(),
+        ),
+    ]);
+    name.name_record.sort();
+    let mut builder = FontBuilder::new();
+    for record in font.table_directory().table_records() {
+        builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+    }
+    builder.add_table(&name).unwrap();
+    builder.add_raw(Tag::new(b"TEST"), b"opaque table");
+    builder.add_raw(Tag::new(b"DSIG"), &[0, 0, 0, 1, 0, 0, 0, 0]);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("source.ttf");
+    std::fs::write(&path, builder.build()).unwrap();
+    let input = path.to_str().unwrap();
+    for (options, expected) in [
+        (
+            vec!["--name-IDs+=500", "--name-IDs-=1"],
+            vec!["--name-IDs=0,2,3,4,5,6,500"],
+        ),
+        (
+            vec!["--name-IDs=1", "--name-IDs+=500", "--name-IDs-=1"],
+            vec!["--name-IDs=500"],
+        ),
+        (
+            vec!["--name-IDs=500", "--name-IDs=501"],
+            vec!["--name-IDs=501"],
+        ),
+        (
+            vec!["--name-IDs=*", "--name-IDs-=*", "--name-IDs+=500"],
+            vec!["--name-IDs=500"],
+        ),
+        (
+            vec![
+                "--name-IDs+=501",
+                "--name-languages+=1036",
+                "--name-languages-=1033",
+            ],
+            vec!["--name-IDs=0,1,2,3,4,5,6,501", "--name-languages=1036"],
+        ),
+        (
+            vec!["--name-languages=*", "--name-languages-=*"],
+            vec!["--name-languages="],
+        ),
+        (
+            vec!["--name-languages=1036", "--name-languages=1033"],
+            vec!["--name-languages=1033"],
+        ),
+        (
+            vec![
+                "--layout-features=liga",
+                "--layout-features+=salt",
+                "--layout-features-=liga",
+            ],
+            vec!["--layout-features=salt"],
+        ),
+        (
+            vec!["--layout-features=liga", "--layout-features=salt"],
+            vec!["--layout-features=salt"],
+        ),
+        (
+            vec!["--layout-features=*", "--layout-features-=*"],
+            vec!["--layout-features="],
+        ),
+        (
+            vec!["--layout-features=", "--layout-features+=*"],
+            vec!["--layout-features=*"],
+        ),
+        (
+            vec!["--layout-scripts-=*", "--layout-scripts+=latn"],
+            vec!["--layout-scripts=latn"],
+        ),
+        (
+            vec![
+                "--layout-scripts=latn",
+                "--layout-scripts+=DFLT",
+                "--layout-scripts-=latn",
+            ],
+            vec!["--layout-scripts=DFLT"],
+        ),
+        (
+            vec!["--layout-scripts=latn", "--layout-scripts=DFLT"],
+            vec!["--layout-scripts=DFLT"],
+        ),
+        (
+            vec![
+                "--drop-tables=DSIG",
+                "--drop-tables+=TEST",
+                "--drop-tables-=DSIG",
+            ],
+            vec!["--drop-tables=TEST"],
+        ),
+        (
+            vec!["--drop-tables=DSIG", "--drop-tables=TEST"],
+            vec!["--drop-tables=TEST"],
+        ),
+        (
+            vec!["--drop-tables-=*", "--drop-tables+=DSIG"],
+            vec!["--drop-tables=DSIG"],
+        ),
+    ] {
+        let mut actual = vec!["--gids=*", "--passthrough-tables"];
+        actual.extend(options.iter().copied());
+        let mut reference = vec!["--gids=*", "--passthrough-tables"];
+        reference.extend(expected);
+        assert_eq!(
+            cli_subset(input, &actual),
+            cli_subset(input, &reference),
+            "{options:?}"
+        );
+    }
+    let bytes = cli_subset(
+        input,
+        &[
+            "--gids=*",
+            "--name-IDs+=501",
+            "--name-languages+=1036",
+            "--drop-tables-=DSIG",
+            "--passthrough-tables",
+        ],
+    );
+    let output = FontRef::new(&bytes).unwrap();
+    assert!(output
+        .name()
+        .unwrap()
+        .name_record()
+        .iter()
+        .any(|record| record.name_id() == NameId::new(501) && record.language_id() == 0x40c));
+    assert!(output.data_for_tag(Tag::new(b"DSIG")).is_some());
+    assert!(output.data_for_tag(Tag::new(b"TEST")).is_some());
+    let bytes = cli_subset(
+        input,
+        &["--gids=*", "--layout-features-=*", "--layout-scripts-=*"],
+    );
+    let output = FontRef::new(&bytes).unwrap();
+    if let Ok(gsub) = output.gsub() {
+        assert_eq!(gsub.feature_list().unwrap().feature_count(), 0);
+        assert_eq!(gsub.script_list().unwrap().script_count(), 0);
+        assert_eq!(gsub.lookup_list().unwrap().lookup_count(), 0);
+    }
+    if let Ok(gpos) = output.gpos() {
+        assert_eq!(gpos.feature_list().unwrap().feature_count(), 0);
+        assert_eq!(gpos.script_list().unwrap().script_count(), 0);
+        assert_eq!(gpos.lookup_list().unwrap().lookup_count(), 0);
+    }
 }
