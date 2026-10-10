@@ -1,4 +1,4 @@
-//! impl subset() for hmtx
+//! Subset BASE axes, coordinates, and their variation store.
 
 use crate::{
     offset::{SerializeCopy, SerializeSubset},
@@ -16,7 +16,7 @@ use write_fonts::{
         },
         FontData, FontRef, MinByteRange, TopLevelTable,
     },
-    types::{FixedSize, GlyphId, MajorMinor, Offset16, Offset32},
+    types::{Compatible, FixedSize, GlyphId, Offset16, Offset32},
     FontBuilder,
 };
 
@@ -63,27 +63,26 @@ impl Subset for Base<'_> {
                 .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
         }
 
-        //itemVarStore offset
-        if let Some(var_store) = self
-            .item_var_store()
-            .transpose()
-            .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
-        {
+        // BASE 1.1 retains this field even when the store offset is null.
+        if self.version().compatible((1, 1)) {
             let varstore_offset_pos = s
                 .embed(0_u32)
                 .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
-
-            Offset32::serialize_subset(
-                &var_store,
-                s,
-                plan,
-                (&plan.base_varstore_inner_maps, false),
-                varstore_offset_pos,
-            )
-            .is_empty()
-            .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
-        } else if self.version().minor > 0 {
-            s.copy_assign(0, MajorMinor::new(1, 0));
+            if let Some(var_store) = self
+                .item_var_store()
+                .transpose()
+                .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
+            {
+                Offset32::serialize_subset(
+                    &var_store,
+                    s,
+                    plan,
+                    (&plan.base_varstore_inner_maps, false),
+                    varstore_offset_pos,
+                )
+                .is_empty()
+                .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
+            }
         }
         Ok(())
     }
