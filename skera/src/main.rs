@@ -6,9 +6,9 @@
 
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser};
 use skera::{
-    parse_glyph_mapping, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
-    populate_gids, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC,
-    JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
+    parse_glyph_mapping, parse_glyph_names, parse_name_ids, parse_name_languages, parse_tag_list,
+    parse_unicodes, populate_gids, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG,
+    EBSC, GLAT, GLOC, JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
 };
 use write_fonts::read::{
     collections::IntSet,
@@ -31,8 +31,12 @@ struct Args {
     face_index: u32,
 
     /// List of glyph ids
-    #[arg(short, long)]
-    gids: Option<String>,
+    #[arg(short, long, action = clap::ArgAction::Append)]
+    gids: Vec<String>,
+
+    /// Glyph names or glyph strings (for example A,gid42,uni0041).
+    #[arg(long, action = clap::ArgAction::Append)]
+    glyphs: Vec<String>,
 
     /// Start with all glyphs, names, layout items, and tables selected.
     #[arg(long)]
@@ -157,20 +161,6 @@ fn main() {
             eprintln!("{err}");
             std::process::exit(1);
         });
-    let mut gids = match populate_gids(args.gids.as_deref().unwrap_or(if args.keep_everything {
-        "*"
-    } else {
-        ""
-    })) {
-        Ok(gids) => gids,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
-        }
-    };
-
-    gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
-
     let mut unicodes = if args.keep_everything {
         IntSet::all()
     } else {
@@ -193,6 +183,23 @@ fn main() {
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
     let font = FontRef::from_index(&font_bytes, args.face_index)
         .unwrap_or_else(|err| panic!("Failed to read {path:?} as font.\n{err}", path = &args.path));
+    let mut gids = if args.keep_everything {
+        IntSet::all()
+    } else {
+        IntSet::empty()
+    };
+    for (_, name, input) in selector_values(&matches, &["gids", "glyphs"]) {
+        gids = if name == "glyphs" {
+            parse_glyph_names(&font, input)
+        } else {
+            populate_gids(input)
+        }
+        .unwrap_or_else(|err| {
+            eprintln!("{err}");
+            std::process::exit(1);
+        });
+    }
+    gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
     let drop_tables = match &args.drop_tables {
         Some(drop_tables_input) => match parse_tag_list(drop_tables_input) {
             Ok(drop_tables) => drop_tables,

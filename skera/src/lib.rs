@@ -52,8 +52,8 @@ use layout::{
     remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_glyph_mapping, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
-    populate_gids,
+    parse_glyph_mapping, parse_glyph_names, parse_name_ids, parse_name_languages, parse_tag_list,
+    parse_unicodes, populate_gids,
 };
 use unicode_closure::unicode_closure;
 
@@ -1268,6 +1268,8 @@ pub enum SubsetError {
     InvalidNameOverride(String),
     #[error("Invalid glyph mapping: {0}")]
     InvalidGlyphMapping(String),
+    #[error("Invalid input glyph name {0}")]
+    InvalidGlyphName(String),
     #[error("Invalid input gid {0}")]
     InvalidGid(String),
 
