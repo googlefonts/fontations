@@ -45,6 +45,212 @@ impl OutlinePen for Path {
     }
 }
 
+fn draw(font: &FontRef, glyph: GlyphId, settings: &[(Tag, f32)]) -> Path {
+    let location = font.axes().location(settings.iter().copied());
+    let mut path = Path::default();
+    font.outline_glyphs()
+        .get(glyph)
+        .unwrap()
+        .draw(
+            DrawSettings::unhinted(Size::unscaled(), &location),
+            &mut path,
+        )
+        .unwrap();
+    path
+}
+
+fn assert_paths_close(a: &Path, b: &Path) {
+    assert_eq!(a.0.len(), b.0.len());
+    for ((a_op, a), (b_op, b)) in a.0.iter().zip(&b.0) {
+        assert_eq!(a_op, b_op);
+        assert_eq!(a.len(), b.len());
+        for (a, b) in a.iter().zip(b) {
+            // Baking gvar deltas changes floating-point summation order.
+            assert!((a - b).abs() < 0.001, "{a} != {b}");
+        }
+    }
+}
+
+fn owned_varc(font: &FontRef) -> write_fonts::tables::varc::Varc {
+    fn trim(index: &mut write_fonts::ps::cff::v2::Index) {
+        // INDEX views extend to the end of the containing table. Only the
+        // payload selected by the final offset belongs to this INDEX.
+        index
+            .data
+            .truncate(index.offsets.last().copied().unwrap_or(1) as usize - 1);
+    }
+    let mut table: write_fonts::tables::varc::Varc = font.varc().unwrap().to_owned_table();
+    trim(table.var_composite_glyphs.as_mut());
+    if let Some(index) = table.axis_indices_list.as_mut() {
+        trim(index);
+    }
+    if let Some(store) = table.multi_var_store.as_mut() {
+        for data in &mut store.variation_data {
+            trim(data.as_mut().delta_sets.as_mut());
+        }
+    }
+    table
+}
+
+#[test]
+fn unrelated_axis_instances_preserve_varc_tables_and_paths() {
+    use write_fonts::tables::fvar::Fvar;
+    for name in [
+        "varc-unrelated-axis",
+        "varc-unrelated-axis-avar2",
+        "varc-unrelated-axis-avar2-store",
+    ] {
+        let bytes = std::fs::read(format!("test-data/fonts/{name}.ttf")).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (mode, request, min, max) in [
+            ("pin", "DUMY=0.5", 0.5, 0.5),
+            ("range", "DUMY=-0.25:0.25", -0.25, 0.25),
+            ("moved", "DUMY=0:0.5:1", 0., 1.),
+            ("drop", "DUMY=drop", 0., 0.),
+        ] {
+            for retain in [false, true] {
+                let flags = SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
+                    | if retain {
+                        SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                    } else {
+                        SubsetFlags::default()
+                    };
+                let bytes = skera::instance_font_with_flags(
+                    &font,
+                    &skera::parse_axis_limits(request).unwrap(),
+                    flags,
+                )
+                .unwrap();
+                let instance = FontRef::new(&bytes).unwrap();
+                let plan = Plan::new(
+                    &IntSet::empty(),
+                    &[0xAC01].into_iter().collect(),
+                    &instance,
+                    flags,
+                    &IntSet::empty(),
+                    &IntSet::all(),
+                    &DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
+                    &IntSet::all(),
+                    &IntSet::all(),
+                );
+                let bytes = subset_font(&instance, &plan).unwrap();
+                let actual = FontRef::new(&bytes).unwrap();
+                let suffix = if retain { "-retain" } else { "" };
+                let reference = std::fs::read(format!(
+                    "test-data/expected/varc-instancing/{name}-{mode}{suffix}.ttf"
+                ))
+                .unwrap();
+                let expected = FontRef::new(&reference).unwrap();
+                let a = owned_varc(&actual);
+                let e = owned_varc(&expected);
+                assert_eq!(a, e, "{name} {request} retain={retain}");
+                let a: Fvar = actual.fvar().unwrap().to_owned_table();
+                let e: Fvar = expected.fvar().unwrap().to_owned_table();
+                assert_eq!(a, e, "{name} {request} retain={retain}");
+                // Equivalent paths can conceal different default outlines
+                // when avar2 compensates for a moved user-axis default.
+                let (ag, eg) = (actual.glyf().unwrap(), expected.glyf().unwrap());
+                let (al, el) = (actual.loca(None).unwrap(), expected.loca(None).unwrap());
+                for gid in 0..expected.maxp().unwrap().num_glyphs() {
+                    let gid = GlyphId::from(gid);
+                    let a = al.get(gid, &ag).unwrap().into_glyph().map(|g| {
+                        let g: write_fonts::tables::glyf::Glyph = g.to_owned_table();
+                        g
+                    });
+                    let e = el.get(gid, &eg).unwrap().into_glyph().map(|g| {
+                        let g: write_fonts::tables::glyf::Glyph = g.to_owned_table();
+                        g
+                    });
+                    assert_eq!(a, e, "{name} {request} retain={retain} {gid:?}");
+                    assert_eq!(
+                        actual.hmtx().unwrap().advance(gid),
+                        expected.hmtx().unwrap().advance(gid)
+                    );
+                    assert_eq!(
+                        actual.hmtx().unwrap().side_bearing(gid),
+                        expected.hmtx().unwrap().side_bearing(gid)
+                    );
+                }
+                for fraction in [0., 0.25, 0.75, 1.] {
+                    for condition in [-1., 0.125, 1.] {
+                        for private in [-0.5, 0., 0.5] {
+                            let settings = [
+                                (Tag::new(b"DUMY"), min + (max - min) * fraction),
+                                (Tag::new(b"COND"), condition),
+                                (Tag::new(b"wght"), 356.5 + (840.3 - 356.5) * fraction),
+                                (Tag::new(b"opsz"), fraction),
+                                (Tag::new(b"0000"), private),
+                            ];
+                            for (old, new) in plan.old_to_new_glyph_mapping() {
+                                let a = draw(&actual, new, &settings);
+                                assert_paths_close(&a, &draw(&font, old, &settings));
+                                assert_paths_close(&a, &draw(&expected, new, &settings));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn referenced_axes_are_rejected_in_component_lists_regions_and_nested_conditions() {
+    for name in [
+        "varc-unrelated-axis",
+        "varc-unrelated-axis-avar2",
+        "varc-unrelated-axis-avar2-store",
+    ] {
+        let bytes = std::fs::read(format!("test-data/fonts/{name}.ttf")).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for request in [
+            "wght=400",
+            "wght=356.5:600",
+            "opsz=drop",
+            "0000=drop",
+            "COND=drop",
+            "COND=-1:0.25",
+            "DUMY=drop,COND=drop",
+        ] {
+            assert!(
+                matches!(
+                    skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()),
+                    Err(skera::SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"VARC")
+                ),
+                "{name} {request}"
+            );
+        }
+    }
+}
+
+#[cfg(feature = "cli")]
+#[test]
+fn cli_instances_ignore_varc_references_removed_by_subsetting() {
+    for (selection, drop) in [
+        ("--gids=3", "--drop-tables="),
+        ("--unicodes=AC01", "--drop-tables=VARC"),
+    ] {
+        let output = tempfile::NamedTempFile::new().unwrap();
+        let status = std::process::Command::new(env!("CARGO_BIN_EXE_skera"))
+            .args([
+                "--path",
+                "test-data/fonts/varc-unrelated-axis-avar2-store.ttf",
+                selection,
+                drop,
+                "--instance=wght=400",
+                "--output-file",
+            ])
+            .arg(output.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let bytes = std::fs::read(output.path()).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(font.varc().is_err());
+        assert!(font.axes().get_by_tag(Tag::new(b"wght")).is_none());
+    }
+}
+
 #[test]
 fn subset_paths_preserve_varc_conditions_axes_and_transforms() {
     for name in [

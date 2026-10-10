@@ -33,7 +33,11 @@ custom and expert encodings, glyph names, and `seac` component closure.
 
 VARC subsetting closes component references and remaps glyphs, conditions,
 axis-index lists, variation rows, and sparse regions. Packed component values,
-transforms, and reserved fields are preserved. VARC instancing is unsupported.
+transforms, and reserved fields are preserved. Axes that retained VARC data
+does not reference can be pinned or restricted. Component-axis lists, sparse
+regions, and nested condition axes are remapped when axes are removed.
+Changes to referenced axes are rejected. For library calls, subset with
+retained glyph IDs before instancing to remove unused VARC references.
 
 MATH subsetting retains the variants and assembly parts of selected glyphs,
 remaps their references, and preserves constants, per-glyph math values,

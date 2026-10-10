@@ -240,9 +240,9 @@ pub(super) fn reachable_ranges(
 ) -> Result<Reachability, SubsetError> {
     let mut pins = vec![None; axes.pinned.len()];
     let mut reachable = vec![None; axes.pinned.len()];
-    // Match HarfBuzz's retained CFF2/VARC axes. VARC instancing is rejected by
-    // the caller; HarfBuzz cannot currently partially pin CFF2 blends.
-    let detect_pins = font.cff2().is_err() && font.data_for_tag(Tag::new(b"VARC")).is_none();
+    // HarfBuzz cannot currently partially pin CFF2 blends. VARC remaps its
+    // retained axis references and rejects changes to referenced axes.
+    let detect_pins = font.cff2().is_err();
     let avar = font.avar().map_err(|_| error())?;
     let empty = empty_store(axes)?;
     let store = avar
