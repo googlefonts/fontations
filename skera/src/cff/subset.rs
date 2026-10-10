@@ -397,6 +397,10 @@ pub(super) fn assemble<F: CffFlavor>(
     let mut strings = Vec::new();
     let mut sid_map = BTreeMap::new();
     let mut codes = vec![0];
+    let identity_charset = source.cid
+        && plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET);
     if !F::CFF2 {
         let cs = Charset::new(
             FontData::new(source.font.data()),
@@ -405,6 +409,10 @@ pub(super) fn assemble<F: CffFlavor>(
         )
         .ok_or(Error)?;
         for &old in old_gids.iter().skip(1) {
+            if identity_charset {
+                codes.push(codes.len());
+                continue;
+            }
             let code = cs
                 .string_id(GlyphId::new(old as u32))
                 .ok_or(Error)?
