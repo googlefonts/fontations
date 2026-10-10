@@ -20,3 +20,7 @@ The `tt-instance-*.ttf` references are full instances of the existing fixtures,
 generated with the local HarfBuzz subsetter using `--gids=* --notdef-outline
 --name-IDs=*`. Requests and source fonts are listed in
 `tests/truetype_instance_test.rs`; these references retain the source licenses.
+
+The `tt-partial-*.ttf` references use the same HarfBuzz command with pin and
+range requests listed in `tests/truetype_instance_test.rs`. Tests compare the
+default outlines, axis records, and second-stage instances at retained locations.

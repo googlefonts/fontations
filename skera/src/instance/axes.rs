@@ -284,7 +284,7 @@ impl AxisPlan {
         let metric_coords = metric_coords
             .into_iter()
             .map(|c| F2Dot14::from_bits(((c + 2) >> 2) as i16))
-            .collect();
+            .collect::<Vec<_>>();
         if coupled {
             pinned.fill(false);
         }
@@ -375,6 +375,32 @@ impl AxisPlan {
             .filter(|(i, _)| !self.pinned[*i])
         {
             let u = self.user[i];
+            // SegmentMaps::subset copies maps for axes absent from the
+            // requested location. Inverting and rebuilding those maps can
+            // alter flat segments even though the axis was left unchanged.
+            if !self.values.iter().any(|(tag, _)| *tag == axis.axis_tag) {
+                segment_maps.push(maps.as_ref().and_then(|m| m.get(i)).map_or_else(
+                    || {
+                        SegmentMaps::new(
+                            [-1., 0., 1.]
+                                .into_iter()
+                                .map(|v| {
+                                    AxisValueMap::new(F2Dot14::from_f64(v), F2Dot14::from_f64(v))
+                                })
+                                .collect(),
+                        )
+                    },
+                    |m| {
+                        SegmentMaps::new(
+                            m.axis_value_maps()
+                                .iter()
+                                .map(|v| AxisValueMap::new(v.from_coordinate(), v.to_coordinate()))
+                                .collect(),
+                        )
+                    },
+                ));
+                continue;
+            }
             if self.coupled && self.user_pinned[i] {
                 segment_maps.push(SegmentMaps::new(
                     [-1., 0., 1.]

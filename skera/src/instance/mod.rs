@@ -8,6 +8,7 @@ mod rebase;
 pub(crate) mod scalars;
 mod store;
 mod truetype;
+mod tuple;
 pub(crate) use axes::AxisPlan;
 pub use axes::{parse_axis_limits, AxisLimits};
 pub(crate) use store::StorePlan;
@@ -41,11 +42,6 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
     if font.data_for_tag(Tag::new(b"VARC")).is_some() {
         return Err(SubsetError::InvalidAxis(
             "instancing fonts with VARC components is not supported".into(),
-        ));
-    }
-    if is_truetype && !axes.all_pinned() && !axes.coupled {
-        return Err(SubsetError::InvalidAxis(
-            "partial TrueType instancing is not yet supported".into(),
         ));
     }
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
