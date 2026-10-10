@@ -160,11 +160,12 @@ pub(super) fn optimize(
             encodings.push(Encoding::new(items, &rows, columns));
         }
     }
-    // HarfBuzz sorts by width, then reverse lexicographic column widths.
+    // HarfBuzz's array comparison reverses its arguments; the encoding
+    // comparator reverses them again, giving lexicographic column widths.
     encodings.sort_by(|a, b| {
         a.width()
             .cmp(&b.width())
-            .then_with(|| b.chars.cmp(&a.chars))
+            .then_with(|| a.chars.cmp(&b.chars))
     });
     let mut encodings: Vec<_> = encodings.into_iter().map(Some).collect();
     let mut queue = BinaryHeap::new();
@@ -362,6 +363,30 @@ mod tests {
         assert_eq!(map[&(1 << 16 | 2)], 0);
         assert_eq!(map[&(1 << 16)], 1);
         assert_eq!(map[&0], 2);
+        check_deltas(&original, &optimized, &map);
+    }
+
+    #[test]
+    fn equal_width_groups_follow_harfbuzz_column_order() {
+        // These groups are large enough that sharing their headers costs more
+        // than it saves. Their equal widths exercise the encoding tie-break.
+        let groups: Vec<_> = (0..3)
+            .map(|column| {
+                (1..=30)
+                    .map(|delta| {
+                        let mut row = vec![0.; 3];
+                        row[column] = delta as f64;
+                        row
+                    })
+                    .collect()
+            })
+            .collect();
+        let original = source(&groups);
+        let (optimized, map) = optimize(original.clone()).unwrap();
+        assert_eq!(optimized.item_variation_data.len(), 3);
+        assert_eq!(map[&0], 2 << 16);
+        assert_eq!(map[&(1 << 16)], 1 << 16);
+        assert_eq!(map[&(2 << 16)], 0);
         check_deltas(&original, &optimized, &map);
     }
 

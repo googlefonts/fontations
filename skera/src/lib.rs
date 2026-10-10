@@ -902,12 +902,14 @@ impl Plan {
             //
             // colr_new_deltaset_idx_varidx_map:
             // generate new delta set idx-> new var_idx map if DeltsSetIndexMap exists
-            if let Some(Ok(var_store)) = colr.item_variation_store() {
-                let vardata_count = var_store.item_variation_data_count() as u32;
-                let Ok(var_index_map) = colr.var_index_map().transpose() else {
-                    return;
-                };
-
+            let var_store = colr.item_variation_store().and_then(Result::ok);
+            let Ok(var_index_map) = colr.var_index_map().transpose() else {
+                return;
+            };
+            // An optimized empty store can leave an explicit map containing
+            // only no-variation sentinels. Its paint indices still need remapping.
+            if var_store.is_some() || var_index_map.is_some() {
+                let vardata_count = var_store.map_or(0, |s| s.item_variation_data_count() as u32);
                 let mut delta_set_indices = IntSet::empty();
                 let mut deltaset_idx_var_idx_map = FastHashMap::default();
                 // when a DeltaSetIndexMap is included, collected variation indices are actually delta set indices,
