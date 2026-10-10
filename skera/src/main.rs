@@ -30,6 +30,10 @@ struct Args {
     #[arg(short, long)]
     gids: Option<String>,
 
+    /// Start with all glyphs, names, layout items, and tables selected.
+    #[arg(long)]
+    keep_everything: bool,
+
     /// Original:new glyph ID pairs preserving glyph order, for example 1:4,2:7.
     #[arg(long = "gid-map", alias = "glyph-map")]
     glyph_map: Option<String>,
@@ -144,7 +148,11 @@ fn main() {
             eprintln!("{err}");
             std::process::exit(1);
         });
-    let mut gids = match populate_gids(&args.gids.unwrap_or_default()) {
+    let mut gids = match populate_gids(args.gids.as_deref().unwrap_or(if args.keep_everything {
+        "*"
+    } else {
+        ""
+    })) {
         Ok(gids) => gids,
         Err(e) => {
             eprintln!("{e}");
@@ -154,13 +162,18 @@ fn main() {
 
     gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
 
-    let unicodes = match parse_unicodes(&args.unicodes.unwrap_or_default()) {
-        Ok(unicodes) => unicodes,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
-        }
-    };
+    let unicodes =
+        match parse_unicodes(args.unicodes.as_deref().unwrap_or(if args.keep_everything {
+            "*"
+        } else {
+            ""
+        })) {
+            Ok(unicodes) => unicodes,
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        };
 
     let font_bytes = std::fs::read(&args.path)
         .unwrap_or_else(|err| panic!("Failed to read file {path:?}.\n{err}", path = &args.path));
@@ -202,6 +215,7 @@ fn main() {
             }
         },
         //default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L46>
+        None if args.keep_everything => IntSet::empty(),
         None => {
             let default_drop_tables = [
                 // Layout disabled by default
@@ -239,6 +253,7 @@ fn main() {
             }
         },
         // default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L43>
+        None if args.keep_everything => IntSet::all(),
         None => {
             let mut default_name_ids = IntSet::<NameId>::empty();
             default_name_ids.insert_range(NameId::from(0)..=NameId::from(6));
@@ -255,6 +270,7 @@ fn main() {
             }
         },
         // default value: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-subset-input.cc#L44
+        None if args.keep_everything => IntSet::all(),
         None => {
             let mut default_name_languages = IntSet::<u16>::empty();
             default_name_languages.insert(0x0409);
@@ -287,6 +303,7 @@ fn main() {
             }
         },
         // default value: <https://github.com/harfbuzz/harfbuzz/blob/689383d05b2609a67efa307a9860b85cf40bf8c3/src/hb-subset-input.cc#L82>
+        None if args.keep_everything => IntSet::all(),
         None => {
             let mut default_layout_features = IntSet::<Tag>::empty();
             default_layout_features.extend(DEFAULT_LAYOUT_FEATURES.iter().copied());
@@ -333,7 +350,11 @@ fn main() {
 }
 
 fn parse_subset_flags(args: &Args) -> SubsetFlags {
-    let mut flags = SubsetFlags::default();
+    let mut flags = if args.keep_everything {
+        SubsetFlags::KEEP_EVERYTHING
+    } else {
+        SubsetFlags::default()
+    };
     if args.no_hinting {
         flags |= SubsetFlags::SUBSET_FLAGS_NO_HINTING;
     }
