@@ -288,7 +288,7 @@ impl AxisPlan {
         if coupled {
             pinned.fill(false);
         }
-        Ok(Self {
+        let mut plan = Self {
             coords,
             metric_coords,
             pinned,
@@ -298,7 +298,41 @@ impl AxisPlan {
             user,
             user_pinned,
             coupled,
-        })
+        };
+        if coupled {
+            for (i, pin) in super::avar2::self_contained_pins(font, &plan)?
+                .into_iter()
+                .enumerate()
+            {
+                if let Some(coord) = pin {
+                    plan.pinned[i] = true;
+                    plan.coords[i] = coord;
+                    plan.metric_coords[i] = coord;
+                }
+            }
+        }
+        Ok(plan)
+    }
+    // Other variation tables see only constant final-coordinate pins. The
+    // remaining user restrictions are carried by the avar2 transform.
+    pub(super) fn final_space(&self, font: &FontRef) -> Self {
+        let mut plan = self.clone();
+        for (i, &pinned) in self.pinned.iter().enumerate() {
+            plan.normalized[i] = if pinned {
+                let v = self.coords[i].to_f64();
+                Triple(v, v, v)
+            } else {
+                plan.coords[i] = F2Dot14::ZERO;
+                plan.metric_coords[i] = F2Dot14::ZERO;
+                Triple(-1., 0., 1.)
+            };
+        }
+        plan.values.retain(|(tag, _)| {
+            font.axes()
+                .get_by_tag(*tag)
+                .is_some_and(|a| self.pinned[a.index()])
+        });
+        plan
     }
     pub fn all_pinned(&self) -> bool {
         self.pinned.iter().all(|&p| p)

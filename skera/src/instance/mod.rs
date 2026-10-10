@@ -28,8 +28,9 @@ use write_fonts::{
 ///
 /// Glyph IDs are preserved. Unspecified axes are retained. To subset the
 /// instance, create a `Plan` from the returned font and call `subset_font`.
-/// Coupled avar2 pins remain hidden axes until full instancing; restricted
-/// ranges can introduce F2Dot14 rounding differences in the axis mapping.
+/// TrueType avar2 pins with constant final coordinates are removed. Other
+/// coupled pins remain hidden; restricted ranges can introduce F2Dot14
+/// rounding differences in the axis mapping.
 /// VARC component instancing is not supported and returns an error.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
     instance_font_with_flags(font, limits, SubsetFlags::default())
@@ -67,22 +68,25 @@ pub fn instance_font_with_flags(
         .iter()
         .filter_map(|r| Some((r.tag(), font.data_for_tag(r.tag())?.as_bytes().to_vec())))
         .collect();
-    if !axes.coupled {
+    let final_axes = axes.coupled.then(|| axes.final_space(font));
+    if !axes.coupled || axes.pinned.iter().any(|&p| p) {
+        let axes = final_axes.as_ref().unwrap_or(&axes);
         if is_truetype {
             truetype::instance(
                 font,
-                &axes,
+                axes,
                 &mut tables,
                 flags.contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS),
             )?;
         } else {
-            let cff2 = cff::instance(font, &axes)?;
+            let cff2 = cff::instance(font, axes)?;
             tables.insert(Tag::new(b"CFF2"), cff2);
-            metrics::instance(font, &axes, &mut tables)?;
+            metrics::instance(font, axes, &mut tables)?;
         }
-        layout::instance(font, &axes, &mut tables)?;
-        color::instance(font, &axes, &mut tables)?;
-    } else {
+        layout::instance(font, axes, &mut tables)?;
+        color::instance(font, axes, &mut tables)?;
+    }
+    if axes.coupled {
         metrics::update_os2(&axes, &mut tables);
     }
     if axes.all_pinned() {
