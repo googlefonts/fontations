@@ -10,7 +10,7 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 use write_fonts::{
     from_obj::ToOwnedTable,
-    tables::{base::*, gdef::*, gpos::*, layout::*, math::*},
+    tables::{base::*, gdef::*, gpos::*, jstf::*, layout::*, math::*},
     NullableOffsetMarker, OffsetMarker,
 };
 
@@ -333,6 +333,12 @@ fields!(MathKern;correction_height,kern_values);
 fields!(MathVariants;vert_glyph_constructions,horiz_glyph_constructions);
 fields!(MathGlyphConstruction;glyph_assembly);
 fields!(GlyphAssembly;italics_correction);
+fields!(Jstf;jstf_script_records);
+fields!(JstfScriptRecord;jstf_script);
+fields!(JstfScript;def_jstf_lang_sys,jstf_lang_sys_records);
+fields!(JstfLangSysRecord;jstf_lang_sys);
+fields!(JstfLangSys;jstf_priorities);
+fields!(JstfPriority;shrinkage_jstf_max,extension_jstf_max);
 
 impl Apply for MathValueRecord {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
@@ -879,7 +885,6 @@ fn remap_feature_conditions(
 // their byte slice. Recover their counts from the borrowed table before
 // instancing, preserving the subtable's coverage and lookup matching behavior.
 fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError> {
-    use read_fonts::tables::gpos as read;
     let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
     let mut table: Gpos = source.to_owned_table();
     let mut remaining = 200_000;
@@ -890,56 +895,135 @@ fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError
         .iter()
         .zip(&mut table.lookup_list.lookups)
     {
-        match (source.map_err(|_| error())?, target.as_mut()) {
-            (read::PositionLookup::Single(source), PositionLookup::Single(target)) => {
-                for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
-                    own_empty_singles(
-                        source.map_err(|_| error())?,
-                        target.as_mut(),
-                        &mut remaining,
-                    )?;
-                }
+        own_position_lookup(
+            source.map_err(|_| error())?,
+            target.as_mut(),
+            &mut remaining,
+        )?;
+    }
+    Ok(table)
+}
+
+fn own_position_lookup(
+    source: read_fonts::tables::gpos::PositionLookup,
+    target: &mut PositionLookup,
+    remaining: &mut usize,
+) -> Result<(), SubsetError> {
+    use read_fonts::tables::gpos as read;
+    let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
+    match (source, target) {
+        (read::PositionLookup::Single(source), PositionLookup::Single(target)) => {
+            for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
+                own_empty_singles(source.map_err(|_| error())?, target.as_mut(), remaining)?;
             }
-            (read::PositionLookup::Pair(source), PositionLookup::Pair(target)) => {
-                for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
-                    own_empty_pairs(
-                        source.map_err(|_| error())?,
-                        target.as_mut(),
-                        &mut remaining,
-                    )?;
-                }
+        }
+        (read::PositionLookup::Pair(source), PositionLookup::Pair(target)) => {
+            for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
+                own_empty_pairs(source.map_err(|_| error())?, target.as_mut(), remaining)?;
             }
-            (read::PositionLookup::Extension(source), PositionLookup::Extension(target)) => {
-                for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
-                    match (source.map_err(|_| error())?, target.as_mut()) {
-                        (
-                            read::ExtensionSubtable::Single(source),
-                            ExtensionSubtable::Single(target),
-                        ) => {
-                            own_empty_singles(
-                                source.extension().map_err(|_| error())?,
-                                target.extension.as_mut(),
-                                &mut remaining,
-                            )?;
-                        }
-                        (
-                            read::ExtensionSubtable::Pair(source),
-                            ExtensionSubtable::Pair(target),
-                        ) => {
-                            own_empty_pairs(
-                                source.extension().map_err(|_| error())?,
-                                target.extension.as_mut(),
-                                &mut remaining,
-                            )?;
-                        }
-                        _ => {}
+        }
+        (read::PositionLookup::Extension(source), PositionLookup::Extension(target)) => {
+            for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
+                match (source.map_err(|_| error())?, target.as_mut()) {
+                    (
+                        read::ExtensionSubtable::Single(source),
+                        ExtensionSubtable::Single(target),
+                    ) => {
+                        own_empty_singles(
+                            source.extension().map_err(|_| error())?,
+                            target.extension.as_mut(),
+                            remaining,
+                        )?;
                     }
+                    (read::ExtensionSubtable::Pair(source), ExtensionSubtable::Pair(target)) => {
+                        own_empty_pairs(
+                            source.extension().map_err(|_| error())?,
+                            target.extension.as_mut(),
+                            remaining,
+                        )?;
+                    }
+                    _ => {}
                 }
             }
-            _ => {}
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn own_jstf(source: &read_fonts::tables::jstf::Jstf) -> Result<Jstf, SubsetError> {
+    let error = || SubsetError::SubsetTableError(Tag::new(b"JSTF"));
+    let mut table: Jstf = source.to_owned_table();
+    let mut remaining = 200_000;
+    for (record, target) in source
+        .jstf_script_records()
+        .iter()
+        .zip(&mut table.jstf_script_records)
+    {
+        let source = record
+            .jstf_script(source.offset_data())
+            .map_err(|_| error())?;
+        let target = target.jstf_script.as_mut();
+        if let (Some(source), Some(target)) = (
+            source
+                .def_jstf_lang_sys()
+                .transpose()
+                .map_err(|_| error())?,
+            target.def_jstf_lang_sys.as_mut(),
+        ) {
+            own_jstf_language(&source, target, &mut remaining)?;
+        }
+        for (source_lang, target_lang) in source
+            .jstf_lang_sys_records()
+            .iter()
+            .zip(&mut target.jstf_lang_sys_records)
+        {
+            let source_lang = source_lang
+                .jstf_lang_sys(source.offset_data())
+                .map_err(|_| error())?;
+            own_jstf_language(
+                &source_lang,
+                target_lang.jstf_lang_sys.as_mut(),
+                &mut remaining,
+            )?;
         }
     }
     Ok(table)
+}
+
+fn own_jstf_language(
+    source: &read_fonts::tables::jstf::JstfLangSys,
+    target: &mut JstfLangSys,
+    remaining: &mut usize,
+) -> Result<(), SubsetError> {
+    let error = || SubsetError::SubsetTableError(Tag::new(b"JSTF"));
+    for (source, target) in source
+        .jstf_priorities()
+        .iter()
+        .zip(&mut target.jstf_priorities)
+    {
+        let source = source.map_err(|_| error())?;
+        let target = target.as_mut();
+        for (source, target) in [
+            (
+                source.shrinkage_jstf_max(),
+                target.shrinkage_jstf_max.as_mut(),
+            ),
+            (
+                source.extension_jstf_max(),
+                target.extension_jstf_max.as_mut(),
+            ),
+        ] {
+            if let (Some(source), Some(target)) = (source.transpose().map_err(|_| error())?, target)
+            {
+                for (source, target) in source.lookups().iter().zip(&mut target.lookups) {
+                    own_position_lookup(source.map_err(|_| error())?, target.as_mut(), remaining)
+                        .map_err(|_| error())?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn own_empty_singles(
@@ -998,6 +1082,7 @@ pub(super) fn instance(
     let mut gpos_table = None;
     let mut gsub_table = None;
     let mut math_table = None;
+    let mut jstf_table = None;
     let gdef = font.gdef().ok();
     let context = Context {
         store: gdef
@@ -1057,6 +1142,18 @@ pub(super) fn instance(
         table.apply(&context)?;
         math_table = Some(table);
     }
+    if font.data_for_tag(Tag::new(b"JSTF")).is_some() {
+        let source = font
+            .jstf()
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        crate::jstf::validate(&source)
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        let mut table = own_jstf(&source)?;
+        table
+            .apply(&context)
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        jstf_table = Some(table);
+    }
     let mut gdef_table: Option<Gdef> = gdef.map(|table| table.to_owned_table());
     if let Some(table) = &mut gdef_table {
         table.lig_caret_list.apply(&context)?;
@@ -1091,6 +1188,14 @@ pub(super) fn instance(
             table.apply(&remap_context)?;
         }
         save(tables, b"MATH", table)?;
+    }
+    if let Some(table) = &mut jstf_table {
+        if !axes.all_pinned() {
+            table
+                .apply(&remap_context)
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        }
+        save(tables, b"JSTF", table)?;
     }
     if let Some(mut table) = gdef_table {
         if !axes.all_pinned() {

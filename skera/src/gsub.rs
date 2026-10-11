@@ -111,6 +111,7 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
+        lookup_indices.union(&plan.jstf_gsub_lookups);
         if !plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE)
