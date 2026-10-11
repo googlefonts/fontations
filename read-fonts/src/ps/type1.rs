@@ -11,7 +11,7 @@ use crate::{
     model::glyph::outline::OutlinePen,
     types::{BoundingBox, Fixed, GlyphId},
 };
-use alloc::{string::String, vec::Vec};
+use alloc::{borrow::Cow, string::String, vec::Vec};
 use core::ops::Range;
 
 /// A Type1 font.
@@ -20,6 +20,8 @@ pub struct Type1Font {
     full_name: Option<String>,
     family_name: Option<String>,
     weight: Option<String>,
+    version: Option<String>,
+    notice: Option<String>,
     bbox: BoundingBox<Fixed>,
     italic_angle: i32,
     is_fixed_pitch: bool,
@@ -51,6 +53,8 @@ impl Type1Font {
             full_name: None,
             family_name: None,
             weight: None,
+            version: None,
+            notice: None,
             italic_angle: 0,
             is_fixed_pitch: false,
             underline_position: 0,
@@ -85,10 +89,12 @@ impl Type1Font {
                         font.weight = parser.read_string();
                     }
                 }
+                Token::Name(b"version") => font.version = parser.read_string(),
+                Token::Name(b"Notice") => font.notice = parser.read_string(),
                 Token::Name(b"ItalicAngle") => {
                     font.italic_angle = parser.read_num_as_int().unwrap_or(0)
                 }
-                Token::Name(b"IsFixedPitch") => {
+                Token::Name(b"isFixedPitch") => {
                     font.is_fixed_pitch = parser.next() == Some(Token::Raw(b"true"))
                 }
                 Token::Name(b"UnderlinePosition") => {
@@ -186,6 +192,16 @@ impl Type1Font {
     /// Returns the weight or style name.
     pub fn weight(&self) -> Option<&str> {
         self.weight.as_deref()
+    }
+
+    /// Returns the font version string.
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+
+    /// Returns the font's copyright or trademark notice.
+    pub fn notice(&self) -> Option<&str> {
+        self.notice.as_deref()
     }
 
     /// Returns the italic angle.
@@ -711,6 +727,14 @@ fn is_special_or_whitespace(c: u8) -> bool {
     is_special(c) || is_whitespace(c)
 }
 
+/// Preserve valid UTF-8 names; otherwise decode each source byte as Latin-1.
+fn decode_name(bytes: &[u8]) -> Cow<'_, str> {
+    match core::str::from_utf8(bytes) {
+        Ok(value) => Cow::Borrowed(value),
+        Err(_) => Cow::Owned(bytes.iter().copied().map(char::from).collect()),
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum Token<'a> {
     /// Integers
@@ -811,7 +835,7 @@ impl Charstrings {
         }
         let end = self.data.len();
         let name_start = self.names.len();
-        self.names.extend_from_slice(name);
+        self.names.extend_from_slice(decode_name(name).as_bytes());
         let name_end = self.names.len();
         self.index.push(CharstringEntry {
             name: name_start..name_end,
@@ -1090,14 +1114,13 @@ impl<'a> Parser<'a> {
     }
 
     fn read_string(&mut self) -> Option<String> {
-        use alloc::borrow::ToOwned;
         let bytes = match self.next()? {
             // FreeType accepts a name or a string here
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L1123>
             Token::Name(bytes) | Token::LitString(bytes) => bytes,
             _ => return None,
         };
-        core::str::from_utf8(bytes).ok().map(|s| s.to_owned())
+        Some(decode_name(bytes).into_owned())
     }
 }
 
@@ -1398,10 +1421,7 @@ impl Parser<'_> {
                 Token::Name(name) => {
                     let code = idx;
                     idx += 1;
-                    let Ok(name) = core::str::from_utf8(name) else {
-                        continue;
-                    };
-                    f(code, name);
+                    f(code, &decode_name(name));
                 }
                 _ => {
                     // FreeType fails if missing a literal name here
@@ -1424,10 +1444,7 @@ impl Parser<'_> {
                     let Some(Token::Name(name)) = self.next() else {
                         continue;
                     };
-                    let Ok(name) = core::str::from_utf8(name) else {
-                        continue;
-                    };
-                    f(code, name);
+                    f(code, &decode_name(name));
                 }
                 _ => {}
             }
@@ -1782,6 +1799,36 @@ mod tests {
                 Token::HexString(b"DEAD BEEF"),
             ],
         );
+    }
+
+    #[test]
+    fn font_info_strings_use_utf8_then_latin1() {
+        let mut parser = Parser::new(b"(Caf\xc3\xa9) (Caf\xe9) /Caf\xe9");
+        assert_eq!(parser.read_string().as_deref(), Some("Café"));
+        assert_eq!(parser.read_string().as_deref(), Some("Café"));
+        assert_eq!(parser.read_string().as_deref(), Some("Café"));
+    }
+
+    #[test]
+    fn latin1_glyph_and_encoding_names_match() {
+        let mut charstrings = Charstrings::default();
+        charstrings.push(b"Caf\xe9", b"", -1);
+        assert_eq!(charstrings.name(0), Some("Café"));
+        assert_eq!(charstrings.index_for_name("Café"), Some(0));
+
+        let mut dense = Parser::new(b"[/Caf\xe9]");
+        let mut dense_names = Vec::new();
+        dense
+            .read_dense_encoding(|code, name| dense_names.push((code, name.to_owned())))
+            .unwrap();
+        assert_eq!(dense_names, [(0, "Café".into())]);
+
+        let mut sparse = Parser::new(b"65 /Caf\xe9 def");
+        let mut sparse_names = Vec::new();
+        sparse
+            .read_sparse_encoding(|code, name| sparse_names.push((code, name.to_owned())))
+            .unwrap();
+        assert_eq!(sparse_names, [(65, "Café".into())]);
     }
 
     #[test]
@@ -2172,6 +2219,16 @@ mod tests {
     #[track_caller]
     fn check_type1_font(font: &Type1Font) {
         assert_eq!(font.name(), Some("NotoSerif-Regular"));
+        assert_eq!(
+            font.version(),
+            Some(
+                "2.007; ttfautohint (v1.8) -l 8 -r 50 -G 200 -x 14 -D latn -f none -a qsq -X \"\""
+            )
+        );
+        assert_eq!(
+            font.notice(),
+            Some("Copyright 2015-2021 Google LLC. All Rights Reserved.")
+        );
         assert_eq!(font.full_name(), Some("Noto Serif Regular"));
         assert_eq!(font.family_name(), Some("Noto Serif"));
         assert_eq!(font.weight(), Some("Book"));
@@ -2202,6 +2259,15 @@ mod tests {
             .map(|(_, name)| name)
             .take(4)
             .eq([".notdef", "H", "f", "i"].into_iter()))
+    }
+
+    #[test]
+    fn parses_lowercase_is_fixed_pitch() {
+        let dicts = RawDicts::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let mut base = dicts.base.to_vec();
+        base.extend_from_slice(b"\n/isFixedPitch true def\n");
+        let font = Type1Font::from_dicts(&base, &dicts.private).unwrap();
+        assert!(font.is_fixed_pitch());
     }
 
     #[test]

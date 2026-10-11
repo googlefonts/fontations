@@ -25,6 +25,8 @@ extend-exclude = [
 ba = "ba"
 BA = "BA"
 BENG = "BENG"
+# Byte-string tests spell Café with escape sequences, leaving `Caf` as a token.
+Caf = "Caf"
 fo = "fo"
 FO = "FO"
 inner_typ = "inner_typ"
