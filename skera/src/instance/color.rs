@@ -89,6 +89,85 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn radial(&self, v: &PaintVarRadialGradient) -> Result<Option<Paint>, SubsetError> {
+        if !self.axes.all_pinned() {
+            if !self.indices_are_constant(v.var_index_base, 6)? {
+                return Ok(None);
+            }
+            for stop in &v.color_line.color_stops {
+                if !self.indices_are_constant(stop.var_index_base, 2)? {
+                    return Ok(None);
+                }
+            }
+        }
+        let values = [
+            f64::from(v.x0.to_i16()),
+            f64::from(v.y0.to_i16()),
+            f64::from(v.radius0.to_u16()),
+            f64::from(v.x1.to_i16()),
+            f64::from(v.y1.to_i16()),
+            f64::from(v.radius1.to_u16()),
+        ];
+        let mut geometry = values;
+        if self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+            for (i, value) in geometry.iter_mut().enumerate() {
+                *value += super::round_f32(self.delta(v.var_index_base, i as u32)?);
+            }
+        }
+        if geometry[2] >= 0. && geometry[5] >= 0. {
+            return Ok(None);
+        }
+        let mut line = static_line(&v.color_line);
+        let mut offsets = Vec::new();
+        for (source, stop) in v.color_line.color_stops.iter().zip(&mut line.color_stops) {
+            let delta = if self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+                self.delta(source.var_index_base, 0)?
+            } else {
+                0.
+            };
+            offsets.push(super::round_f32(source.stop_offset.to_bits() as f32 + delta) / 16384.);
+            self.alpha(source.var_index_base, 1, &mut stop.alpha)?;
+        }
+        nonnegative_radial(geometry, line, offsets).map(Some)
+    }
+    fn indices_are_constant(&self, base: u32, count: u32) -> Result<bool, SubsetError> {
+        if base == u32::MAX {
+            return Ok(true);
+        }
+        let store = self.store.as_ref().ok_or_else(error)?;
+        let plan = StorePlan::new(store, self.axes).map_err(|_| error())?;
+        for offset in 0..count {
+            let index = base.checked_add(offset).ok_or_else(error)?;
+            let index = if let Some(map) = &self.map {
+                map.get(index).map_err(|_| error())?
+            } else {
+                DeltaSetIndex {
+                    outer: (index >> 16) as u16,
+                    inner: index as u16,
+                }
+            };
+            if index == DeltaSetIndex::NO_VARIATION_INDEX {
+                continue;
+            }
+            let data = store
+                .item_variation_data()
+                .get(index.outer as usize)
+                .ok_or_else(error)?
+                .map_err(|_| error())?;
+            let deltas = data
+                .delta_set(index.inner)
+                .map(f64::from)
+                .collect::<Vec<_>>();
+            if plan.transforms[index.outer as usize]
+                .residual(&deltas)?
+                .iter()
+                .any(|&delta| (delta + 0.5).floor() != 0.)
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
     fn paint(&self, paint: &mut Paint, depth: usize) -> Result<(), SubsetError> {
         if depth > 64 {
             return Err(error());
@@ -128,6 +207,10 @@ impl Context<'_> {
             }
             Paint::RadialGradient(_) => {}
             Paint::VarRadialGradient(v) => {
+                if let Some(radial) = self.radial(v)? {
+                    *paint = radial;
+                    return Ok(());
+                }
                 self.line(&mut v.color_line)?;
                 self.field(v.var_index_base, 0, &mut v.x0)?;
                 self.field(v.var_index_base, 1, &mut v.y0)?;
@@ -384,6 +467,123 @@ impl Context<'_> {
         Ok(())
     }
 }
+fn nonnegative_radial(
+    source: [f64; 6],
+    line: ColorLine,
+    source_offsets: Vec<f64>,
+) -> Result<Paint, SubsetError> {
+    let transparent = || {
+        Paint::Solid(PaintSolid {
+            palette_index: u16::MAX,
+            alpha: F2Dot14::ZERO,
+        })
+    };
+    let [x0, y0, r0, x1, y1, r1] = source;
+    if r0 == r1 || source_offsets.is_empty() {
+        return Ok(transparent());
+    }
+    let mut ordered: Vec<_> = source_offsets.into_iter().zip(line.color_stops).collect();
+    ordered.sort_by(|(a, _), (b, _)| a.total_cmp(b));
+    let (source_offsets, color_stops): (Vec<_>, Vec<_>) = ordered.into_iter().unzip();
+    let line = ColorLine::new(line.extend, color_stops.len() as u16, color_stops);
+    let dr = r1 - r0;
+    // Fractional shifts must preserve both integer circles and F2Dot14 stops.
+    let mut lattice = 16384_u64;
+    for difference in [x1 - x0, y1 - y0, dr] {
+        let mut right = difference.abs() as u64;
+        while right != 0 {
+            let remainder = lattice % right;
+            lattice = right;
+            right = remainder;
+        }
+    }
+    let lattice = lattice as f64;
+    for shift in 0..16 {
+        let b = f64::from(1 << shift);
+        let coarse = if dr > 0. {
+            (-r0 / dr).ceil()
+        } else {
+            (r0 / -dr).floor() - b
+        };
+        let fine = if dr > 0. {
+            (-r0 / dr * lattice).ceil() / lattice
+        } else {
+            (r0 / -dr * lattice).floor() / lattice - b
+        };
+        for a in [coarse, fine] {
+            // omega = a + b*q. Positive b preserves the largest valid root.
+            let geometry = [
+                x0 + a * (x1 - x0),
+                y0 + a * (y1 - y0),
+                r0 + a * dr,
+                x0 + (a + b) * (x1 - x0),
+                y0 + (a + b) * (y1 - y0),
+                r0 + (a + b) * dr,
+            ];
+            if [0, 1, 3, 4]
+                .into_iter()
+                .any(|i| !(-32768. ..=32767.).contains(&geometry[i]))
+                || [2, 5]
+                    .into_iter()
+                    .any(|i| !(0. ..=65535.).contains(&geometry[i]))
+            {
+                continue;
+            }
+            let mut stops = line.color_stops.clone();
+            let mut offsets: Vec<_> = source_offsets
+                .iter()
+                .map(|offset| (offset - a) / b)
+                .collect();
+            let first = offsets[0];
+            let last = *offsets.last().unwrap();
+            let tip = -geometry[2] / (b * dr);
+            if line.extend == Extend::Pad {
+                if dr > 0. && last <= tip {
+                    stops = vec![stops.last().unwrap().clone()];
+                    offsets = vec![0.];
+                } else if dr < 0. && first > tip {
+                    stops = vec![stops[0].clone()];
+                    offsets = vec![0.];
+                }
+            } else {
+                let mut period = last - first;
+                if line.extend == Extend::Reflect {
+                    period *= 2.;
+                }
+                if period <= 0. {
+                    return Ok(transparent());
+                }
+                let n = ((-2. - first) / period).ceil();
+                if n > ((32767. / 16384. - last) / period).floor() {
+                    continue;
+                }
+                for offset in &mut offsets {
+                    *offset += n * period;
+                }
+            }
+            if offsets.iter().any(|offset| {
+                let bits = offset * 16384.;
+                !(-32768. ..=32767.).contains(&bits) || bits != bits.round()
+            }) {
+                continue;
+            }
+            for (stop, offset) in stops.iter_mut().zip(offsets) {
+                stop.stop_offset = F2Dot14::from_bits((offset * 16384.) as i16);
+            }
+            return Ok(Paint::RadialGradient(PaintRadialGradient {
+                color_line: ColorLine::new(line.extend, stops.len() as u16, stops).into(),
+                x0: FWord::new(geometry[0] as i16),
+                y0: FWord::new(geometry[1] as i16),
+                radius0: UfWord::new(geometry[2] as u16),
+                x1: FWord::new(geometry[3] as i16),
+                y1: FWord::new(geometry[4] as i16),
+                radius1: UfWord::new(geometry[5] as u16),
+            }));
+        }
+    }
+    Err(error())
+}
+
 fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<Paint> {
     if (-2. ..2.).contains(&sx) && (-2. ..2.).contains(&sy) {
         return None;
