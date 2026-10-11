@@ -520,8 +520,10 @@ fn preserve_default_deltas(
         let mut rows = Vec::new();
         for inner in 0..view.item_count() {
             let mut row: Vec<_> = view.delta_set(inner).map(f64::from).collect();
+            // Retaining a default in the store requires double products: a
+            // float sum can lose low integer bits before long-word splitting.
             let delta = scalars
-                .delta(
+                .condition_delta(
                     source,
                     DeltaSetIndex {
                         outer: outer as u16,
@@ -529,7 +531,7 @@ fn preserve_default_deltas(
                     },
                 )
                 .ok_or_else(error)?;
-            row.push(super::round_f32(delta));
+            row.push((delta + 0.5).floor());
             rows.push(row);
         }
         *item = super::store::encode_rows(&indices, &rows).map_err(|_| error())?;
