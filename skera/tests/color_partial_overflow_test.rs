@@ -125,3 +125,34 @@ fn constant_regions_apply_at_default_coordinates() {
         owned(&instance(CONSTANT, "wght=0,wdth=0"))
     );
 }
+
+#[test]
+fn integer_geometry_and_affine_defaults_survive_partial_instances() {
+    for source in [
+        include_bytes!("../test-data/fonts/colr-geometry-overflow.ttf").as_slice(),
+        include_bytes!("../test-data/fonts/colr-geometry-overflow-mapped.ttf").as_slice(),
+    ] {
+        let partial = instance(source, "wght=1");
+        for width in [0.5, 0.75, 1.] {
+            let direct = owned(&instance(source, &format!("wght=1,wdth={width}")));
+            assert_eq!(owned(&instance(&partial, &format!("wdth={width}"))), direct);
+            let paints = &direct
+                .base_glyph_list
+                .as_ref()
+                .unwrap()
+                .base_glyph_paint_records;
+            let Paint::Translate(translate) = paints[0].paint.as_ref() else {
+                panic!()
+            };
+            assert_eq!(translate.dx.to_i16() as f64, 40000. - 40000. * width);
+            let Paint::RadialGradient(radial) = paints[1].paint.as_ref() else {
+                panic!()
+            };
+            assert_eq!(radial.radius0.to_u16() as f64, -100. + 400. * width);
+            let Paint::Transform(affine) = paints[2].paint.as_ref() else {
+                panic!()
+            };
+            assert_eq!(affine.transform.xx.to_f64(), 40000. - 30000. * width);
+        }
+    }
+}
