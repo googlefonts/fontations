@@ -621,7 +621,7 @@ trait ColorValue: Copy {
     fn add(self, delta: f32) -> Self;
 }
 // Integer fields round the delta before addition. Fixed fields add it in
-// float precision before rounding back to the field's stored integer units.
+// sufficient precision before rounding back to the field's stored integer units.
 impl ColorValue for FWord {
     fn add(self, d: f32) -> Self {
         FWord::new((self.to_i16() as i64 + super::round_f32(d) as i64).clamp(-32768, 32767) as i16)
@@ -641,7 +641,7 @@ impl ColorValue for F2Dot14 {
 }
 impl ColorValue for Fixed {
     fn add(self, d: f32) -> Self {
-        Self::from_bits(super::round_f32(self.to_bits() as f32 + d) as i32)
+        Self::from_bits((f64::from(self.to_bits()) + f64::from(d) + 0.5).floor() as i32)
     }
 }
 fn static_line(v: &VarColorLine) -> ColorLine {
