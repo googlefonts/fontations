@@ -159,6 +159,7 @@ impl Context<'_> {
         &self,
         value: &mut i16,
         device: &mut NullableOffsetMarker<DeviceOrVariationIndex>,
+        tag: Tag,
     ) -> Result<(), SubsetError> {
         if let Some(delta) = device
             .as_ref()
@@ -166,7 +167,7 @@ impl Context<'_> {
             .transpose()?
             .flatten()
         {
-            *value = add(*value, delta);
+            *value = add(*value, delta, tag)?;
             if self.device_is_constant(device.as_ref().unwrap())? {
                 *device = Default::default();
             } else {
@@ -176,10 +177,9 @@ impl Context<'_> {
         Ok(())
     }
 }
-fn add(value: i16, delta: i32) -> i16 {
-    (value as i32)
-        .saturating_add(delta)
-        .clamp(i16::MIN as i32, i16::MAX as i32) as i16
+fn add(value: i16, delta: i32, tag: Tag) -> Result<i16, SubsetError> {
+    i16::try_from(i64::from(value) + i64::from(delta))
+        .map_err(|_| SubsetError::SubsetTableError(tag))
 }
 
 trait Apply {
@@ -337,7 +337,7 @@ fields!(GlyphAssembly;italics_correction);
 impl Apply for MathValueRecord {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         let mut value = self.value.to_i16();
-        c.apply(&mut value, &mut self.device)?;
+        c.apply(&mut value, &mut self.device, Tag::new(b"MATH"))?;
         self.value = value.into();
         Ok(())
     }
@@ -376,7 +376,7 @@ impl Apply for ValueRecord {
                 if delta != 0 {
                     fmt |= value_flag;
                 }
-                *value = Some(add(value.unwrap_or(0), delta));
+                *value = Some(add(value.unwrap_or(0), delta, Tag::new(b"GPOS"))?);
                 if c.device_is_constant(device.as_ref().unwrap())? {
                     *device = Default::default();
                 } else {
@@ -396,8 +396,8 @@ impl Apply for ValueRecord {
 impl Apply for AnchorTable {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         if let Self::Format3(a) = self {
-            c.apply(&mut a.x_coordinate, &mut a.x_device)?;
-            c.apply(&mut a.y_coordinate, &mut a.y_device)?;
+            c.apply(&mut a.x_coordinate, &mut a.x_device, Tag::new(b"GPOS"))?;
+            c.apply(&mut a.y_coordinate, &mut a.y_device, Tag::new(b"GPOS"))?;
             if a.x_device.is_none() && a.y_device.is_none() {
                 *self = Self::Format1(AnchorFormat1 {
                     x_coordinate: a.x_coordinate,
@@ -412,7 +412,7 @@ impl Apply for CaretValue {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         if let Self::Format3(a) = self {
             if let Some(delta) = c.device(&a.device)? {
-                a.coordinate = add(a.coordinate, delta);
+                a.coordinate = add(a.coordinate, delta, Tag::new(b"GDEF"))?;
                 if c.device_is_constant(&a.device)? {
                     *self = Self::Format1(CaretValueFormat1 {
                         coordinate: a.coordinate,
@@ -428,7 +428,7 @@ impl Apply for CaretValue {
 impl Apply for BaseCoord {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         if let Self::Format3(a) = self {
-            c.apply(&mut a.coordinate, &mut a.device)?;
+            c.apply(&mut a.coordinate, &mut a.device, Tag::new(b"BASE"))?;
         }
         Ok(())
     }
@@ -1214,6 +1214,56 @@ mod tests {
     }
 
     #[test]
+    fn layout_records_reject_out_of_range_coordinates() {
+        let bytes = include_bytes!("../../test-data/fonts/layout-value-overflow.ttf");
+        let font = FontRef::new(bytes).unwrap();
+        for request in ["wght=1,wdth=0", "wght=1"] {
+            let axes = AxisPlan::new(&font, &crate::parse_axis_limits(request).unwrap()).unwrap();
+            for (base, delta) in [(30000, 10000), (-30000, -10000)] {
+                let store = store_bytes(&[[delta, 1]]);
+                let c = Context {
+                    store: Some(ItemVariationStore::read(FontData::new(&store)).unwrap()),
+                    coords: &axes.coords,
+                    axes: &axes,
+                    condition_rows: RefCell::default(),
+                    scalars: OnceCell::new(),
+                    store_plan: OnceCell::new(),
+                    constant_indices: RefCell::default(),
+                    remapping: None,
+                };
+                let device = || VariationIndex::new(0, 0).into();
+                let records: Vec<(Tag, Box<dyn Apply>)> = vec![
+                    (
+                        Tag::new(b"MATH"),
+                        Box::new(MathValueRecord::new(base.into(), Some(device()))),
+                    ),
+                    (
+                        Tag::new(b"GDEF"),
+                        Box::new(CaretValue::format_3(base, device())),
+                    ),
+                    (
+                        Tag::new(b"BASE"),
+                        Box::new(BaseCoord::format_3(base, Some(device()))),
+                    ),
+                    (
+                        Tag::new(b"GPOS"),
+                        Box::new(AnchorTable::format_3(base, 0, Some(device()), None)),
+                    ),
+                    (
+                        Tag::new(b"GPOS"),
+                        Box::new(AnchorTable::format_3(0, base, None, Some(device()))),
+                    ),
+                ];
+                for (tag, mut record) in records {
+                    assert!(
+                        matches!(record.apply(&c), Err(SubsetError::SubsetTableError(actual)) if actual == tag)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn removed_variation_stores_and_rows_evaluate_to_zero() {
         let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
@@ -1639,7 +1689,7 @@ mod tests {
     }
 
     #[test]
-    fn long_word_deltas_saturate_fields_and_preserve_condition_sign() {
+    fn long_word_deltas_reject_field_overflows_and_preserve_condition_sign() {
         let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
         let axes = AxisPlan::new(
@@ -1658,13 +1708,13 @@ mod tests {
             constant_indices: RefCell::default(),
             remapping: None,
         };
-        for (inner, base, expected) in [(0, 100, i16::MAX), (1, -100, i16::MIN)] {
+        for (inner, base) in [(0, 100), (1, -100)] {
             let mut value = ValueRecord::new()
                 .with_x_advance(base)
                 .with_x_advance_device(VariationIndex::new(0, inner));
-            value.apply(&c).unwrap();
-            assert_eq!(value.x_advance, Some(expected));
-            assert!(value.x_advance_device.is_none());
+            assert!(
+                matches!(value.apply(&c), Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"GPOS"))
+            );
             let cond = Condition::Format2VariableValue(ConditionFormat2 {
                 default_value: base,
                 var_index: inner as u32,
