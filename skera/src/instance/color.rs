@@ -91,6 +91,14 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn word(&self, base: u32, offset: u32, value: f64) -> Result<f64, SubsetError> {
+        let delta = if base != u32::MAX && self.folds_deltas() {
+            super::round_f32(self.delta(base, offset)?)
+        } else {
+            0.
+        };
+        Ok(value + delta)
+    }
     fn scale(&self, base: u32, offset: u32, value: F2Dot14) -> Result<f64, SubsetError> {
         let delta = if base != u32::MAX && self.folds_deltas() {
             self.delta(base, offset)?
@@ -264,6 +272,14 @@ impl Context<'_> {
             }
             Paint::VarTranslate(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
+                if self.axes.all_pinned() {
+                    let dx = self.word(v.var_index_base, 0, f64::from(v.dx.to_i16()))?;
+                    let dy = self.word(v.var_index_base, 1, f64::from(v.dy.to_i16()))?;
+                    if !(-32768. ..32768.).contains(&dx) || !(-32768. ..32768.).contains(&dy) {
+                        *paint = translation_transform(&v.paint, dx, dy);
+                        return Ok(());
+                    }
+                }
                 self.field(v.var_index_base, 0, &mut v.dx)?;
                 self.field(v.var_index_base, 1, &mut v.dy)?;
                 if self.axes.all_pinned() {
@@ -597,6 +613,43 @@ fn scale_matrices(sx: f64, sy: f64) -> Vec<[f64; 4]> {
     matrices
 }
 
+fn affine_transform(paint: Paint, [xx, yx, xy, yy, dx, dy]: [f64; 6]) -> Paint {
+    Paint::Transform(PaintTransform {
+        paint: paint.into(),
+        transform: Affine2x3 {
+            xx: Fixed::from_f64(xx),
+            yx: Fixed::from_f64(yx),
+            xy: Fixed::from_f64(xy),
+            yy: Fixed::from_f64(yy),
+            dx: Fixed::from_f64(dx),
+            dy: Fixed::from_f64(dy),
+        }
+        .into(),
+    })
+}
+fn translation_transform(paint: &Paint, mut dx: f64, mut dy: f64) -> Paint {
+    // T(k*q + r) = S(k) T(q) S(1/k) T(r). Dyadic factors preserve
+    // translation values with bounded fields and a logarithmic node count.
+    let k = 16384.;
+    let mut matrices = Vec::new();
+    let mut remainders = Vec::new();
+    while !(-32768. ..32768.).contains(&dx) || !(-32768. ..32768.).contains(&dy) {
+        let (qx, qy) = ((dx / k).trunc(), (dy / k).trunc());
+        remainders.push((dx - qx * k, dy - qy * k));
+        matrices.push([k, 0., 0., k, 0., 0.]);
+        (dx, dy) = (qx, qy);
+    }
+    matrices.push([1., 0., 0., 1., dx, dy]);
+    for (dx, dy) in remainders.into_iter().rev() {
+        matrices.push([1. / k, 0., 0., 1. / k, 0., 0.]);
+        matrices.push([1., 0., 0., 1., dx, dy]);
+    }
+    matrices
+        .into_iter()
+        .rev()
+        .fold(paint.clone(), affine_transform)
+}
+
 fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<Paint> {
     if (-2. ..2.).contains(&sx) && (-2. ..2.).contains(&sy) {
         return None;
@@ -607,19 +660,8 @@ fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<
     let cy = f64::from(cy);
     let dx = cx * (1. - sx);
     let dy = cy * (1. - sy);
-    let transform = |paint: Paint, matrix: [f64; 4], dx: f64, dy: f64| {
-        Paint::Transform(PaintTransform {
-            paint: paint.into(),
-            transform: Affine2x3 {
-                xx: Fixed::from_f64(matrix[0]),
-                yx: Fixed::from_f64(matrix[1]),
-                xy: Fixed::from_f64(matrix[2]),
-                yy: Fixed::from_f64(matrix[3]),
-                dx: Fixed::from_f64(dx),
-                dy: Fixed::from_f64(dy),
-            }
-            .into(),
-        })
+    let transform = |paint, [xx, yx, xy, yy]: [f64; 4], dx, dy| {
+        affine_transform(paint, [xx, yx, xy, yy, dx, dy])
     };
     if [sx, sy, dx, dy]
         .into_iter()
