@@ -65,6 +65,14 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn scale(&self, base: u32, offset: u32, value: F2Dot14) -> Result<f64, SubsetError> {
+        let delta = if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+            self.delta(base, offset)?
+        } else {
+            0.
+        };
+        Ok(super::round_f32(value.to_bits() as f32 + delta) / 16384.)
+    }
     fn angle(&self, base: u32, offset: u32, value: &mut F2Dot14) -> Result<(), SubsetError> {
         if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
             let bits = super::round_f32(value.to_bits() as f32 + self.delta(base, offset)?);
@@ -207,6 +215,14 @@ impl Context<'_> {
             }
             Paint::VarScale(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
+                let sx = self.scale(v.var_index_base, 0, v.scale_x)?;
+                let sy = self.scale(v.var_index_base, 1, v.scale_y)?;
+                if self.axes.all_pinned() {
+                    if let Some(transform) = scale_transform(&v.paint, sx, sy, 0, 0) {
+                        *paint = transform;
+                        return Ok(());
+                    }
+                }
                 self.field(v.var_index_base, 0, &mut v.scale_x)?;
                 self.field(v.var_index_base, 1, &mut v.scale_y)?;
                 if self.axes.all_pinned() {
@@ -222,10 +238,20 @@ impl Context<'_> {
             }
             Paint::VarScaleAroundCenter(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
-                self.field(v.var_index_base, 0, &mut v.scale_x)?;
-                self.field(v.var_index_base, 1, &mut v.scale_y)?;
+                let sx = self.scale(v.var_index_base, 0, v.scale_x)?;
+                let sy = self.scale(v.var_index_base, 1, v.scale_y)?;
                 self.field(v.var_index_base, 2, &mut v.center_x)?;
                 self.field(v.var_index_base, 3, &mut v.center_y)?;
+                if self.axes.all_pinned() {
+                    if let Some(transform) =
+                        scale_transform(&v.paint, sx, sy, v.center_x.to_i16(), v.center_y.to_i16())
+                    {
+                        *paint = transform;
+                        return Ok(());
+                    }
+                }
+                self.field(v.var_index_base, 0, &mut v.scale_x)?;
+                self.field(v.var_index_base, 1, &mut v.scale_y)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleAroundCenter(PaintScaleAroundCenter {
                         paint: v.paint.clone(),
@@ -241,6 +267,13 @@ impl Context<'_> {
             }
             Paint::VarScaleUniform(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
+                let scale = self.scale(v.var_index_base, 0, v.scale)?;
+                if self.axes.all_pinned() {
+                    if let Some(transform) = scale_transform(&v.paint, scale, scale, 0, 0) {
+                        *paint = transform;
+                        return Ok(());
+                    }
+                }
                 self.field(v.var_index_base, 0, &mut v.scale)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleUniform(PaintScaleUniform {
@@ -254,9 +287,22 @@ impl Context<'_> {
             }
             Paint::VarScaleUniformAroundCenter(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
-                self.field(v.var_index_base, 0, &mut v.scale)?;
+                let scale = self.scale(v.var_index_base, 0, v.scale)?;
                 self.field(v.var_index_base, 1, &mut v.center_x)?;
                 self.field(v.var_index_base, 2, &mut v.center_y)?;
+                if self.axes.all_pinned() {
+                    if let Some(transform) = scale_transform(
+                        &v.paint,
+                        scale,
+                        scale,
+                        v.center_x.to_i16(),
+                        v.center_y.to_i16(),
+                    ) {
+                        *paint = transform;
+                        return Ok(());
+                    }
+                }
+                self.field(v.var_index_base, 0, &mut v.scale)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleUniformAroundCenter(PaintScaleUniformAroundCenter {
                         paint: v.paint.clone(),
@@ -337,6 +383,29 @@ impl Context<'_> {
         }
         Ok(())
     }
+}
+fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<Paint> {
+    if (-2. ..2.).contains(&sx) && (-2. ..2.).contains(&sy) {
+        return None;
+    }
+    // Variation can exceed the compact scale fields' F2Dot14 range. Preserve
+    // the derived scale with the wider fields of PaintTransform.
+    let cx = f64::from(cx);
+    let cy = f64::from(cy);
+    let dx = cx * (1. - sx);
+    let dy = cy * (1. - sy);
+    Some(Paint::Transform(PaintTransform {
+        paint: paint.clone().into(),
+        transform: Affine2x3 {
+            xx: Fixed::from_f64(sx),
+            yx: Fixed::ZERO,
+            xy: Fixed::ZERO,
+            yy: Fixed::from_f64(sy),
+            dx: Fixed::from_f64(dx),
+            dy: Fixed::from_f64(dy),
+        }
+        .into(),
+    }))
 }
 trait ColorValue: Copy {
     fn add(self, delta: f32) -> Self;
