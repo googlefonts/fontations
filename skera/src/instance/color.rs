@@ -298,7 +298,7 @@ impl Context<'_> {
                 let sx = self.scale(v.var_index_base, 0, v.scale_x)?;
                 let sy = self.scale(v.var_index_base, 1, v.scale_y)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) = scale_transform(&v.paint, sx, sy, 0, 0) {
+                    if let Some(transform) = scale_transform(&v.paint, sx, sy, 0., 0.) {
                         *paint = transform;
                         return Ok(());
                     }
@@ -320,16 +320,16 @@ impl Context<'_> {
                 self.paint(&mut v.paint, depth + 1)?;
                 let sx = self.scale(v.var_index_base, 0, v.scale_x)?;
                 let sy = self.scale(v.var_index_base, 1, v.scale_y)?;
-                self.field(v.var_index_base, 2, &mut v.center_x)?;
-                self.field(v.var_index_base, 3, &mut v.center_y)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) =
-                        scale_transform(&v.paint, sx, sy, v.center_x.to_i16(), v.center_y.to_i16())
-                    {
+                    let cx = self.word(v.var_index_base, 2, f64::from(v.center_x.to_i16()))?;
+                    let cy = self.word(v.var_index_base, 3, f64::from(v.center_y.to_i16()))?;
+                    if let Some(transform) = scale_transform(&v.paint, sx, sy, cx, cy) {
                         *paint = transform;
                         return Ok(());
                     }
                 }
+                self.field(v.var_index_base, 2, &mut v.center_x)?;
+                self.field(v.var_index_base, 3, &mut v.center_y)?;
                 self.field(v.var_index_base, 0, &mut v.scale_x)?;
                 self.field(v.var_index_base, 1, &mut v.scale_y)?;
                 if self.axes.all_pinned() {
@@ -349,7 +349,7 @@ impl Context<'_> {
                 self.paint(&mut v.paint, depth + 1)?;
                 let scale = self.scale(v.var_index_base, 0, v.scale)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) = scale_transform(&v.paint, scale, scale, 0, 0) {
+                    if let Some(transform) = scale_transform(&v.paint, scale, scale, 0., 0.) {
                         *paint = transform;
                         return Ok(());
                     }
@@ -368,20 +368,16 @@ impl Context<'_> {
             Paint::VarScaleUniformAroundCenter(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
                 let scale = self.scale(v.var_index_base, 0, v.scale)?;
-                self.field(v.var_index_base, 1, &mut v.center_x)?;
-                self.field(v.var_index_base, 2, &mut v.center_y)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) = scale_transform(
-                        &v.paint,
-                        scale,
-                        scale,
-                        v.center_x.to_i16(),
-                        v.center_y.to_i16(),
-                    ) {
+                    let cx = self.word(v.var_index_base, 1, f64::from(v.center_x.to_i16()))?;
+                    let cy = self.word(v.var_index_base, 2, f64::from(v.center_y.to_i16()))?;
+                    if let Some(transform) = scale_transform(&v.paint, scale, scale, cx, cy) {
                         *paint = transform;
                         return Ok(());
                     }
                 }
+                self.field(v.var_index_base, 1, &mut v.center_x)?;
+                self.field(v.var_index_base, 2, &mut v.center_y)?;
                 self.field(v.var_index_base, 0, &mut v.scale)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleUniformAroundCenter(PaintScaleUniformAroundCenter {
@@ -411,6 +407,19 @@ impl Context<'_> {
             Paint::VarRotateAroundCenter(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
                 self.angle(v.var_index_base, 0, &mut v.angle)?;
+                if self.axes.all_pinned() {
+                    let cx = self.word(v.var_index_base, 1, f64::from(v.center_x.to_i16()))?;
+                    let cy = self.word(v.var_index_base, 2, f64::from(v.center_y.to_i16()))?;
+                    if !(-32768. ..32768.).contains(&cx) || !(-32768. ..32768.).contains(&cy) {
+                        let inner = translation_transform(&v.paint, -cx, -cy);
+                        let origin = Paint::Rotate(PaintRotate {
+                            paint: inner.into(),
+                            angle: v.angle,
+                        });
+                        *paint = translation_transform(&origin, cx, cy);
+                        return Ok(());
+                    }
+                }
                 self.field(v.var_index_base, 1, &mut v.center_x)?;
                 self.field(v.var_index_base, 2, &mut v.center_y)?;
                 if self.axes.all_pinned() {
@@ -444,6 +453,20 @@ impl Context<'_> {
                 self.paint(&mut v.paint, depth + 1)?;
                 self.angle(v.var_index_base, 0, &mut v.x_skew_angle)?;
                 self.angle(v.var_index_base, 1, &mut v.y_skew_angle)?;
+                if self.axes.all_pinned() {
+                    let cx = self.word(v.var_index_base, 2, f64::from(v.center_x.to_i16()))?;
+                    let cy = self.word(v.var_index_base, 3, f64::from(v.center_y.to_i16()))?;
+                    if !(-32768. ..32768.).contains(&cx) || !(-32768. ..32768.).contains(&cy) {
+                        let inner = translation_transform(&v.paint, -cx, -cy);
+                        let origin = Paint::Skew(PaintSkew {
+                            paint: inner.into(),
+                            x_skew_angle: v.x_skew_angle,
+                            y_skew_angle: v.y_skew_angle,
+                        });
+                        *paint = translation_transform(&origin, cx, cy);
+                        return Ok(());
+                    }
+                }
                 self.field(v.var_index_base, 2, &mut v.center_x)?;
                 self.field(v.var_index_base, 3, &mut v.center_y)?;
                 if self.axes.all_pinned() {
@@ -650,14 +673,16 @@ fn translation_transform(paint: &Paint, mut dx: f64, mut dy: f64) -> Paint {
         .fold(paint.clone(), affine_transform)
 }
 
-fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<Paint> {
-    if (-2. ..2.).contains(&sx) && (-2. ..2.).contains(&sy) {
+fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: f64, cy: f64) -> Option<Paint> {
+    if (-2. ..2.).contains(&sx)
+        && (-2. ..2.).contains(&sy)
+        && (-32768. ..32768.).contains(&cx)
+        && (-32768. ..32768.).contains(&cy)
+    {
         return None;
     }
     // Variation can exceed the compact scale fields' F2Dot14 range. Preserve
     // the derived scale with the wider fields of PaintTransform.
-    let cx = f64::from(cx);
-    let cy = f64::from(cy);
     let dx = cx * (1. - sx);
     let dy = cy * (1. - sy);
     let transform = |paint, [xx, yx, xy, yy]: [f64; 4], dx, dy| {
@@ -669,19 +694,16 @@ fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<
     {
         return Some(transform(paint.clone(), [sx, 0., 0., sy], dx, dy));
     }
-    // Keep large centered translations separate. Splitting the center in half
-    // also makes the inverse of -32768 representable in Fixed.
+    // Keep large centered translations separate from the scale matrix.
     let mut paint = paint.clone();
     if cx != 0. || cy != 0. {
-        paint = transform(paint, [1., 0., 0., 1.], -cx / 2., -cy / 2.);
-        paint = transform(paint, [1., 0., 0., 1.], -cx / 2., -cy / 2.);
+        paint = translation_transform(&paint, -cx, -cy);
     }
     for matrix in scale_matrices(sx, sy).into_iter().rev() {
         paint = transform(paint, matrix, 0., 0.);
     }
     if cx != 0. || cy != 0. {
-        paint = transform(paint, [1., 0., 0., 1.], cx / 2., cy / 2.);
-        paint = transform(paint, [1., 0., 0., 1.], cx / 2., cy / 2.);
+        paint = translation_transform(&paint, cx, cy);
     }
     Some(paint)
 }
