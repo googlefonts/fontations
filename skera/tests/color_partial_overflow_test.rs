@@ -156,3 +156,20 @@ fn integer_geometry_and_affine_defaults_survive_partial_instances() {
         }
     }
 }
+
+#[test]
+fn large_default_and_retained_sums_survive_partial_instances() {
+    for source in [
+        include_bytes!("../test-data/fonts/colr-long-sums-positive.ttf").as_slice(),
+        include_bytes!("../test-data/fonts/colr-long-sums-positive-mapped.ttf").as_slice(),
+        include_bytes!("../test-data/fonts/colr-long-sums-negative.ttf").as_slice(),
+        include_bytes!("../test-data/fonts/colr-long-sums-negative-mapped.ttf").as_slice(),
+    ] {
+        for weight in [0, 1] {
+            let partial = instance(source, &format!("wght={weight}"));
+            let width = if weight == 1 { 16383. } else { 1. } / 16384.;
+            let direct = owned(&instance(source, &format!("wght={weight},wdth={width}")));
+            assert_eq!(owned(&instance(&partial, &format!("wdth={width}"))), direct);
+        }
+    }
+}
