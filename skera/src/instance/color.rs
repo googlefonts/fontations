@@ -74,8 +74,12 @@ impl Context<'_> {
         // for the no-variation sentinel, including low bits of Fixed values.
         if base != u32::MAX && self.folds_deltas() {
             let delta = self.delta(base, offset)?;
-            if !self.axes.all_pinned() && value.overflows(delta) {
-                self.overflow.set(true);
+            if value.overflows(delta) {
+                if !self.axes.all_pinned() {
+                    self.overflow.set(true);
+                } else if T::FULL_RANGE_REQUIRED {
+                    return Err(error());
+                }
             }
             *value = value.add(delta);
         }
@@ -725,6 +729,7 @@ fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: f64, cy: f64) -> Option<
     Some(paint)
 }
 trait ColorValue: Copy {
+    const FULL_RANGE_REQUIRED: bool = false;
     fn add(self, delta: f32) -> Self;
     fn overflows(self, delta: f32) -> bool;
 }
@@ -757,11 +762,13 @@ impl ColorValue for F2Dot14 {
     }
 }
 impl ColorValue for Fixed {
+    const FULL_RANGE_REQUIRED: bool = true;
     fn add(self, d: f32) -> Self {
-        Self::from_bits(super::round_f32(self.to_bits() as f32 + d) as i32)
+        Self::from_bits((f64::from(self.to_bits()) + f64::from(d) + 0.5).floor() as i32)
     }
     fn overflows(self, d: f32) -> bool {
-        !(-2147483648. ..2147483648.).contains(&super::round_f32(self.to_bits() as f32 + d))
+        !(-2147483648. ..2147483648.)
+            .contains(&(f64::from(self.to_bits()) + f64::from(d) + 0.5).floor())
     }
 }
 
@@ -1028,7 +1035,7 @@ mod tests {
     }
 
     #[test]
-    fn wide_deltas_and_fixed_bases_use_float_precision() {
+    fn fixed_base_bits_are_preserved_and_wide_derived_values_are_rejected() {
         use read_fonts::{FontData, FontRead};
         let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
         let font = FontRef::new(&bytes).unwrap();
@@ -1074,10 +1081,12 @@ mod tests {
         let mut unchanged = Fixed::from_bits(16777217);
         c.field(u32::MAX, 0, &mut unchanged).unwrap();
         assert_eq!(unchanged.to_bits(), 16777217);
-        for (index, base, expected) in [(0, i32::MIN, i32::MAX), (1, i32::MAX, i32::MIN)] {
+        for (index, base) in [(0, i32::MIN), (1, i32::MAX)] {
             let mut value = Fixed::from_bits(base);
-            c.field(index, 0, &mut value).unwrap();
-            assert_eq!(value.to_bits(), expected);
+            assert!(matches!(
+                c.field(index, 0, &mut value),
+                Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
+            ));
         }
     }
 
