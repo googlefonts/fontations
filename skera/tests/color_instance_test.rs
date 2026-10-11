@@ -1,6 +1,7 @@
 //! Paint values use HarfBuzz's float accumulation and rounding.
 //! References were generated with HarfBuzz dba8e384fd (#6351), all glyphs, retained
-//! IDs, and the full and partial requests in the test below.
+//! IDs, and the full and partial requests in the test below. Fractional clip
+//! minima follow the COLR specification's outward rounding.
 use skera::{instance_font, parse_axis_limits};
 use write_fonts::{
     from_obj::ToOwnedTable,

@@ -65,6 +65,18 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn clip_edge(&self, base: u32, offset: u32, value: &mut FWord) -> Result<(), SubsetError> {
+        if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+            let delta = f64::from(self.delta(base, offset)?);
+            let delta = if offset < 2 {
+                delta.floor()
+            } else {
+                delta.ceil()
+            };
+            *value = FWord::new((f64::from(value.to_i16()) + delta) as i16);
+        }
+        Ok(())
+    }
     fn scale(&self, base: u32, offset: u32, value: F2Dot14) -> Result<f64, SubsetError> {
         let delta = if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
             self.delta(base, offset)?
@@ -748,7 +760,7 @@ pub(super) fn instance(
                     .into_iter()
                     .enumerate()
                 {
-                    c.field(v.var_index_base, i as u32, value)?;
+                    c.clip_edge(v.var_index_base, i as u32, value)?;
                 }
                 if axes.all_pinned() {
                     *clip.clip_box = ClipBox::Format1(ClipBoxFormat1 {
