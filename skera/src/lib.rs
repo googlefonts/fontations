@@ -1049,6 +1049,10 @@ impl Plan {
             }
         }
 
+        if !self.drop_tables.contains(Tag::new(b"MATH")) {
+            math::collect_variation_indices(font, self, &mut varidx_set);
+        }
+
         let vardata_count = var_store.item_variation_data_count() as u32;
         remap_variation_indices(
             vardata_count,
