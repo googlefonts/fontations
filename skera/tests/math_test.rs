@@ -268,3 +268,198 @@ fn malformed_required_math_offsets_fail_subsetting() {
         Err(skera::SubsetError::SubsetTableError(t)) if t == tag
     ));
 }
+
+// Shared with HarfBuzz's test/api/fonts/generate-math-variations.py.
+const VARIABLE_MATH: &[u8] = include_bytes!("../test-data/fonts/math-variations.ttf");
+
+fn variable_values(math: &Math) -> Vec<(&MathValueRecord, i16, i16, i16)> {
+    let mut result = vec![
+        (&math.math_constants.math_leading, 100, 10, 20),
+        (&math.math_constants.axis_height, 200, -20, 30),
+    ];
+    let info = &math.math_glyph_info;
+    for (record, (base, dw, dd)) in info
+        .math_italics_correction_info
+        .as_ref()
+        .unwrap()
+        .italics_correction
+        .iter()
+        .zip([(10, 30, -10), (20, 40, -20)])
+    {
+        result.push((record, base, dw, dd));
+    }
+    for (record, (base, dw, dd)) in info
+        .math_top_accent_attachment
+        .as_ref()
+        .unwrap()
+        .top_accent_attachment
+        .iter()
+        .zip([(300, 50, 5), (400, 60, -5)])
+    {
+        result.push((record, base, dw, dd));
+    }
+    let kern = info.math_kern_info.as_ref().unwrap().math_kern_info_records[0]
+        .top_right_math_kern
+        .as_ref()
+        .unwrap();
+    result.push((&kern.correction_height[0], 50, 70, 7));
+    result.push((&kern.kern_values[0], 70, 80, 8));
+    result.push((&kern.kern_values[1], 80, 90, 9));
+    result.push((
+        &math.math_variants.vert_glyph_constructions[0]
+            .glyph_assembly
+            .as_ref()
+            .unwrap()
+            .italics_correction,
+        40,
+        100,
+        10,
+    ));
+    result
+}
+
+fn check_variable_math(bytes: &[u8], weight: f32, width: f32) {
+    use write_fonts::read::tables::variations::DeltaSetIndex;
+    use write_fonts::types::F2Dot14;
+    let font = FontRef::new(bytes).unwrap();
+    let math: Math = font.math().unwrap().to_owned_table();
+    let fvar = font.fvar().ok();
+    let coords: Vec<_> = fvar
+        .as_ref()
+        .map(|fvar| {
+            fvar.axes()
+                .unwrap()
+                .iter()
+                .map(|axis| {
+                    F2Dot14::from_f32(if axis.axis_tag() == Tag::new(b"wght") {
+                        weight
+                    } else {
+                        width
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let store = font
+        .gdef()
+        .ok()
+        .and_then(|gdef| gdef.item_var_store())
+        .transpose()
+        .unwrap();
+    for (record, base, dw, dd) in variable_values(&math) {
+        let mut actual = f64::from(record.value.to_i16());
+        if let Some(DeviceOrVariationIndex::VariationIndex(index)) = record.device.as_ref() {
+            actual += store
+                .as_ref()
+                .unwrap()
+                .compute_delta(
+                    DeltaSetIndex {
+                        outer: index.delta_set_outer_index,
+                        inner: index.delta_set_inner_index,
+                    },
+                    &coords,
+                )
+                .unwrap()
+                .to_f64();
+        }
+        let delta_width = width * f32::from(dd);
+        let expected = f32::from(base)
+            + (weight * f32::from(dw) + 0.5).floor()
+            + if fvar.is_some() {
+                delta_width
+            } else {
+                (delta_width + 0.5).floor()
+            };
+        assert_eq!(actual, f64::from(expected));
+        if fvar.is_none() {
+            assert!(record.device.is_none());
+        }
+    }
+    assert_eq!(math.math_constants.accent_base_height.value.to_i16(), 500);
+    assert!(math.math_constants.accent_base_height.device.is_none());
+    assert_eq!(
+        math.math_constants
+            .flattened_accent_base_height
+            .device
+            .as_ref(),
+        Some(&Device::new(10, 10, &[1]).into())
+    );
+}
+
+fn instance_math(bytes: &[u8], request: &str) -> Vec<u8> {
+    skera::instance_font(
+        &FontRef::new(bytes).unwrap(),
+        &skera::parse_axis_limits(request).unwrap(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn math_only_shared_store_rows_survive_glyph_subsetting() {
+    let font = FontRef::new(VARIABLE_MATH).unwrap();
+    for only_a in [false, true] {
+        let selection = if only_a { "0,1" } else { "*" };
+        let bytes =
+            subset_font(&font, &plan(&font, selection, "", SubsetFlags::default())).unwrap();
+        let subset = FontRef::new(&bytes).unwrap();
+        let store = subset.gdef().unwrap().item_var_store().unwrap().unwrap();
+        assert_eq!(
+            store
+                .item_variation_data()
+                .get(0)
+                .unwrap()
+                .unwrap()
+                .item_count(),
+            if only_a { 8 } else { 10 }
+        );
+        for weight in [0., 0.5, 1.] {
+            for width in [0., 0.5, 1.] {
+                check_variable_math(&bytes, weight, width);
+                check_variable_math(
+                    &instance_math(&bytes, &format!("wght={weight},wdth={width}")),
+                    weight,
+                    width,
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn math_variations_compose_across_subset_and_instance_orders() {
+    let font = FontRef::new(VARIABLE_MATH).unwrap();
+    let subset = subset_font(&font, &plan(&font, "0,1", "", SubsetFlags::default())).unwrap();
+    for weight in [0., 0.5, 1.] {
+        let partial = instance_math(&subset, &format!("wght={weight}"));
+        let font = FontRef::new(&partial).unwrap();
+        let partial = subset_font(&font, &Plan::keep_everything(&font)).unwrap();
+        for width in [0., 0.5, 1.] {
+            check_variable_math(&partial, weight, width);
+            let full = instance_math(&partial, &format!("wdth={width}"));
+            check_variable_math(&full, weight, width);
+            let direct = instance_math(&subset, &format!("wght={weight},wdth={width}"));
+            let actual: Math = FontRef::new(&full)
+                .unwrap()
+                .math()
+                .unwrap()
+                .to_owned_table();
+            let expected: Math = FontRef::new(&direct)
+                .unwrap()
+                .math()
+                .unwrap()
+                .to_owned_table();
+            assert_eq!(actual, expected);
+            let width_first = instance_math(&subset, &format!("wdth={width}"));
+            let font = FontRef::new(&width_first).unwrap();
+            let width_first = subset_font(&font, &Plan::keep_everything(&font)).unwrap();
+            let full = instance_math(&width_first, &format!("wght={weight}"));
+            check_variable_math(&full, weight, width);
+            let actual: Math = FontRef::new(&full)
+                .unwrap()
+                .math()
+                .unwrap()
+                .to_owned_table();
+            assert_eq!(actual, expected);
+        }
+    }
+}
