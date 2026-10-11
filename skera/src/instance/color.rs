@@ -115,6 +115,40 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn radial(&self, v: &PaintVarRadialGradient) -> Result<Option<Paint>, SubsetError> {
+        if !self.axes.all_pinned() {
+            return Ok(None);
+        }
+        let values = [
+            f64::from(v.x0.to_i16()),
+            f64::from(v.y0.to_i16()),
+            f64::from(v.radius0.to_u16()),
+            f64::from(v.x1.to_i16()),
+            f64::from(v.y1.to_i16()),
+            f64::from(v.radius1.to_u16()),
+        ];
+        let mut geometry = values;
+        if self.folds_deltas() {
+            for (i, value) in geometry.iter_mut().enumerate() {
+                *value += super::round_f32(self.delta(v.var_index_base, i as u32)?);
+            }
+        }
+        if geometry[2] >= 0. && geometry[5] >= 0. {
+            return Ok(None);
+        }
+        let mut line = static_line(&v.color_line);
+        let mut offsets = Vec::new();
+        for (source, stop) in v.color_line.color_stops.iter().zip(&mut line.color_stops) {
+            let delta = if self.folds_deltas() {
+                self.delta(source.var_index_base, 0)?
+            } else {
+                0.
+            };
+            offsets.push(super::round_f32(source.stop_offset.to_bits() as f32 + delta) / 16384.);
+            self.alpha(source.var_index_base, 1, &mut stop.alpha)?;
+        }
+        nonnegative_radial(geometry, line, offsets).map(Some)
+    }
     fn paint(&self, paint: &mut Paint, depth: usize) -> Result<(), SubsetError> {
         if depth > 64 {
             return Err(error());
@@ -154,6 +188,10 @@ impl Context<'_> {
             }
             Paint::RadialGradient(_) => {}
             Paint::VarRadialGradient(v) => {
+                if let Some(radial) = self.radial(v)? {
+                    *paint = radial;
+                    return Ok(());
+                }
                 self.line(&mut v.color_line)?;
                 self.field(v.var_index_base, 0, &mut v.x0)?;
                 self.field(v.var_index_base, 1, &mut v.y0)?;
@@ -410,6 +448,105 @@ impl Context<'_> {
         Ok(())
     }
 }
+fn nonnegative_radial(
+    source: [f64; 6],
+    line: ColorLine,
+    source_offsets: Vec<f64>,
+) -> Result<Paint, SubsetError> {
+    let transparent = || {
+        Paint::Solid(PaintSolid {
+            palette_index: u16::MAX,
+            alpha: F2Dot14::ZERO,
+        })
+    };
+    let [x0, y0, r0, x1, y1, r1] = source;
+    if r0 == r1 || source_offsets.is_empty() {
+        return Ok(transparent());
+    }
+    let mut ordered: Vec<_> = source_offsets.into_iter().zip(line.color_stops).collect();
+    ordered.sort_by(|(a, _), (b, _)| a.total_cmp(b));
+    let (source_offsets, color_stops): (Vec<_>, Vec<_>) = ordered.into_iter().unzip();
+    let line = ColorLine::new(line.extend, color_stops.len() as u16, color_stops);
+    let dr = r1 - r0;
+    for shift in 0..16 {
+        let b = f64::from(1 << shift);
+        let a = if dr > 0. {
+            (-r0 / dr).ceil()
+        } else {
+            (r0 / -dr).floor() - b
+        };
+        // omega = a + b*q. Positive b preserves the largest valid root.
+        let geometry = [
+            x0 + a * (x1 - x0),
+            y0 + a * (y1 - y0),
+            r0 + a * dr,
+            x0 + (a + b) * (x1 - x0),
+            y0 + (a + b) * (y1 - y0),
+            r0 + (a + b) * dr,
+        ];
+        if [0, 1, 3, 4]
+            .into_iter()
+            .any(|i| !(-32768. ..=32767.).contains(&geometry[i]))
+            || [2, 5]
+                .into_iter()
+                .any(|i| !(0. ..=65535.).contains(&geometry[i]))
+        {
+            continue;
+        }
+        let mut stops = line.color_stops.clone();
+        let mut offsets: Vec<_> = source_offsets
+            .iter()
+            .map(|offset| (offset - a) / b)
+            .collect();
+        let first = offsets[0];
+        let last = *offsets.last().unwrap();
+        let tip = -geometry[2] / (b * dr);
+        if line.extend == Extend::Pad {
+            if dr > 0. && last <= tip {
+                stops = vec![stops.last().unwrap().clone()];
+                offsets = vec![0.];
+            } else if dr < 0. && first > tip {
+                stops = vec![stops[0].clone()];
+                offsets = vec![0.];
+            }
+        } else {
+            let mut period = last - first;
+            if line.extend == Extend::Reflect {
+                period *= 2.;
+            }
+            if period <= 0. {
+                return Ok(transparent());
+            }
+            let n = ((-2. - first) / period).ceil();
+            if n > ((32767. / 16384. - last) / period).floor() {
+                continue;
+            }
+            for offset in &mut offsets {
+                *offset += n * period;
+            }
+        }
+        if offsets.iter().any(|offset| {
+            let bits = offset * 16384.;
+            !(-32768. ..=32767.).contains(&bits) || bits != bits.round()
+        }) {
+            continue;
+        }
+        for (stop, offset) in stops.iter_mut().zip(offsets) {
+            stop.stop_offset = F2Dot14::from_bits((offset * 16384.) as i16);
+        }
+        return Ok(Paint::RadialGradient(PaintRadialGradient {
+            color_line: ColorLine::new(line.extend, stops.len() as u16, stops).into(),
+            x0: FWord::new(geometry[0] as i16),
+            y0: FWord::new(geometry[1] as i16),
+            radius0: UfWord::new(geometry[2] as u16),
+            x1: FWord::new(geometry[3] as i16),
+            y1: FWord::new(geometry[4] as i16),
+            radius1: UfWord::new(geometry[5] as u16),
+        }));
+    }
+    Err(error())
+}
+
 fn scale_matrices(sx: f64, sy: f64) -> Vec<[f64; 4]> {
     let fits = |v| (-32768. ..32768.).contains(&v);
     if fits(sx) && fits(sy) {
