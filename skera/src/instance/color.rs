@@ -408,6 +408,56 @@ impl Context<'_> {
         Ok(())
     }
 }
+fn scale_matrices(sx: f64, sy: f64) -> Vec<[f64; 4]> {
+    let fits = |v| (-32768. ..32768.).contains(&v);
+    if fits(sx) && fits(sy) {
+        return vec![[sx, 0., 0., sy]];
+    }
+    let mut matrices = Vec::new();
+    for (axis, value) in [sx, sy].into_iter().enumerate() {
+        let factors = if fits(value) {
+            vec![[value, 0., 0., 1.]]
+        } else {
+            let mut scaled = value;
+            let mut shifts = 0i32;
+            while scaled.abs() >= 268435456. {
+                scaled /= 2.;
+                shifts += 1;
+            }
+            let unit = 2f64.powi(-(shifts - 2).max(0));
+            let mut k = 16384.;
+            let m = (scaled / k).trunc();
+            let mut r = (scaled - k * m) / unit;
+            let x = (r / m).trunc();
+            k += x * unit;
+            r -= x * m;
+            // Eliminating the -unit pivot gives diag(value, 1). The pivot
+            // retains fractional bits even when the scale needs downscaling.
+            vec![
+                [2f64.powi(shifts), 0., 0., 1. / unit],
+                [1., 0., k, 1.],
+                [unit, 0., 0., 1.],
+                [k, -unit, r, m],
+                [1. / unit, 0., 0., 1.],
+                [1., 0., m, 1.],
+                [unit, 0., 0., 1.],
+                [0., 1., -1., 0.],
+            ]
+        };
+        for [xx, yx, xy, yy] in factors {
+            let matrix = if axis == 1 {
+                [yy, xy, yx, xx]
+            } else {
+                [xx, yx, xy, yy]
+            };
+            if matrix != [1., 0., 0., 1.] {
+                matrices.push(matrix);
+            }
+        }
+    }
+    matrices
+}
+
 fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<Paint> {
     if (-2. ..2.).contains(&sx) && (-2. ..2.).contains(&sy) {
         return None;
@@ -418,30 +468,41 @@ fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<
     let cy = f64::from(cy);
     let dx = cx * (1. - sx);
     let dy = cy * (1. - sy);
-    let transform = |paint: Paint, sx: f64, sy: f64, dx: f64, dy: f64| {
+    let transform = |paint: Paint, matrix: [f64; 4], dx: f64, dy: f64| {
         Paint::Transform(PaintTransform {
             paint: paint.into(),
             transform: Affine2x3 {
-                xx: Fixed::from_f64(sx),
-                yx: Fixed::ZERO,
-                xy: Fixed::ZERO,
-                yy: Fixed::from_f64(sy),
+                xx: Fixed::from_f64(matrix[0]),
+                yx: Fixed::from_f64(matrix[1]),
+                xy: Fixed::from_f64(matrix[2]),
+                yy: Fixed::from_f64(matrix[3]),
                 dx: Fixed::from_f64(dx),
                 dy: Fixed::from_f64(dy),
             }
             .into(),
         })
     };
-    if (-32768. ..32768.).contains(&dx) && (-32768. ..32768.).contains(&dy) {
-        return Some(transform(paint.clone(), sx, sy, dx, dy));
+    if [sx, sy, dx, dy]
+        .into_iter()
+        .all(|v| (-32768. ..32768.).contains(&v))
+    {
+        return Some(transform(paint.clone(), [sx, 0., 0., sy], dx, dy));
     }
     // Keep large centered translations separate. Splitting the center in half
     // also makes the inverse of -32768 representable in Fixed.
-    let paint = transform(paint.clone(), 1., 1., -cx / 2., -cy / 2.);
-    let paint = transform(paint, 1., 1., -cx / 2., -cy / 2.);
-    let paint = transform(paint, sx, sy, 0., 0.);
-    let paint = transform(paint, 1., 1., cx / 2., cy / 2.);
-    Some(transform(paint, 1., 1., cx / 2., cy / 2.))
+    let mut paint = paint.clone();
+    if cx != 0. || cy != 0. {
+        paint = transform(paint, [1., 0., 0., 1.], -cx / 2., -cy / 2.);
+        paint = transform(paint, [1., 0., 0., 1.], -cx / 2., -cy / 2.);
+    }
+    for matrix in scale_matrices(sx, sy).into_iter().rev() {
+        paint = transform(paint, matrix, 0., 0.);
+    }
+    if cx != 0. || cy != 0. {
+        paint = transform(paint, [1., 0., 0., 1.], cx / 2., cy / 2.);
+        paint = transform(paint, [1., 0., 0., 1.], cx / 2., cy / 2.);
+    }
+    Some(paint)
 }
 trait ColorValue: Copy {
     fn add(self, delta: f32) -> Self;
