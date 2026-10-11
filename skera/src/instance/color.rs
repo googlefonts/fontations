@@ -1,7 +1,10 @@
 //! Fold COLRv1 values and rebase its item variation store with the outline axes.
 use super::{optimize, scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
-use std::{cell::OnceCell, collections::BTreeMap};
+use std::{
+    cell::{Cell, OnceCell},
+    collections::BTreeMap,
+};
 use write_fonts::{
     from_obj::ToOwnedTable,
     read::{
@@ -19,8 +22,27 @@ struct Context<'a> {
     store: Option<ItemVariationStore<'a>>,
     map: Option<DeltaSetIndexMap<'a>>,
     scalars: OnceCell<Option<VariationScalars>>,
+    overflow: Cell<bool>,
+    source_constants: OnceCell<bool>,
 }
 impl Context<'_> {
+    fn folds_deltas(&self) -> bool {
+        self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO)
+            || *self.source_constants.get_or_init(|| {
+                self.store
+                    .as_ref()
+                    .and_then(|s| s.variation_region_list().ok())
+                    .is_some_and(|list| {
+                        list.variation_regions().iter().any(|region| {
+                            region.is_ok_and(|r| {
+                                r.region_axes()
+                                    .iter()
+                                    .all(|axis| axis.peak_coord() == F2Dot14::ZERO)
+                            })
+                        })
+                    })
+            })
+    }
     fn delta(&self, base: u32, offset: u32) -> Result<f32, SubsetError> {
         if base == u32::MAX {
             return Ok(0.);
@@ -52,8 +74,12 @@ impl Context<'_> {
     ) -> Result<(), SubsetError> {
         // HarfBuzz leaves base values untouched at the original default and
         // for the no-variation sentinel, including low bits of Fixed values.
-        if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
-            *value = value.add(self.delta(base, offset)?);
+        if base != u32::MAX && self.folds_deltas() {
+            let delta = self.delta(base, offset)?;
+            if !self.axes.all_pinned() && value.overflows(delta) {
+                self.overflow.set(true);
+            }
+            *value = value.add(delta);
         }
         Ok(())
     }
@@ -66,7 +92,7 @@ impl Context<'_> {
         Ok(())
     }
     fn scale(&self, base: u32, offset: u32, value: F2Dot14) -> Result<f64, SubsetError> {
-        let delta = if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+        let delta = if base != u32::MAX && self.folds_deltas() {
             self.delta(base, offset)?
         } else {
             0.
@@ -74,7 +100,7 @@ impl Context<'_> {
         Ok(super::round_f32(value.to_bits() as f32 + delta) / 16384.)
     }
     fn angle(&self, base: u32, offset: u32, value: &mut F2Dot14) -> Result<(), SubsetError> {
-        if base != u32::MAX && self.axes.coords.iter().any(|&v| v != F2Dot14::ZERO) {
+        if base != u32::MAX && self.folds_deltas() {
             let bits = super::round_f32(value.to_bits() as f32 + self.delta(base, offset)?);
             // Rotation and skew are periodic. Reduce the rounded angle modulo
             // 720 degrees, preserving its effect when it exceeds F2Dot14.
@@ -421,6 +447,7 @@ fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<
 }
 trait ColorValue: Copy {
     fn add(self, delta: f32) -> Self;
+    fn overflows(self, delta: f32) -> bool;
 }
 // Integer fields round the delta before addition. Fixed fields add it in
 // float precision before rounding back to the field's stored integer units.
@@ -428,10 +455,16 @@ impl ColorValue for FWord {
     fn add(self, d: f32) -> Self {
         FWord::new((self.to_i16() as i64 + super::round_f32(d) as i64).clamp(-32768, 32767) as i16)
     }
+    fn overflows(self, d: f32) -> bool {
+        !(-32768. ..32768.).contains(&(self.to_i16() as f64 + super::round_f32(d)))
+    }
 }
 impl ColorValue for UfWord {
     fn add(self, d: f32) -> Self {
         UfWord::new((self.to_u16() as i64 + super::round_f32(d) as i64).clamp(0, 65535) as u16)
+    }
+    fn overflows(self, d: f32) -> bool {
+        !(0. ..65536.).contains(&(self.to_u16() as f64 + super::round_f32(d)))
     }
 }
 impl ColorValue for F2Dot14 {
@@ -440,11 +473,71 @@ impl ColorValue for F2Dot14 {
             (super::round_f32(self.to_bits() as f32 + d) as i64).clamp(-32768, 32767) as i16,
         )
     }
+    fn overflows(self, d: f32) -> bool {
+        !(-32768. ..32768.).contains(&super::round_f32(self.to_bits() as f32 + d))
+    }
 }
 impl ColorValue for Fixed {
     fn add(self, d: f32) -> Self {
         Self::from_bits(super::round_f32(self.to_bits() as f32 + d) as i32)
     }
+    fn overflows(self, d: f32) -> bool {
+        !(-2147483648. ..2147483648.).contains(&super::round_f32(self.to_bits() as f32 + d))
+    }
+}
+
+fn preserve_default_deltas(
+    context: &Context,
+    residual: &mut write_fonts::tables::variations::ItemVariationStore,
+) -> Result<(), SubsetError> {
+    use write_fonts::{
+        read::{FontData, FontRead},
+        tables::variations as owned,
+    };
+    let source = context.store.as_ref().ok_or_else(error)?;
+    let scalars = VariationScalars::new(source, &context.axes.coords).ok_or_else(error)?;
+    let bytes = write_fonts::dump_table(residual).map_err(|_| error())?;
+    let data = ItemVariationStore::read(FontData::new(&bytes)).map_err(|_| error())?;
+    let list = &mut residual.variation_region_list;
+    let index = u16::try_from(list.variation_regions.len()).map_err(|_| error())?;
+    if index >= 32767 {
+        return Err(error());
+    }
+    let axis_count = list.axis_count as usize;
+    list.variation_regions
+        .push(owned::VariationRegion::new(vec![
+        owned::RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
+        axis_count
+    ]));
+    for (outer, item) in residual.item_variation_data.iter_mut().enumerate() {
+        let Some(item) = item.as_mut() else {
+            continue;
+        };
+        let view = data
+            .item_variation_data()
+            .get(outer)
+            .ok_or_else(error)?
+            .map_err(|_| error())?;
+        let mut indices: Vec<_> = view.region_indexes().iter().map(|v| v.get()).collect();
+        indices.push(index);
+        let mut rows = Vec::new();
+        for inner in 0..view.item_count() {
+            let mut row: Vec<_> = view.delta_set(inner).map(f64::from).collect();
+            let delta = scalars
+                .delta(
+                    source,
+                    DeltaSetIndex {
+                        outer: outer as u16,
+                        inner,
+                    },
+                )
+                .ok_or_else(error)?;
+            row.push(super::round_f32(delta));
+            rows.push(row);
+        }
+        *item = super::store::encode_rows(&indices, &rows).map_err(|_| error())?;
+    }
+    Ok(())
 }
 fn static_line(v: &VarColorLine) -> ColorLine {
     ColorLine {
@@ -541,6 +634,8 @@ pub(super) fn instance(
             .map_err(|_| error())?,
         map: colr.var_index_map().transpose().map_err(|_| error())?,
         scalars: OnceCell::new(),
+        overflow: Cell::new(false),
+        source_constants: OnceCell::new(),
     };
     let mut table: Colr = colr.to_owned_table();
     if let Some(list) = table.base_glyph_list.as_mut() {
@@ -586,6 +681,12 @@ pub(super) fn instance(
                 plan.rebuild(s)
             })
             .transpose()?;
+        if c.overflow.get() {
+            // Retain the original base fields when the moved default does not
+            // fit. An always-active region carries their default adjustments.
+            table = colr.to_owned_table();
+            preserve_default_deltas(&c, residual.as_mut().ok_or_else(error)?)?;
+        }
         if let (Some(store), Some(map)) = (residual.as_mut(), c.map.as_ref()) {
             let count = match map {
                 DeltaSetIndexMap::Format0(map) => u64::from(map.map_count()),
@@ -688,6 +789,8 @@ mod tests {
             ),
             map: None,
             scalars: OnceCell::new(),
+            overflow: Cell::new(false),
+            source_constants: OnceCell::new(),
         };
         let mut unchanged = Fixed::from_bits(16777217);
         c.field(u32::MAX, 0, &mut unchanged).unwrap();
