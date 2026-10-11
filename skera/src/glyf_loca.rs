@@ -214,10 +214,10 @@ struct SimpleSubsetGlyph<'a> {
 
 impl<'a> SimpleSubsetGlyph<'a> {
     fn new(g: &SimpleGlyph<'a>, plan: &Plan) -> Option<Self> {
-        let num_coords = g.end_pts_of_contours().last()?.get() + 1;
+        let num_coords = g.end_pts_of_contours().last().map_or(0, |p| p.get() + 1);
         let glyph_data = g.glyph_data();
         let glyph_data = glyph_data.get(..trim_simple_glyph_padding(glyph_data, num_coords))?;
-        if glyph_data.is_empty() {
+        if glyph_data.is_empty() && g.instruction_length() == 0 {
             return None;
         }
 
@@ -226,9 +226,10 @@ impl<'a> SimpleSubsetGlyph<'a> {
         let drop_hinting = plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-        let set_overlaps_flag = plan
-            .subset_flags
-            .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG);
+        let set_overlaps_flag = num_coords != 0
+            && plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG);
 
         let (header, instructions, glyph_data) = if !drop_hinting && !set_overlaps_flag {
             let total_len = header_len + g.instruction_length() as usize + glyph_data.len();
@@ -448,6 +449,9 @@ const COORD_BYTES: [u8; 256] = {
 
 // trim padding bytes for simple glyphs, return trimmed length of the raw data for flags & x/y coordinates
 fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
+    if num_coords == 0 {
+        return 0;
+    }
     let mut coord_bytes: usize = 0;
     let mut coords_with_flags: u16 = 0;
     let length = glyph_data.len();
