@@ -13,6 +13,75 @@ use write_fonts::{
 fn coverage() -> CoverageTable {
     CoverageTable::from_iter([GlyphId16::new(1)])
 }
+
+#[test]
+fn positioning_value_limits_are_checked_for_full_and_partial_instances() {
+    let source = include_bytes!("../test-data/fonts/layout-value-overflow.ttf");
+    for glyph in 0..16 {
+        let font = FontRef::new(source).unwrap();
+        let plan = Plan::new(
+            &skera::populate_gids(&(glyph + 1).to_string()).unwrap(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+        );
+        let selected = subset_font(&font, &plan).unwrap();
+        let instance = |bytes: &[u8], request: &str| {
+            instance_font(
+                &FontRef::new(bytes).unwrap(),
+                &parse_axis_limits(request).unwrap(),
+            )
+        };
+        assert!(instance(&selected, "wght=0,wdth=0").is_ok());
+        let width_first = instance(&selected, "wdth=0").unwrap();
+        for (bytes, request) in [
+            (selected.as_slice(), "wght=1,wdth=0"),
+            (selected.as_slice(), "wght=1"),
+            (width_first.as_slice(), "wght=1"),
+        ] {
+            let result = instance(bytes, request);
+            if glyph < 8 {
+                assert!(
+                    matches!(result, Err(skera::SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"GPOS")),
+                    "glyph={glyph} request={request}"
+                );
+                continue;
+            }
+            let output = result.unwrap();
+            let font = FontRef::new(&output).unwrap();
+            let gpos: Gpos = font.gpos().unwrap().to_owned_table();
+            let PositionLookup::Single(lookup) = gpos.lookup_list.lookups[0].as_ref() else {
+                panic!()
+            };
+            let record = match lookup.subtables[0].as_ref() {
+                SinglePos::Format1(table) => &table.value_record,
+                SinglePos::Format2(table) => &table.value_records[0],
+            };
+            let values = [
+                record.x_placement,
+                record.y_placement,
+                record.x_advance,
+                record.y_advance,
+            ];
+            assert_eq!(
+                values[(glyph % 8) / 2],
+                Some(if glyph % 2 == 0 { i16::MAX } else { i16::MIN })
+            );
+            if font.fvar().is_ok() {
+                let full = instance(&output, "wdth=0").unwrap();
+                assert!(FontRef::new(&full).unwrap().fvar().is_err());
+                assert!(
+                    matches!(instance(&output, "wdth=1"), Err(skera::SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"GPOS"))
+                );
+            }
+        }
+    }
+}
 fn scripts() -> ScriptList {
     ScriptList::new(vec![ScriptRecord::new(
         Tag::new(b"DFLT"),
