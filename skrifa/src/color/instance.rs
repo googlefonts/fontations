@@ -52,10 +52,7 @@ impl<'a> ColrInstance<'a> {
         // errors.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/fc01e7dd/src/sfnt/ttcolr.c#L574>
         let mut deltas = [F48Dot16::ZERO; N];
-        if self.coords.is_empty()
-            || self.var_store.is_none()
-            || var_index_base == NO_VARIATION_DELTAS
-        {
+        if self.var_store.is_none() || var_index_base == NO_VARIATION_DELTAS {
             return deltas;
         }
         // Avoid overflow if var_index_base + N > u32::MAX
@@ -1035,6 +1032,32 @@ mod tests {
         let instance = ColrInstance::new(font.colr().unwrap(), coords);
         // Just don't panic with overflow
         let _: [F48Dot16; 4] = instance.var_deltas(0xFFFFFFFE);
+    }
+
+    #[test]
+    fn constant_regions_apply_at_the_default_location() {
+        use font_test_data::bebuffer::BeBuffer;
+        use raw::FontRead;
+
+        let buf = BeBuffer::new()
+            .extend([1u16, 0]) // COLR v1, no base glyph records
+            .extend([0u32; 2]) // no base/layer records
+            .push(0u16) // no layers
+            .extend([0u32; 4]) // no lists or index map
+            .push(34u32) // item variation store
+            .push(1u16) // store format
+            .push(12u32) // region list offset
+            .push(1u16) // one data subtable
+            .push(22u32) // data subtable offset
+            .extend([1u16, 1]) // one axis and one region
+            .extend([F2Dot14::ZERO; 3]) // constant region
+            .extend([1u16, 1, 1, 0]) // one item, one region, one word
+            .push(100i16);
+        let colr = Colr::read(buf.data().into()).unwrap();
+        for coords in [&[][..], &[F2Dot14::ZERO][..], &[F2Dot14::ONE][..]] {
+            let instance = ColrInstance::new(colr.clone(), coords);
+            assert_eq!(instance.var_deltas::<1>(0), [F48Dot16::from_i32(100)]);
+        }
     }
 
     /// Without a `VarIndexMap`, a variation index is a delta-set index with

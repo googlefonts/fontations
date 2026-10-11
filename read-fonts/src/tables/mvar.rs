@@ -110,15 +110,29 @@ pub struct MvarInstance<'a> {
 impl<'a> Mvar<'a> {
     /// Returns the table at a location.
     ///
-    /// `None` at the default location, where every delta is zero, and for a
-    /// font whose variation store cannot be read.
+    /// `None` for an empty default location without constant regions, and
+    /// for a font whose variation store cannot be read.
     pub fn at(&self, coords: &'a [F2Dot14]) -> Option<MvarInstance<'a>> {
-        if coords.is_empty() {
+        let ivs = self.item_variation_store()?.ok()?;
+        if coords.is_empty()
+            && !ivs
+                .variation_region_list()
+                .ok()?
+                .variation_regions()
+                .iter()
+                .any(|region| {
+                    region.is_ok_and(|r| {
+                        r.region_axes()
+                            .iter()
+                            .all(|a| a.peak_coord() == F2Dot14::ZERO)
+                    })
+                })
+        {
             return None;
         }
         Some(MvarInstance {
             records: self.value_records(),
-            ivs: self.item_variation_store()?.ok()?,
+            ivs,
             coords,
         })
     }
@@ -206,6 +220,22 @@ mod tests {
         // Every delta is zero there, so there is nothing to resolve.
         let font = FontRef::new(VAR).unwrap();
         assert!(font.mvar().unwrap().at(&[]).is_none());
+    }
+
+    #[test]
+    fn constant_deltas_have_an_instance_at_the_default() {
+        let font = FontRef::new(font_test_data::CONSTANT_ITEM_DELTAS).unwrap();
+        let mvar = font.mvar().unwrap();
+        for coords in [&[][..], &[F2Dot14::ZERO; 2][..]] {
+            assert_eq!(
+                mvar.at(coords).unwrap().get(tags::HASC),
+                Some(F48Dot16::from_i32(100))
+            );
+            assert_eq!(
+                mvar.metric_delta(tags::HASC, coords),
+                Some(Fixed::from_i32(100))
+            );
+        }
     }
 
     #[test]

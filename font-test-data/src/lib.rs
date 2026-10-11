@@ -416,3 +416,6 @@ pub mod meta {
 pub mod gvar {
     pub static USE_MY_METRICS: &[u8] = include_bytes!("../test_data/ttf/gvar_use_my_metrics.ttf");
 }
+
+/// An item variation store with nonzero constant metrics at every location.
+pub const CONSTANT_ITEM_DELTAS: &[u8] = include_bytes!("../test_data/ttf/constant_item_deltas.ttf");

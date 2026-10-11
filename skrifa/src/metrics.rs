@@ -189,10 +189,9 @@ impl Metrics {
                 }
             }
         }
-        if let (Ok(mvar), true) = (font.mvar(), !coords.is_empty()) {
+        if let Some(mvar) = font.mvar().ok().and_then(|mvar| mvar.at(coords)) {
             use read_fonts::tables::mvar::tags::*;
-            let metric_delta =
-                |tag| mvar.metric_delta(tag, coords).unwrap_or_default().to_f64() as f32 * scale;
+            let metric_delta = |tag| mvar.get(tag).unwrap_or_default().to_i32() as f32 * scale;
             metrics.ascent += metric_delta(HASC);
             metrics.descent += metric_delta(HDSC);
             metrics.leading += metric_delta(HLGP);
@@ -575,6 +574,18 @@ mod tests {
                 y_max: 733.0
             }
         );
+    }
+
+    #[test]
+    fn constant_metric_deltas_apply_at_the_default() {
+        let font = FontRef::new(font_test_data::CONSTANT_ITEM_DELTAS).unwrap();
+        for coords in [&[][..], &[NormalizedCoord::ZERO; 2][..]] {
+            let metrics = Metrics::new(&font, Size::unscaled(), coords);
+            assert_eq!(metrics.ascent, 900.);
+            let glyph_metrics = GlyphMetrics::new(&font, Size::unscaled(), coords);
+            assert_eq!(glyph_metrics.advance_width(GlyphId::new(1)), Some(600.));
+            assert_eq!(glyph_metrics.left_side_bearing(GlyphId::new(1)), Some(30.));
+        }
     }
 
     #[test]

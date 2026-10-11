@@ -137,13 +137,13 @@ mod tests {
     }
 
     #[test]
-    fn a_default_location_moves_nothing() {
+    fn an_ordinary_default_location_has_zero_advance_delta() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let hvar = font.hvar().unwrap();
         let gid = GlyphId::new(1);
         assert_eq!(hvar.advance_delta(gid, &[]), Some(F48Dot16::ZERO));
-        assert_eq!(hvar.lsb_delta(gid, &[]), Some(F48Dot16::ZERO));
-        assert_eq!(hvar.rsb_delta(gid, &[]), Some(F48Dot16::ZERO));
+        assert_eq!(hvar.lsb_delta(gid, &[]), None);
+        assert_eq!(hvar.rsb_delta(gid, &[]), None);
     }
 
     /// A cached scalar has to give the same delta as computing one.

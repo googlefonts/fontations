@@ -1584,7 +1584,7 @@ impl ItemVariationStore<'_> {
         coords: &[F2Dot14],
         scalars: &[Fixed],
     ) -> Option<F48Dot16> {
-        if coords.is_empty() || index == DeltaSetIndex::NO_VARIATION_INDEX {
+        if index == DeltaSetIndex::NO_VARIATION_INDEX {
             return Some(F48Dot16::ZERO);
         }
         let data = match self.item_variation_data().get(index.outer as usize) {
@@ -1798,9 +1798,6 @@ pub(crate) fn advance_delta_with_scalars(
     coords: &[F2Dot14],
     scalars: &[Fixed],
 ) -> Option<F48Dot16> {
-    if coords.is_empty() {
-        return Some(F48Dot16::ZERO);
-    }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
@@ -1826,9 +1823,6 @@ pub(crate) fn item_delta_with_scalars(
     coords: &[F2Dot14],
     scalars: &[Fixed],
 ) -> Option<F48Dot16> {
-    if coords.is_empty() {
-        return Some(F48Dot16::ZERO);
-    }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
@@ -1843,6 +1837,45 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    #[test]
+    fn constant_regions_contribute_with_empty_or_short_coordinates() {
+        let bytes = BeBuffer::new()
+            .push(1u16) // ItemVariationStore format
+            .push(12u32) // region list offset
+            .push(1u16) // variation data count
+            .push(40u32) // variation data offset
+            .extend([2u16, 2]) // two axes and two regions
+            .extend([F2Dot14::ZERO; 6]) // always-active region
+            .extend([F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE])
+            .extend([F2Dot14::ZERO; 3]) // second axis ignored
+            .extend([1u16, 2, 2, 0, 1]) // one item, two word deltas
+            .extend([100i16, 200]);
+        let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
+        let index = DeltaSetIndex { outer: 0, inner: 0 };
+        for coords in [&[][..], &[F2Dot14::ZERO][..], &[F2Dot14::ZERO; 2][..]] {
+            assert_eq!(
+                store.compute_delta(index, coords),
+                Some(F48Dot16::from_i32(100))
+            );
+            let mut scalars = [Fixed::ZERO; 2];
+            assert_eq!(store.compute_scalars(coords, &mut scalars), 2);
+            for count in 0..=2 {
+                assert_eq!(
+                    store.compute_delta_with_scalars(index, coords, &scalars[..count]),
+                    Some(F48Dot16::from_i32(100))
+                );
+            }
+            assert_eq!(
+                advance_delta_with_scalars(None, Ok(store.clone()), GlyphId::new(0), coords, &[]),
+                Some(F48Dot16::from_i32(100))
+            );
+        }
+        assert_eq!(
+            store.compute_delta(index, &[F2Dot14::ONE]),
+            Some(F48Dot16::from_i32(300))
+        );
+    }
 
     #[test]
     fn zero_deltas_still_validate_their_regions() {

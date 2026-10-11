@@ -26,7 +26,7 @@ impl<'a> GlyphHMetrics<'a> {
     /// coordinates in 2.14 fixed point.
     pub fn advance_width(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
         let mut advance = self.hmtx.advance(gid).unwrap_or_default() as i32;
-        if let (false, Some(hvar)) = (coords.is_empty(), &self.hvar) {
+        if let Some(hvar) = &self.hvar {
             advance += hvar
                 .advance_delta(gid, coords)
                 .map(|delta| delta.to_i32())
@@ -40,12 +40,27 @@ impl<'a> GlyphHMetrics<'a> {
     /// coordinates in 2.14 fixed point.    
     pub fn lsb(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
         let mut lsb = self.hmtx.side_bearing(gid).unwrap_or_default() as i32;
-        if let (false, Some(hvar)) = (coords.is_empty(), &self.hvar) {
+        if let Some(hvar) = &self.hvar {
             lsb += hvar
                 .lsb_delta(gid, coords)
                 .map(|delta| delta.to_i32())
                 .unwrap_or(0);
         }
         lsb
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_deltas_apply_to_outline_metrics_at_the_default() {
+        let font = FontRef::new(font_test_data::CONSTANT_ITEM_DELTAS).unwrap();
+        let metrics = GlyphHMetrics::new(&font).unwrap();
+        for coords in [&[][..], &[F2Dot14::ZERO; 2][..]] {
+            assert_eq!(metrics.advance_width(GlyphId::new(1), coords), 600);
+            assert_eq!(metrics.lsb(GlyphId::new(1), coords), 30);
+        }
     }
 }
