@@ -6,14 +6,12 @@ use crate::{
     SubsetFlags,
 };
 
-use write_fonts::{
-    read::{
-        tables::name::{Name, NameRecord},
-        FontRef, TopLevelTable,
-    },
+use read_fonts::{
+    tables::name::{Name, NameRecord},
     types::FixedSize,
-    FontBuilder,
+    FontRef, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for name table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/name/name.hh#L387
@@ -135,8 +133,8 @@ const NAME_RECORD_SIZE: usize = NameRecord::RAW_BYTE_LEN;
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::NameId, TableProvider};
-    use write_fonts::types::Tag;
+    use read_fonts::types::Tag;
+    use read_fonts::{types::NameId, TableProvider};
 
     /// Returns a copy of `font_bytes` with the `count` field of the `name`
     /// table header overwritten, so that the header claims more name records
@@ -179,7 +177,7 @@ mod test {
 
     #[test]
     fn test_subset_font_name_record_count_out_of_bounds() {
-        use write_fonts::read::collections::IntSet;
+        use read_fonts::collections::IntSet;
 
         let ttf: &[u8] = include_bytes!("../test-data/fonts/Roboto-Regular.abc.ttf");
         let bytes = font_with_bad_name_count(ttf, 0xFFFF);

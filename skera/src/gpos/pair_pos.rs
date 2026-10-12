@@ -10,17 +10,15 @@ use crate::{
 };
 
 use crate::FastHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{PairPos, PairPosFormat1, PairPosFormat2, PairSet, ValueFormat, ValueRecord},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        ArrayOfOffsets, FontData, FontRef, ReadError, TableProvider,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{PairPos, PairPosFormat1, PairPosFormat2, PairSet, ValueFormat, ValueRecord},
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::Offset16,
+    ArrayOfOffsets, FontData, FontRef, ReadError, TableProvider,
 };
 
 impl<'a> SubsetTable<'a> for PairPos<'_> {
@@ -804,11 +802,11 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     #[test]
     fn test_subset_pairpos_format1() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
@@ -852,7 +850,7 @@ mod test {
 
     #[test]
     fn test_subset_pairpos_format2() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
@@ -936,7 +934,7 @@ mod test {
 
     #[test]
     fn test_collect_variation_indices_pairpos_format1() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/RobotoFlex-Variable.ttf"
@@ -968,7 +966,7 @@ mod test {
 
     #[test]
     fn test_collect_variation_indices_pairpos_format2() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/RobotoFlex-Variable.ttf"
@@ -1012,7 +1010,7 @@ mod test {
     /// clamps, so those contribute nothing.
     #[test]
     fn test_collect_variation_indices_pairpos_format2_class_past_matrix() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         // class1Count is 1 and class2Count is 2, so only records [0][0] and
         // [0][1] exist. Everything after them is filler pointing at a

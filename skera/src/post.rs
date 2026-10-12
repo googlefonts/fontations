@@ -4,14 +4,12 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetFlags,
 };
-use write_fonts::{
-    read::{
-        tables::post::{Post, DEFAULT_GLYPH_NAMES},
-        FontRef, MinByteRange, TopLevelTable,
-    },
+use read_fonts::{
+    tables::post::{Post, DEFAULT_GLYPH_NAMES},
     types::{BigEndian, Version16Dot16},
-    FontBuilder,
+    FontRef, MinByteRange, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for post in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-post-table.hh#L96

@@ -1,10 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use read_fonts::{collections::IntSet, types::NameId, FontRef};
 use skera::{subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES};
 use std::{path::Path, time::Duration};
-use write_fonts::{
-    read::{collections::IntSet, FontRef},
-    types::NameId,
-};
 
 fn read_test_font(file_name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -6,16 +6,14 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Serialize, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        tables::{
-            gsub::{SingleSubst, SingleSubstFormat1, SingleSubstFormat2},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontRef,
+use read_fonts::{
+    tables::{
+        gsub::{SingleSubst, SingleSubstFormat1, SingleSubstFormat2},
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::Offset16,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for SingleSubst<'_> {
@@ -207,11 +205,11 @@ impl<'a> Serialize<'a> for SingleSubstFormat2<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_single_subst_format1() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font =
             FontRef::new(include_bytes!("../../test-data/fonts/Roboto-Regular.ttf")).unwrap();
@@ -253,7 +251,7 @@ mod test {
 
     #[test]
     fn test_subset_single_subst_format2() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font =
             FontRef::new(include_bytes!("../../test-data/fonts/Roboto-Regular.ttf")).unwrap();
@@ -333,7 +331,7 @@ mod test {
     /// deltaGlyphID is applied modulo 65536: 504 + (-7504) maps to 58536.
     #[test]
     fn test_subset_single_subst_format1_wrapping_delta() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         #[rustfmt::skip]
         let raw_table: [u8; 12] = [

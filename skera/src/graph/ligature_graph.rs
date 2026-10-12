@@ -8,8 +8,8 @@ use crate::{
     },
     serialize::{LinkWidth, ObjIdx},
 };
-use write_fonts::{
-    read::collections::IntSet,
+use read_fonts::{
+    collections::IntSet,
     types::{FixedSize, GlyphId, Offset16},
 };
 

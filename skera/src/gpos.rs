@@ -19,21 +19,17 @@ use crate::{
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{
-                ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables,
-            },
-            layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
-        },
-        types::Tag,
-        FontRead, FontRef, ReadError, TopLevelTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables},
+        layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
     },
+    types::Tag,
     types::{Compatible, MajorMinor, Offset16, Offset32},
-    FontBuilder,
+    FontRead, FontRef, ReadError, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gpos<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -393,7 +389,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     #[test]
     fn test_prune_langsys() {

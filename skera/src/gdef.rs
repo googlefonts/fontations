@@ -7,22 +7,20 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, Subset, SubsetError, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gdef::{
-                AttachList, AttachPoint, CaretValue, CaretValueFormat1, CaretValueFormat2,
-                CaretValueFormat3, Gdef, LigCaretList, LigGlyph, MarkGlyphSets,
-            },
-            layout::CoverageTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gdef::{
+            AttachList, AttachPoint, CaretValue, CaretValueFormat1, CaretValueFormat2,
+            CaretValueFormat3, Gdef, LigCaretList, LigGlyph, MarkGlyphSets,
         },
-        types::GlyphId,
-        FontRef, MinByteRange, ReadError, TopLevelTable,
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::{FixedSize, Offset16, Offset32},
-    FontBuilder,
+    FontRef, MinByteRange, ReadError, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for GDEF in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/GDEF/GDEF.hh#L660>
@@ -604,10 +602,8 @@ impl CollectUsedMarkSets for MarkGlyphSets<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
-        read::{FontRef, TableProvider},
-        types::GlyphId,
-    };
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
+
     #[test]
     fn test_collect_var_indices() {
         let mut plan = Plan::default();

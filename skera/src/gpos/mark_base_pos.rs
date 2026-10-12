@@ -7,16 +7,14 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{BaseArray, BaseRecord, MarkBasePosFormat1},
-            layout::CoverageTable,
-        },
-        FontData, FontRef,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{BaseArray, BaseRecord, MarkBasePosFormat1},
+        layout::CoverageTable,
     },
     types::{GlyphId, Offset16},
+    FontData, FontRef,
 };
 
 impl CollectVariationIndices for MarkBasePosFormat1<'_> {
@@ -239,11 +237,11 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_collect_variation_indices_markbasepos() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/RobotoFlex-Variable.ttf"
@@ -274,7 +272,7 @@ mod test {
 
     #[test]
     fn test_subset_markbase_pos() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/RobotoFlex-Variable.ttf"
@@ -337,7 +335,7 @@ mod test {
 
     #[test]
     fn test_subset_markbase_pos_remove_empty_base_record() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/RobotoFlex-Variable.ttf"

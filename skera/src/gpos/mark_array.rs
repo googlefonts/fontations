@@ -5,17 +5,15 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{MarkArray, MarkRecord},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontData,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{MarkArray, MarkRecord},
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::Offset16,
+    FontData,
 };
 
 pub(crate) fn collect_mark_record_varidx(

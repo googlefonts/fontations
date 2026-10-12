@@ -5,16 +5,16 @@
 //!
 
 use clap::Parser;
-use skera::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
-    subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN,
-    KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
-};
-use write_fonts::read::{
+use read_fonts::{
     collections::IntSet,
     tables::{ebdt, eblc, feat, svg},
     types::{NameId, Tag},
     FontRef, TopLevelTable,
+};
+use skera::{
+    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
+    subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN,
+    KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
 };
 
 #[derive(Parser, Debug)]
