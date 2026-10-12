@@ -6,12 +6,10 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Serialize, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::variations::{
-            DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
-        },
+use read_fonts::{
+    collections::IntSet,
+    tables::variations::{
+        DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
     },
     types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };

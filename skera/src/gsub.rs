@@ -14,18 +14,16 @@ use crate::{
     LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError, SubsetFlags,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
-            layout::LookupFlag,
-        },
-        types::{Compatible, MajorMinor, Offset16, Offset32, Tag},
-        FontRead, FontRef, TopLevelTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
+        layout::LookupFlag,
     },
-    FontBuilder,
+    types::{Compatible, MajorMinor, Offset16, Offset32, Tag},
+    FontRead, FontRef, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gsub<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -321,7 +319,7 @@ where
 mod test {
     use super::*;
     use font_test_data::closure as test_data;
-    use write_fonts::read::{types::NameId, FontRef, TableProvider};
+    use read_fonts::{types::NameId, FontRef, TableProvider};
 
     #[test]
     fn test_nameid_closure() {

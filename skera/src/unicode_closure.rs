@@ -1,7 +1,7 @@
 // Finds additional unicode codepoints which are reachable from the input unicode set.
 // Currently this adds in mirrored variants (needed for bidi) of any input unicodes.
 // ref: <https://github.com/harfbuzz/harfbuzz/blob/0cf18e7b64c4f7a8cad18b7094178d4e45bbba99/src/hb-subset-plan.cc#L219>
-use write_fonts::read::collections::IntSet;
+use read_fonts::collections::IntSet;
 
 const NUM_MIRRORED: u32 = MIRRORED.len() as u32;
 const COST: u32 = 32 - NUM_MIRRORED.leading_zeros();

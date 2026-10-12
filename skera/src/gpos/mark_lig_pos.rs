@@ -8,7 +8,7 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
-use write_fonts::read::{
+use read_fonts::{
     collections::IntSet,
     tables::{
         gpos::{ComponentRecord, LigatureArray, LigatureAttach, MarkLigPosFormat1},
@@ -269,11 +269,11 @@ impl<'a> SubsetTable<'a> for ComponentRecord<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_collect_variation_indices_markligpos() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/Comfortaa-Regular-new.ttf"
@@ -301,7 +301,7 @@ mod test {
 
     #[test]
     fn test_subset_marklig_pos() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/gpos5_font1.otf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
@@ -346,7 +346,7 @@ mod test {
 
     #[test]
     fn test_subset_marklig_pos_remove_empty_ligattach() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"

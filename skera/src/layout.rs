@@ -9,29 +9,27 @@ use crate::{
     serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable, INVALID_GID,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::Gsub,
-            layout::{
-                CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
-                ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                Feature, FeatureList, FeatureParams, FeatureRecord, FeatureTableSubstitution,
-                FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations,
-                Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
-                ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
-            },
-            variations::NO_VARIATION_INDEX,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::Gsub,
+        layout::{
+            CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord,
+            Condition, ConditionFormat1, ConditionSet, CoverageFormat1, CoverageFormat2,
+            CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex, Feature, FeatureList,
+            FeatureParams, FeatureRecord, FeatureTableSubstitution, FeatureTableSubstitutionRecord,
+            FeatureVariationRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
+            LookupList, RangeRecord, Script, ScriptList, ScriptRecord, SizeParams,
+            StylisticSetParams, VariationIndex,
         },
-        types::{GlyphId, GlyphId16, NameId},
-        ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
+        variations::NO_VARIATION_INDEX,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
+    types::{GlyphId, GlyphId16, NameId},
+    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
 };
 
-use write_fonts::read::limits::{
+use read_fonts::limits::{
     MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LANGSYS_FEATURE_COUNT, MAX_LOOKUP_VISIT_COUNT,
     MAX_SCRIPTS,
 };
@@ -1888,12 +1886,10 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
-        read::{
-            tables::gpos::{PairPos, PositionSubtables},
-            FontRef, TableProvider,
-        },
+    use read_fonts::{
+        tables::gpos::{PairPos, PositionSubtables},
         types::GlyphId,
+        FontRef, TableProvider,
     };
 
     #[test]
@@ -1983,7 +1979,7 @@ mod test {
     // <https://github.com/googlefonts/fontations/issues/2142>
     #[test]
     fn test_subset_empty_classdef1() {
-        use write_fonts::read::{tables::layout::ClassDefFormat1, FontData, FontRead};
+        use read_fonts::{tables::layout::ClassDefFormat1, FontData, FontRead};
 
         let mut plan = Plan::default();
         plan.glyphset_gsub.insert(GlyphId::NOTDEF);
@@ -2313,7 +2309,7 @@ mod test {
 
     #[test]
     fn test_subset_script_list() {
-        use write_fonts::read::tables::gpos::Gpos;
+        use read_fonts::tables::gpos::Gpos;
         let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_script_list = font.gpos().unwrap().script_list().unwrap();
 
@@ -2345,7 +2341,7 @@ mod test {
 
     #[test]
     fn test_subset_feature_list() {
-        use write_fonts::read::tables::gpos::Gpos;
+        use read_fonts::tables::gpos::Gpos;
         let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_feature_list = font.gpos().unwrap().feature_list().unwrap();
 

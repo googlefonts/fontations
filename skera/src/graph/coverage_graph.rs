@@ -5,10 +5,7 @@ use crate::{
     serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
-use write_fonts::{
-    read::{tables::layout::CoverageTable, FontData, FontRead},
-    types::GlyphId,
-};
+use read_fonts::{tables::layout::CoverageTable, types::GlyphId, FontData, FontRead};
 
 use std::ops::Range;
 

@@ -5,16 +5,14 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{ValueFormat, ValueRecord},
-            layout::DeviceOrVariationIndex,
-        },
-        ReadError, ResolveOffset,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{ValueFormat, ValueRecord},
+        layout::DeviceOrVariationIndex,
     },
     types::Offset16,
+    ReadError, ResolveOffset,
 };
 
 /// The device fields of a value record, in on-disk order.
@@ -189,7 +187,7 @@ impl CollectVariationIndices for ValueRecord<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::FontData;
+    use read_fonts::FontData;
 
     const ALL: ValueFormat = ValueFormat::from_bits_truncate(0x00FF);
 

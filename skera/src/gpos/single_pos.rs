@@ -10,17 +10,15 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2, ValueFormat, ValueRecord},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontData, FontRef, ReadError, TableProvider,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2, ValueFormat, ValueRecord},
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::Offset16,
+    FontData, FontRef, ReadError, TableProvider,
 };
 
 impl<'a> SubsetTable<'a> for SinglePos<'_> {
@@ -359,11 +357,11 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     #[test]
     fn test_subset_gpos_format1() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
@@ -403,7 +401,7 @@ mod test {
 
     #[test]
     fn test_subset_gpos_format2() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
@@ -472,7 +470,7 @@ mod test {
 
     #[test]
     fn test_subset_gpos_format2_with_variation_indices() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         // Construct a SinglePosFormat2 table with VariationIndex devices:
         // - Coverage: 3 glyphs (10, 20, 30)
@@ -634,7 +632,7 @@ mod test {
         raw_table: &[u8],
         plan: &Plan,
     ) -> Result<Vec<u8>, SerializeErrorFlags> {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         // Dummy font: this path only consults it for fvar.
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
@@ -754,7 +752,7 @@ mod test {
     ];
 
     fn collect_varidxes(raw_table: &[u8], glyphs: &[u32]) -> IntSet<u32> {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         let singlepos = SinglePosFormat2::read(FontData::new(raw_table)).unwrap();
         let mut plan = Plan::default();
@@ -793,7 +791,7 @@ mod test {
     /// subset(), so its ValueRecord's variation index must not be collected.
     #[test]
     fn test_collect_variation_indices_format1_requires_coverage_intersection() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         #[rustfmt::skip]
         let raw_table: [u8; 20] = [

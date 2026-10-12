@@ -8,16 +8,14 @@ use crate::{
     serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::ValueFormat,
-            layout::{ClassDef, CoverageTable},
-        },
-        FontData, FontRead,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::ValueFormat,
+        layout::{ClassDef, CoverageTable},
     },
     types::{FixedSize, GlyphId, Offset16, Scalar},
+    FontData, FontRead,
 };
 
 // output only contains new subtable indices
@@ -748,7 +746,7 @@ fn get_glyph_classes(
     let class_def_data = graph
         .vertex_data(class_def_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    let class_def = ClassDef::read(write_fonts::read::FontData::new(class_def_data))
+    let class_def = ClassDef::read(read_fonts::FontData::new(class_def_data))
         .map_err(|_| RepackError::ErrorReadTable)?;
 
     Ok(coverage_table

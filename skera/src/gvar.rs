@@ -3,11 +3,8 @@ use std::mem::size_of;
 
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 
-use write_fonts::{
-    read::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable},
-    types::Scalar,
-    FontBuilder,
-};
+use read_fonts::{tables::gvar::Gvar, types::GlyphId, types::Scalar, FontRef, TopLevelTable};
+use write_fonts::FontBuilder;
 
 const FIXED_HEADER_SIZE: u32 = 20;
 // reference: subset() for gvar table in harfbuzz
@@ -184,7 +181,7 @@ impl GvarOffset for u32 {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{tables::gvar::GvarFlags, FontData, FontRead};
+    use read_fonts::{tables::gvar::GvarFlags, FontData, FontRead};
 
     /// Builds a synthetic gvar table with one entry per element of `glyph_data`.
     ///

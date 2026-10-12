@@ -6,13 +6,11 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
-        types::GlyphId,
-        FontRef,
-    },
+use read_fonts::{
+    tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
+    types::GlyphId,
     types::Offset16,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
@@ -71,11 +69,11 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_reverse_chain_single_subst() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/gsub8_manually_created.otf"

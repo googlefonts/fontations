@@ -2,9 +2,9 @@
 
 use crate::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use crate::{Plan, Serialize, SubsetTable};
-use write_fonts::{
-    read::MinByteRange,
+use read_fonts::{
     types::{FixedSize, Scalar},
+    MinByteRange,
 };
 
 pub(crate) trait SerializeSubset {
