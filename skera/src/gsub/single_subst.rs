@@ -1,7 +1,7 @@
 //! impl subset() for SingleSubst subtable
 use crate::FastHashMap;
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Serialize, SubsetState, SubsetTable,
@@ -102,34 +102,33 @@ impl SubsetTable<'_> for SingleSubstFormat2<'_> {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let glyph_map = &plan.glyph_map_gsub;
-        let (cov_glyphs, glyph_idxes) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            glyph_map,
-            self.glyph_count(),
-        );
-
-        if cov_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let cap = cov_glyphs.len();
+        let glyph_set = &plan.glyphset_gsub;
+        let glyph_count = self.glyph_count();
+        let cap = coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(glyph_count as usize);
         let mut retained_glyphs = Vec::with_capacity(cap);
         let mut sub_glyphs = Vec::with_capacity(cap);
 
         let sub_glyph_ids = self.substitute_glyph_ids();
-        for (new_g, new_sub_g) in
-            cov_glyphs
-                .iter()
-                .zip(glyph_idxes.iter())
-                .filter_map(|(new_g, idx)| {
-                    let sub_g = sub_glyph_ids.get(idx as usize)?;
-                    let new_sub_g = map_gsub_glyph(glyph_map, GlyphId::from(sub_g.get()))?;
-                    Some((*new_g, new_sub_g))
-                })
-        {
-            retained_glyphs.push(new_g);
-            sub_glyphs.push(new_sub_g);
-        }
+        let _ = for_each_intersected_glyph_and_index::<()>(
+            &coverage,
+            glyph_set,
+            glyph_map,
+            glyph_count,
+            |idx, new_g| {
+                let Some(new_sub_g) = sub_glyph_ids
+                    .get(idx as usize)
+                    .and_then(|sub_g| map_gsub_glyph(glyph_map, GlyphId::from(sub_g.get())))
+                else {
+                    return Ok(());
+                };
+                retained_glyphs.push(new_g);
+                sub_glyphs.push(new_sub_g);
+                Ok(())
+            },
+        );
 
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
