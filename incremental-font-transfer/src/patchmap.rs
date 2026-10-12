@@ -419,7 +419,7 @@ struct EntryDecoder<'a, 'b> {
     entries: &'b mut Vec<Entry>,
 }
 
-impl<'a, 'b> EntryDecoder<'a, 'b> {
+impl<'a> EntryDecoder<'a, '_> {
     fn decode_next(self) -> Result<(FontData<'a>, usize), ReadError> {
         let entry_data = EntryData::read(self.data)?;
 

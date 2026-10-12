@@ -46,28 +46,28 @@ jobs:
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
-          toolchain: 1.89
+          toolchain: 1.85
       - run: rustup component add clippy
 
-      - name: cargo clippy font-types (1.89)
+      - name: cargo clippy font-types (1.85)
         run: cargo clippy -p font-types --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy read-fonts (1.89)
+      - name: cargo clippy read-fonts (1.85)
         run: cargo clippy -p read-fonts --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy write-fonts (1.89)
+      - name: cargo clippy write-fonts (1.85)
         run: cargo clippy -p write-fonts --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy skrifa (1.89)
+      - name: cargo clippy skrifa (1.85)
         run: cargo clippy -p skrifa --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy skera (1.89)
+      - name: cargo clippy skera (1.85)
         run: cargo clippy -p skera --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy fauntlet (1.89)
+      - name: cargo clippy fauntlet (1.85)
         run: cargo clippy -p fauntlet --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy incremental-font-transfer (1.89)
+      - name: cargo clippy incremental-font-transfer (1.85)
         run: cargo clippy -p incremental-font-transfer --all-features --all-targets -- -D warnings
 
   check-msrv:
@@ -86,18 +86,18 @@ jobs:
       - name: cargo check
         run: cargo check --workspace
 
-  test-stable:
-    name: cargo test stable
+  test-msrv:
+    name: cargo test msrv
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: install stable toolchain
+      - name: install msrv toolchain
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
-          toolchain: stable
+          toolchain: 1.85
 
       # test all packages individually to ensure deterministic resolution
       # of dependencies for each package
@@ -105,11 +105,17 @@ jobs:
       - name: cargo test font-types (default)
         run: cargo test -p font-types
 
+      - name: cargo test font-types (no-features)
+        run: cargo test -p font-types --no-default-features
+
       - name: cargo test font-types (all)
         run: cargo test -p font-types --all-targets --all-features
 
       - name: cargo test read-fonts (default)
         run: cargo test -p read-fonts
+
+      - name: cargo test read-fonts (no_std)
+        run: cargo test -p read-fonts --no-default-features --features libm
 
       - name: cargo test read-fonts (all)
         run: cargo test -p read-fonts --all-targets --all-features
@@ -127,6 +133,9 @@ jobs:
 
       - name: cargo test skrifa (default)
         run: cargo test -p skrifa
+
+      - name: cargo test skrifa (no_std)
+        run: cargo test -p skrifa --no-default-features --features libm
 
       - name: cargo test skrifa (all)
         run: cargo test -p skrifa --all-targets --all-features

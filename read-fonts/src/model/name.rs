@@ -274,7 +274,7 @@ impl fmt::Debug for Encoded<'_> {
     }
 }
 
-impl<'a, 'b> PartialEq<Encoded<'b>> for Encoded<'a> {
+impl<'b> PartialEq<Encoded<'b>> for Encoded<'_> {
     fn eq(&self, other: &Encoded<'b>) -> bool {
         self.chars().eq(other.chars())
     }
@@ -282,7 +282,7 @@ impl<'a, 'b> PartialEq<Encoded<'b>> for Encoded<'a> {
 
 impl Eq for Encoded<'_> {}
 
-impl<'a, 'b> PartialOrd<Encoded<'b>> for Encoded<'a> {
+impl<'b> PartialOrd<Encoded<'b>> for Encoded<'_> {
     fn partial_cmp(&self, other: &Encoded<'b>) -> Option<Ordering> {
         Some(self.chars().cmp(other.chars()))
     }

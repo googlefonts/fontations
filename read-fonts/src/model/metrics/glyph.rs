@@ -713,7 +713,7 @@ impl<'a> GlyphMetrics<'a> {
     }
 }
 
-impl<'a> GlyphMetricRecords<'a> {
+impl GlyphMetricRecords<'_> {
     /// Returns `true` if the table states no metrics.
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
