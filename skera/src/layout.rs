@@ -31,11 +31,10 @@ use write_fonts::{
     types::{FixedSize, Offset16, Offset32, Tag},
 };
 
-const MAX_SCRIPTS: u16 = 500;
-const MAX_LANGSYS: u16 = 2000;
-const MAX_FEATURE_INDICES: u16 = 8000;
-const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
-const MAX_LANGSYS_FEATURE_COUNT: u16 = 5000;
+use write_fonts::read::limits::{
+    MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LANGSYS_FEATURE_COUNT, MAX_LOOKUP_VISIT_COUNT,
+    MAX_SCRIPTS,
+};
 
 impl NameIdClosure for StylisticSetParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
@@ -1016,7 +1015,7 @@ pub(crate) fn find_duplicate_features(
 
 pub(crate) struct PruneLangSysContext<'a> {
     script_count: u16,
-    langsys_feature_count: u16,
+    langsys_feature_count: u32,
     // IN: retained feature indices map:
     // duplicate features will be mapped to the same value
     feature_index_map: &'a FastHashMap<u16, u16>,
@@ -1044,7 +1043,7 @@ impl<'a> PruneLangSysContext<'a> {
     }
 
     fn visit_langsys(&mut self, feature_count: u16) -> bool {
-        self.langsys_feature_count += feature_count;
+        self.langsys_feature_count += feature_count as u32;
         self.langsys_feature_count < MAX_LANGSYS_FEATURE_COUNT
     }
 

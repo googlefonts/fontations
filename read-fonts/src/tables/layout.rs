@@ -21,7 +21,7 @@ use crate::TableProvider;
 #[cfg(feature = "std")]
 pub(crate) use closure::{
     ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
-    LookupClosureCtx, SeqCache, MAX_LOOKUP_VISIT_COUNT, MAX_NESTING_LEVEL,
+    LookupClosureCtx, SeqCache,
 };
 
 #[cfg(feature = "std")]
