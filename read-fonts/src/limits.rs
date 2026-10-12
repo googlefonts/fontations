@@ -33,3 +33,45 @@ pub const MAX_OUTLINE_POINTS: usize = u16::MAX as usize + 1;
 /// [`glyf`]: crate::tables::glyf
 /// [`VARC`]: crate::tables::varc
 pub const MAX_COMPOSITE_EDGES: usize = 2048;
+
+/// Maximum number of scripts visited in a layout table's script list.
+///
+/// Matches HarfBuzz's `HB_MAX_SCRIPTS` in [`hb-limits.hh`].
+///
+/// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
+#[cfg(feature = "std")]
+pub const MAX_SCRIPTS: u16 = 500;
+
+/// Maximum number of language systems visited in a layout table's script list.
+///
+/// Matches HarfBuzz's `HB_MAX_LANGSYS` in [`hb-limits.hh`].
+///
+/// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
+#[cfg(feature = "std")]
+pub const MAX_LANGSYS: u16 = 2000;
+
+/// Maximum total number of feature indices referenced by the language systems
+/// visited when pruning a layout table's language systems.
+///
+/// Matches HarfBuzz's `HB_MAX_LANGSYS_FEATURE_COUNT` in [`hb-limits.hh`].
+///
+/// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
+#[cfg(feature = "std")]
+pub const MAX_LANGSYS_FEATURE_COUNT: u32 = 50000;
+
+/// Maximum total number of feature indices visited across the language
+/// systems of a layout table.
+///
+/// Matches HarfBuzz's `HB_MAX_FEATURE_INDICES` in [`hb-limits.hh`].
+///
+/// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
+#[cfg(feature = "std")]
+pub const MAX_FEATURE_INDICES: u16 = 8000;
+
+/// Maximum number of lookups visited by one layout closure operation.
+///
+/// Matches HarfBuzz's `HB_MAX_LOOKUP_VISIT_COUNT` in [`hb-limits.hh`].
+///
+/// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
+#[cfg(feature = "std")]
+pub const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;

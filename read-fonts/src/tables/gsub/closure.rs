@@ -38,7 +38,7 @@ mod ctx {
     use super::ReadError;
 
     #[cfg(feature = "std")]
-    use crate::tables::layout::{MAX_LOOKUP_VISIT_COUNT, MAX_NESTING_LEVEL};
+    use crate::limits::{MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH};
 
     pub(super) struct ClosureCtx<'a> {
         /// the current closure glyphs. This is updated as we go.
@@ -46,7 +46,7 @@ mod ctx {
         pub(super) active_glyphs_stack: Vec<IntSet<GlyphId>>,
         pub(super) output: IntSet<GlyphId>,
         lookup_count: u16,
-        nesting_level_left: u8,
+        nesting_level_left: usize,
         done_lookups_glyphs: HashMap<u16, (u64, IntSet<GlyphId>)>,
     }
 
@@ -57,7 +57,7 @@ mod ctx {
                 active_glyphs_stack: Vec::new(),
                 output: IntSet::empty(),
                 lookup_count: 0,
-                nesting_level_left: MAX_NESTING_LEVEL,
+                nesting_level_left: MAX_RECURSION_DEPTH,
                 done_lookups_glyphs: Default::default(),
             }
         }
@@ -1244,6 +1244,7 @@ mod tests {
     use crate::{FontRef, TableProvider};
 
     use super::*;
+    use font_test_data::bebuffer::BeBuffer;
     use font_test_data::closure as test_data;
 
     struct GlyphMap {
@@ -1487,6 +1488,68 @@ mod tests {
 
         let ret = gsub
             .collect_features(&script_tags, &IntSet::all(), &IntSet::all())
+            .unwrap();
+        assert!(ret.is_empty());
+    }
+
+    /// GSUB with features 'aaaa', 'bbbb', 'cccc' and one 'latn' script with
+    /// two LangSys: the first has `count` feature indices all pointing to
+    /// feature 0, the second points to feature 1.
+    fn gsub_with_many_feature_indices(count: u16) -> BeBuffer {
+        let langsys1_len = 6 + 2 * count;
+        let script_len = 4 + 2 * 6 + langsys1_len + 8;
+        let script_list_len = 2 + 6 + script_len;
+        let feature_list_off = 10 + script_list_len;
+        let lookup_list_off = feature_list_off + 2 + 3 * 6 + 4;
+
+        BeBuffer::new()
+            // header: version 1.0, scriptList, featureList, lookupList offsets
+            .extend([1u16, 0, 10, feature_list_off, lookup_list_off])
+            // ScriptList: 1 record
+            .push(1u16)
+            .push(Tag::new(b"latn"))
+            .push(8u16)
+            // Script: no default LangSys, 2 LangSys records
+            .extend([0u16, 2])
+            .push(Tag::new(b"AAAA"))
+            .push(16u16)
+            .push(Tag::new(b"BBBB"))
+            .push(16u16 + langsys1_len)
+            // LangSys 1: `count` feature indices, all 0
+            .extend([0u16, 0xFFFF, count])
+            .extend(std::iter::repeat_n(0u16, count as usize))
+            // LangSys 2: feature index 1
+            .extend([0u16, 0xFFFF, 1, 1])
+            // FeatureList: 3 records sharing one empty Feature table
+            .push(3u16)
+            .push(Tag::new(b"aaaa"))
+            .push(20u16)
+            .push(Tag::new(b"bbbb"))
+            .push(20u16)
+            .push(Tag::new(b"cccc"))
+            .push(20u16)
+            .extend([0u16, 0])
+            // LookupList: no lookups
+            .push(0u16)
+    }
+
+    /// LangSys past the feature index limit (8000, same as harfbuzz's
+    /// HB_MAX_FEATURE_INDICES) are skipped.
+    #[test]
+    fn collect_all_features_feature_index_limit() {
+        use crate::{FontData, FontRead};
+
+        let data = gsub_with_many_feature_indices(1600);
+        let gsub = Gsub::read(FontData::new(&data)).unwrap();
+        let ret = gsub
+            .collect_features(&IntSet::all(), &IntSet::all(), &IntSet::all())
+            .unwrap();
+        assert_eq!(ret.iter().collect::<Vec<_>>(), [0, 1]);
+
+        let data = gsub_with_many_feature_indices(8001);
+        let gsub = Gsub::read(FontData::new(&data)).unwrap();
+        let ret = gsub
+            .collect_features(&IntSet::all(), &IntSet::all(), &IntSet::all())
             .unwrap();
         assert!(ret.is_empty());
     }

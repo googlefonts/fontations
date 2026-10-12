@@ -17,11 +17,9 @@ use crate::{
     FontRead,
 };
 
-const MAX_SCRIPTS: u16 = 500;
-const MAX_LANGSYS: u16 = 2000;
-const MAX_FEATURE_INDICES: u16 = 1500;
-pub(crate) const MAX_NESTING_LEVEL: u8 = crate::limits::MAX_RECURSION_DEPTH as u8;
-pub(crate) const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
+use crate::limits::{
+    MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH, MAX_SCRIPTS,
+};
 
 struct CollectFeaturesContext<'a> {
     script_count: u16,
@@ -296,7 +294,7 @@ pub(crate) struct LookupClosureCtx<'a> {
     inactive_lookups: IntSet<u16>,
     glyph_set: &'a IntSet<GlyphId>,
     lookup_count: u16,
-    nesting_level_left: u8,
+    nesting_level_left: usize,
     lookup_list: &'a LayoutLookupList<'a>,
 }
 
@@ -307,7 +305,7 @@ impl<'a> LookupClosureCtx<'a> {
             inactive_lookups: IntSet::empty(),
             glyph_set,
             lookup_count: 0,
-            nesting_level_left: MAX_NESTING_LEVEL,
+            nesting_level_left: MAX_RECURSION_DEPTH,
             lookup_list,
         }
     }

@@ -54,6 +54,7 @@ use thiserror::Error;
 use write_fonts::{
     read::{
         collections::{int_set::Domain, IntSet},
+        limits::MAX_RECURSION_DEPTH,
         tables::{
             avar::Avar,
             base::Base,
@@ -99,7 +100,6 @@ use write_fonts::{
 type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
-const MAX_NESTING_LEVEL: u8 = 64;
 // Support 24-bit gids. This should probably be extended to u32::MAX but
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
@@ -958,14 +958,14 @@ fn glyf_closure_glyphs(
     gid: GlyphId,
     gids_to_retain: &mut IntSet<GlyphId>,
     operation_count: i32,
-    depth: u8,
+    depth: usize,
 ) -> i32 {
     if gids_to_retain.contains(gid) {
         return operation_count;
     }
     gids_to_retain.insert(gid);
 
-    if depth > MAX_NESTING_LEVEL {
+    if depth > MAX_RECURSION_DEPTH {
         return operation_count;
     }
     let depth = depth + 1;
