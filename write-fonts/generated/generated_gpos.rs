@@ -1597,6 +1597,7 @@ impl Validate for MarkBasePosFormat1 {
             ctx.in_field("base_array", |ctx| {
                 self.base_array.validate_impl(ctx);
             });
+            self.check_class_count_conformance(ctx);
         })
     }
 }
@@ -1795,6 +1796,7 @@ impl Validate for MarkLigPosFormat1 {
             ctx.in_field("ligature_array", |ctx| {
                 self.ligature_array.validate_impl(ctx);
             });
+            self.check_class_count_conformance(ctx);
         })
     }
 }
@@ -2050,6 +2052,7 @@ impl Validate for MarkMarkPosFormat1 {
             ctx.in_field("mark2_array", |ctx| {
                 self.mark2_array.validate_impl(ctx);
             });
+            self.check_class_count_conformance(ctx);
         })
     }
 }
