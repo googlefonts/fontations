@@ -802,7 +802,7 @@ mod tests {
             .iter()
             .map(|sub| match sub {
                 rgpos::PairPos::Format1(sub) => sub.pair_set_count(),
-                rgpos::PairPos::Format2(_) => panic!("wrong subtable format"),
+                _ => panic!("wrong subtable format"),
             })
             .sum();
         assert_eq!(n_pair_sets, G1_COUNT);

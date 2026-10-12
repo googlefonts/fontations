@@ -698,13 +698,13 @@ mod tests {
                 .map(|sub| {
                     ExtensionSubtable::MarkToBase(ExtensionPosFormat1::new(
                         LookupType::MARK_TO_BASE,
-                        sub.into_inner(),
+                        sub.into_inner().into(),
                     ))
                 })
                 .collect();
             PositionLookup::Extension(Lookup::new(LookupFlag::empty(), subtables))
         } else {
-            PositionLookup::MarkToBase(lookup)
+            lookup.into()
         };
         let gpos = Gpos::new(
             Default::default(),
@@ -716,7 +716,13 @@ mod tests {
         let gpos = rgpos::Gpos::read(bytes.as_slice().into()).unwrap();
         let lookup = gpos.lookup_list().unwrap().lookups().get(0).unwrap();
         let subtables: Vec<_> = match lookup.subtables().unwrap() {
-            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            PositionSubtables::MarkToBase(subs) => subs
+                .iter()
+                .map(|sub| match sub.unwrap() {
+                    rgpos::MarkBasePos::Format1(sub) => sub,
+                    _ => panic!("wrong subtable format"),
+                })
+                .collect(),
             _ => panic!("wrong lookup type"),
         };
         // the first subtable was split, and the empty one left alone
