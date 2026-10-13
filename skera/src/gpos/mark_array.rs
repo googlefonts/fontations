@@ -181,7 +181,7 @@ mod test {
         let mark_array = MarkArray::read(FontData::new(raw)).unwrap();
         let plan = Plan::default();
         let mark_record_idxes: IntSet<u16> = [0, 1].into_iter().collect();
-        let mark_class_map: FnvHashMap<u16, u16> = [(0, 0), (1, 1)].into_iter().collect();
+        let mark_class_map: FastHashMap<u16, u16> = [(0, 0), (1, 1)].into_iter().collect();
 
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
