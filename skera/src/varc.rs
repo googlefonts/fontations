@@ -574,38 +574,52 @@ pub(crate) fn subset(
 // rejecting any change to an axis referenced by retained VARC data. The other
 // axes only need their indices remapped; component values and deltas stay in
 // the original final-coordinate space.
-pub(crate) fn instance(
-    font: &FontRef,
-    axes: &crate::instance::AxisPlan,
-) -> std::result::Result<Vec<u8>, SubsetError> {
-    let error = || SubsetError::SubsetTableError(TAG);
-    let fvar = font.fvar().map_err(|_| error())?;
-    let mut map = Map::new();
-    let mut new_index = 0;
-    for (i, axis) in fvar.axes().map_err(|_| error())?.iter().enumerate() {
-        if axes.pinned[i] {
-            continue;
+impl crate::instance::Instance<crate::instance::FontContext<'_>> for ReadVarc<'_> {
+    type Output = crate::instance::TableChange;
+    fn instance(
+        &self,
+        context: &mut crate::instance::FontContext<'_>,
+    ) -> std::result::Result<Self::Output, SubsetError> {
+        let font = context.font;
+        let axes = context.axes;
+        let error = || SubsetError::SubsetTableError(TAG);
+        let fvar = font.fvar().map_err(|_| error())?;
+        let mut map = Map::new();
+        let mut new_index = 0;
+        for (i, axis) in fvar.axes().map_err(|_| error())?.iter().enumerate() {
+            if axes.pinned[i] {
+                continue;
+            }
+            if !axes.values.iter().any(|(tag, _)| *tag == axis.axis_tag()) {
+                map.insert(i as u32, new_index);
+            }
+            new_index += 1;
         }
-        if !axes.values.iter().any(|(tag, _)| *tag == axis.axis_tag()) {
-            map.insert(i as u32, new_index);
-        }
-        new_index += 1;
+        let mut plan = Plan::keep_everything(font);
+        plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+        let bytes = subset_table_bytes(self, &plan, Some(&map)).map_err(|_| error())?;
+        Ok(if bytes.is_empty() {
+            crate::instance::TableChange::Remove
+        } else {
+            crate::instance::TableChange::Replace(bytes)
+        })
     }
-    let mut plan = Plan::keep_everything(font);
-    plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
-    subset_bytes(font, &plan, Some(&map)).map_err(|_| error())
 }
 
 fn subset_bytes(font: &FontRef, plan: &Plan, axes: Option<&Map>) -> Result<Vec<u8>> {
     let table = table(font)?;
-    let mut subset = SubsetPlan::collect_glyphs(&table, plan)?;
+    subset_table_bytes(&table, plan, axes)
+}
+
+fn subset_table_bytes(table: &ReadVarc, plan: &Plan, axes: Option<&Map>) -> Result<Vec<u8>> {
+    let mut subset = SubsetPlan::collect_glyphs(table, plan)?;
     if subset.old_indices.is_empty() {
         return Ok(Vec::new());
     }
-    subset.collect_indices(&table, axes)?;
-    let records = subset.compile_records(&table, plan)?;
-    let axis_indices = subset.select_axis_indices(&table, axes)?;
-    let store = subset.subset_store(&table, axes)?;
+    subset.collect_indices(table, axes)?;
+    let records = subset.compile_records(table, plan)?;
+    let axis_indices = subset.select_axis_indices(table, axes)?;
+    let store = subset.subset_store(table, axes)?;
     let conditions = (!subset.conditions.is_empty())
         .then(|| ConditionList::new(subset.conditions.len() as u32, subset.conditions));
     let out = Varc::new(

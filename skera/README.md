@@ -2,6 +2,9 @@
 
 `skera` is a Rust library and binary for subsetting a font file according to provided input.
 
+For the architecture, table dependencies, and stack review guide, see the
+[subsetting and instancing design](docs/design.md).
+
 Use `--keep-everything` or the library's `Plan::keep_everything` to select all
 glyphs, Unicode mappings, names, layout items, and tables. The preset also
 preserves glyph names, legacy naming records, the `.notdef` outline, and

@@ -1,14 +1,137 @@
 //! Update CFF2 metrics at the instance's new default, including empty glyphs.
 use super::{scalars::VariationScalars, AxisPlan, StorePlan};
+use super::{FontContext, Instance, TableChange};
 use crate::SubsetError;
 use read_fonts::{
     tables::variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore},
     types::{GlyphId, Tag},
     FontRef, ReadError, TableProvider,
 };
-use std::collections::BTreeMap;
 
-type Tables = BTreeMap<Tag, Vec<u8>>;
+/// The metric and header tables that outline and MVAR operations can update.
+/// This excludes layout, color, axis metadata, and outline bytes.
+pub(super) struct MetricTables {
+    pub head: Option<Vec<u8>>,
+    pub hhea: Option<Vec<u8>>,
+    pub vhea: Option<Vec<u8>>,
+    pub os2: Option<Vec<u8>>,
+    pub vorg: Option<Vec<u8>>,
+    pub post: Option<Vec<u8>>,
+    pub gasp: Option<Vec<u8>>,
+    pub hmtx: Option<Vec<u8>>,
+    pub vmtx: Option<Vec<u8>>,
+    pub hvar: TableChange,
+    pub vvar: TableChange,
+    pub mvar: TableChange,
+}
+impl MetricTables {
+    pub fn new(font: &FontRef) -> Self {
+        Self {
+            head: font
+                .data_for_tag(Tag::new(b"head"))
+                .map(|d| d.as_bytes().to_vec()),
+            hhea: font
+                .data_for_tag(Tag::new(b"hhea"))
+                .map(|d| d.as_bytes().to_vec()),
+            vhea: font
+                .data_for_tag(Tag::new(b"vhea"))
+                .map(|d| d.as_bytes().to_vec()),
+            os2: font
+                .data_for_tag(Tag::new(b"OS/2"))
+                .map(|d| d.as_bytes().to_vec()),
+            vorg: font
+                .data_for_tag(Tag::new(b"VORG"))
+                .map(|d| d.as_bytes().to_vec()),
+            post: font
+                .data_for_tag(Tag::new(b"post"))
+                .map(|d| d.as_bytes().to_vec()),
+            gasp: font
+                .data_for_tag(Tag::new(b"gasp"))
+                .map(|d| d.as_bytes().to_vec()),
+            hmtx: font
+                .data_for_tag(Tag::new(b"hmtx"))
+                .map(|d| d.as_bytes().to_vec()),
+            vmtx: font
+                .data_for_tag(Tag::new(b"vmtx"))
+                .map(|d| d.as_bytes().to_vec()),
+            hvar: TableChange::Keep,
+            vvar: TableChange::Keep,
+            mvar: TableChange::Keep,
+        }
+    }
+    pub fn get(&self, tag: &Tag) -> Option<&Vec<u8>> {
+        match *tag {
+            tag if tag == Tag::new(b"head") => self.head.as_ref(),
+            tag if tag == Tag::new(b"hhea") => self.hhea.as_ref(),
+            tag if tag == Tag::new(b"vhea") => self.vhea.as_ref(),
+            tag if tag == Tag::new(b"OS/2") => self.os2.as_ref(),
+            tag if tag == Tag::new(b"VORG") => self.vorg.as_ref(),
+            tag if tag == Tag::new(b"post") => self.post.as_ref(),
+            tag if tag == Tag::new(b"gasp") => self.gasp.as_ref(),
+            tag if tag == Tag::new(b"hmtx") => self.hmtx.as_ref(),
+            tag if tag == Tag::new(b"vmtx") => self.vmtx.as_ref(),
+            _ => None,
+        }
+    }
+    pub fn get_mut(&mut self, tag: &Tag) -> Option<&mut Vec<u8>> {
+        match *tag {
+            tag if tag == Tag::new(b"head") => self.head.as_mut(),
+            tag if tag == Tag::new(b"hhea") => self.hhea.as_mut(),
+            tag if tag == Tag::new(b"vhea") => self.vhea.as_mut(),
+            tag if tag == Tag::new(b"OS/2") => self.os2.as_mut(),
+            tag if tag == Tag::new(b"VORG") => self.vorg.as_mut(),
+            tag if tag == Tag::new(b"post") => self.post.as_mut(),
+            tag if tag == Tag::new(b"gasp") => self.gasp.as_mut(),
+            tag if tag == Tag::new(b"hmtx") => self.hmtx.as_mut(),
+            tag if tag == Tag::new(b"vmtx") => self.vmtx.as_mut(),
+            _ => None,
+        }
+    }
+    pub fn into_changes(self) -> [(Tag, TableChange); 12] {
+        [
+            (
+                Tag::new(b"head"),
+                self.head.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"hhea"),
+                self.hhea.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"vhea"),
+                self.vhea.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"OS/2"),
+                self.os2.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"VORG"),
+                self.vorg.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"post"),
+                self.post.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"gasp"),
+                self.gasp.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"hmtx"),
+                self.hmtx.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (
+                Tag::new(b"vmtx"),
+                self.vmtx.map(TableChange::Replace).unwrap_or_default(),
+            ),
+            (Tag::new(b"HVAR"), self.hvar),
+            (Tag::new(b"VVAR"), self.vvar),
+            (Tag::new(b"MVAR"), self.mvar),
+        ]
+    }
+}
+
 fn error(tag: Tag) -> SubsetError {
     SubsetError::SubsetTableError(tag)
 }
@@ -70,7 +193,13 @@ fn mvar_store<'a>(
     MetricStore::new(font.mvar().ok()?.item_variation_store()?.ok()?, coords)
 }
 fn mvar_delta(font: &FontRef, store: &MetricStore, tag: Tag) -> Option<f64> {
-    let mvar = font.mvar().ok()?;
+    table_mvar_delta(&font.mvar().ok()?, store, tag)
+}
+fn table_mvar_delta(
+    mvar: &read_fonts::tables::mvar::Mvar,
+    store: &MetricStore,
+    tag: Tag,
+) -> Option<f64> {
     let records = mvar.value_records();
     let index = records
         .binary_search_by(|record| record.value_tag().cmp(&tag))
@@ -113,10 +242,10 @@ fn horizontal_span(font: &FontRef, axes: &AxisPlan) -> i64 {
     ascender + descender
 }
 
-pub(super) fn instance(
+pub(super) fn cff2_metrics(
     font: &FontRef,
     axes: &AxisPlan,
-    tables: &mut Tables,
+    tables: &mut MetricTables,
 ) -> Result<(), SubsetError> {
     let source_bounds = crate::cff::instance_bounds(font, axes)?;
     let count = font
@@ -251,7 +380,11 @@ pub(super) fn instance(
                 put(os2, 2, average as i32)?;
             }
         }
-        tables.insert(Tag::new(if vertical { b"vmtx" } else { b"hmtx" }), out);
+        if vertical {
+            tables.vmtx = Some(out);
+        } else {
+            tables.hmtx = Some(out);
+        }
         if let Some(header) = tables.get_mut(&Tag::new(if vertical { b"vhea" } else { b"hhea" })) {
             header
                 .get_mut(10..12)
@@ -276,70 +409,98 @@ pub(super) fn instance(
                     out.extend((gid.to_u32() as u16).to_be_bytes());
                     out.extend((origin.clamp(-32768, 32767) as i16).to_be_bytes());
                 }
-                tables.insert(Tag::new(b"VORG"), out);
+                tables.vorg = Some(out);
             }
         }
     }
     finish(font, axes, tables)
 }
 
+pub(super) struct MvarContext<'a, 'b> {
+    pub input: &'a FontContext<'b>,
+    pub headers: &'a mut MetricTables,
+}
+impl Instance<FontContext<'_>> for read_fonts::tables::hvar::Hvar<'_> {
+    type Output = Vec<u8>;
+    fn instance(&self, input: &mut FontContext<'_>) -> Result<Self::Output, SubsetError> {
+        use write_fonts::from_obj::ToOwnedTable;
+        let store = self
+            .item_variation_store()
+            .map_err(|_| error(Tag::new(b"HVAR")))?;
+        let mut table: write_fonts::tables::hvar::Hvar = self.to_owned_table();
+        table.item_variation_store = StorePlan::new(&store, input.axes)?.rebuild(&store)?.into();
+        write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"HVAR")))
+    }
+}
+impl Instance<FontContext<'_>> for read_fonts::tables::vvar::Vvar<'_> {
+    type Output = Vec<u8>;
+    fn instance(&self, input: &mut FontContext<'_>) -> Result<Self::Output, SubsetError> {
+        use write_fonts::from_obj::ToOwnedTable;
+        let store = self
+            .item_variation_store()
+            .map_err(|_| error(Tag::new(b"VVAR")))?;
+        let mut table: write_fonts::tables::vvar::Vvar = self.to_owned_table();
+        table.item_variation_store = StorePlan::new(&store, input.axes)?.rebuild(&store)?.into();
+        write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"VVAR")))
+    }
+}
+impl Instance<MvarContext<'_, '_>> for read_fonts::tables::mvar::Mvar<'_> {
+    type Output = TableChange;
+    fn instance(&self, context: &mut MvarContext<'_, '_>) -> Result<Self::Output, SubsetError> {
+        use write_fonts::from_obj::ToOwnedTable;
+        let axes = context.input.axes;
+        apply_mvar(self, axes, context.headers)?;
+        if axes.all_pinned() {
+            return Ok(TableChange::Keep);
+        }
+        let store = self
+            .item_variation_store()
+            .transpose()
+            .map_err(|_| error(Tag::new(b"MVAR")))?;
+        let mut table: write_fonts::tables::mvar::Mvar = self.to_owned_table();
+        table.item_variation_store = store
+            .as_ref()
+            .map(|s| StorePlan::new(s, axes)?.rebuild(s))
+            .transpose()?
+            .map(Into::into)
+            .unwrap_or_default();
+        Ok(TableChange::Replace(
+            write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"MVAR")))?,
+        ))
+    }
+}
+
 pub(super) fn finish(
     font: &FontRef,
     axes: &AxisPlan,
-    tables: &mut Tables,
+    tables: &mut MetricTables,
 ) -> Result<(), SubsetError> {
-    apply_mvar(font, axes, tables)?;
-    if !axes.all_pinned() {
-        use write_fonts::{
-            from_obj::ToOwnedTable,
-            tables::{hvar::Hvar, mvar::Mvar, vvar::Vvar},
+    let mut input = FontContext {
+        font,
+        axes,
+        flags: crate::SubsetFlags::default(),
+    };
+    if let Ok(table) = font.mvar() {
+        let mut context = MvarContext {
+            input: &input,
+            headers: tables,
         };
-
+        let change = table.instance(&mut context)?;
+        tables.mvar = change;
+    }
+    if !axes.all_pinned() {
         if let Ok(table) = font.hvar() {
-            let store = table
-                .item_variation_store()
-                .map_err(|_| error(Tag::new(b"HVAR")))?;
-            let mut table: Hvar = table.to_owned_table();
-            table.item_variation_store = StorePlan::new(&store, axes)?.rebuild(&store)?.into();
-            tables.insert(
-                Tag::new(b"HVAR"),
-                write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"HVAR")))?,
-            );
+            tables.hvar = TableChange::Replace(table.instance(&mut input)?);
         }
         if let Ok(table) = font.vvar() {
-            let store = table
-                .item_variation_store()
-                .map_err(|_| error(Tag::new(b"VVAR")))?;
-            let mut table: Vvar = table.to_owned_table();
-            table.item_variation_store = StorePlan::new(&store, axes)?.rebuild(&store)?.into();
-            tables.insert(
-                Tag::new(b"VVAR"),
-                write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"VVAR")))?,
-            );
-        }
-        if let Ok(table) = font.mvar() {
-            let store = table
-                .item_variation_store()
-                .transpose()
-                .map_err(|_| error(Tag::new(b"MVAR")))?;
-            let mut table: Mvar = table.to_owned_table();
-            table.item_variation_store = store
-                .as_ref()
-                .map(|s| StorePlan::new(s, axes)?.rebuild(s))
-                .transpose()?
-                .map(Into::into)
-                .unwrap_or_default();
-            tables.insert(
-                Tag::new(b"MVAR"),
-                write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"MVAR")))?,
-            );
+            tables.vvar = TableChange::Replace(table.instance(&mut input)?);
         }
     }
     update_os2(axes, tables);
     Ok(())
 }
 
-pub(super) fn update_os2(axes: &AxisPlan, tables: &mut Tables) {
+pub(super) fn update_os2(axes: &AxisPlan, tables: &mut MetricTables) {
     if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
         for &(tag, value) in &axes.values {
             let (offset, value) = if tag == Tag::new(b"wght") {
@@ -364,8 +525,16 @@ pub(super) fn update_os2(axes: &AxisPlan, tables: &mut Tables) {
     }
 }
 
-fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<(), SubsetError> {
-    let Some(store) = mvar_store(font, &axes.coords) else {
+fn apply_mvar(
+    mvar: &read_fonts::tables::mvar::Mvar,
+    axes: &AxisPlan,
+    tables: &mut MetricTables,
+) -> Result<(), SubsetError> {
+    let Some(store) = mvar
+        .item_variation_store()
+        .and_then(Result::ok)
+        .and_then(|s| MetricStore::new(s, &axes.coords))
+    else {
         return Ok(());
     };
     let sync = [(b"hasc", 4, 68), (b"hdsc", 6, 70), (b"hlgp", 8, 72)].map(|(tag, h, os)| {
@@ -406,7 +575,7 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
         (b"undo", b"post", 8, false),
         (b"unds", b"post", 10, false),
     ] {
-        let Some(delta) = mvar_delta(font, &store, Tag::new(metric)) else {
+        let Some(delta) = table_mvar_delta(mvar, &store, Tag::new(metric)) else {
             continue;
         };
         let delta = rounded(delta);
@@ -429,7 +598,7 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
     }
     for (metric, offset, same) in sync {
         if same {
-            if let Some(delta) = mvar_delta(font, &store, Tag::new(&metric)) {
+            if let Some(delta) = table_mvar_delta(mvar, &store, Tag::new(&metric)) {
                 if let Some(data) = tables.get_mut(&Tag::new(b"hhea")) {
                     let old = signed(data, offset).ok_or_else(|| error(Tag::new(b"hhea")))?;
                     put(data, offset, (old as i32).saturating_add(rounded(delta)))?;
@@ -441,7 +610,7 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
         for i in 0..10 {
             let tag = [b'g', b's', b'p', b'0' + i];
             let offset = 4 + i as usize * 4;
-            if let Some(delta) = mvar_delta(font, &store, Tag::new(&tag)) {
+            if let Some(delta) = table_mvar_delta(mvar, &store, Tag::new(&tag)) {
                 if let Some(old) = signed(data, offset) {
                     data[offset..offset + 2].copy_from_slice(
                         &((old as u16 as i32)

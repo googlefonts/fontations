@@ -1074,31 +1074,11 @@ fn own_empty_pairs(
     Ok(())
 }
 
-pub(super) fn instance(
-    font: &FontRef,
-    axes: &AxisPlan,
-    tables: &mut BTreeMap<Tag, Vec<u8>>,
-) -> Result<(), SubsetError> {
-    let mut gpos_table = None;
-    let mut gsub_table = None;
-    let mut math_table = None;
-    let mut jstf_table = None;
-    let gdef = font.gdef().ok();
-    let context = Context {
-        store: gdef
-            .as_ref()
-            .and_then(|g| g.item_var_store())
-            .transpose()
-            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GDEF")))?,
-        coords: &axes.coords,
-        axes,
-        condition_rows: RefCell::default(),
-        scalars: OnceCell::new(),
-        store_plan: OnceCell::new(),
-        constant_indices: RefCell::default(),
-        remapping: None,
-    };
-    if let Ok(gpos) = font.gpos() {
+impl super::Instance<Context<'_>> for read_fonts::tables::gpos::Gpos<'_> {
+    type Output = Gpos;
+    fn instance(&self, context: &mut Context<'_>) -> Result<Self::Output, SubsetError> {
+        let gpos = self;
+
         let vars = own_feature_variations(
             gpos.feature_variations()
                 .transpose()
@@ -1108,17 +1088,23 @@ pub(super) fn instance(
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
             Tag::new(b"GPOS"),
         )?;
-        let mut table = own_gpos(&gpos)?;
+        let mut table = own_gpos(gpos)?;
         table.feature_variations = vars.into();
-        table.lookup_list.apply(&context)?;
+        table.lookup_list.apply(context)?;
         features(
             &mut table.feature_list,
             &mut table.feature_variations,
-            &context,
+            context,
         )?;
-        gpos_table = Some(table);
+        Ok(table)
     }
-    if let Ok(gsub) = font.gsub() {
+}
+
+impl super::Instance<Context<'_>> for read_fonts::tables::gsub::Gsub<'_> {
+    type Output = write_fonts::tables::gsub::Gsub;
+    fn instance(&self, context: &mut Context<'_>) -> Result<Self::Output, SubsetError> {
+        let gsub = self;
+
         let vars = own_feature_variations(
             gsub.feature_variations()
                 .transpose()
@@ -1133,81 +1119,51 @@ pub(super) fn instance(
         features(
             &mut table.feature_list,
             &mut table.feature_variations,
-            &context,
+            context,
         )?;
-        gsub_table = Some(table);
+        Ok(table)
     }
-    if let Ok(math) = font.math() {
+}
+
+impl super::Instance<Context<'_>> for read_fonts::tables::math::Math<'_> {
+    type Output = Math;
+    fn instance(&self, context: &mut Context<'_>) -> Result<Self::Output, SubsetError> {
+        let math = self;
+
         let mut table: Math = math.to_owned_table();
-        table.apply(&context)?;
-        math_table = Some(table);
+        table.apply(context)?;
+        Ok(table)
     }
-    if font.data_for_tag(Tag::new(b"JSTF")).is_some() {
-        let source = font
-            .jstf()
+}
+
+impl super::Instance<Context<'_>> for read_fonts::tables::jstf::Jstf<'_> {
+    type Output = write_fonts::tables::jstf::Jstf;
+    fn instance(&self, context: &mut Context<'_>) -> Result<Self::Output, SubsetError> {
+        crate::jstf::validate(self)
             .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
-        crate::jstf::validate(&source)
-            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
-        let mut table = own_jstf(&source)?;
+        let mut table = own_jstf(self)?;
         table
-            .apply(&context)
+            .apply(context)
             .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
-        jstf_table = Some(table);
+        Ok(table)
     }
-    let mut gdef_table: Option<Gdef> = gdef.map(|table| table.to_owned_table());
-    if let Some(table) = &mut gdef_table {
-        table.lig_caret_list.apply(&context)?;
+}
+
+impl super::Instance<Context<'_>> for read_fonts::tables::gdef::Gdef<'_> {
+    type Output = Gdef;
+    fn instance(&self, context: &mut Context<'_>) -> Result<Self::Output, SubsetError> {
+        let mut table: Gdef = self.to_owned_table();
+        table.lig_caret_list.apply(context)?;
+        Ok(table)
     }
-    let (store, map) = if axes.all_pinned() {
-        (None, optimize::IndexMap::new())
-    } else if let Some(store) = rebuild_store(&context)? {
-        let (store, map) = optimize::optimize(store)?;
-        (Some(store), map)
-    } else {
-        (None, optimize::IndexMap::new())
-    };
-    let remap_context = Context {
-        remapping: Some(&map),
-        ..context
-    };
-    if let Some(table) = &mut gpos_table {
-        if !axes.all_pinned() {
-            table.lookup_list.apply(&remap_context)?;
-            remap_feature_conditions(&mut table.feature_variations, &map);
-        }
-        save(tables, b"GPOS", table)?;
-    }
-    if let Some(table) = &mut gsub_table {
-        if !axes.all_pinned() {
-            remap_feature_conditions(&mut table.feature_variations, &map);
-        }
-        save(tables, b"GSUB", table)?;
-    }
-    if let Some(table) = &mut math_table {
-        if !axes.all_pinned() {
-            table.apply(&remap_context)?;
-        }
-        save(tables, b"MATH", table)?;
-    }
-    if let Some(table) = &mut jstf_table {
-        if !axes.all_pinned() {
-            table
-                .apply(&remap_context)
-                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
-        }
-        save(tables, b"JSTF", table)?;
-    }
-    if let Some(mut table) = gdef_table {
-        if !axes.all_pinned() {
-            table.lig_caret_list.apply(&remap_context)?;
-        }
-        table.item_var_store = store
-            .filter(|store| !store.item_variation_data.is_empty())
-            .map(Into::into)
-            .unwrap_or_default();
-        save(tables, b"GDEF", &table)?;
-    }
-    if let Ok(base) = font.base() {
+}
+
+impl super::Instance<super::FontContext<'_>> for read_fonts::tables::base::Base<'_> {
+    type Output = Vec<u8>;
+    fn instance(&self, input: &mut super::FontContext<'_>) -> Result<Self::Output, SubsetError> {
+        let base = self;
+        let axes = input.axes;
+
         let context = Context {
             store: base
                 .item_var_store()
@@ -1247,9 +1203,122 @@ pub(super) fn instance(
         } else {
             table.item_var_store = Default::default();
         }
-        save(tables, b"BASE", &VersionedBase(&table, base.version()))?;
+        serialize(b"BASE", &VersionedBase(&table, base.version()))
     }
-    Ok(())
+}
+
+#[derive(Default)]
+pub(super) struct LayoutTables {
+    pub gpos: Option<Vec<u8>>,
+    pub gsub: Option<Vec<u8>>,
+    pub math: Option<Vec<u8>>,
+    pub jstf: Option<Vec<u8>>,
+    pub gdef: Option<Vec<u8>>,
+    pub base: Option<Vec<u8>>,
+}
+
+pub(super) fn instance_layout(
+    font: &FontRef,
+    axes: &AxisPlan,
+) -> Result<LayoutTables, SubsetError> {
+    use super::Instance;
+    let mut output = LayoutTables::default();
+    let mut gpos_table = None;
+    let mut gsub_table = None;
+    let mut math_table = None;
+    let mut jstf_table = None;
+    let gdef = font.gdef().ok();
+    let mut context = Context {
+        store: gdef
+            .as_ref()
+            .and_then(|g| g.item_var_store())
+            .transpose()
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GDEF")))?,
+        coords: &axes.coords,
+        axes,
+        condition_rows: RefCell::default(),
+        scalars: OnceCell::new(),
+        store_plan: OnceCell::new(),
+        constant_indices: RefCell::default(),
+        remapping: None,
+    };
+    if let Ok(source) = font.gpos() {
+        gpos_table = Some(source.instance(&mut context)?);
+    }
+    if let Ok(source) = font.gsub() {
+        gsub_table = Some(source.instance(&mut context)?);
+    }
+    if let Ok(source) = font.math() {
+        math_table = Some(source.instance(&mut context)?);
+    }
+    if font.data_for_tag(Tag::new(b"JSTF")).is_some() {
+        let source = font
+            .jstf()
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        jstf_table = Some(source.instance(&mut context)?);
+    }
+    let gdef_table = gdef
+        .as_ref()
+        .map(|table| table.instance(&mut context))
+        .transpose()?;
+    let (store, map) = if axes.all_pinned() {
+        (None, optimize::IndexMap::new())
+    } else if let Some(store) = rebuild_store(&context)? {
+        let (store, map) = optimize::optimize(store)?;
+        (Some(store), map)
+    } else {
+        (None, optimize::IndexMap::new())
+    };
+    let remap_context = Context {
+        remapping: Some(&map),
+        ..context
+    };
+    if let Some(table) = &mut gpos_table {
+        if !axes.all_pinned() {
+            table.lookup_list.apply(&remap_context)?;
+            remap_feature_conditions(&mut table.feature_variations, &map);
+        }
+        output.gpos = Some(serialize(b"GPOS", table)?);
+    }
+    if let Some(table) = &mut gsub_table {
+        if !axes.all_pinned() {
+            remap_feature_conditions(&mut table.feature_variations, &map);
+        }
+        output.gsub = Some(serialize(b"GSUB", table)?);
+    }
+    if let Some(table) = &mut math_table {
+        if !axes.all_pinned() {
+            table.apply(&remap_context)?;
+        }
+        output.math = Some(serialize(b"MATH", table)?);
+    }
+    if let Some(table) = &mut jstf_table {
+        if !axes.all_pinned() {
+            table
+                .apply(&remap_context)
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        }
+        output.jstf = Some(serialize(b"JSTF", table)?);
+    }
+    if let Some(mut table) = gdef_table {
+        if !axes.all_pinned() {
+            table.lig_caret_list.apply(&remap_context)?;
+        }
+        table.item_var_store = store
+            .filter(|store| !store.item_variation_data.is_empty())
+            .map(Into::into)
+            .unwrap_or_default();
+        output.gdef = Some(serialize(b"GDEF", &table)?);
+    }
+    if let Ok(base) = font.base() {
+        let mut input = super::FontContext {
+            font,
+            axes,
+            flags: crate::SubsetFlags::default(),
+        };
+        output.base = Some(base.instance(&mut input)?);
+    }
+    Ok(output)
 }
 
 // The owned BASE writer chooses a version from the presence of its store.
@@ -1272,17 +1341,11 @@ impl write_fonts::validate::Validate for VersionedBase<'_> {
     }
 }
 
-fn save(
-    tables: &mut BTreeMap<Tag, Vec<u8>>,
+fn serialize(
     tag: &[u8; 4],
     table: &(impl write_fonts::FontWrite + write_fonts::validate::Validate),
-) -> Result<(), SubsetError> {
-    let tag = Tag::new(tag);
-    tables.insert(
-        tag,
-        write_fonts::dump_table(table).map_err(|_| SubsetError::SubsetTableError(tag))?,
-    );
-    Ok(())
+) -> Result<Vec<u8>, SubsetError> {
+    write_fonts::dump_table(table).map_err(|_| SubsetError::SubsetTableError(Tag::new(tag)))
 }
 
 #[cfg(test)]
@@ -1733,10 +1796,9 @@ mod tests {
             builder.add_table(&gpos).unwrap();
             let bytes = builder.build();
             let font = FontRef::new(&bytes).unwrap();
-            let mut tables = BTreeMap::new();
-            instance(&font, &axes, &mut tables).unwrap();
+            let tables = instance_layout(&font, &axes).unwrap();
             let output =
-                read_fonts::tables::gpos::Gpos::read(FontData::new(&tables[&Tag::new(b"GPOS")]))
+                read_fonts::tables::gpos::Gpos::read(FontData::new(tables.gpos.as_ref().unwrap()))
                     .unwrap();
             let output = own_gpos(&output).unwrap();
             assert_eq!(output, gpos);
