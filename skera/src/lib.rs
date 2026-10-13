@@ -1606,12 +1606,84 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
         return bulk + table_len;
     }
 
+    // glyf: the retained glyphs' loca lengths, rounded up to even, are a cheap upper
+    // bound of the output size, since glyphs are only ever trimmed and a short loca
+    // output pads each glyph to an even length. The glyph count ratio below can
+    // underestimate badly when the dropped glyphs are small, which forces a second,
+    // larger subset pass.
+    if table_tag == Glyf::TAG {
+        if let Some(len) = retained_glyf_len(font, plan) {
+            return bulk + len;
+        }
+    }
+
     bulk + (table_len as f32 * (dst_glyphs as f32 / src_glyphs as f32).sqrt()) as usize
+}
+
+/// Sum of the source glyf lengths of all retained glyphs according to loca, each
+/// rounded up to even.
+fn retained_glyf_len(font: &FontRef, plan: &Plan) -> Option<usize> {
+    let loca = font.loca(None).ok()?;
+    Some(
+        plan.new_to_old_gid_list
+            .iter()
+            .map(|(_, old_gid)| {
+                let gid = old_gid.to_u32() as usize;
+                match (loca.get_raw(gid), loca.get_raw(gid + 1)) {
+                    (Some(start), Some(end)) => {
+                        let len = end.saturating_sub(start) as usize;
+                        len + len % 2
+                    }
+                    _ => 0,
+                }
+            })
+            .sum(),
+    )
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    /// The glyf buffer estimate must cover the subset glyf table, so glyf is
+    /// subset in a single pass even when the dropped glyphs are small.
+    #[test]
+    fn glyf_size_estimate_covers_output() {
+        for (path, unicodes) in [
+            ("test-data/fonts/Roboto-Regular.ttf", "*"),
+            ("test-data/fonts/Roboto-Regular.ttf", "41-5A,61-7A"),
+            ("test-data/fonts/Amiri-Regular.ttf", "*"),
+            ("test-data/fonts/Amiri-Regular.ttf", "600-6FF"),
+        ] {
+            let bytes = std::fs::read(path).unwrap();
+            let font = FontRef::new(&bytes).unwrap();
+            let plan = Plan::new(
+                &IntSet::empty(),
+                &parse_unicodes(unicodes).unwrap(),
+                &font,
+                SubsetFlags::default(),
+                &IntSet::empty(),
+                &IntSet::all(),
+                &DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+            );
+            let estimate = estimate_subset_table_size(&font, Glyf::TAG, &plan);
+            let out = subset_font(&font, &plan).unwrap();
+            let glyf_len = FontRef::new(&out)
+                .unwrap()
+                .glyf()
+                .unwrap()
+                .offset_data()
+                .len();
+            // the estimate includes 8192 bytes of slack
+            assert!(
+                estimate - 8192 >= glyf_len,
+                "{path} {unicodes}: estimate {estimate}, glyf {glyf_len}"
+            );
+        }
+    }
+
     #[test]
     fn configurable_passthrough_copies_an_unrecognized_table() {
         let original = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
