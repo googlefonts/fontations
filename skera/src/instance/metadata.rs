@@ -192,3 +192,55 @@ pub(super) fn rebuild_avar(
     };
     write_fonts::dump_table(&avar).map_err(|_| err(b"avar"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{FontRef, TableProvider};
+    use write_fonts::FontBuilder;
+
+    #[test]
+    fn partial_instance_distinguishes_absent_avar_from_empty_maps() {
+        let source = std::fs::read("test-data/fonts/colr-affine-values.ttf").unwrap();
+        let font = FontRef::new(&source).unwrap();
+        assert!(font.avar().is_err());
+        let limits = crate::parse_axis_limits("wght=0.65").unwrap();
+        for with_empty_avar in [false, true] {
+            let mut builder = FontBuilder::new();
+            for record in font.table_directory().table_records() {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+            if with_empty_avar {
+                let axis_count = font.fvar().unwrap().axis_count();
+                builder
+                    .add_table(&Avar::new(
+                        (0..axis_count)
+                            .map(|_| SegmentMaps::new(Vec::new()))
+                            .collect(),
+                    ))
+                    .unwrap();
+            }
+            let input = builder.build();
+            let output = crate::instance_font(&FontRef::new(&input).unwrap(), &limits).unwrap();
+            let output = FontRef::new(&output).unwrap();
+            let avar = output.avar().unwrap();
+            let maps = avar
+                .axis_segment_maps()
+                .iter()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            assert_eq!(maps.len(), 1);
+            let pairs = maps[0]
+                .axis_value_maps()
+                .iter()
+                .map(|v| (v.from_coordinate().to_f64(), v.to_coordinate().to_f64()))
+                .collect::<Vec<_>>();
+            let expected = if with_empty_avar {
+                Vec::new()
+            } else {
+                vec![(-1., -1.), (0., 0.), (1., 1.)]
+            };
+            assert_eq!(pairs, expected, "empty source avar: {with_empty_avar}");
+        }
+    }
+}

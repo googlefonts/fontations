@@ -58,7 +58,8 @@ Most operations return bytes or a `TableChange`. `Keep` leaves the current
 candidate in place, `Replace` supplies bytes, and `Remove` drops it. Richer
 results express dependencies: fvar returns both bytes and the original axis
 records needed by avar; layout handlers return owned tables awaiting a shared
-store remap.
+store remap. When the source has no avar, metadata rebuilding supplies identity
+maps for retained axes. This differs from preserving a present empty map.
 
 | Table operations | Context and result | Implementation |
 | --- | --- | --- |
@@ -237,6 +238,13 @@ outputs against the preceding stack tip for full instances, partial ranges,
 unchanged ranges, and composition. Exact bytes are useful for a refactor check;
 cross-project comparisons can require equivalent outlines, metrics,
 references, and colors because packing can differ.
+
+The refactor was compared with stack tip `32022823` in 128 CLI cases across 18
+CFF2, TrueType, COLR, MATH, and VARC fixtures. These included full and partial
+instances, unchanged ranges, CFF2 downgrade, and composition in both axis
+orders. All 113 successful cases produced identical complete fonts; the other
+15 cases produced identical errors. A regression test also checks the absent
+avar versus present empty-map distinction.
 
 Experimental cubic outlines require `spec_next`. Changes to axes referenced
 by retained VARC remain restricted. Unknown tables pass through; private or
