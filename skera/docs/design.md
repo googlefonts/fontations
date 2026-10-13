@@ -4,7 +4,7 @@ Skera has two operations: subsetting selects and remaps glyphs and their
 dependencies; instancing changes the variation space while preserving glyph
 IDs. Table operations implement traits. Font coordinators resolve dependencies
 between their results and assemble the font. Only the instancing coordinator
-owns the map of output table replacements.
+owns the font-wide map of pending table changes.
 
 This design covers the Skera feature stack: CFF and TrueType outlines, full and
 partial instancing, coupled avar2 mappings, layout and color variations, VARC,
@@ -51,8 +51,9 @@ internal and does not add a public extension API.
 `FontContext` contains an immutable source font, an immutable axis plan, and
 flags. Operations needing mutable dependencies use narrower contexts:
 `GvarGlyphContext` updates one glyph's coordinates; `CvarContext` updates CVT
-values; `MvarContext` updates metric headers; and layout's context holds a
-transaction for one shared store. None contains the font's output map.
+values; `MvarContext` borrows only hhea, vhea, OS/2, post, and gasp through
+`MvarHeaders`; and `LayoutContext` holds a transaction for one shared store.
+None contains the font's output map.
 
 Most operations return bytes or a `TableChange`. `Keep` leaves the current
 candidate in place, `Replace` supplies bytes, and `Remove` drops it. Richer
@@ -60,6 +61,12 @@ results express dependencies: fvar returns both bytes and the original axis
 records needed by avar; layout handlers return owned tables awaiting a shared
 store remap. When the source has no avar, metadata rebuilding supplies identity
 maps for retained axes. This differs from preserving a present empty map.
+
+`FontOutput` stores one pending change per tag. Replacement and removal are
+mutually exclusive states. A later `Keep` preserves the previous phase's
+candidate, including a removal; a later replacement can restore a removed
+table. The assembly tests exercise these transitions and unknown-table
+preservation.
 
 | Table operations | Context and result | Implementation |
 | --- | --- | --- |
@@ -80,8 +87,9 @@ Two dependencies need font coordination:
 * Outlines determine bounds, phantom-point metrics, loca offsets, and header
   summaries. These results must agree about glyph count, point order, and
   rounding. `TrueTypeTables` and `MetricTables` name the affected outputs.
-  `MetricTables` contains only metric and header buffers. Its tag lookup
-  dispatches within that fixed set for MVAR records.
+  Outline helpers address named metric and header buffers. MVAR's borrowed
+  header view cannot change advance arrays, outline bytes, or axis metadata;
+  its record targets use a closed enum rather than arbitrary font-table tags.
 * GPOS, GSUB variation conditions, GDEF caret values, MATH, and JSTF can reference
   GDEF's store. They must share one rebuild and one row-index remapping.
   `LayoutTables` names the outputs of this transaction.
@@ -101,7 +109,8 @@ The order in [the coordinator](../src/instance/mod.rs) is part of the design:
    different normalization paths used by outline/store and metric consumers.
 2. **Check VARC.** Retained component references constrain which axes can
    change. Unrelated axes can be instanced; unsupported changes to referenced
-   axes return an error.
+   axes return an error. The coordinator delegates this phase to
+   `instance_varc`.
 3. **Handle avar2 reachability.** Compute reachable final coordinates and
    constant final pins. [Culling](../src/instance/cull.rs) removes unreachable
    regions and tuples in the original final-coordinate space while preserving
@@ -109,13 +118,15 @@ The order in [the coordinator](../src/instance/mod.rs) is part of the design:
 4. **Instance outlines and metrics.** CFF2 evaluates charstrings and private
    dictionaries. TrueType evaluates gvar, preserves components, computes
    bounds and phantom metrics, and applies cvar. Coupled mappings use the
-   final-coordinate plan for these consumers.
+   final-coordinate plan for these consumers. `instance_outlines` dispatches
+   through `OutlineKind` and commits the declared outline results.
 5. **Instance layout and color.** Layout consumers share the GDEF transaction;
-   BASE and COLR use their own stores. Each supplies its declared output.
+   BASE and COLR use their own stores. `instance_layout_and_color` commits
+   their declared outputs.
 6. **Finish metadata.** Partial instances rebuild fvar and avar from original
    axis records. Full instances remove fvar, avar, HVAR, VVAR, and MVAR. STAT
-   filtering uses original user-axis metadata. DSIG is removed because the
-   font has changed.
+   filtering uses original user-axis metadata. `finish_metadata` uses the
+   original source context; DSIG is removed because the font has changed.
 7. **Assemble.** `FontOutput` applies changes and passes raw bytes to
    `FontBuilder`. Unchanged tables stay borrowed until assembly. Optional full
    CFF2-to-CFF1 conversion runs afterward.
@@ -142,6 +153,30 @@ condition rows needed in the residual store. The coordinator rebuilds and
 optimizes that store once. It then remaps every consumer before serializing
 GDEF and its dependents. Saving or optimizing GDEF before processing MATH or
 JSTF could discard rows those tables still use.
+
+The value walker receives an explicit pass:
+
+```rust
+enum ValuePass<'a, 'b> {
+    Instance(&'a LayoutContext<'b>),
+    Remap(&'a IndexMap),
+}
+```
+
+The remapping pass has no source store or coordinates. It can change or remove
+variation references, but cannot evaluate default deltas again. Both passes
+walk the same value fields and preserve ordinary ppem devices. Feature
+condition evaluation and row-index remapping remain separate operations.
+
+The layout implementation separates review responsibilities:
+
+| Boundary | Code | What to check |
+| --- | --- | --- |
+| Table operations and shared store transaction | [layout.rs](../src/instance/layout.rs) | Every consumer finishes before store optimization; all results use the same remap |
+| Value and device walking | [values.rs](../src/instance/layout/values.rs) | Only instancing applies deltas; value formats, anchors, and ppem devices remain consistent |
+| Feature conditions and substitutions | [features.rs](../src/instance/layout/features.rs) | Condition order, Boolean boundaries, private condition rows, and feature parameters |
+| Borrowed-to-owned conversion repairs | [owned.rs](../src/instance/layout/owned.rs) | Zero-byte record counts and matrix dimensions survive conversion; expansion stays bounded |
+| Shared-store regressions | [tests.rs](../src/instance/layout/tests.rs) | Precision, remapping, sentinels, conditions, and empty records |
 
 BASE and COLR own independent stores. An explicit COLR index map permits
 remapping optimized rows. Without a map, consecutive paint fields address
@@ -245,6 +280,13 @@ instances, unchanged ranges, CFF2 downgrade, and composition in both axis
 orders. All 113 successful cases produced identical complete fonts; the other
 15 cases produced identical errors. A regression test also checks the absent
 avar versus present empty-map distinction.
+
+The subsequent phase and dependency refactors were compared with `1783b1b3`
+in 148 cases across 21 fixtures, adding JSTF, 32-bit variation stores, and cvar
+coverage. All 133 successful cases produced identical complete fonts, and the
+15 rejected cases produced identical errors. Additional regressions check
+that remapping preserves instanced values and that later table phases can
+retain or replace a prior removal.
 
 Experimental cubic outlines require `spec_next`. Changes to axes referenced
 by retained VARC remain restricted. Unknown tables pass through; private or

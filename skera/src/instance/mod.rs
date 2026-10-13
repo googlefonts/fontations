@@ -22,7 +22,6 @@ pub(crate) use store::StorePlan;
 pub(crate) use table::{FontContext, Instance, TableChange};
 
 use crate::{cff, SubsetError, SubsetFlags};
-use read_fonts::collections::IntSet;
 use read_fonts::{types::Tag, FontRef, TableProvider};
 use std::collections::BTreeMap;
 use write_fonts::FontBuilder;
@@ -55,28 +54,26 @@ pub fn instance_font_with_flags(
     if limits.is_empty() {
         return Ok(copy_font(font));
     }
-    let is_truetype = font.glyf().is_ok();
-    if font.cff2().is_err() && !is_truetype {
+    let outlines = if font.glyf().is_ok() {
+        OutlineKind::TrueType
+    } else if font.cff2().is_ok() {
+        OutlineKind::Cff2
+    } else {
         return Err(SubsetError::InvalidAxis(
             "instancing requires CFF2 or TrueType outlines".into(),
         ));
-    }
+    };
     let axes = AxisPlan::new(font, limits)?;
     if axes.values.is_empty() {
         return Ok(copy_font(font));
     }
     let mut tables = FontOutput::default();
-    if font.data_for_tag(Tag::new(b"VARC")).is_some() {
-        let source = font
-            .varc()
-            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"VARC")))?;
-        let mut context = FontContext {
-            font,
-            axes: &axes,
-            flags,
-        };
-        tables.apply(Tag::new(b"VARC"), source.instance(&mut context)?);
-    }
+    let mut source = FontContext {
+        font,
+        axes: &axes,
+        flags,
+    };
+    tables.instance_varc(&mut source)?;
     let final_axes = axes.coupled.then(|| axes.final_space(font));
     // Cull in the original final-coordinate space, before removing any
     // self-contained axes. avar's own store operates in intermediate space.
@@ -85,9 +82,7 @@ pub fn instance_font_with_flags(
         if changes.is_empty() {
             None
         } else {
-            for (tag, change) in changes {
-                tables.apply(tag, change);
-            }
+            tables.apply_all(changes);
             Some(tables.build(font))
         }
     } else {
@@ -107,33 +102,123 @@ pub fn instance_font_with_flags(
             axes,
             flags,
         };
-        if is_truetype {
-            let glyf = variation_font
-                .glyf()
-                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"glyf")))?;
-            let mut glyph_context = truetype::TrueTypeContext {
-                input: &context,
-                metrics: &mut metrics,
-            };
-            let output = glyf.instance(&mut glyph_context)?;
-            tables.apply(Tag::new(b"glyf"), TableChange::Replace(output.glyf));
-            tables.apply(Tag::new(b"loca"), TableChange::Replace(output.loca));
-            tables.apply(Tag::new(b"gvar"), output.gvar);
-            tables.apply(Tag::new(b"cvar"), output.cvar);
-            if let Some(bytes) = output.cvt {
-                tables.apply(Tag::new(b"cvt "), TableChange::Replace(bytes));
-            }
-        } else {
-            let cff2 = variation_font
-                .cff2()
-                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?;
-            tables.apply(
-                Tag::new(b"CFF2"),
-                TableChange::Replace(cff2.instance(&mut context)?),
-            );
-            metrics::cff2_metrics(variation_font, axes, &mut metrics)?;
+        tables.instance_outlines(&mut context, &mut metrics, outlines)?;
+        tables.instance_layout_and_color(&mut context)?;
+    }
+    if axes.coupled {
+        metrics::update_os2(&axes, &mut metrics);
+    }
+    tables.apply_all(metrics.into_changes());
+    tables.finish_metadata(&mut source)?;
+    let bytes = tables.build(font);
+    if matches!(outlines, OutlineKind::Cff2)
+        && axes.all_pinned()
+        && flags.contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
+    {
+        downgrade_cff2(
+            &FontRef::new(&bytes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?,
+        )
+    } else {
+        Ok(bytes)
+    }
+}
+#[derive(Clone, Copy)]
+enum OutlineKind {
+    TrueType,
+    Cff2,
+}
+
+/// Only the font coordinator can replace or remove arbitrary output tables.
+/// One entry per tag makes removal and replacement mutually exclusive.
+#[derive(Default)]
+struct FontOutput {
+    changes: BTreeMap<Tag, TableChange>,
+}
+impl FontOutput {
+    fn apply(&mut self, tag: Tag, change: TableChange) {
+        // Keep retains a previous phase's candidate, including a removal.
+        if !matches!(change, TableChange::Keep) {
+            self.changes.insert(tag, change);
         }
-        let layout = layout::instance_layout(variation_font, axes)?;
+    }
+    fn apply_all(&mut self, changes: impl IntoIterator<Item = (Tag, TableChange)>) {
+        for (tag, change) in changes {
+            self.apply(tag, change);
+        }
+    }
+    fn build(&self, source: &FontRef) -> Vec<u8> {
+        let mut builder = FontBuilder::new();
+        for record in source.table_directory().table_records() {
+            let tag = record.tag();
+            if !self.changes.contains_key(&tag) {
+                if let Some(data) = source.data_for_tag(tag) {
+                    builder.add_raw(tag, data.as_bytes());
+                }
+            }
+        }
+        for (tag, change) in &self.changes {
+            if let TableChange::Replace(data) = change {
+                builder.add_raw(*tag, data.as_slice());
+            }
+        }
+        builder.build()
+    }
+    fn instance_varc(&mut self, context: &mut FontContext<'_>) -> Result<(), SubsetError> {
+        let font = context.font;
+        if font.data_for_tag(Tag::new(b"VARC")).is_some() {
+            let source = font
+                .varc()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"VARC")))?;
+            self.apply(Tag::new(b"VARC"), source.instance(context)?);
+        }
+        Ok(())
+    }
+    fn instance_outlines(
+        &mut self,
+        context: &mut FontContext<'_>,
+        metrics: &mut metrics::MetricTables,
+        outlines: OutlineKind,
+    ) -> Result<(), SubsetError> {
+        let font = context.font;
+        let axes = context.axes;
+        match outlines {
+            OutlineKind::TrueType => {
+                let glyf = font
+                    .glyf()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"glyf")))?;
+                let mut glyph_context = truetype::TrueTypeContext {
+                    input: context,
+                    metrics,
+                };
+                let output = glyf.instance(&mut glyph_context)?;
+                self.apply(Tag::new(b"glyf"), TableChange::Replace(output.glyf));
+                self.apply(Tag::new(b"loca"), TableChange::Replace(output.loca));
+                self.apply(Tag::new(b"gvar"), output.gvar);
+                self.apply(Tag::new(b"cvar"), output.cvar);
+                if let Some(bytes) = output.cvt {
+                    self.apply(Tag::new(b"cvt "), TableChange::Replace(bytes));
+                }
+            }
+            OutlineKind::Cff2 => {
+                let cff2 = font
+                    .cff2()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?;
+                self.apply(
+                    Tag::new(b"CFF2"),
+                    TableChange::Replace(cff2.instance(context)?),
+                );
+                metrics::cff2_metrics(font, axes, metrics)?;
+            }
+        }
+        Ok(())
+    }
+    fn instance_layout_and_color(
+        &mut self,
+        context: &mut FontContext<'_>,
+    ) -> Result<(), SubsetError> {
+        let font = context.font;
+        let axes = context.axes;
+        let layout = layout::instance_layout(font, axes)?;
         for (tag, data) in [
             (b"GPOS", layout.gpos),
             (b"GSUB", layout.gsub),
@@ -143,104 +228,49 @@ pub fn instance_font_with_flags(
             (b"BASE", layout.base),
         ] {
             if let Some(data) = data {
-                tables.apply(Tag::new(tag), TableChange::Replace(data));
+                self.apply(Tag::new(tag), TableChange::Replace(data));
             }
         }
-        if let Ok(colr) = variation_font.colr() {
-            tables.apply(Tag::new(b"COLR"), colr.instance(&mut context)?);
+        if let Ok(colr) = font.colr() {
+            self.apply(Tag::new(b"COLR"), colr.instance(context)?);
         }
+        Ok(())
     }
-    if axes.coupled {
-        metrics::update_os2(&axes, &mut metrics);
-    }
-    for (tag, change) in metrics.into_changes() {
-        tables.apply(tag, change);
-    }
-    if axes.all_pinned() {
-        for tag in [b"fvar", b"avar", b"HVAR", b"VVAR", b"MVAR"] {
-            tables.apply(Tag::new(tag), TableChange::Remove);
-        }
-    } else {
-        let mut context = FontContext {
-            font,
-            axes: &axes,
-            flags,
-        };
-        let fvar = font
-            .fvar()
-            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"fvar")))?;
-        let fvar = fvar.instance(&mut context)?;
-        tables.apply(Tag::new(b"fvar"), TableChange::Replace(fvar.bytes));
-        let mut avar_context = metadata::AvarContext {
-            input: &context,
-            original_axes: &fvar.original_axes,
-        };
-        let avar = if let Ok(avar) = font.avar() {
-            avar.instance(&mut avar_context)?
+    fn finish_metadata(&mut self, context: &mut FontContext<'_>) -> Result<(), SubsetError> {
+        let font = context.font;
+        let axes = context.axes;
+        if axes.all_pinned() {
+            for tag in [b"fvar", b"avar", b"HVAR", b"VVAR", b"MVAR"] {
+                self.apply(Tag::new(tag), TableChange::Remove);
+            }
         } else {
-            metadata::rebuild_avar(None, &avar_context)?
-        };
-        tables.apply(Tag::new(b"avar"), TableChange::Replace(avar));
-    }
-    if font.data_for_tag(Tag::new(b"STAT")).is_some() {
-        let stat = font
-            .stat()
-            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"STAT")))?;
-        let mut context = FontContext {
-            font,
-            axes: &axes,
-            flags,
-        };
-        tables.apply(
-            Tag::new(b"STAT"),
-            TableChange::Replace(stat.instance(&mut context)?),
-        );
-    }
-    tables.apply(Tag::new(b"DSIG"), TableChange::Remove);
-    let bytes = tables.build(font);
-    if !is_truetype && axes.all_pinned() && flags.contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
-    {
-        downgrade_cff2(
-            &FontRef::new(&bytes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?,
-        )
-    } else {
-        Ok(bytes)
-    }
-}
-/// Only the font coordinator can replace or remove arbitrary output tables.
-#[derive(Default)]
-struct FontOutput {
-    replacements: BTreeMap<Tag, Vec<u8>>,
-    removed: IntSet<Tag>,
-}
-impl FontOutput {
-    fn apply(&mut self, tag: Tag, change: TableChange) {
-        match change {
-            TableChange::Keep => {}
-            TableChange::Replace(bytes) => {
-                self.removed.remove(tag);
-                self.replacements.insert(tag, bytes);
-            }
-            TableChange::Remove => {
-                self.replacements.remove(&tag);
-                self.removed.insert(tag);
-            }
+            let fvar = font
+                .fvar()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"fvar")))?;
+            let fvar = fvar.instance(context)?;
+            self.apply(Tag::new(b"fvar"), TableChange::Replace(fvar.bytes));
+            let mut avar_context = metadata::AvarContext {
+                input: context,
+                original_axes: &fvar.original_axes,
+            };
+            let avar = if let Ok(avar) = font.avar() {
+                avar.instance(&mut avar_context)?
+            } else {
+                metadata::rebuild_avar(None, &avar_context)?
+            };
+            self.apply(Tag::new(b"avar"), TableChange::Replace(avar));
         }
-    }
-    fn build(&self, source: &FontRef) -> Vec<u8> {
-        let mut builder = FontBuilder::new();
-        for record in source.table_directory().table_records() {
-            let tag = record.tag();
-            if !self.removed.contains(tag) && !self.replacements.contains_key(&tag) {
-                if let Some(data) = source.data_for_tag(tag) {
-                    builder.add_raw(tag, data.as_bytes());
-                }
-            }
+        if font.data_for_tag(Tag::new(b"STAT")).is_some() {
+            let stat = font
+                .stat()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"STAT")))?;
+            self.apply(
+                Tag::new(b"STAT"),
+                TableChange::Replace(stat.instance(context)?),
+            );
         }
-        for (tag, data) in &self.replacements {
-            builder.add_raw(*tag, data.as_slice());
-        }
-        builder.build()
+        self.apply(Tag::new(b"DSIG"), TableChange::Remove);
+        Ok(())
     }
 }
 
@@ -252,13 +282,7 @@ fn round_f32(value: f32) -> f64 {
 }
 
 fn copy_font(font: &FontRef) -> Vec<u8> {
-    let mut builder = FontBuilder::new();
-    for record in font.table_directory().table_records() {
-        if let Some(data) = font.data_for_tag(record.tag()) {
-            builder.add_raw(record.tag(), data);
-        }
-    }
-    builder.build()
+    FontOutput::default().build(font)
 }
 
 /// Convert a fully instantiated CFF2 font to CID-keyed CFF1 outlines.
@@ -287,6 +311,39 @@ pub fn downgrade_cff2(font: &FontRef) -> Result<Vec<u8>, SubsetError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn table_changes_keep_the_latest_candidate_and_can_restore_removed_tables() {
+        let tag = Tag::new(b"test");
+        let unchanged = Tag::new(b"keep");
+        let added = Tag::new(b"new!");
+        let mut builder = FontBuilder::new();
+        builder.add_raw(tag, vec![1]);
+        builder.add_raw(unchanged, vec![4]);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let snapshot = |output: &FontOutput| {
+            let bytes = output.build(&font);
+            let font = FontRef::new(&bytes).unwrap();
+            [tag, unchanged, added]
+                .map(|tag| font.data_for_tag(tag).map(|data| data.as_bytes().to_vec()))
+        };
+        let mut output = FontOutput::default();
+        assert_eq!(snapshot(&output), [Some(vec![1]), Some(vec![4]), None]);
+        output.apply(tag, TableChange::Replace(vec![2]));
+        output.apply(tag, TableChange::Keep);
+        assert_eq!(snapshot(&output), [Some(vec![2]), Some(vec![4]), None]);
+        output.apply(tag, TableChange::Remove);
+        output.apply(tag, TableChange::Keep);
+        assert_eq!(snapshot(&output), [None, Some(vec![4]), None]);
+        output.apply(tag, TableChange::Replace(vec![3]));
+        output.apply(added, TableChange::Remove);
+        output.apply(added, TableChange::Replace(vec![9]));
+        assert_eq!(
+            snapshot(&output),
+            [Some(vec![3]), Some(vec![4]), Some(vec![9])]
+        );
+    }
 
     #[test]
     fn referenced_varc_axes_are_rejected_instead_of_copying_stale_axes() {
