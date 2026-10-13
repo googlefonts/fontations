@@ -203,6 +203,8 @@ impl<'a> FontBuilder<'a> {
         let head_tag = Tag::new(b"head");
 
         let mut table_records = Vec::with_capacity(self.tables.len());
+        // (tag, offset) of each table in the output, in output order
+        let mut placements = Vec::with_capacity(self.tables.len());
         for tag in table_order.iter() {
             // safe to unwrap as ordered_tags() guarantees that all keys exist
             let data = self.tables.get_mut(tag).unwrap();
@@ -230,6 +232,7 @@ impl<'a> FontBuilder<'a> {
             checksums.push(checksum);
             position += padding as u32;
             table_records.push(TableRecord::new(*tag, checksum, offset, length));
+            placements.push((*tag, offset as usize));
         }
         table_records.sort_unstable_by_key(|record| record.tag);
 
@@ -237,10 +240,8 @@ impl<'a> FontBuilder<'a> {
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
-        let mut data = writer.into_data().bytes;
-        data.reserve_exact((position as usize).saturating_sub(data.len()));
-        let expected_data_len = data.capacity();
-        checksums.push(read_fonts::tables::compute_checksum(&data));
+        let directory = writer.into_data().bytes;
+        checksums.push(read_fonts::tables::compute_checksum(&directory));
 
         // Summing all the individual table checksums, including the table directory's,
         // gives the checksum for the entire font.
@@ -249,26 +250,49 @@ impl<'a> FontBuilder<'a> {
         let checksum = checksums.into_iter().fold(0u32, u32::wrapping_add);
         let checksum_adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum);
 
-        for tag in table_order {
+        // Reuse the buffer of the largest owned table (e.g. a freshly subset glyf) as the
+        // output buffer: growing it in place avoids allocating, touching and copying
+        // another buffer of the same size, which dominates for large fonts.
+        let total_len = position as usize;
+        let reused = placements
+            .iter()
+            .filter(|(tag, _)| {
+                *tag != head_tag && matches!(self.tables.get(tag), Some(Cow::Owned(_)))
+            })
+            .max_by_key(|(tag, _)| self.tables[tag].len())
+            .map(|(tag, offset)| (*tag, *offset));
+        let mut data = match reused {
+            Some((tag, offset)) => {
+                let Some(Cow::Owned(mut buf)) = self.tables.remove(&tag) else {
+                    unreachable!("only owned tables are reused")
+                };
+                self.checksums.remove(&tag);
+                let len = buf.len();
+                // Bytes past the old length, including this table's padding, are zeroed.
+                // Everything before `offset` is overwritten below.
+                buf.resize(total_len, 0);
+                buf.copy_within(..len, offset);
+                buf
+            }
+            None => vec![0u8; total_len],
+        };
+
+        data[..directory.len()].copy_from_slice(&directory);
+        for (tag, offset) in placements {
+            if reused.is_some_and(|(reused_tag, _)| reused_tag == tag) {
+                continue;
+            }
             let table = self.tables.remove(&tag).unwrap();
             self.checksums.remove(&tag);
-            if tag == head_tag && table.len() >= HEAD_CHECKSUM_END {
+            let len = table.len();
+            data[offset..offset + len].copy_from_slice(&table);
+            if tag == head_tag && len >= HEAD_CHECKSUM_END {
                 // store the checksum_adjustment in the head table
-                data.extend_from_slice(&table[..HEAD_CHECKSUM_START]);
-                data.extend_from_slice(&checksum_adjustment.to_be_bytes());
-                data.extend_from_slice(&table[HEAD_CHECKSUM_END..]);
-            } else {
-                data.extend_from_slice(&table);
+                data[offset + HEAD_CHECKSUM_START..offset + HEAD_CHECKSUM_END]
+                    .copy_from_slice(&checksum_adjustment.to_be_bytes());
             }
-            let rem = round4(table.len()) - table.len();
-            let padding = [0u8; 4];
-            data.extend_from_slice(&padding[..rem]);
-        }
-        if expected_data_len != data.len() {
-            log::warn!(
-                "suboptimal: allocated {expected_data_len} bytes but needed {actual_len}",
-                actual_len = data.len()
-            );
+            // zero the padding, which may hold stale bytes of a reused buffer
+            data[offset + len..offset + round4(len)].fill(0);
         }
         data
     }
@@ -323,6 +347,48 @@ mod tests {
     #[test]
     fn survives_no_tables() {
         FontBuilder::default().build();
+    }
+
+    /// The largest owned table's buffer is reused as the output buffer. The result
+    /// must match building from borrowed data, where nothing can be reused.
+    #[test]
+    fn reusing_owned_table_buffer_matches_borrowed() {
+        // odd lengths so every table needs padding; 'glyf' is the largest
+        let tables: Vec<(Tag, Vec<u8>)> = vec![
+            (Tag::new(b"head"), (0u8..54).collect()),
+            (Tag::new(b"maxp"), vec![7; 6]),
+            (Tag::new(b"loca"), vec![3; 13]),
+            (
+                Tag::new(b"glyf"),
+                (0..4099u32).map(|i| (i % 251) as u8).collect(),
+            ),
+            (Tag::new(b"name"), vec![5; 9]),
+            (Tag::new(b"GSUB"), vec![9; 21]),
+        ];
+
+        let mut borrowed = FontBuilder::default();
+        for (tag, data) in &tables {
+            borrowed.add_raw(*tag, data.as_slice());
+        }
+        let expected = borrowed.build();
+
+        let mut owned = FontBuilder::default();
+        for (tag, data) in &tables {
+            owned.add_raw(*tag, data.clone());
+        }
+        assert_eq!(owned.build(), expected);
+
+        // also with a precomputed checksum on the reused table
+        let mut owned = FontBuilder::default();
+        for (tag, data) in &tables {
+            if *tag == Tag::new(b"glyf") {
+                let (checksum, _) = checksum_and_padding(data);
+                owned.add_raw_with_checksum(*tag, data.clone(), checksum);
+            } else {
+                owned.add_raw(*tag, data.clone());
+            }
+        }
+        assert_eq!(owned.build(), expected);
     }
 
     #[test]
