@@ -434,9 +434,7 @@ impl super::Instance<TrueTypeContext<'_, '_>> for read_fonts::tables::glyf::Glyf
         } else {
             TableChange::Keep
         };
-        let head = tables
-            .get_mut(&Tag::new(b"head"))
-            .ok_or_else(|| error(b"head"))?;
+        let head = tables.head.as_mut().ok_or_else(|| error(b"head"))?;
         put(head, 50, i16::from(!short))?;
         let union = bounds
             .iter()
@@ -736,9 +734,12 @@ fn write_metrics(
                 max_extent = max_extent.max(leading + extent);
             }
         }
-        let h = tables
-            .get_mut(&Tag::new(header))
-            .ok_or_else(|| error(header))?;
+        let h = if vertical {
+            tables.vhea.as_mut()
+        } else {
+            tables.hhea.as_mut()
+        }
+        .ok_or_else(|| error(header))?;
         put(h, 10, max_advance as u16 as i16)?;
         if min_leading != i32::MAX {
             for (offset, value) in [(12, min_leading), (14, min_trailing), (16, max_extent)] {

@@ -26,65 +26,32 @@ pub(super) struct MetricTables {
 }
 impl MetricTables {
     pub fn new(font: &FontRef) -> Self {
+        let copy = |tag: &[u8; 4]| {
+            font.data_for_tag(Tag::new(tag))
+                .map(|d| d.as_bytes().to_vec())
+        };
         Self {
-            head: font
-                .data_for_tag(Tag::new(b"head"))
-                .map(|d| d.as_bytes().to_vec()),
-            hhea: font
-                .data_for_tag(Tag::new(b"hhea"))
-                .map(|d| d.as_bytes().to_vec()),
-            vhea: font
-                .data_for_tag(Tag::new(b"vhea"))
-                .map(|d| d.as_bytes().to_vec()),
-            os2: font
-                .data_for_tag(Tag::new(b"OS/2"))
-                .map(|d| d.as_bytes().to_vec()),
-            vorg: font
-                .data_for_tag(Tag::new(b"VORG"))
-                .map(|d| d.as_bytes().to_vec()),
-            post: font
-                .data_for_tag(Tag::new(b"post"))
-                .map(|d| d.as_bytes().to_vec()),
-            gasp: font
-                .data_for_tag(Tag::new(b"gasp"))
-                .map(|d| d.as_bytes().to_vec()),
-            hmtx: font
-                .data_for_tag(Tag::new(b"hmtx"))
-                .map(|d| d.as_bytes().to_vec()),
-            vmtx: font
-                .data_for_tag(Tag::new(b"vmtx"))
-                .map(|d| d.as_bytes().to_vec()),
+            head: copy(b"head"),
+            hhea: copy(b"hhea"),
+            vhea: copy(b"vhea"),
+            os2: copy(b"OS/2"),
+            vorg: copy(b"VORG"),
+            post: copy(b"post"),
+            gasp: copy(b"gasp"),
+            hmtx: copy(b"hmtx"),
+            vmtx: copy(b"vmtx"),
             hvar: TableChange::Keep,
             vvar: TableChange::Keep,
             mvar: TableChange::Keep,
         }
     }
-    pub fn get(&self, tag: &Tag) -> Option<&Vec<u8>> {
-        match *tag {
-            tag if tag == Tag::new(b"head") => self.head.as_ref(),
-            tag if tag == Tag::new(b"hhea") => self.hhea.as_ref(),
-            tag if tag == Tag::new(b"vhea") => self.vhea.as_ref(),
-            tag if tag == Tag::new(b"OS/2") => self.os2.as_ref(),
-            tag if tag == Tag::new(b"VORG") => self.vorg.as_ref(),
-            tag if tag == Tag::new(b"post") => self.post.as_ref(),
-            tag if tag == Tag::new(b"gasp") => self.gasp.as_ref(),
-            tag if tag == Tag::new(b"hmtx") => self.hmtx.as_ref(),
-            tag if tag == Tag::new(b"vmtx") => self.vmtx.as_ref(),
-            _ => None,
-        }
-    }
-    pub fn get_mut(&mut self, tag: &Tag) -> Option<&mut Vec<u8>> {
-        match *tag {
-            tag if tag == Tag::new(b"head") => self.head.as_mut(),
-            tag if tag == Tag::new(b"hhea") => self.hhea.as_mut(),
-            tag if tag == Tag::new(b"vhea") => self.vhea.as_mut(),
-            tag if tag == Tag::new(b"OS/2") => self.os2.as_mut(),
-            tag if tag == Tag::new(b"VORG") => self.vorg.as_mut(),
-            tag if tag == Tag::new(b"post") => self.post.as_mut(),
-            tag if tag == Tag::new(b"gasp") => self.gasp.as_mut(),
-            tag if tag == Tag::new(b"hmtx") => self.hmtx.as_mut(),
-            tag if tag == Tag::new(b"vmtx") => self.vmtx.as_mut(),
-            _ => None,
+    fn mvar_headers(&mut self) -> MvarHeaders<'_> {
+        MvarHeaders {
+            hhea: &mut self.hhea,
+            vhea: &mut self.vhea,
+            os2: &mut self.os2,
+            post: &mut self.post,
+            gasp: &mut self.gasp,
         }
     }
     pub fn into_changes(self) -> [(Tag, TableChange); 12] {
@@ -283,7 +250,7 @@ pub(super) fn cff2_metrics(
         }
         bounds.push(bound);
     }
-    if let Some(head) = tables.get_mut(&Tag::new(b"head")) {
+    if let Some(head) = tables.head.as_mut() {
         for (i, v) in union.unwrap_or([0; 4]).into_iter().enumerate() {
             put(head, 36 + i * 2, v)?;
         }
@@ -367,7 +334,7 @@ pub(super) fn cff2_metrics(
             max_extent = max_extent.max(leading.saturating_add(extent));
         }
         if !vertical {
-            if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
+            if let Some(os2) = tables.os2.as_mut() {
                 let (sum, count) = out.chunks_exact(4).fold((0u64, 0u64), |(sum, count), m| {
                     let advance = u16::from_be_bytes([m[0], m[1]]) as u64;
                     (sum + advance, count + u64::from(advance != 0))
@@ -385,7 +352,11 @@ pub(super) fn cff2_metrics(
         } else {
             tables.hmtx = Some(out);
         }
-        if let Some(header) = tables.get_mut(&Tag::new(if vertical { b"vhea" } else { b"hhea" })) {
+        if let Some(header) = if vertical {
+            tables.vhea.as_mut()
+        } else {
+            tables.hhea.as_mut()
+        } {
             header
                 .get_mut(10..12)
                 .ok_or_else(|| error(Tag::new(b"hhea")))?
@@ -416,9 +387,34 @@ pub(super) fn cff2_metrics(
     finish(font, axes, tables)
 }
 
-pub(super) struct MvarContext<'a, 'b> {
-    pub input: &'a FontContext<'b>,
-    pub headers: &'a mut MetricTables,
+/// Only headers addressed by MVAR records are mutable in this operation.
+struct MvarHeaders<'a> {
+    hhea: &'a mut Option<Vec<u8>>,
+    vhea: &'a mut Option<Vec<u8>>,
+    os2: &'a mut Option<Vec<u8>>,
+    post: &'a mut Option<Vec<u8>>,
+    gasp: &'a mut Option<Vec<u8>>,
+}
+#[derive(Clone, Copy)]
+enum MvarTarget {
+    Hhea,
+    Vhea,
+    Os2,
+    Post,
+}
+impl MvarHeaders<'_> {
+    fn get_mut(&mut self, target: MvarTarget) -> Option<&mut Vec<u8>> {
+        match target {
+            MvarTarget::Hhea => self.hhea.as_mut(),
+            MvarTarget::Vhea => self.vhea.as_mut(),
+            MvarTarget::Os2 => self.os2.as_mut(),
+            MvarTarget::Post => self.post.as_mut(),
+        }
+    }
+}
+struct MvarContext<'a> {
+    axes: &'a AxisPlan,
+    headers: MvarHeaders<'a>,
 }
 impl Instance<FontContext<'_>> for read_fonts::tables::hvar::Hvar<'_> {
     type Output = Vec<u8>;
@@ -444,12 +440,12 @@ impl Instance<FontContext<'_>> for read_fonts::tables::vvar::Vvar<'_> {
         write_fonts::dump_table(&table).map_err(|_| error(Tag::new(b"VVAR")))
     }
 }
-impl Instance<MvarContext<'_, '_>> for read_fonts::tables::mvar::Mvar<'_> {
+impl Instance<MvarContext<'_>> for read_fonts::tables::mvar::Mvar<'_> {
     type Output = TableChange;
-    fn instance(&self, context: &mut MvarContext<'_, '_>) -> Result<Self::Output, SubsetError> {
+    fn instance(&self, context: &mut MvarContext<'_>) -> Result<Self::Output, SubsetError> {
         use write_fonts::from_obj::ToOwnedTable;
-        let axes = context.input.axes;
-        apply_mvar(self, axes, context.headers)?;
+        let axes = context.axes;
+        apply_mvar(self, axes, &mut context.headers)?;
         if axes.all_pinned() {
             return Ok(TableChange::Keep);
         }
@@ -482,8 +478,8 @@ pub(super) fn finish(
     };
     if let Ok(table) = font.mvar() {
         let mut context = MvarContext {
-            input: &input,
-            headers: tables,
+            axes,
+            headers: tables.mvar_headers(),
         };
         let change = table.instance(&mut context)?;
         tables.mvar = change;
@@ -501,7 +497,7 @@ pub(super) fn finish(
 }
 
 pub(super) fn update_os2(axes: &AxisPlan, tables: &mut MetricTables) {
-    if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
+    if let Some(os2) = tables.os2.as_mut() {
         for &(tag, value) in &axes.values {
             let (offset, value) = if tag == Tag::new(b"wght") {
                 (4, value.clamp(1., 1000.).round() as u16)
@@ -528,7 +524,7 @@ pub(super) fn update_os2(axes: &AxisPlan, tables: &mut MetricTables) {
 fn apply_mvar(
     mvar: &read_fonts::tables::mvar::Mvar,
     axes: &AxisPlan,
-    tables: &mut MetricTables,
+    headers: &mut MvarHeaders<'_>,
 ) -> Result<(), SubsetError> {
     let Some(store) = mvar
         .item_variation_store()
@@ -538,48 +534,49 @@ fn apply_mvar(
         return Ok(());
     };
     let sync = [(b"hasc", 4, 68), (b"hdsc", 6, 70), (b"hlgp", 8, 72)].map(|(tag, h, os)| {
-        let same = tables
-            .get(&Tag::new(b"hhea"))
+        let same = headers
+            .hhea
+            .as_ref()
             .and_then(|d| signed(d, h))
-            .zip(tables.get(&Tag::new(b"OS/2")).and_then(|d| signed(d, os)))
+            .zip(headers.os2.as_ref().and_then(|d| signed(d, os)))
             .is_some_and(|(a, b)| a == b);
         (*tag, h, same)
     });
-    for (metric, table, offset, unsigned) in [
-        (b"hasc", b"OS/2", 68, false),
-        (b"hdsc", b"OS/2", 70, false),
-        (b"hlgp", b"OS/2", 72, false),
-        (b"hcla", b"OS/2", 74, true),
-        (b"hcld", b"OS/2", 76, true),
-        (b"vasc", b"vhea", 4, false),
-        (b"vdsc", b"vhea", 6, false),
-        (b"vlgp", b"vhea", 8, false),
-        (b"hcrs", b"hhea", 18, false),
-        (b"hcrn", b"hhea", 20, false),
-        (b"hcof", b"hhea", 22, false),
-        (b"vcrs", b"vhea", 18, false),
-        (b"vcrn", b"vhea", 20, false),
-        (b"vcof", b"vhea", 22, false),
-        (b"xhgt", b"OS/2", 86, false),
-        (b"cpht", b"OS/2", 88, false),
-        (b"sbxs", b"OS/2", 10, false),
-        (b"sbys", b"OS/2", 12, false),
-        (b"sbxo", b"OS/2", 14, false),
-        (b"sbyo", b"OS/2", 16, false),
-        (b"spxs", b"OS/2", 18, false),
-        (b"spys", b"OS/2", 20, false),
-        (b"spxo", b"OS/2", 22, false),
-        (b"spyo", b"OS/2", 24, false),
-        (b"strs", b"OS/2", 26, false),
-        (b"stro", b"OS/2", 28, false),
-        (b"undo", b"post", 8, false),
-        (b"unds", b"post", 10, false),
+    for (metric, target, offset, unsigned) in [
+        (b"hasc", MvarTarget::Os2, 68, false),
+        (b"hdsc", MvarTarget::Os2, 70, false),
+        (b"hlgp", MvarTarget::Os2, 72, false),
+        (b"hcla", MvarTarget::Os2, 74, true),
+        (b"hcld", MvarTarget::Os2, 76, true),
+        (b"vasc", MvarTarget::Vhea, 4, false),
+        (b"vdsc", MvarTarget::Vhea, 6, false),
+        (b"vlgp", MvarTarget::Vhea, 8, false),
+        (b"hcrs", MvarTarget::Hhea, 18, false),
+        (b"hcrn", MvarTarget::Hhea, 20, false),
+        (b"hcof", MvarTarget::Hhea, 22, false),
+        (b"vcrs", MvarTarget::Vhea, 18, false),
+        (b"vcrn", MvarTarget::Vhea, 20, false),
+        (b"vcof", MvarTarget::Vhea, 22, false),
+        (b"xhgt", MvarTarget::Os2, 86, false),
+        (b"cpht", MvarTarget::Os2, 88, false),
+        (b"sbxs", MvarTarget::Os2, 10, false),
+        (b"sbys", MvarTarget::Os2, 12, false),
+        (b"sbxo", MvarTarget::Os2, 14, false),
+        (b"sbyo", MvarTarget::Os2, 16, false),
+        (b"spxs", MvarTarget::Os2, 18, false),
+        (b"spys", MvarTarget::Os2, 20, false),
+        (b"spxo", MvarTarget::Os2, 22, false),
+        (b"spyo", MvarTarget::Os2, 24, false),
+        (b"strs", MvarTarget::Os2, 26, false),
+        (b"stro", MvarTarget::Os2, 28, false),
+        (b"undo", MvarTarget::Post, 8, false),
+        (b"unds", MvarTarget::Post, 10, false),
     ] {
         let Some(delta) = table_mvar_delta(mvar, &store, Tag::new(metric)) else {
             continue;
         };
         let delta = rounded(delta);
-        if let Some(data) = tables.get_mut(&Tag::new(table)) {
+        if let Some(data) = headers.get_mut(target) {
             if let Some(old) = signed(data, offset) {
                 let old = if unsigned {
                     old as u16 as i32
@@ -599,14 +596,14 @@ fn apply_mvar(
     for (metric, offset, same) in sync {
         if same {
             if let Some(delta) = table_mvar_delta(mvar, &store, Tag::new(&metric)) {
-                if let Some(data) = tables.get_mut(&Tag::new(b"hhea")) {
+                if let Some(data) = headers.hhea.as_mut() {
                     let old = signed(data, offset).ok_or_else(|| error(Tag::new(b"hhea")))?;
                     put(data, offset, (old as i32).saturating_add(rounded(delta)))?;
                 }
             }
         }
     }
-    if let Some(data) = tables.get_mut(&Tag::new(b"gasp")) {
+    if let Some(data) = headers.gasp.as_mut() {
         for i in 0..10 {
             let tag = [b'g', b's', b'p', b'0' + i];
             let offset = 4 + i as usize * 4;
