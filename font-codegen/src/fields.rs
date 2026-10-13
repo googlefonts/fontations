@@ -176,14 +176,17 @@ impl Fields {
             }
             let name = field.name_for_compile();
             let name_str = name.to_string();
-            let validation_call = match field.attrs.validate.as_deref() {
+            let custom_validation = match field.attrs.validate.as_deref() {
                 Some(FieldValidation::Skip) => continue,
                 Some(FieldValidation::Custom(ident)) => Some(quote!( self.#ident(ctx); )),
-                None if field.gets_recursive_validation() => {
-                    Some(quote!( self.#name.validate_impl(ctx); ))
-                }
                 None => None,
             };
+            // custom validation is in addition to, not instead of, validating children
+            let recursive_validation = field
+                .gets_recursive_validation()
+                .then(|| quote!( self.#name.validate_impl(ctx); ));
+            let validation_call = (custom_validation.is_some() || recursive_validation.is_some())
+                .then(|| quote!( #recursive_validation #custom_validation ));
 
             let is_single_nullable_offset = field.is_nullable() && !field.is_array();
             let is_conditional = field

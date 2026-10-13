@@ -223,7 +223,9 @@ The following annotations are supported on top-level objects:
   it is read.
 - `#[validate(arg)]`: arg is either the literal 'skip' or the name of a method.
   If the name of a method, that method will be called during validation, and can
-  implement custom validation logic.
+  implement custom validation logic. This is in addition to the default
+  validation of the field's children (for arrays, records, and offsets); use
+  'skip' to suppress that.
 - `#[to_owned(expr)]`: uncommon/hacky: provide an expression that will be used
   in `FromObjRef` to convert the parse type to the compile type.
 

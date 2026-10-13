@@ -125,6 +125,10 @@ impl FontWrite for PString {
     }
 }
 
+impl Validate for PString {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 impl PartialEq<&str> for PString {
     fn eq(&self, other: &&str) -> bool {
         self.0 == *other
