@@ -223,6 +223,12 @@ direct serialization for glyphs, tuples, and selected metadata, and write-fonts
 owned tables for complex layout, color, and store rebuilding. There is one
 generated table model in write-fonts.
 
+Borrowed readers and owned writer tables are generated from the shared
+[`codegen inputs`](../../resources/codegen_inputs) with the current font-codegen.
+Skera has no additional generated table tree. Layout subsetting uses the shared
+coverage-intersection callbacks in [`layout.rs`](../src/layout.rs) and the
+visitation and recursion limits in [`read_fonts::limits`](../../read-fonts/src/limits.rs).
+
 `Instance` does not select a writer or require an owned result.
 [`dump_table`](../../write-fonts/src/write.rs) validates, builds an object graph,
 packs, and serializes. [Packing](../../write-fonts/src/graph.rs) always runs its
