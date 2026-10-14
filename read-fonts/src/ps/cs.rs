@@ -292,11 +292,11 @@ enum SeacMode {
 
 /// Transient state for evaluating a charstring and handling recursive
 /// subroutine calls.
-struct Evaluator<'a, S> {
+struct Evaluator<'a> {
     context: &'a dyn CharstringContext,
     is_type1: bool,
     blend_state: Option<BlendState<'a>>,
-    sink: &'a mut S,
+    sink: &'a mut dyn CommandSink,
     is_open: bool,
     /// When the flex state is active, moveto commands simply
     /// accumulate vectors on the stack which will be used
@@ -322,14 +322,11 @@ struct Evaluator<'a, S> {
     ops_done: u32,
 }
 
-impl<'a, S> Evaluator<'a, S>
-where
-    S: CommandSink,
-{
+impl<'a> Evaluator<'a> {
     fn new(
         context: &'a dyn CharstringContext,
         blend_state: Option<BlendState<'a>>,
-        sink: &'a mut S,
+        sink: &'a mut dyn CommandSink,
     ) -> Self {
         let is_type1 = context.kind() == CharstringKind::Type1;
         Self {
