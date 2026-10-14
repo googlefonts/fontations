@@ -10,7 +10,7 @@
 
 use core::ops::Range;
 
-use super::{GlyphDelta, GlyphVariationData, Gvar};
+use super::{GlyphDelta, GlyphVariationData, Gvar, GvarExtended, GvarTable};
 use crate::{
     tables::{
         glyf::{PointCoord, PointFlags, PointMarker, PHANTOM_POINT_COUNT},
@@ -33,104 +33,122 @@ pub struct DeltaBuffers<'a, D: PointCoord> {
     pub iup: &'a mut [Point<D>],
 }
 
-impl Gvar<'_> {
-    /// Computes the deltas for the points of a simple glyph at the given
-    /// location in variation space.
-    ///
-    /// Looks the glyph's variation data up and hands off to
-    /// [`GlyphVariationData::simple_deltas`], which documents the arguments.
-    ///
-    /// Returns `true` if the glyph has variation data, and `false` if it does
-    /// not — in which case the deltas are zeroed. Note that they are zeroed
-    /// whichever it returns, so they never retain values from a previous call.
-    pub fn simple_deltas<C, D>(
-        &self,
-        glyph_id: GlyphId,
-        coords: &[F2Dot14],
-        points: &[Point<C>],
-        flags: &mut [PointFlags],
-        contours: &[u16],
-        buffers: &mut DeltaBuffers<'_, D>,
-    ) -> Option<bool>
-    where
-        C: PointCoord,
-        D: PointCoord + From<C>,
-    {
-        self.simple_deltas_with_scalars(glyph_id, coords, &[], points, flags, contours, buffers)
-    }
+macro_rules! impl_gvar_deltas {
+    ($table:ident) => {
+        impl $table<'_> {
+            /// Computes the deltas for the points of a simple glyph at the given
+            /// location in variation space.
+            ///
+            /// Looks the glyph's variation data up and hands off to
+            /// [`GlyphVariationData::simple_deltas`], which documents the arguments.
+            ///
+            /// Returns `true` if the glyph has variation data, and `false` if it does
+            /// not — in which case the deltas are zeroed. Note that they are zeroed
+            /// whichever it returns, so they never retain values from a previous call.
+            pub fn simple_deltas<C, D>(
+                &self,
+                glyph_id: GlyphId,
+                coords: &[F2Dot14],
+                points: &[Point<C>],
+                flags: &mut [PointFlags],
+                contours: &[u16],
+                buffers: &mut DeltaBuffers<'_, D>,
+            ) -> Option<bool>
+            where
+                C: PointCoord,
+                D: PointCoord + From<C>,
+            {
+                self.simple_deltas_with_scalars(
+                    glyph_id,
+                    coords,
+                    &[],
+                    points,
+                    flags,
+                    contours,
+                    buffers,
+                )
+            }
 
-    /// Computes the deltas for the points of a simple glyph, reusing
-    /// `scalars`.
-    ///
-    /// `scalars` holds one entry per shared tuple, from
-    /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
-    /// the rest are computed here.
-    #[allow(clippy::too_many_arguments)]
-    pub fn simple_deltas_with_scalars<C, D>(
-        &self,
-        glyph_id: GlyphId,
-        coords: &[F2Dot14],
-        scalars: &[Fixed],
-        points: &[Point<C>],
-        flags: &mut [PointFlags],
-        contours: &[u16],
-        buffers: &mut DeltaBuffers<'_, D>,
-    ) -> Option<bool>
-    where
-        C: PointCoord,
-        D: PointCoord + From<C>,
-    {
-        check_simple_buffers(points, flags, buffers).ok()?;
-        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
-            // Missing or malformed variation data for a glyph is not an error.
-            zero(buffers.deltas);
-            return Some(false);
-        };
-        var_data.simple_deltas_with_scalars(coords, scalars, points, flags, contours, buffers)?;
-        Some(true)
-    }
+            /// Computes the deltas for the points of a simple glyph, reusing
+            /// `scalars`.
+            ///
+            /// `scalars` holds one entry per shared tuple, from
+            /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
+            /// the rest are computed here.
+            #[allow(clippy::too_many_arguments)]
+            pub fn simple_deltas_with_scalars<C, D>(
+                &self,
+                glyph_id: GlyphId,
+                coords: &[F2Dot14],
+                scalars: &[Fixed],
+                points: &[Point<C>],
+                flags: &mut [PointFlags],
+                contours: &[u16],
+                buffers: &mut DeltaBuffers<'_, D>,
+            ) -> Option<bool>
+            where
+                C: PointCoord,
+                D: PointCoord + From<C>,
+            {
+                check_simple_buffers(points, flags, buffers).ok()?;
+                let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+                    // Missing or malformed variation data for a glyph is not an error.
+                    zero(buffers.deltas);
+                    return Some(false);
+                };
+                var_data.simple_deltas_with_scalars(
+                    coords, scalars, points, flags, contours, buffers,
+                )?;
+                Some(true)
+            }
 
-    /// Computes the deltas for the component offsets of a composite glyph at
-    /// the given location in variation space.
-    ///
-    /// Looks the glyph's variation data up and hands off to
-    /// [`GlyphVariationData::composite_deltas`].
-    ///
-    /// `deltas` must have one entry per component plus four for the phantom
-    /// points.
-    ///
-    /// Returns `true` if the glyph has variation data, and `false` if it does
-    /// not — in which case `deltas` is zeroed.
-    pub fn composite_deltas<D: PointCoord>(
-        &self,
-        glyph_id: GlyphId,
-        coords: &[F2Dot14],
-        deltas: &mut [Point<D>],
-    ) -> Option<bool> {
-        self.composite_deltas_with_scalars(glyph_id, coords, &[], deltas)
-    }
+            /// Computes the deltas for the component offsets of a composite glyph at
+            /// the given location in variation space.
+            ///
+            /// Looks the glyph's variation data up and hands off to
+            /// [`GlyphVariationData::composite_deltas`].
+            ///
+            /// `deltas` must have one entry per component plus four for the phantom
+            /// points.
+            ///
+            /// Returns `true` if the glyph has variation data, and `false` if it does
+            /// not — in which case `deltas` is zeroed.
+            pub fn composite_deltas<D: PointCoord>(
+                &self,
+                glyph_id: GlyphId,
+                coords: &[F2Dot14],
+                deltas: &mut [Point<D>],
+            ) -> Option<bool> {
+                self.composite_deltas_with_scalars(glyph_id, coords, &[], deltas)
+            }
 
-    /// Computes the deltas for a composite glyph's component offsets,
-    /// reusing `scalars`.
-    ///
-    /// `scalars` holds one entry per shared tuple, from
-    /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
-    /// the rest are computed here.
-    pub fn composite_deltas_with_scalars<D: PointCoord>(
-        &self,
-        glyph_id: GlyphId,
-        coords: &[F2Dot14],
-        scalars: &[Fixed],
-        deltas: &mut [Point<D>],
-    ) -> Option<bool> {
-        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
-            zero(deltas);
-            return Some(false);
-        };
-        var_data.composite_deltas_with_scalars(coords, scalars, deltas)?;
-        Some(true)
-    }
+            /// Computes the deltas for a composite glyph's component offsets,
+            /// reusing `scalars`.
+            ///
+            /// `scalars` holds one entry per shared tuple, from
+            /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
+            /// the rest are computed here.
+            pub fn composite_deltas_with_scalars<D: PointCoord>(
+                &self,
+                glyph_id: GlyphId,
+                coords: &[F2Dot14],
+                scalars: &[Fixed],
+                deltas: &mut [Point<D>],
+            ) -> Option<bool> {
+                let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+                    zero(deltas);
+                    return Some(false);
+                };
+                var_data.composite_deltas_with_scalars(coords, scalars, deltas)?;
+                Some(true)
+            }
+        }
+    };
 }
+
+impl_gvar_deltas!(Gvar);
+impl_gvar_deltas!(GvarExtended);
+impl_gvar_deltas!(GvarTable);
 
 impl GlyphVariationData<'_> {
     /// Computes the deltas for the points of a simple glyph at the given

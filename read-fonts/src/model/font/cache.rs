@@ -12,7 +12,9 @@
 
 use super::Tables;
 use crate::ps::cff::CffFontRef;
-use crate::tables::{glyf::Glyf, gvar::Gvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar};
+use crate::tables::{
+    glyf::Glyf, gvar::GvarTable as SelectedGvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar,
+};
 use crate::TableProvider;
 use alloc::sync::Arc;
 use yoke::{Yoke, Yokeable};
@@ -45,7 +47,7 @@ pub(crate) struct GlyfLoca<'a>(pub(crate) Option<(Glyf<'a>, Loca<'a>)>);
 
 impl<'a> GlyfLoca<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
-        Self(tables.glyf().ok().zip(tables.loca(None).ok()))
+        Self(tables.glyf_loca(None).ok())
     }
 }
 
@@ -74,11 +76,11 @@ impl<'a> VvarTable<'a> {
 /// Metrics read this only where `HVAR` is absent, recovering the answer from
 /// the phantom points it carries alongside each glyph.
 #[derive(Clone, Default, Yokeable)]
-pub(crate) struct GvarTable<'a>(pub(crate) Option<Gvar<'a>>);
+pub(crate) struct GvarTable<'a>(pub(crate) Option<SelectedGvar<'a>>);
 
 impl<'a> GvarTable<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
-        Self(tables.gvar().ok())
+        Self(tables.gvar_table().ok())
     }
 }
 

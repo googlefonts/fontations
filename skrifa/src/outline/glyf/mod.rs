@@ -20,7 +20,7 @@ use read_fonts::{
         glyf::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
-        gvar::{DeltaBuffers, Gvar},
+        gvar::{DeltaBuffers, GvarTable},
         hdmx::Hdmx,
         loca::Loca,
     },
@@ -38,7 +38,7 @@ pub struct Outlines<'a> {
     pub(crate) glyph_metrics: GlyphHMetrics<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
-    gvar: Option<Gvar<'a>>,
+    gvar: Option<GvarTable<'a>>,
     hdmx: Option<Hdmx<'a>>,
     fpgm: &'a [u8],
     prep: &'a [u8],
@@ -48,7 +48,7 @@ pub struct Outlines<'a> {
     max_twilight_points: u16,
     max_stack_elements: u16,
     max_storage: u16,
-    glyph_count: u16,
+    glyph_count: u32,
     units_per_em: u16,
     os2_vmetrics: [i16; 2],
     prefer_interpreter: bool,
@@ -63,8 +63,7 @@ impl<'a> Outlines<'a> {
         let fractional_size_hinting = !head
             .flags()
             .contains(read_fonts::tables::head::Flags::FORCE_INTEGER_PPEM);
-        let loca = font.loca(Some(head.index_to_loc_format() == 1)).ok()?;
-        let glyf = font.glyf().ok()?;
+        let (glyf, loca) = font.glyf_loca(Some(head.index_to_loc_format() == 1)).ok()?;
         let glyph_metrics = GlyphHMetrics::new(font)?;
         let (
             glyph_count,
@@ -75,7 +74,7 @@ impl<'a> Outlines<'a> {
             max_storage,
             max_instructions,
         ) = font
-            .maxp()
+            .maxp_table()
             .map(|maxp| {
                 (
                     maxp.num_glyphs(),
@@ -117,7 +116,7 @@ impl<'a> Outlines<'a> {
             glyph_metrics,
             loca,
             glyf,
-            gvar: font.gvar().ok(),
+            gvar: font.gvar_table().ok(),
             hdmx: font.hdmx().ok(),
             fpgm,
             prep,
@@ -228,7 +227,7 @@ impl Outlines<'_> {
                     outline.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
                     let component_glyph = self
                         .loca
-                        .get(component.into(), &self.glyf)
+                        .get(component, &self.glyf)
                         .ok_or(DrawError::Malformed)?;
                     let Some(component_glyph) = component_glyph.glyph() else {
                         continue;
@@ -870,10 +869,10 @@ impl Scaler for FreeTypeScaler<'_> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get(component.glyph.into(), &self.outlines.glyf)
+                .get(component.glyph, &self.outlines.glyf)
                 .ok_or(DrawError::Malformed)?
                 .into_glyph();
-            self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
+            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags
@@ -1285,10 +1284,10 @@ impl Scaler for HarfBuzzScaler<'_> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get(component.glyph.into(), &self.outlines.glyf)
+                .get(component.glyph, &self.outlines.glyf)
                 .ok_or(DrawError::Malformed)?
                 .into_glyph();
-            self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
+            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags
