@@ -152,7 +152,6 @@ impl SubsetTable<'_> for Ligature2<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::intersected_glyphs_and_indices;
     use font_test_data::bebuffer::BeBuffer;
     use read_fonts::{tables::gsub::LigatureSubst, FontData, FontRead};
 
