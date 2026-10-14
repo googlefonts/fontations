@@ -52,6 +52,7 @@ impl<T: ToTokens> ToTokens for Attr<T> {
 #[derive(Debug, Default, Clone)]
 pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) read_inline: Option<syn::Path>,
     pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) skip_constructor: Option<syn::Path>,
@@ -280,6 +281,7 @@ static WRITE_FONTS_ONLY: &str = "write_fonts_only";
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static SKIP_FONT_WRITE: &str = "skip_font_write";
 static SKIP_CONSTRUCTOR: &str = "skip_constructor";
+static READ_INLINE: &str = "read_inline";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
 static TAG: &str = "tag";
@@ -367,6 +369,8 @@ impl Parse for TableAttrs {
             })?;
             if ident == DOC {
                 this.docs.push(attr);
+            } else if ident == READ_INLINE {
+                this.read_inline = Some(attr.path().clone());
             } else if ident == SKIP_FROM_OBJ {
                 this.skip_from_obj = Some(attr.path().clone());
             } else if ident == SKIP_FONT_WRITE {

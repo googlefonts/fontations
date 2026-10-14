@@ -831,6 +831,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_format_group_with_read_inline() {
+        let parsed =
+            parse_format_group("#[read_inline]\nformat u16 MyThing { FormatOne(SomeTable), }")
+                .unwrap();
+        assert!(parsed.attrs.read_inline.is_some());
+    }
+
+    #[test]
     #[should_panic(expected = "must be an unsigned")]
     fn parse_format_group_with_negative_format_offset() {
         let s = "format u16@-4 MyThing {
