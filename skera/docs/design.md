@@ -294,6 +294,12 @@ coverage. All 133 successful cases produced identical complete fonts, and the
 that remapping preserves instanced values and that later table phases can
 retain or replace a prior removal.
 
+The stack rebase onto upstream `0e6380f6` was compared with the previous tip
+`c269b34e` using the same 148 cases. All 133 successful outputs were byte-identical,
+and all 15 rejected cases produced identical errors. Every PR boundary builds
+with Rust 1.85; the retained class-context regressions also pass before the
+later feature branches are applied.
+
 Experimental cubic outlines require `spec_next`. Changes to axes referenced
 by retained VARC remain restricted. Unknown tables pass through; private or
 future variation formats need their own handlers. Owned rebuilding performance
