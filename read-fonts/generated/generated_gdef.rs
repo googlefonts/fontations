@@ -1113,7 +1113,10 @@ impl<'a> LigCaretList2<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList2 table
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1125,7 +1128,7 @@ impl<'a> LigCaretList2<'a> {
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> Uint24 {
         let range = self.lig_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to LigGlyph tables, from beginning of

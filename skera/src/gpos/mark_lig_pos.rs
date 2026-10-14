@@ -73,7 +73,7 @@ macro_rules! collect_mark_lig_variations {
                                 }
                             }
                         }
-                        Ok(())
+                        Ok::<(), ReadError>(())
                     },
                 );
             }

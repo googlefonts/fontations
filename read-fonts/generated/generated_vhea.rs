@@ -315,68 +315,68 @@ impl<'a> VheaExtended<'a> {
 
     pub fn version(&self) -> Version16Dot16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn ascender(&self) -> FWord {
         let range = self.ascender_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn descender(&self) -> FWord {
         let range = self.descender_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn line_gap(&self) -> FWord {
         let range = self.line_gap_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn advance_height_max(&self) -> FWord {
         let range = self.advance_height_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn min_top_side_bearing(&self) -> FWord {
         let range = self.min_top_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn min_bottom_side_bearing(&self) -> FWord {
         let range = self.min_bottom_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn y_max_extent(&self) -> FWord {
         let range = self.y_max_extent_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_slope_rise(&self) -> i16 {
         let range = self.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_slope_run(&self) -> i16 {
         let range = self.caret_slope_run_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_offset(&self) -> i16 {
         let range = self.caret_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn metric_data_format(&self) -> i16 {
         let range = self.metric_data_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of long metric records in VMTX.
     pub fn number_of_long_ver_metrics(&self) -> u32 {
         let range = self.number_of_long_ver_metrics_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

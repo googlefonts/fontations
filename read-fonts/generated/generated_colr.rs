@@ -2847,13 +2847,16 @@ impl<'a> PaintGlyph2<'a> {
     /// Set to 33.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint table.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -2865,7 +2868,7 @@ impl<'a> PaintGlyph2<'a> {
     /// Glyph ID for the source outline.
     pub fn glyph_id(&self) -> GlyphId24 {
         let range = self.glyph_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {

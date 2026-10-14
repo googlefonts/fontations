@@ -360,13 +360,13 @@ impl<'a> MaxpExtended<'a> {
 
     pub fn version(&self) -> Version16Dot16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of glyphs in the font.
     pub fn num_glyphs(&self) -> Uint24 {
         let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum points in a non-composite glyph.

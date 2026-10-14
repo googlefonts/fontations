@@ -212,33 +212,33 @@ impl<'a> GvarExtended<'a> {
 
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn axis_count(&self) -> u16 {
         let range = self.axis_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn shared_tuple_count(&self) -> u16 {
         let range = self.shared_tuple_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of glyphs, equal to numGlyphs in MAXP.
     pub fn glyph_count(&self) -> Uint24 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn flags(&self) -> GvarFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn glyph_variation_data_array_offset(&self) -> u32 {
         let range = self.glyph_variation_data_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
@@ -834,12 +834,15 @@ impl<'a> GlyphVariationDataHeaderExtended<'a> {
 
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.tuple_variation_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn serialized_data_offset(&self) -> Offset24 {
         let range = self.serialized_data_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].

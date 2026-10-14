@@ -1,6 +1,7 @@
 //! Subsetting the extended ligature substitution format.
 
 use super::*;
+use crate::layout::intersected_glyphs_and_indices;
 use read_fonts::{
     tables::gsub::{Ligature2, LigatureSet2, LigatureSubstFormat2},
     types::{GlyphId24, Offset24, Offset32, Uint24},
@@ -151,6 +152,7 @@ impl SubsetTable<'_> for Ligature2<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::intersected_glyphs_and_indices;
     use font_test_data::bebuffer::BeBuffer;
     use read_fonts::{tables::gsub::LigatureSubst, FontData, FontRead};
 

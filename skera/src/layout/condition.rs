@@ -10,7 +10,7 @@ const CONDITION_OPERATIONS: usize = u16::MAX as usize + 1;
 
 struct NestedCondition<'a> {
     table: Condition<'a>,
-    depth: u8,
+    depth: usize,
 }
 
 impl<'a> SubsetTable<'a> for NestedCondition<'_> {
@@ -100,7 +100,7 @@ fn subset_condition_offsets<'a, O>(
     count: usize,
     plan: &Plan,
     s: &mut Serializer,
-    depth: u8,
+    depth: usize,
     remaining: &mut usize,
     keep_nulls: bool,
 ) -> Result<usize, SerializeErrorFlags>
@@ -185,7 +185,7 @@ impl SubsetTable<'_> for ConditionFormat1<'_> {
 
 fn collect_condition_indices(
     table: &Condition<'_>,
-    depth: u8,
+    depth: usize,
     remaining: &mut usize,
     indices: &mut IntSet<u32>,
 ) -> Result<(), ReadError> {
@@ -227,7 +227,7 @@ fn collect_condition_indices(
 fn collect_condition_offsets<'a, O: Offset + Scalar>(
     conditions: ArrayOfOffsets<'a, Condition<'a>, O>,
     count: usize,
-    depth: u8,
+    depth: usize,
     remaining: &mut usize,
     indices: &mut IntSet<u32>,
 ) -> Result<(), ReadError> {

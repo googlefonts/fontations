@@ -522,19 +522,6 @@ pub(crate) fn intersected_glyphs_and_indices(
     (glyphs, indices)
 }
 
-/// Coverage indices retained before the glyph map is available.
-pub(crate) fn intersected_coverage_indices(
-    coverage: &CoverageTable,
-    glyph_set: &IntSet<GlyphId>,
-) -> IntSet<u32> {
-    let mut indices = IntSet::empty();
-    let _ = for_each_intersected_coverage_index::<()>(coverage, glyph_set, u32::MAX, |index| {
-        indices.insert(index);
-        Ok(())
-    });
-    indices
-}
-
 /// Return a set of feature indices that have alternate features defined in FeatureVariations table
 /// and the alternate version(s) intersect the set of lookup indices
 pub(crate) fn collect_features_with_retained_subs(
@@ -686,7 +673,7 @@ pub(crate) fn find_duplicate_features(
 
 pub(crate) struct PruneLangSysContext<'a> {
     script_count: u16,
-    langsys_feature_count: u16,
+    langsys_feature_count: u32,
     // IN: retained feature indices map:
     // duplicate features will be mapped to the same value
     feature_index_map: &'a FastHashMap<u16, u16>,
@@ -714,7 +701,7 @@ impl<'a> PruneLangSysContext<'a> {
     }
 
     fn visit_langsys(&mut self, feature_count: u16) -> bool {
-        self.langsys_feature_count += feature_count;
+        self.langsys_feature_count += u32::from(feature_count);
         self.langsys_feature_count < MAX_LANGSYS_FEATURE_COUNT
     }
 

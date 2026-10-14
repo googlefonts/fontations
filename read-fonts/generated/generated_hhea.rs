@@ -316,68 +316,68 @@ impl<'a> HheaExtended<'a> {
 
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn ascender(&self) -> FWord {
         let range = self.ascender_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn descender(&self) -> FWord {
         let range = self.descender_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn line_gap(&self) -> FWord {
         let range = self.line_gap_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn advance_width_max(&self) -> UfWord {
         let range = self.advance_width_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn min_left_side_bearing(&self) -> FWord {
         let range = self.min_left_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn min_right_side_bearing(&self) -> FWord {
         let range = self.min_right_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn x_max_extent(&self) -> FWord {
         let range = self.x_max_extent_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_slope_rise(&self) -> i16 {
         let range = self.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_slope_run(&self) -> i16 {
         let range = self.caret_slope_run_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_offset(&self) -> i16 {
         let range = self.caret_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn metric_data_format(&self) -> i16 {
         let range = self.metric_data_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of long metric records in HMTX.
     pub fn number_of_h_metrics(&self) -> u32 {
         let range = self.number_of_h_metrics_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

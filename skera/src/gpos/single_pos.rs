@@ -6,7 +6,7 @@ mod extended_tests;
 use crate::FastHashMap;
 use crate::{
     gpos::value_record::{compute_effective_format, compute_record_len},
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,

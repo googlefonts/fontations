@@ -3786,17 +3786,17 @@ impl<'a> FeatureLookups<'a> {
 
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn flags(&self) -> FeatureLookupsFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn lookup_condition_count(&self) -> u32 {
         let range = self.lookup_condition_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn lookup_condition_records(&self) -> &'a [LookupConditionRecord] {
@@ -4220,7 +4220,7 @@ impl<'a> LookupIndexList<'a> {
 
     pub fn lookup_index_count(&self) -> u16 {
         let range = self.lookup_index_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn lookup_indices(&self) -> &'a [BigEndian<u16>] {
@@ -5368,13 +5368,13 @@ impl<'a> CoverageFormat3<'a> {
     /// Format identifier — format = 3
     pub fn coverage_format(&self) -> u16 {
         let range = self.coverage_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of glyphs in the glyph array
     pub fn glyph_count(&self) -> Uint24 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of glyph IDs — in numerical order
@@ -5446,13 +5446,13 @@ impl<'a> CoverageFormat4<'a> {
     /// Format identifier — format = 4
     pub fn coverage_format(&self) -> u16 {
         let range = self.coverage_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of RangeRecords
     pub fn range_count(&self) -> Uint24 {
         let range = self.range_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of glyph ranges — ordered by startGlyphID.
@@ -5560,19 +5560,19 @@ impl<'a> ClassDefFormat3<'a> {
     /// Format identifier — format = 3
     pub fn class_format(&self) -> u16 {
         let range = self.class_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// First glyph ID of the classValueArray
     pub fn start_glyph_id(&self) -> GlyphId24 {
         let range = self.start_glyph_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Size of the classValueArray
     pub fn glyph_count(&self) -> Uint24 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of Class Values — one per glyph ID
@@ -5649,13 +5649,13 @@ impl<'a> ClassDefFormat4<'a> {
     /// Format identifier — format = 4
     pub fn class_format(&self) -> u16 {
         let range = self.class_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of ClassRangeRecords
     pub fn class_range_count(&self) -> Uint24 {
         let range = self.class_range_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of ClassRangeRecords — ordered by startGlyphID
@@ -5763,14 +5763,17 @@ impl<'a> SequenceContextFormat4<'a> {
     /// Format identifier: format = 4
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat4 table
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -5782,7 +5785,7 @@ impl<'a> SequenceContextFormat4<'a> {
     /// Number of SequenceRuleSet tables
     pub fn seq_rule_set_count(&self) -> Uint24 {
         let range = self.seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to SequenceRuleSet tables, from beginning of
@@ -5864,7 +5867,7 @@ impl<'a> SequenceRuleSet2<'a> {
     /// Number of SequenceRule tables
     pub fn seq_rule_count(&self) -> u16 {
         let range = self.seq_rule_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to SequenceRule tables, from beginning of the
@@ -5946,13 +5949,13 @@ impl<'a> SequenceRule2<'a> {
     /// Number of glyphs in the input glyph sequence
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of input glyph IDs—starting with the second glyph
@@ -6052,14 +6055,17 @@ impl<'a> SequenceContextFormat5<'a> {
     /// Format identifier: format = 5
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat5 table
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -6072,7 +6078,10 @@ impl<'a> SequenceContextFormat5<'a> {
     /// SequenceContextFormat5 table
     pub fn class_def_offset(&self) -> Offset32 {
         let range = self.class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
@@ -6084,7 +6093,7 @@ impl<'a> SequenceContextFormat5<'a> {
     /// Number of ClassSequenceRuleSet tables
     pub fn class_seq_rule_set_count(&self) -> Uint24 {
         let range = self.class_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
@@ -6175,7 +6184,7 @@ impl<'a> ClassSequenceRuleSet2<'a> {
     /// Number of ClassSequenceRule tables
     pub fn class_seq_rule_count(&self) -> u16 {
         let range = self.class_seq_rule_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to ClassSequenceRule tables, from beginning of
@@ -6261,19 +6270,19 @@ impl<'a> SequenceContextFormat6<'a> {
     /// Format identifier: format = 6
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of glyphs in the input sequence
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to Coverage tables, from beginning of
@@ -6374,14 +6383,17 @@ impl<'a> ChainedSequenceContextFormat4<'a> {
     /// Format identifier: format = 4
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -6393,7 +6405,7 @@ impl<'a> ChainedSequenceContextFormat4<'a> {
     /// Number of ChainedSequenceRuleSet tables
     pub fn chained_seq_rule_set_count(&self) -> Uint24 {
         let range = self.chained_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
@@ -6478,7 +6490,7 @@ impl<'a> ChainedSequenceRuleSet2<'a> {
     /// Number of ChainedSequenceRule tables
     pub fn chained_seq_rule_count(&self) -> u16 {
         let range = self.chained_seq_rule_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to ChainedSequenceRule tables, from beginning
@@ -6561,7 +6573,7 @@ impl<'a> ChainedSequenceRule2<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
         let range = self.backtrack_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of backtrack glyph IDs
@@ -6724,14 +6736,17 @@ impl<'a> ChainedSequenceContextFormat5<'a> {
     /// Format identifier: format = 5
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat5 table
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -6744,7 +6759,10 @@ impl<'a> ChainedSequenceContextFormat5<'a> {
     /// from beginning of ChainedSequenceContextFormat5 table
     pub fn backtrack_class_def_offset(&self) -> Offset32 {
         let range = self.backtrack_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
@@ -6757,7 +6775,10 @@ impl<'a> ChainedSequenceContextFormat5<'a> {
     /// from beginning of ChainedSequenceContextFormat5 table
     pub fn input_class_def_offset(&self) -> Offset32 {
         let range = self.input_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
@@ -6770,7 +6791,10 @@ impl<'a> ChainedSequenceContextFormat5<'a> {
     /// from beginning of ChainedSequenceContextFormat5 table
     pub fn lookahead_class_def_offset(&self) -> Offset32 {
         let range = self.lookahead_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
@@ -6782,7 +6806,7 @@ impl<'a> ChainedSequenceContextFormat5<'a> {
     /// Number of ChainedClassSequenceRuleSet tables
     pub fn chained_class_seq_rule_set_count(&self) -> u16 {
         let range = self.chained_class_seq_rule_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
@@ -6885,7 +6909,7 @@ impl<'a> ChainedClassSequenceRuleSet2<'a> {
     /// Number of ChainedClassSequenceRule tables
     pub fn chained_class_seq_rule_count(&self) -> u16 {
         let range = self.chained_class_seq_rule_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to ChainedClassSequenceRule tables, from
@@ -6985,7 +7009,7 @@ impl<'a, T> LookupList2<'a, T> {
     /// Number of lookups in this table
     pub fn lookup_count(&self) -> u16 {
         let range = self.lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to Lookup tables, from beginning of LookupList2

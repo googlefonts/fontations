@@ -359,8 +359,6 @@ impl<'a> CoverageTable<'a> {
         match self {
             Self::Format1(t) => t.cost(),
             Self::Format2(t) => t.cost(),
-            Self::Format3(t) => 32 - t.glyph_count().to_u32().leading_zeros(),
-            Self::Format4(t) => 32 - t.range_count().to_u32().leading_zeros(),
             Self::Format3(t) => bit_storage(t.glyph_count().to_u32()),
             Self::Format4(t) => bit_storage(t.range_count().to_u32()),
         }

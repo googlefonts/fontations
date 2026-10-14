@@ -136,13 +136,13 @@ impl<'a> Dmap<'a> {
     /// Table version number (0).
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of encoding tables that follow.
     pub fn num_tables(&self) -> u16 {
         let range = self.num_tables_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn encoding_records(&self) -> &'a [EncodingRecord] {
@@ -1628,19 +1628,19 @@ impl<'a> Cmap15<'a> {
     /// Subtable format. Set to 15.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Byte length of this subtable (including this header).
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of variation selector records.
     pub fn num_var_selector_records(&self) -> u32 {
         let range = self.num_var_selector_records_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn var_selector(&self) -> &'a [VariationSelector15] {
@@ -1962,7 +1962,7 @@ impl<'a> NonDefaultUvs24<'a> {
 
     pub fn num_uvs_mappings(&self) -> u32 {
         let range = self.num_uvs_mappings_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn uvs_mapping(&self) -> &'a [UvsMapping24] {

@@ -4,7 +4,10 @@ mod extended;
 
 use crate::FastHashMap;
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph, ClassDefSubsetStruct, ClassMap},
+    layout::{
+        for_each_intersected_glyph_and_index, intersected_glyphs_and_indices, map_gsub_glyph,
+        ClassDefSubsetStruct, ClassMap,
+    },
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
