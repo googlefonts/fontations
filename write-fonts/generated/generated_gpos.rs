@@ -1065,6 +1065,7 @@ impl Validate for PairPosFormat1 {
                 if self.pair_sets.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
+                self.pair_sets.validate_impl(ctx);
                 self.check_format_consistency(ctx);
             });
         })
