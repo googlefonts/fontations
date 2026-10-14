@@ -14,24 +14,33 @@ use core::mem::{align_of, size_of};
 /// otherwise. Sizes are bucketed so that a small request does not pay to zero
 /// a block sized for the largest one.
 pub fn with_scratch<R>(size: usize, mut f: impl FnMut(&mut [u8]) -> R) -> R {
+    let mut result = None;
+    with_scratch_dyn(size, &mut |block| result = Some(f(block)));
+    // The block is always handed to `f`, so there is always a result.
+    result.unwrap()
+}
+
+/// Calls `f` with a zeroed block of `size` bytes, through a trait object so
+/// that the buckets below are compiled once rather than once per caller.
+fn with_scratch_dyn(size: usize, f: &mut dyn FnMut(&mut [u8])) {
     // Not inlined, so a caller that lands in another bucket neither reserves
     // this one's stack nor zeroes it.
     #[inline(never)]
-    fn on_stack<const SIZE: usize, R>(size: usize, mut f: impl FnMut(&mut [u8]) -> R) -> R {
+    fn on_stack<const SIZE: usize>(size: usize, f: &mut dyn FnMut(&mut [u8])) {
         f(&mut [0u8; SIZE][..size])
     }
     if size <= 512 {
-        on_stack::<512, _>(size, f)
+        on_stack::<512>(size, f)
     } else if size <= 1024 {
-        on_stack::<1024, _>(size, f)
+        on_stack::<1024>(size, f)
     } else if size <= 2048 {
-        on_stack::<2048, _>(size, f)
+        on_stack::<2048>(size, f)
     } else if size <= 4096 {
-        on_stack::<4096, _>(size, f)
+        on_stack::<4096>(size, f)
     } else if size <= 8192 {
-        on_stack::<8192, _>(size, f)
+        on_stack::<8192>(size, f)
     } else if size <= 16384 {
-        on_stack::<16384, _>(size, f)
+        on_stack::<16384>(size, f)
     } else {
         let mut block: Vec<u8> = vec![0; size];
         f(&mut block)
