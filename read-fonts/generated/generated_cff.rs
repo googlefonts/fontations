@@ -44,25 +44,25 @@ impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
         let range = self.major_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Format minor version (starting at 0).
     pub fn minor(&self) -> u8 {
         let range = self.minor_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Header size (bytes).
     pub fn hdr_size(&self) -> u8 {
         let range = self.hdr_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Absolute offset size.
     pub fn off_size(&self) -> u8 {
         let range = self.off_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Padding bytes before the start of the Name INDEX.
@@ -165,13 +165,13 @@ impl<'a> Index<'a> {
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Object array element size.
     pub fn off_size(&self) -> u8 {
         let range = self.off_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
@@ -334,7 +334,7 @@ impl<'a> FdSelectFormat0<'a> {
     /// Format = 0.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// FD selector array (one entry for each glyph).
@@ -411,13 +411,13 @@ impl<'a> FdSelectFormat3<'a> {
     /// Format = 3.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of ranges.
     pub fn n_ranges(&self) -> u16 {
         let range = self.n_ranges_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Range3 array.
@@ -528,13 +528,13 @@ impl<'a> FdSelectFormat4<'a> {
     /// Format = 4.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of ranges.
     pub fn n_ranges(&self) -> u32 {
         let range = self.n_ranges_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Range4 array.
@@ -712,7 +712,7 @@ impl<'a> CharsetFormat0<'a> {
     /// Format; =0
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Glyph name array.
@@ -787,7 +787,7 @@ impl<'a> CharsetFormat1<'a> {
     /// Format; =1
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Range1 array.
@@ -890,7 +890,7 @@ impl<'a> CharsetFormat2<'a> {
     /// Format; =2
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Range2 array.

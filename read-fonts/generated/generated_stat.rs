@@ -53,13 +53,13 @@ impl<'a> Stat<'a> {
     /// Major/minor version number. Set to 1.2 for new fonts.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The size in bytes of each axis record.
     pub fn design_axis_size(&self) -> u16 {
         let range = self.design_axis_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of axis records. In a font with an 'fvar' table,
@@ -68,7 +68,7 @@ impl<'a> Stat<'a> {
     /// axisValueCount is greater than zero.
     pub fn design_axis_count(&self) -> u16 {
         let range = self.design_axis_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset in bytes from the beginning of the STAT table to the
@@ -77,7 +77,10 @@ impl<'a> Stat<'a> {
     /// greater than zero.
     pub fn design_axes_offset(&self) -> Offset32 {
         let range = self.design_axes_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`design_axes_offset`][Self::design_axes_offset].
@@ -90,7 +93,7 @@ impl<'a> Stat<'a> {
     /// The number of axis value tables.
     pub fn axis_value_count(&self) -> u16 {
         let range = self.axis_value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset in bytes from the beginning of the STAT table to the
@@ -99,7 +102,7 @@ impl<'a> Stat<'a> {
     /// must be greater than zero.
     pub fn offset_to_axis_value_offsets(&self) -> Nullable<Offset32> {
         let range = self.offset_to_axis_value_offsets_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`offset_to_axis_value_offsets`][Self::offset_to_axis_value_offsets].
@@ -448,7 +451,7 @@ impl<'a> AxisValueFormat1<'a> {
     /// Format identifier — set to 1.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Zero-base index into the axis record array identifying the axis
@@ -456,26 +459,26 @@ impl<'a> AxisValueFormat1<'a> {
     /// be less than designAxisCount.
     pub fn axis_index(&self) -> u16 {
         let range = self.axis_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Flags — see below for details.
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
     pub fn value_name_id(&self) -> NameId {
         let range = self.value_name_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A numeric value for this attribute value.
     pub fn value(&self) -> Fixed {
         let range = self.value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -569,7 +572,7 @@ impl<'a> AxisValueFormat2<'a> {
     /// Format identifier — set to 2.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Zero-base index into the axis record array identifying the axis
@@ -577,40 +580,40 @@ impl<'a> AxisValueFormat2<'a> {
     /// be less than designAxisCount.
     pub fn axis_index(&self) -> u16 {
         let range = self.axis_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Flags — see below for details.
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
     pub fn value_name_id(&self) -> NameId {
         let range = self.value_name_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A nominal numeric value for this attribute value.
     pub fn nominal_value(&self) -> Fixed {
         let range = self.nominal_value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The minimum value for a range associated with the specified
     /// name ID.
     pub fn range_min_value(&self) -> Fixed {
         let range = self.range_min_value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The maximum value for a range associated with the specified
     /// name ID.
     pub fn range_max_value(&self) -> Fixed {
         let range = self.range_max_value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -703,7 +706,7 @@ impl<'a> AxisValueFormat3<'a> {
     /// Format identifier — set to 3.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Zero-base index into the axis record array identifying the axis
@@ -711,32 +714,32 @@ impl<'a> AxisValueFormat3<'a> {
     /// be less than designAxisCount.
     pub fn axis_index(&self) -> u16 {
         let range = self.axis_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Flags — see below for details.
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
     pub fn value_name_id(&self) -> NameId {
         let range = self.value_name_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A numeric value for this attribute value.
     pub fn value(&self) -> Fixed {
         let range = self.value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The numeric value for a style-linked mapping from this value.
     pub fn linked_value(&self) -> Fixed {
         let range = self.linked_value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -821,27 +824,27 @@ impl<'a> AxisValueFormat4<'a> {
     /// Format identifier — set to 4.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The total number of axes contributing to this axis-values
     /// combination.
     pub fn axis_count(&self) -> u16 {
         let range = self.axis_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Flags — see below for details.
     pub fn flags(&self) -> AxisValueTableFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this combination of axis values.
     pub fn value_name_id(&self) -> NameId {
         let range = self.value_name_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of AxisValue records that provide the combination of axis

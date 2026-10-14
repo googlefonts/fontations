@@ -54,14 +54,14 @@ impl<'a> Gvar<'a> {
     /// Major/minor version number of the glyph variations table — set to (1,0).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
     pub fn axis_count(&self) -> u16 {
         let range = self.axis_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of shared tuple records. Shared tuple records can be
@@ -70,14 +70,14 @@ impl<'a> Gvar<'a> {
     /// within a glyph variation data table.
     pub fn shared_tuple_count(&self) -> u16 {
         let range = self.shared_tuple_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of glyphs in this font. This must match the number
     /// of glyphs stored elsewhere in the font.
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Bit-field that gives the format of the offset array that
@@ -85,14 +85,14 @@ impl<'a> Gvar<'a> {
     /// set, the offsets are uint32.
     pub fn flags(&self) -> GvarFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset from the start of this table to the array of
     /// GlyphVariationData tables.
     pub fn glyph_variation_data_array_offset(&self) -> u32 {
         let range = self.glyph_variation_data_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offsets from the start of the GlyphVariationData array to each
@@ -594,14 +594,17 @@ impl<'a> GlyphVariationDataHeader<'a> {
     /// and 4095.
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.tuple_variation_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
     pub fn serialized_data_offset(&self) -> Offset16 {
         let range = self.serialized_data_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].

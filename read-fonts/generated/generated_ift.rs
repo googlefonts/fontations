@@ -351,34 +351,37 @@ impl<'a> IftPatchMap<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
         let range = self.field_flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Unique ID that identifies compatible patches.
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.compatibility_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Patch format number for patches referenced by this mapping.
     pub fn default_patch_format(&self) -> u8 {
         let range = self.default_patch_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn entry_count(&self) -> Uint24 {
         let range = self.entry_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn entries_offset(&self) -> Offset32 {
         let range = self.entries_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`entries_offset`][Self::entries_offset].
@@ -389,7 +392,7 @@ impl<'a> IftPatchMap<'a> {
 
     pub fn entry_id_string_data_offset(&self) -> Nullable<Offset32> {
         let range = self.entry_id_string_data_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`entry_id_string_data_offset`][Self::entry_id_string_data_offset].
@@ -400,7 +403,7 @@ impl<'a> IftPatchMap<'a> {
 
     pub fn url_template_length(&self) -> u16 {
         let range = self.url_template_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn url_template(&self) -> &'a [u8] {
@@ -627,7 +630,7 @@ impl<'a> EntryData<'a> {
 
     pub fn format_flags(&self) -> EntryFormatFlags {
         let range = self.format_flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn feature_count(&self) -> Option<u8> {
@@ -1226,18 +1229,18 @@ impl<'a> TableKeyedPatch<'a> {
 
     pub fn format(&self) -> Tag {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Unique ID that identifies compatible patches.
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.compatibility_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn patches_count(&self) -> u16 {
         let range = self.patches_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn patch_offsets(&self) -> &'a [BigEndian<Offset32>] {
@@ -1335,17 +1338,17 @@ impl<'a> TablePatch<'a> {
 
     pub fn tag(&self) -> Tag {
         let range = self.tag_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn flags(&self) -> TablePatchFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn max_uncompressed_length(&self) -> u32 {
         let range = self.max_uncompressed_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn brotli_stream(&self) -> &'a [u8] {
@@ -1728,22 +1731,22 @@ impl<'a> GlyphKeyedPatch<'a> {
 
     pub fn format(&self) -> Tag {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn flags(&self) -> GlyphKeyedFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn compatibility_id(&self) -> CompatibilityId {
         let range = self.compatibility_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn max_uncompressed_length(&self) -> u32 {
         let range = self.max_uncompressed_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn brotli_stream(&self) -> &'a [u8] {
@@ -2150,12 +2153,12 @@ impl<'a> GlyphPatches<'a> {
 
     pub fn glyph_count(&self) -> u32 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn table_count(&self) -> u8 {
         let range = self.table_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {

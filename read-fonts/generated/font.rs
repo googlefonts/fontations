@@ -47,28 +47,28 @@ impl<'a> TableDirectory<'a> {
     /// 0x00010000 or 0x4F54544F
     pub fn sfnt_version(&self) -> u32 {
         let range = self.sfnt_version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of tables.
     pub fn num_tables(&self) -> u16 {
         let range = self.num_tables_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn search_range(&self) -> u16 {
         let range = self.search_range_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn entry_selector(&self) -> u16 {
         let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn range_shift(&self) -> u16 {
         let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Table records array—one for each top-level table in the font
@@ -206,19 +206,19 @@ impl<'a> TTCHeader<'a> {
     /// Font Collection ID string: \"ttcf\"
     pub fn ttc_tag(&self) -> Tag {
         let range = self.ttc_tag_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Major/minor version of the TTC Header
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of fonts in TTC
     pub fn num_fonts(&self) -> u32 {
         let range = self.num_fonts_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to the TableDirectory for each font from the beginning of the file

@@ -592,11 +592,13 @@ impl Field {
         //// if a field is non-conditional we will always return some value, even
         //// if the data is malformed.
         //let maybe_unwrap_or_def = (!is_conditional).then(|| quote!( .unwrap_or_default() ));
-        let maybe_unwrap = self.validated_at_parse.then(|| quote!( .unwrap() ));
-        // for fields that have lengths calculated based on other inputs,
-        // it's possible we don't have enough bytes and reading could fail.
-        // When these are non-optional, we use unwrap_or_default so that we
-        // are always returning a value.
+        // A borrowed record has no default to fall back on, so one validated
+        // at parse is unwrapped.
+        let maybe_unwrap =
+            (self.validated_at_parse && self.fixed_size_record).then(|| quote!( .unwrap() ));
+        // Every other non-optional field falls back to a default, so that the
+        // getter has no panic path; this is unreachable for a field validated
+        // at parse, and covers fields whose lengths depend on other inputs.
         let maybe_unwrap_or_def = (maybe_unwrap.is_none() && !is_conditional).then(|| {
             if let FieldType::Offset { typ, .. } = &self.typ {
                 if !self.is_nullable() {

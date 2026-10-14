@@ -134,7 +134,7 @@ impl<'a> Lookup0<'a> {
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Values, indexed by glyph index.
@@ -216,37 +216,37 @@ impl<'a> Lookup2<'a> {
     /// Format number is set to 2.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Size of a lookup unit for this search in bytes.
     pub fn unit_size(&self) -> u16 {
         let range = self.unit_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of units of the preceding size to be searched.
     pub fn n_units(&self) -> u16 {
         let range = self.n_units_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
     pub fn search_range(&self) -> u16 {
         let range = self.search_range_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
     pub fn entry_selector(&self) -> u16 {
         let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
     pub fn range_shift(&self) -> u16 {
         let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Segments.
@@ -351,37 +351,37 @@ impl<'a> Lookup4<'a> {
     /// Format number is set to 4.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Size of a lookup unit for this search in bytes.
     pub fn unit_size(&self) -> u16 {
         let range = self.unit_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of units of the preceding size to be searched.
     pub fn n_units(&self) -> u16 {
         let range = self.n_units_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
     pub fn search_range(&self) -> u16 {
         let range = self.search_range_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
     pub fn entry_selector(&self) -> u16 {
         let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
     pub fn range_shift(&self) -> u16 {
         let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Segments.
@@ -517,37 +517,37 @@ impl<'a> Lookup6<'a> {
     /// Format number is set to 6.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Size of a lookup unit for this search in bytes.
     pub fn unit_size(&self) -> u16 {
         let range = self.unit_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of units of the preceding size to be searched.
     pub fn n_units(&self) -> u16 {
         let range = self.n_units_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The value of unitSize times the largest power of 2 that is less than or equal to the value of nUnits.
     pub fn search_range(&self) -> u16 {
         let range = self.search_range_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The log base 2 of the largest power of 2 less than or equal to the value of nUnits.
     pub fn entry_selector(&self) -> u16 {
         let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The value of unitSize times the difference of the value of nUnits minus the largest power of 2 less than or equal to the value of nUnits.
     pub fn range_shift(&self) -> u16 {
         let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Values, indexed by glyph index.
@@ -646,20 +646,20 @@ impl<'a> Lookup8<'a> {
     /// Format number is set to 8.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// First glyph index included in the trimmed array.
     pub fn first_glyph(&self) -> u16 {
         let range = self.first_glyph_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Total number of glyphs (equivalent to the last glyph minus the value
     /// of firstGlyph plus 1).
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The lookup values (indexed by the glyph index minus the value of
@@ -739,27 +739,27 @@ impl<'a> Lookup10<'a> {
     /// Format number is set to 10.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Size of a lookup unit for this lookup table in bytes. Allowed values
     /// are 1, 2, 4, and 8.
     pub fn unit_size(&self) -> u16 {
         let range = self.unit_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// First glyph index included in the trimmed array.
     pub fn first_glyph(&self) -> u16 {
         let range = self.first_glyph_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Total number of glyphs (equivalent to the last glyph minus the value
     /// of firstGlyph plus 1).
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The lookup values (indexed by the glyph index minus the value of
@@ -846,13 +846,16 @@ impl<'a> StateHeader<'a> {
     /// field is 16 bits for alignment.
     pub fn state_size(&self) -> u16 {
         let range = self.state_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Byte offset from the beginning of the state table to the class subtable.
     pub fn class_table_offset(&self) -> Offset16 {
         let range = self.class_table_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
@@ -864,7 +867,10 @@ impl<'a> StateHeader<'a> {
     /// Byte offset from the beginning of the state table to the state array.
     pub fn state_array_offset(&self) -> Offset16 {
         let range = self.state_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
@@ -876,7 +882,10 @@ impl<'a> StateHeader<'a> {
     /// Byte offset from the beginning of the state table to the entry subtable.
     pub fn entry_table_offset(&self) -> Offset16 {
         let range = self.entry_table_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
@@ -958,13 +967,13 @@ impl<'a> ClassSubtable<'a> {
     /// Glyph index of the first glyph in the class table.
     pub fn first_glyph(&self) -> u16 {
         let range = self.first_glyph_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of glyphs in class table.
     pub fn n_glyphs(&self) -> u16 {
         let range = self.n_glyphs_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The class codes (indexed by glyph index minus firstGlyph). Class codes
@@ -1104,13 +1113,16 @@ impl<'a> StxHeader<'a> {
     /// Number of classes, which is the number of 16-bit entry indices in a single line in the state array.
     pub fn n_classes(&self) -> u32 {
         let range = self.n_classes_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Byte offset from the beginning of the state table to the class subtable.
     pub fn class_table_offset(&self) -> Offset32 {
         let range = self.class_table_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
@@ -1122,7 +1134,10 @@ impl<'a> StxHeader<'a> {
     /// Byte offset from the beginning of the state table to the state array.
     pub fn state_array_offset(&self) -> Offset32 {
         let range = self.state_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
@@ -1134,7 +1149,10 @@ impl<'a> StxHeader<'a> {
     /// Byte offset from the beginning of the state table to the entry subtable.
     pub fn entry_table_offset(&self) -> Offset32 {
         let range = self.entry_table_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].

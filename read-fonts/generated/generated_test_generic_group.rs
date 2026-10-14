@@ -64,13 +64,13 @@ impl<'a, T> MyLookup<'a, T> {
     /// Determines the concrete type of T
     pub fn lookup_type(&self) -> u16 {
         let range = self.lookup_type_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of subtables
     pub fn sub_table_count(&self) -> u16 {
         let range = self.sub_table_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offsets to subtables, from beginning of this table
@@ -221,12 +221,12 @@ impl<'a> MySubtableFormat1<'a> {
 
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn value(&self) -> u16 {
         let range = self.value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -294,12 +294,12 @@ impl<'a> MySubtableFormat2<'a> {
 
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
@@ -403,12 +403,15 @@ impl<'a> ContainsLookupGroup<'a> {
 
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn lookup_offset(&self) -> Offset16 {
         let range = self.lookup_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`lookup_offset`][Self::lookup_offset].

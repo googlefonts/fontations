@@ -78,7 +78,7 @@ impl<'a> Device<'a> {
 
     pub fn marker(&self) -> u16 {
         let range = self.marker_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn marker_byte_range(&self) -> Range<usize> {
@@ -167,7 +167,7 @@ impl<'a> EmbeddedRecords<'a> {
     /// A leading scalar, so the records do not start at zero.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn first(&self) -> &'a ValueAndDevice {
@@ -183,7 +183,7 @@ impl<'a> EmbeddedRecords<'a> {
     /// A scalar between records.
     pub fn middle(&self) -> u16 {
         let range = self.middle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn third(&self) -> &'a ValueAndDevice {
@@ -201,7 +201,7 @@ impl<'a> EmbeddedRecords<'a> {
     /// above it.
     pub fn trailer(&self) -> u16 {
         let range = self.trailer_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -302,7 +302,7 @@ impl<'a> RecordThenArray<'a> {
 
     pub fn value_count(&self) -> u16 {
         let range = self.value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {

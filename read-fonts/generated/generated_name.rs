@@ -48,19 +48,19 @@ impl<'a> Name<'a> {
     /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of name records.
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to start of string storage (from start of table).
     pub fn storage_offset(&self) -> u16 {
         let range = self.storage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The name records where count is the number of records.

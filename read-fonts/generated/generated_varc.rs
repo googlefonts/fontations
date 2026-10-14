@@ -55,12 +55,15 @@ impl<'a> Varc<'a> {
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn coverage_offset(&self) -> Offset32 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -71,7 +74,7 @@ impl<'a> Varc<'a> {
 
     pub fn multi_var_store_offset(&self) -> Nullable<Offset32> {
         let range = self.multi_var_store_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`multi_var_store_offset`][Self::multi_var_store_offset].
@@ -82,7 +85,7 @@ impl<'a> Varc<'a> {
 
     pub fn condition_list_offset(&self) -> Nullable<Offset32> {
         let range = self.condition_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`condition_list_offset`][Self::condition_list_offset].
@@ -93,7 +96,7 @@ impl<'a> Varc<'a> {
 
     pub fn axis_indices_list_offset(&self) -> Nullable<Offset32> {
         let range = self.axis_indices_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
@@ -104,7 +107,10 @@ impl<'a> Varc<'a> {
 
     pub fn var_composite_glyphs_offset(&self) -> Offset32 {
         let range = self.var_composite_glyphs_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`var_composite_glyphs_offset`][Self::var_composite_glyphs_offset].
@@ -202,12 +208,15 @@ impl<'a> MultiItemVariationStore<'a> {
 
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn region_list_offset(&self) -> Offset32 {
         let range = self.region_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`region_list_offset`][Self::region_list_offset].
@@ -218,7 +227,7 @@ impl<'a> MultiItemVariationStore<'a> {
 
     pub fn variation_data_count(&self) -> u16 {
         let range = self.variation_data_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
@@ -308,7 +317,7 @@ impl<'a> SparseVariationRegionList<'a> {
 
     pub fn region_count(&self) -> u32 {
         let range = self.region_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
@@ -386,7 +395,7 @@ impl<'a> SparseVariationRegion<'a> {
 
     pub fn region_axis_count(&self) -> u16 {
         let range = self.region_axis_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn axis_coordinate_offsets(&self) -> &'a [BigEndian<Offset32>] {
@@ -467,22 +476,22 @@ impl<'a> SparseRegionAxisCoordinates<'a> {
 
     pub fn axis_index(&self) -> u16 {
         let range = self.axis_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn start(&self) -> F2Dot14 {
         let range = self.start_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn peak(&self) -> F2Dot14 {
         let range = self.peak_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn end(&self) -> F2Dot14 {
         let range = self.end_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
@@ -562,12 +571,12 @@ impl<'a> MultiItemVariationData<'a> {
 
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn region_index_count(&self) -> u16 {
         let range = self.region_index_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
@@ -664,7 +673,7 @@ impl<'a> ConditionList<'a> {
 
     pub fn condition_count(&self) -> u32 {
         let range = self.condition_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {

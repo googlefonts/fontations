@@ -50,13 +50,13 @@ impl<'a> Feat<'a> {
     /// version).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of entries in the feature name array.
     pub fn feature_name_count(&self) -> u16 {
         let range = self.feature_name_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The feature name array, sorted by feature type.

@@ -44,25 +44,25 @@ impl<'a> Cff2Header<'a> {
     /// Format major version (set to 2).
     pub fn major_version(&self) -> u8 {
         let range = self.major_version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Format minor version (set to 0).
     pub fn minor_version(&self) -> u8 {
         let range = self.minor_version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Header size (bytes).
     pub fn header_size(&self) -> u8 {
         let range = self.header_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Length of Top DICT structure in bytes.
     pub fn top_dict_length(&self) -> u16 {
         let range = self.top_dict_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Padding bytes before the start of the Top DICT.
@@ -178,13 +178,13 @@ impl<'a> Index<'a> {
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u32 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Object array element size.
     pub fn off_size(&self) -> u8 {
         let range = self.off_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
