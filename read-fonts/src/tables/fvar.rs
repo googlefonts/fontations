@@ -35,6 +35,11 @@ fn apply_avar2_delta(coord: Fixed, delta_2dot14: f64) -> Fixed {
     )
 }
 
+#[inline(never)]
+fn sort_axis_order(axes: &[VariationAxisRecord], axis_order: &mut [u16]) {
+    axis_order.sort_unstable_by_key(|&i| axes[i as usize].axis_tag());
+}
+
 fn normalize_user_coords<T>(
     axes: &[VariationAxisRecord],
     user_coords: impl IntoIterator<Item = (Tag, Fixed)>,
@@ -74,7 +79,7 @@ fn normalize_user_coords<T>(
     }
     // Then sort by tag to group axes with the same tag together, so we can use
     // partition_point to find the range of axes for each tag
-    axis_order.sort_unstable_by_key(|&i| axes[i as usize].axis_tag());
+    sort_axis_order(axes, axis_order);
     for (tag, user_coord) in user_coords {
         let start = axis_order.partition_point(|&i| axes[i as usize].axis_tag() < tag);
         let end = axis_order.partition_point(|&i| axes[i as usize].axis_tag() <= tag);
