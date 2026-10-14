@@ -4,6 +4,16 @@
 
 include!("../../generated/generated_gpos.rs");
 
+impl ReadArgs for PositionLookupList2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PositionLookupList2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        read_fonts::tables::gpos::PositionLookupList2::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 use std::collections::HashSet;
 
 //use super::layout::value_record::ValueRecord;
@@ -17,6 +27,8 @@ use super::{
 };
 
 #[cfg(test)]
+mod extended;
+#[cfg(test)]
 mod spec_tests;
 
 pub mod builders;
@@ -25,6 +37,12 @@ pub use value_record::ValueRecord;
 
 /// A GPOS lookup list table.
 pub type PositionLookupList = LookupList<PositionLookup>;
+
+/// A lookup list with the original 16-bit offsets.
+pub type LegacyPositionLookupList = PositionLookupList;
+
+/// A lookup list with 32-bit offsets.
+pub type PositionLookupList2 = super::layout::LookupList2<PositionLookup>;
 
 super::layout::table_newtype!(
     PositionSequenceContext,
@@ -39,8 +57,27 @@ super::layout::table_newtype!(
 );
 
 impl Gpos {
+    /// Creates a GPOS table using the original 16-bit header offsets.
+    pub fn new(
+        script_list: ScriptList,
+        feature_list: FeatureList,
+        lookup_list: PositionLookupList,
+    ) -> Self {
+        Self {
+            script_list: Some(script_list).into(),
+            feature_list: Some(feature_list).into(),
+            lookup_list: Some(lookup_list).into(),
+            ..Default::default()
+        }
+    }
+
     fn compute_version(&self) -> MajorMinor {
-        if self.feature_variations.is_none() {
+        if self.script_list2.is_some()
+            || self.feature_list2.is_some()
+            || self.lookup_list2.is_some()
+        {
+            MajorMinor::new(1, 2)
+        } else if self.feature_variations.is_none() {
             MajorMinor::VERSION_1_0
         } else {
             MajorMinor::VERSION_1_1
@@ -83,7 +120,7 @@ impl ReadArgs for PositionLookupList {
 
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        read_fonts::tables::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gpos::LegacyPositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -152,16 +189,19 @@ impl PairPosFormat2 {
     }
 
     fn compute_class1_count(&self) -> u16 {
-        self.class_def1.class_count()
+        self.class_def1.class_count().try_into().unwrap_or(0)
     }
 
     fn compute_class2_count(&self) -> u16 {
-        self.class_def2.class_count()
+        self.class_def2.class_count().try_into().unwrap_or(0)
     }
 
     fn check_length_and_format_conformance(&self, ctx: &mut ValidationCtx) {
         let n_class_1s = self.class_def1.class_count();
         let n_class_2s = self.class_def2.class_count();
+        if n_class_1s > u16::MAX as u32 || n_class_2s > u16::MAX as u32 {
+            ctx.report("pair positioning class counts must fit in 16 bits");
+        }
         let format_1 = self.compute_value_format1();
         let format_2 = self.compute_value_format2();
         if self.class1_records.len() != n_class_1s as usize {
@@ -249,7 +289,16 @@ impl RemapVarStore<VariationIndex> for AnchorTable {
 
 impl RemapVarStore<VariationIndex> for Gpos {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
-        self.lookup_list.as_mut().remap_variation_indices(key_map)
+        if let Some(list) = self.lookup_list.as_mut() {
+            for lookup in &mut list.lookups {
+                lookup.remap_variation_indices(key_map);
+            }
+        }
+        if let Some(list) = self.lookup_list2.as_mut() {
+            for lookup in &mut list.lookups {
+                lookup.remap_variation_indices(key_map);
+            }
+        }
     }
 }
 
@@ -313,6 +362,8 @@ impl RemapVarStore<VariationIndex> for SinglePos {
         match self {
             SinglePos::Format1(table) => table.remap_variation_indices(key_map),
             SinglePos::Format2(table) => table.remap_variation_indices(key_map),
+            SinglePos::Format3(table) => table.remap_variation_indices(key_map),
+            SinglePos::Format4(table) => table.remap_variation_indices(key_map),
         }
     }
 }
@@ -358,6 +409,8 @@ impl RemapVarStore<VariationIndex> for PairPos {
         match self {
             PairPos::Format1(table) => table.remap_variation_indices(key_map),
             PairPos::Format2(table) => table.remap_variation_indices(key_map),
+            PairPos::Format3(table) => table.remap_variation_indices(key_map),
+            PairPos::Format4(table) => table.remap_variation_indices(key_map),
         }
     }
 }
@@ -420,6 +473,366 @@ impl RemapVarStore<VariationIndex> for MarkArray {
     fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
         for rec in &mut self.mark_records {
             rec.mark_anchor.remap_variation_indices(key_map);
+        }
+    }
+}
+
+super::layout::lookup_type!(gpos, CursivePos, 3);
+super::layout::lookup_type!(gpos, CursivePosFormat2, 3);
+super::layout::legacy_lookup!(PositionLookup, Cursive, CursivePosFormat1, CursivePos);
+
+super::layout::lookup_type!(gpos, MarkBasePos, 4);
+super::layout::lookup_type!(gpos, MarkBasePosFormat2, 4);
+super::layout::legacy_lookup!(PositionLookup, MarkToBase, MarkBasePosFormat1, MarkBasePos);
+
+super::layout::lookup_type!(gpos, MarkLigPos, 5);
+super::layout::lookup_type!(gpos, MarkLigPosFormat2, 5);
+super::layout::legacy_lookup!(PositionLookup, MarkToLig, MarkLigPosFormat1, MarkLigPos);
+
+super::layout::lookup_type!(gpos, MarkMarkPos, 6);
+super::layout::lookup_type!(gpos, MarkMarkPosFormat2, 6);
+super::layout::legacy_lookup!(PositionLookup, MarkToMark, MarkMarkPosFormat1, MarkMarkPos);
+
+impl SinglePosFormat3 {
+    fn compute_value_format(&self) -> ValueFormat {
+        self.value_record.format()
+    }
+}
+
+impl SinglePosFormat4 {
+    fn compute_value_format(&self) -> ValueFormat {
+        self.value_records
+            .first()
+            .map(ValueRecord::format)
+            .unwrap_or(ValueFormat::empty())
+    }
+
+    fn check_format_consistency(&self, ctx: &mut ValidationCtx) {
+        let format = self.compute_value_format();
+        if self
+            .value_records
+            .iter()
+            .any(|record| record.format() != format)
+        {
+            ctx.report("all ValueRecords must have same format");
+        }
+    }
+}
+
+impl PairPosFormat3 {
+    fn compute_value_format1(&self) -> ValueFormat {
+        self.pair_sets
+            .iter()
+            .find_map(|pairset| pairset.pair_value_records.first())
+            .map(|rec| rec.value_record1.format())
+            .unwrap_or(ValueFormat::empty())
+    }
+
+    fn compute_value_format2(&self) -> ValueFormat {
+        self.pair_sets
+            .iter()
+            .find_map(|pairset| pairset.pair_value_records.first())
+            .map(|rec| rec.value_record2.format())
+            .unwrap_or(ValueFormat::empty())
+    }
+
+    fn check_format_consistency(&self, ctx: &mut ValidationCtx) {
+        let vf1 = self.compute_value_format1();
+        let vf2 = self.compute_value_format2();
+        ctx.with_array_items(self.pair_sets.iter(), |ctx, item| {
+            ctx.in_field("pair_value_records", |ctx| {
+                if item.pair_value_records.iter().any(|pairset| {
+                    pairset.value_record1.format() != vf1 || pairset.value_record2.format() != vf2
+                }) {
+                    ctx.report("all ValueRecords must have same format")
+                }
+            })
+        })
+    }
+}
+
+impl PairPosFormat4 {
+    fn compute_value_format1(&self) -> ValueFormat {
+        self.class1_records
+            .first()
+            .and_then(|rec| rec.class2_records.first())
+            .map(|rec| rec.value_record1.format())
+            .unwrap_or(ValueFormat::empty())
+    }
+
+    fn compute_value_format2(&self) -> ValueFormat {
+        self.class1_records
+            .first()
+            .and_then(|rec| rec.class2_records.first())
+            .map(|rec| rec.value_record2.format())
+            .unwrap_or(ValueFormat::empty())
+    }
+
+    fn compute_class1_count(&self) -> u16 {
+        self.class1_records
+            .len()
+            .try_into()
+            .expect("class count exceeds 16 bits")
+    }
+
+    fn compute_class2_count(&self) -> u16 {
+        self.class1_records
+            .first()
+            .map_or(0, |row| row.class2_records.len())
+            .try_into()
+            .expect("class count exceeds 16 bits")
+    }
+
+    fn check_length_and_format_conformance(&self, ctx: &mut ValidationCtx) {
+        let n_class_1s = self.class1_records.len();
+        let n_class_2s = self
+            .class1_records
+            .first()
+            .map_or(0, |row| row.class2_records.len());
+        if n_class_1s > u16::MAX as usize || n_class_2s > u16::MAX as usize {
+            ctx.report("pair positioning class counts must fit in 16 bits");
+        }
+        let format_1 = self.compute_value_format1();
+        let format_2 = self.compute_value_format2();
+        if self
+            .class_def1
+            .iter()
+            .any(|(_, class)| class as usize >= n_class_1s)
+            || self
+                .class_def2
+                .iter()
+                .any(|(_, class)| class as usize >= n_class_2s)
+        {
+            ctx.report("class definitions must index the value record matrix");
+        }
+        ctx.in_field("class1_records", |ctx| {
+            ctx.with_array_items(self.class1_records.iter(), |ctx, c1rec| {
+                if c1rec.class2_records.len() != n_class_2s {
+                    ctx.report("class2_records length must match number of class2 classes ");
+                }
+                if c1rec.class2_records.iter().any(|rec| {
+                    rec.value_record1.format() != format_1 || rec.value_record2.format() != format_2
+                }) {
+                    ctx.report("all value records should report the same format");
+                }
+            })
+        });
+    }
+}
+
+impl MarkBasePosFormat2 {
+    fn compute_mark_class_count(&self) -> u16 {
+        self.mark_array
+            .class_count()
+            .try_into()
+            .expect("mark class count exceeds 16 bits")
+    }
+
+    fn check_class_dimensions(&self, ctx: &mut ValidationCtx) {
+        let classes = self.mark_array.class_count() as usize;
+        if (self
+            .base_array
+            .base_records
+            .iter()
+            .map(|rec| rec.base_anchors.len()))
+        .any(|len| len != classes)
+        {
+            ctx.report("anchor arrays must match the mark class count");
+        }
+    }
+}
+
+impl MarkMarkPosFormat2 {
+    fn compute_mark_class_count(&self) -> u16 {
+        self.mark1_array
+            .class_count()
+            .try_into()
+            .expect("mark class count exceeds 16 bits")
+    }
+
+    fn check_class_dimensions(&self, ctx: &mut ValidationCtx) {
+        let classes = self.mark1_array.class_count() as usize;
+        if (self
+            .mark2_array
+            .mark2_records
+            .iter()
+            .map(|rec| rec.mark2_anchors.len()))
+        .any(|len| len != classes)
+        {
+            ctx.report("anchor arrays must match the mark class count");
+        }
+    }
+}
+
+impl MarkLigPosFormat2 {
+    fn compute_mark_class_count(&self) -> u16 {
+        self.mark_array
+            .class_count()
+            .try_into()
+            .expect("mark class count exceeds 16 bits")
+    }
+
+    fn check_class_dimensions(&self, ctx: &mut ValidationCtx) {
+        let classes = self.mark_array.class_count() as usize;
+        if (self
+            .ligature_array
+            .ligature_attaches
+            .iter()
+            .flat_map(|lig| lig.component_records.iter())
+            .map(|rec| rec.ligature_anchors.len()))
+        .any(|len| len != classes)
+        {
+            ctx.report("anchor arrays must match the mark class count");
+        }
+    }
+}
+
+impl MarkArray2 {
+    fn class_count(&self) -> u32 {
+        self.mark_records
+            .iter()
+            .map(|rec| u32::from(rec.mark_class) + 1)
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn check_class_count(&self, ctx: &mut ValidationCtx) {
+        if self.class_count() > u16::MAX as u32 {
+            ctx.report("mark class count must fit in 16 bits");
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for SinglePosFormat3 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.value_record.remap_variation_indices(key_map);
+    }
+}
+
+impl RemapVarStore<VariationIndex> for SinglePosFormat4 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        for rec in &mut self.value_records {
+            rec.remap_variation_indices(key_map);
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for PairPosFormat3 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        for pairset in &mut self.pair_sets {
+            for pairrec in &mut pairset.pair_value_records {
+                pairrec.value_record1.remap_variation_indices(key_map);
+                pairrec.value_record2.remap_variation_indices(key_map);
+            }
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for PairPosFormat4 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        for class1rec in &mut self.class1_records {
+            for class2rec in &mut class1rec.class2_records {
+                class2rec.value_record1.remap_variation_indices(key_map);
+                class2rec.value_record2.remap_variation_indices(key_map);
+            }
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkBasePosFormat2 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.mark_array.as_mut().remap_variation_indices(key_map);
+        for rec in &mut self.base_array.as_mut().base_records {
+            for anchor in &mut rec.base_anchors {
+                if let Some(anchor) = anchor.as_mut() {
+                    anchor.remap_variation_indices(key_map);
+                }
+            }
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkMarkPosFormat2 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.mark1_array.as_mut().remap_variation_indices(key_map);
+        for rec in &mut self.mark2_array.as_mut().mark2_records {
+            for anchor in &mut rec.mark2_anchors {
+                if let Some(anchor) = anchor.as_mut() {
+                    anchor.remap_variation_indices(key_map);
+                }
+            }
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkLigPosFormat2 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        self.mark_array.as_mut().remap_variation_indices(key_map);
+        for lig in &mut self.ligature_array.as_mut().ligature_attaches {
+            for rec in &mut lig.component_records {
+                for anchor in &mut rec.ligature_anchors {
+                    if let Some(anchor) = anchor.as_mut() {
+                        anchor.remap_variation_indices(key_map);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for CursivePosFormat2 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        for rec in &mut self.entry_exit_record {
+            for anchor in [rec.entry_anchor.as_mut(), rec.exit_anchor.as_mut()]
+                .into_iter()
+                .flatten()
+            {
+                anchor.remap_variation_indices(key_map);
+            }
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkArray2 {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        for rec in &mut self.mark_records {
+            rec.mark_anchor.remap_variation_indices(key_map);
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for CursivePos {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        match self {
+            Self::Format1(t) => t.remap_variation_indices(key_map),
+            Self::Format2(t) => t.remap_variation_indices(key_map),
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkBasePos {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        match self {
+            Self::Format1(t) => t.remap_variation_indices(key_map),
+            Self::Format2(t) => t.remap_variation_indices(key_map),
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkMarkPos {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        match self {
+            Self::Format1(t) => t.remap_variation_indices(key_map),
+            Self::Format2(t) => t.remap_variation_indices(key_map),
+        }
+    }
+}
+
+impl RemapVarStore<VariationIndex> for MarkLigPos {
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping) {
+        match self {
+            Self::Format1(t) => t.remap_variation_indices(key_map),
+            Self::Format2(t) => t.remap_variation_indices(key_map),
         }
     }
 }

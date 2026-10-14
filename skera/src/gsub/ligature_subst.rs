@@ -1,4 +1,6 @@
 //! impl subset() for LigatureSubst subtable
+mod extended;
+
 use crate::FastHashMap;
 use crate::{
     layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
@@ -7,19 +9,17 @@ use crate::{
     serialize::{ObjIdx, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use skrifa::raw::tables::layout::Intersect;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::{Ligature, LigatureSet, LigatureSubstFormat1},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontRef, ReadError,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::{Ligature, LigatureSet, LigatureSubstFormat1},
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::{FixedSize, Offset16},
+    FontRef, ReadError,
 };
+use skrifa::raw::tables::layout::Intersect;
 
 impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
@@ -187,14 +187,30 @@ fn intersects_lig_glyph(
     Ok(false)
 }
 
+impl<'a> SubsetTable<'a> for read_fonts::tables::gsub::LigatureSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_ligature_subst() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font =
             FontRef::new(include_bytes!("../../test-data/fonts/Roboto-Regular.ttf")).unwrap();

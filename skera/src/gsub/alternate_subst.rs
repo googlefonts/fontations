@@ -7,16 +7,14 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        tables::{
-            gsub::{AlternateSet, AlternateSubstFormat1},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontRef,
+use read_fonts::{
+    tables::{
+        gsub::{AlternateSet, AlternateSubstFormat1},
+        layout::CoverageTable,
     },
+    types::GlyphId,
     types::Offset16,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for AlternateSubstFormat1<'_> {
@@ -107,14 +105,30 @@ impl SubsetTable<'_> for AlternateSet<'_> {
     }
 }
 
+impl<'a> SubsetTable<'a> for read_fonts::tables::gsub::AlternateSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_alternate_subst_format1() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/gsub_alternate_substitution.otf"

@@ -26,15 +26,17 @@ default = []
 cli = ["clap"]
 
 [dependencies]
+write-fonts = { workspace = true, features = ["read"] }
+read-fonts = { workspace = true, features = ["std"] }
 foldhash = { workspace = true }
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 hashbrown = { version = "0.17.0", default-features = false, features = ["inline-more"] }
 skrifa = { workspace = true }
 thiserror = "2.0"
-write-fonts = { workspace = true, features = ["read"] }
 
 
 [dev-dependencies]
+write-fonts = { workspace = true, features = ["read", "tables"] }
 criterion = { workspace = true }
 diff = "0.1.13"
 font-test-data = { workspace = true }

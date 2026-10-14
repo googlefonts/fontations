@@ -6,19 +6,17 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, Subset, SubsetError, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::base::{
-            Axis, Base, BaseCoord, BaseCoordFormat1, BaseCoordFormat2, BaseCoordFormat3,
-            BaseLangSysRecord, BaseScript, BaseScriptList, BaseScriptRecord, BaseValues,
-            FeatMinMaxRecord, MinMax,
-        },
-        FontData, FontRef, MinByteRange, TopLevelTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::base::{
+        Axis, Base, BaseCoord, BaseCoordFormat1, BaseCoordFormat2, BaseCoordFormat3,
+        BaseLangSysRecord, BaseScript, BaseScriptList, BaseScriptRecord, BaseValues,
+        FeatMinMaxRecord, MinMax,
     },
     types::{FixedSize, GlyphId, MajorMinor, Offset16, Offset32},
-    FontBuilder,
+    FontData, FontRef, MinByteRange, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for BASE in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/fc42cdd68df0ce710b507981184ade7bf1b164e6/src/hb-ot-layout-base-table.hh#L763>

@@ -239,4 +239,3 @@ See `../resources/codegen_plan.toml` for an example.
 [opentype]: https://docs.microsoft.com/en-us/typography/opentype/
 [`include!`]: http://doc.rust-lang.org/1.64.0/std/macro.include.html
 [codegen-tour]: ../docs/codegen-tour.md
-

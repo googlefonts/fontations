@@ -1,25 +1,26 @@
 //! impl subset() for Sequence Context/Chained Sequence Context tables
+mod class_context;
+mod extended;
+
 use crate::FastHashMap;
 use crate::{
-    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph, ClassDefSubsetStruct},
+    layout::{intersected_glyphs_and_indices, map_gsub_glyph, ClassDefSubsetStruct, ClassMap},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        tables::layout::{
-            ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
-            ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-            ChainedSequenceContextFormat3, ChainedSequenceRule, ChainedSequenceRuleSet,
-            ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, SequenceContext,
-            SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
-            SequenceLookupRecord, SequenceRule, SequenceRuleSet,
-        },
-        ArrayOfOffsets, FontRef,
+use read_fonts::{
+    tables::layout::{
+        ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
+        ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
+        ChainedSequenceContextFormat3, ChainedSequenceRule, ChainedSequenceRuleSet,
+        ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, SequenceContext,
+        SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
+        SequenceLookupRecord, SequenceRule, SequenceRuleSet,
     },
-    types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16},
+    types::{BigEndian, FixedSize, GlyphId, GlyphId16, Offset16, Scalar},
+    ArrayOfOffsets, FontRef, Offset,
 };
 
 impl<'a> SubsetTable<'a> for SequenceContext<'_> {
@@ -36,6 +37,9 @@ impl<'a> SubsetTable<'a> for SequenceContext<'_> {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
             Self::Format2(item) => item.subset(plan, s, lookup_map),
             Self::Format3(item) => item.subset(plan, s, lookup_map),
+            Self::Format4(item) => item.subset(plan, s, lookup_map),
+            Self::Format6(item) => item.subset(plan, s, lookup_map),
+            Self::Format5(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -145,21 +149,25 @@ fn serialize_glyph_sequence(
     for g in sequence {
         let new_g = map_gsub_glyph(glyph_map, GlyphId::from(g.get()))
             .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)?;
-        s.embed(new_g.to_u32() as u16)?;
+        let new_g = u16::try_from(new_g.to_u32())
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+        s.embed(new_g)?;
     }
     Ok(())
 }
 
 fn serialize_class_sequence(
     sequence: &[BigEndian<u16>],
-    class_map: &FastHashMap<u16, u16>,
+    class_map: &ClassMap,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     for c in sequence {
         let new_c = class_map
-            .get(&c.get())
+            .get(&u32::from(c.get()))
             .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)?;
-        s.embed(*new_c)?;
+        let new_c = u16::try_from(*new_c)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+        s.embed(new_c)?;
     }
     Ok(())
 }
@@ -291,11 +299,14 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
         let rule_sets = self.class_seq_rule_sets();
         let n = self
             .class_seq_rule_set_count()
-            .min(last_cov_class.saturating_add(1));
+            .min(last_cov_class.saturating_add(1).min(u16::MAX as u32) as u16);
         let mut snap = s.snapshot();
-        for (i, c) in (0..n).filter(|c| class_map.contains_key(c)).enumerate() {
+        for (i, c) in (0..n)
+            .filter(|c| class_map.contains_key(&u32::from(*c)))
+            .enumerate()
+        {
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            if !cov_classes.contains(c) {
+            if !cov_classes.contains(u32::from(c)) {
                 continue;
             }
             match rule_sets.get(c as usize) {
@@ -332,7 +343,7 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ClassSequenceRuleSet<'_> {
-    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a FastHashMap<u16, u16>);
+    type ArgsForSubset = (&'a ClassMap, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -370,7 +381,7 @@ impl<'a> SubsetTable<'a> for ClassSequenceRuleSet<'_> {
 }
 
 impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
-    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a FastHashMap<u16, u16>);
+    type ArgsForSubset = (&'a ClassMap, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,
@@ -401,7 +412,9 @@ impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+impl<'a, O: Scalar + Offset + FixedSize> SubsetTable<'a>
+    for ArrayOfOffsets<'a, CoverageTable<'a>, O>
+{
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -419,8 +432,8 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
                 s.revert_snapshot(snap);
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
             };
-            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            Offset16::serialize_subset(&cov, s, plan, (), offset_pos)?;
+            let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
+            O::serialize_subset(&cov, s, plan, (), offset_pos)?;
         }
         Ok(())
     }
@@ -468,6 +481,8 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContext<'_> {
             Self::Format1(item) => item.subset(plan, s, lookup_map),
             Self::Format2(item) => item.subset(plan, s, lookup_map),
             Self::Format3(item) => item.subset(plan, s, lookup_map),
+            Self::Format4(item) => item.subset(plan, s, lookup_map),
+            Self::Format5(item) => item.subset(plan, s, lookup_map),
         }
     }
 }
@@ -719,9 +734,13 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
 
         // seq rulesets offsets
         let rule_sets = self.chained_class_seq_rule_sets();
-        let n = self
-            .chained_class_seq_rule_set_count()
-            .min(cov_classes.last().unwrap().saturating_add(1));
+        let n = self.chained_class_seq_rule_set_count().min(
+            cov_classes
+                .last()
+                .unwrap()
+                .saturating_add(1)
+                .min(u16::MAX as u32) as u16,
+        );
 
         let mut snap = s.snapshot();
         let subset_struct = ChainedContextSubsetStruct {
@@ -731,11 +750,11 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             lookahead_class_map: &lookahead_class_map,
         };
         for (i, c) in (0..n)
-            .filter(|c| input_class_map.contains_key(c))
+            .filter(|c| input_class_map.contains_key(&u32::from(*c)))
             .enumerate()
         {
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            if !cov_classes.contains(c) {
+            if !cov_classes.contains(u32::from(c)) {
                 continue;
             }
             match rule_sets.get(c as usize) {
@@ -767,9 +786,9 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
 
 pub(crate) struct ChainedContextSubsetStruct<'a> {
     lookup_map: &'a FastHashMap<u16, u16>,
-    backtrack_class_map: &'a FastHashMap<u16, u16>,
-    input_class_map: &'a FastHashMap<u16, u16>,
-    lookahead_class_map: &'a FastHashMap<u16, u16>,
+    backtrack_class_map: &'a ClassMap,
+    input_class_map: &'a ClassMap,
+    lookahead_class_map: &'a ClassMap,
 }
 impl<'a> SubsetTable<'a> for ChainedClassSequenceRuleSet<'_> {
     type ArgsForSubset = &'a ChainedContextSubsetStruct<'a>;
@@ -878,11 +897,11 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat3<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_context_format1() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
@@ -933,7 +952,7 @@ mod test {
 
     #[test]
     fn test_subset_chained_context_format1() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../test-data/fonts/gpos_chaining1_multiple_subrules_f1.otf"
@@ -986,7 +1005,7 @@ mod test {
 
     #[test]
     fn test_subset_context_format2() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
@@ -1047,7 +1066,7 @@ mod test {
 
     #[test]
     fn test_subset_chain_context_format2() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
@@ -1115,7 +1134,7 @@ mod test {
 
     #[test]
     fn test_subset_context_format3() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
@@ -1169,7 +1188,7 @@ mod test {
 
     #[test]
     fn test_subset_chain_context_format3() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../test-data/fonts/NotoNastaliqUrdu-Regular.ttf"
@@ -1223,7 +1242,6 @@ mod test {
 
         assert_eq!(subsetted_data, expected_data);
     }
-
     /// Plan and lookup map for the two class-past-rule-set-count tests below:
     /// glyphs 10 (class 1) and 20 (class 2) are retained, lookup 0 is kept.
     fn class_past_rule_set_count_plan() -> (Plan, FastHashMap<u16, u16>) {
@@ -1248,7 +1266,7 @@ mod test {
     /// to fail the subtable with a READ_ERROR, which dropped the whole table.
     #[test]
     fn test_subset_context_format2_class_past_rule_set_count() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         #[rustfmt::skip]
         let raw_table: [u8; 48] = [
@@ -1285,7 +1303,7 @@ mod test {
     /// Same as above for ChainedSequenceContextFormat2.
     #[test]
     fn test_subset_chain_context_format2_class_past_rule_set_count() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         #[rustfmt::skip]
         let raw_table: [u8; 56] = [

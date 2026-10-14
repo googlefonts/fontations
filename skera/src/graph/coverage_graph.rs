@@ -5,10 +5,7 @@ use crate::{
     serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
-use write_fonts::{
-    read::{tables::layout::CoverageTable, FontData, FontRead},
-    types::GlyphId,
-};
+use read_fonts::{tables::layout::CoverageTable, types::GlyphId, FontData, FontRead};
 
 use std::ops::Range;
 
@@ -20,7 +17,7 @@ pub(crate) fn coverage_glyphs(graph: &Graph, cov_idx: ObjIdx) -> Result<Vec<Glyp
     let coverage_table = CoverageTable::read(FontData::new(coverage_data))
         .map_err(|_| RepackError::ErrorReadTable)?;
 
-    Ok(coverage_table.iter().map(GlyphId::from).collect())
+    Ok(coverage_table.iter().collect())
 }
 
 // Make a coverage table at the specified coverage vertex

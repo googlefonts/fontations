@@ -6,32 +6,36 @@
 use crate::codegen_prelude::*;
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gsub {
     /// Offset to ScriptList table, from beginning of GSUB table
-    pub script_list: OffsetMarker<ScriptList>,
+    pub script_list: NullableOffsetMarker<ScriptList>,
     /// Offset to FeatureList table, from beginning of GSUB table
-    pub feature_list: OffsetMarker<FeatureList>,
+    pub feature_list: NullableOffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GSUB table
-    pub lookup_list: OffsetMarker<SubstitutionLookupList>,
+    pub lookup_list: NullableOffsetMarker<LegacySubstitutionLookupList>,
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    pub script_list2: NullableOffsetMarker<ScriptList, WIDTH_32>,
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    pub feature_list2: NullableOffsetMarker<FeatureList, WIDTH_32>,
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    pub lookup_list2: NullableOffsetMarker<SubstitutionLookupList2, WIDTH_32>,
 }
 
-impl Gsub {
-    /// Construct a new `Gsub`
-    pub fn new(
-        script_list: ScriptList,
-        feature_list: FeatureList,
-        lookup_list: SubstitutionLookupList,
-    ) -> Self {
+impl Default for Gsub {
+    fn default() -> Self {
         Self {
-            script_list: script_list.into(),
-            feature_list: feature_list.into(),
-            lookup_list: lookup_list.into(),
-            ..Default::default()
+            script_list: Some(Default::default()).into(),
+            feature_list: Some(Default::default()).into(),
+            lookup_list: Some(Default::default()).into(),
+            feature_variations: Default::default(),
+            script_list2: Default::default(),
+            feature_list2: Default::default(),
+            lookup_list2: Default::default(),
         }
     }
 }
@@ -47,6 +51,15 @@ impl FontWrite for Gsub {
         version
             .compatible((1u16, 1u16))
             .then(|| self.feature_variations.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.script_list2.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.feature_list2.write_into(writer));
+        version
+            .compatible((1u16, 2u16))
+            .then(|| self.lookup_list2.write_into(writer));
     }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Gsub::TAG)
@@ -68,6 +81,15 @@ impl Validate for Gsub {
             ctx.in_field("feature_variations", |ctx| {
                 self.feature_variations.validate_impl(ctx);
             });
+            ctx.in_field("script_list2", |ctx| {
+                self.script_list2.validate_impl(ctx);
+            });
+            ctx.in_field("feature_list2", |ctx| {
+                self.feature_list2.validate_impl(ctx);
+            });
+            ctx.in_field("lookup_list2", |ctx| {
+                self.lookup_list2.validate_impl(ctx);
+            });
         })
     }
 }
@@ -79,10 +101,13 @@ impl TopLevelTable for Gsub {
 impl<'a> FromObjRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {
     fn from_obj_ref(obj: &read_fonts::tables::gsub::Gsub<'a>, _: FontData) -> Self {
         Gsub {
-            script_list: obj.script_list().to_owned_table(),
-            feature_list: obj.feature_list().to_owned_table(),
-            lookup_list: obj.lookup_list().to_owned_table(),
+            script_list: obj.legacy_script_list().to_owned_table(),
+            feature_list: obj.legacy_feature_list().to_owned_table(),
+            lookup_list: obj.legacy_lookup_list().to_owned_table(),
             feature_variations: obj.feature_variations().to_owned_table(),
+            script_list2: obj.script_list2().to_owned_table(),
+            feature_list2: obj.feature_list2().to_owned_table(),
+            lookup_list2: obj.lookup_list2().to_owned_table(),
         }
     }
 }
@@ -105,13 +130,13 @@ impl<'a> FontRead<'a> for Gsub {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SubstitutionLookup {
     Single(Lookup<SingleSubst>),
-    Multiple(Lookup<MultipleSubstFormat1>),
-    Alternate(Lookup<AlternateSubstFormat1>),
-    Ligature(Lookup<LigatureSubstFormat1>),
+    Multiple(Lookup<MultipleSubst>),
+    Alternate(Lookup<AlternateSubst>),
+    Ligature(Lookup<LigatureSubst>),
     Contextual(Lookup<SubstitutionSequenceContext>),
     ChainContextual(Lookup<SubstitutionChainContext>),
     Extension(Lookup<ExtensionSubtable>),
-    Reverse(Lookup<ReverseChainSingleSubstFormat1>),
+    Reverse(Lookup<ReverseChainSingleSubst>),
 }
 
 impl Default for SubstitutionLookup {
@@ -204,20 +229,20 @@ impl From<Lookup<SingleSubst>> for SubstitutionLookup {
     }
 }
 
-impl From<Lookup<MultipleSubstFormat1>> for SubstitutionLookup {
-    fn from(src: Lookup<MultipleSubstFormat1>) -> SubstitutionLookup {
+impl From<Lookup<MultipleSubst>> for SubstitutionLookup {
+    fn from(src: Lookup<MultipleSubst>) -> SubstitutionLookup {
         SubstitutionLookup::Multiple(src)
     }
 }
 
-impl From<Lookup<AlternateSubstFormat1>> for SubstitutionLookup {
-    fn from(src: Lookup<AlternateSubstFormat1>) -> SubstitutionLookup {
+impl From<Lookup<AlternateSubst>> for SubstitutionLookup {
+    fn from(src: Lookup<AlternateSubst>) -> SubstitutionLookup {
         SubstitutionLookup::Alternate(src)
     }
 }
 
-impl From<Lookup<LigatureSubstFormat1>> for SubstitutionLookup {
-    fn from(src: Lookup<LigatureSubstFormat1>) -> SubstitutionLookup {
+impl From<Lookup<LigatureSubst>> for SubstitutionLookup {
+    fn from(src: Lookup<LigatureSubst>) -> SubstitutionLookup {
         SubstitutionLookup::Ligature(src)
     }
 }
@@ -240,8 +265,8 @@ impl From<Lookup<ExtensionSubtable>> for SubstitutionLookup {
     }
 }
 
-impl From<Lookup<ReverseChainSingleSubstFormat1>> for SubstitutionLookup {
-    fn from(src: Lookup<ReverseChainSingleSubstFormat1>) -> SubstitutionLookup {
+impl From<Lookup<ReverseChainSingleSubst>> for SubstitutionLookup {
+    fn from(src: Lookup<ReverseChainSingleSubst>) -> SubstitutionLookup {
         SubstitutionLookup::Reverse(src)
     }
 }
@@ -252,6 +277,8 @@ impl From<Lookup<ReverseChainSingleSubstFormat1>> for SubstitutionLookup {
 pub enum SingleSubst {
     Format1(SingleSubstFormat1),
     Format2(SingleSubstFormat2),
+    Format3(SingleSubstFormat3),
+    Format4(SingleSubstFormat4),
 }
 
 impl SingleSubst {
@@ -263,6 +290,16 @@ impl SingleSubst {
     /// Construct a new `SingleSubstFormat2` subtable
     pub fn format_2(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId16>) -> Self {
         Self::Format2(SingleSubstFormat2::new(coverage, substitute_glyph_ids))
+    }
+
+    /// Construct a new `SingleSubstFormat3` subtable
+    pub fn format_3(coverage: CoverageTable, delta_glyph_id: Int24) -> Self {
+        Self::Format3(SingleSubstFormat3::new(coverage, delta_glyph_id))
+    }
+
+    /// Construct a new `SingleSubstFormat4` subtable
+    pub fn format_4(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId24>) -> Self {
+        Self::Format4(SingleSubstFormat4::new(coverage, substitute_glyph_ids))
     }
 }
 
@@ -277,12 +314,16 @@ impl FontWrite for SingleSubst {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -292,6 +333,8 @@ impl Validate for SingleSubst {
         match self {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -302,6 +345,8 @@ impl FromObjRef<read_fonts::tables::gsub::SingleSubst<'_>> for SingleSubst {
         match obj {
             ObjRefType::Format1(item) => SingleSubst::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SingleSubst::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => SingleSubst::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => SingleSubst::Format4(item.to_owned_table()),
         }
     }
 }
@@ -327,6 +372,18 @@ impl From<SingleSubstFormat1> for SingleSubst {
 impl From<SingleSubstFormat2> for SingleSubst {
     fn from(src: SingleSubstFormat2) -> SingleSubst {
         SingleSubst::Format2(src)
+    }
+}
+
+impl From<SingleSubstFormat3> for SingleSubst {
+    fn from(src: SingleSubstFormat3) -> SingleSubst {
+        SingleSubst::Format3(src)
+    }
+}
+
+impl From<SingleSubstFormat4> for SingleSubst {
+    fn from(src: SingleSubstFormat4) -> SingleSubst {
+        SingleSubst::Format4(src)
     }
 }
 
@@ -1008,12 +1065,12 @@ where
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ExtensionSubtable {
     Single(ExtensionSubstFormat1<SingleSubst>),
-    Multiple(ExtensionSubstFormat1<MultipleSubstFormat1>),
-    Alternate(ExtensionSubstFormat1<AlternateSubstFormat1>),
-    Ligature(ExtensionSubstFormat1<LigatureSubstFormat1>),
+    Multiple(ExtensionSubstFormat1<MultipleSubst>),
+    Alternate(ExtensionSubstFormat1<AlternateSubst>),
+    Ligature(ExtensionSubstFormat1<LigatureSubst>),
     Contextual(ExtensionSubstFormat1<SubstitutionSequenceContext>),
     ChainContextual(ExtensionSubstFormat1<SubstitutionChainContext>),
-    Reverse(ExtensionSubstFormat1<ReverseChainSingleSubstFormat1>),
+    Reverse(ExtensionSubstFormat1<ReverseChainSingleSubst>),
 }
 
 impl Default for ExtensionSubtable {
@@ -1100,20 +1157,20 @@ impl From<ExtensionSubstFormat1<SingleSubst>> for ExtensionSubtable {
     }
 }
 
-impl From<ExtensionSubstFormat1<MultipleSubstFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionSubstFormat1<MultipleSubstFormat1>) -> ExtensionSubtable {
+impl From<ExtensionSubstFormat1<MultipleSubst>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<MultipleSubst>) -> ExtensionSubtable {
         ExtensionSubtable::Multiple(src)
     }
 }
 
-impl From<ExtensionSubstFormat1<AlternateSubstFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionSubstFormat1<AlternateSubstFormat1>) -> ExtensionSubtable {
+impl From<ExtensionSubstFormat1<AlternateSubst>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<AlternateSubst>) -> ExtensionSubtable {
         ExtensionSubtable::Alternate(src)
     }
 }
 
-impl From<ExtensionSubstFormat1<LigatureSubstFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionSubstFormat1<LigatureSubstFormat1>) -> ExtensionSubtable {
+impl From<ExtensionSubstFormat1<LigatureSubst>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<LigatureSubst>) -> ExtensionSubtable {
         ExtensionSubtable::Ligature(src)
     }
 }
@@ -1130,8 +1187,8 @@ impl From<ExtensionSubstFormat1<SubstitutionChainContext>> for ExtensionSubtable
     }
 }
 
-impl From<ExtensionSubstFormat1<ReverseChainSingleSubstFormat1>> for ExtensionSubtable {
-    fn from(src: ExtensionSubstFormat1<ReverseChainSingleSubstFormat1>) -> ExtensionSubtable {
+impl From<ExtensionSubstFormat1<ReverseChainSingleSubst>> for ExtensionSubtable {
+    fn from(src: ExtensionSubstFormat1<ReverseChainSingleSubst>) -> ExtensionSubtable {
         ExtensionSubtable::Reverse(src)
     }
 }
@@ -1245,5 +1302,1095 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1 {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::ReverseChainSingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SingleSubstFormat3.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SingleSubstFormat3 {
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Add to original glyph ID to get substitute glyph ID
+    pub delta_glyph_id: Int24,
+}
+
+impl SingleSubstFormat3 {
+    /// Construct a new `SingleSubstFormat3`
+    pub fn new(coverage: CoverageTable, delta_glyph_id: Int24) -> Self {
+        Self {
+            coverage: coverage.into(),
+            delta_glyph_id,
+        }
+    }
+}
+
+impl FontWrite for SingleSubstFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        self.delta_glyph_id.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SingleSubstFormat3")
+    }
+}
+
+impl Validate for SingleSubstFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SingleSubstFormat3", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat3<'a>> for SingleSubstFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::SingleSubstFormat3<'a>, _: FontData) -> Self {
+        SingleSubstFormat3 {
+            coverage: obj.coverage().to_owned_table(),
+            delta_glyph_id: obj.delta_glyph_id(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat3<'a>> for SingleSubstFormat3 {}
+
+impl ReadArgs for SingleSubstFormat3 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SingleSubstFormat3 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::SingleSubstFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: SingleSubstFormat4.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SingleSubstFormat4 {
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of substitute glyph IDs — ordered by Coverage index
+    pub substitute_glyph_ids: Vec<GlyphId24>,
+}
+
+impl SingleSubstFormat4 {
+    /// Construct a new `SingleSubstFormat4`
+    pub fn new(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId24>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            substitute_glyph_ids,
+        }
+    }
+}
+
+impl FontWrite for SingleSubstFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.substitute_glyph_ids)).unwrap()).write_into(writer);
+        self.substitute_glyph_ids.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SingleSubstFormat4")
+    }
+}
+
+impl Validate for SingleSubstFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SingleSubstFormat4", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("substitute_glyph_ids", |ctx| {
+                if self.substitute_glyph_ids.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat4<'a>> for SingleSubstFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::SingleSubstFormat4<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SingleSubstFormat4 {
+            coverage: obj.coverage().to_owned_table(),
+            substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat4<'a>> for SingleSubstFormat4 {}
+
+impl ReadArgs for SingleSubstFormat4 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SingleSubstFormat4 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::SingleSubstFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MultipleSubstFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MultipleSubstFormat2 {
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to Sequence tables. Offsets are from beginning
+    /// of substitution subtable, ordered by Coverage index
+    pub sequences: Vec<OffsetMarker<Sequence2, WIDTH_24>>,
+}
+
+impl MultipleSubstFormat2 {
+    /// Construct a new `MultipleSubstFormat2`
+    pub fn new(coverage: CoverageTable, sequences: Vec<Sequence2>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            sequences: sequences.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for MultipleSubstFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.sequences)).unwrap()).write_into(writer);
+        self.sequences.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MultipleSubstFormat2")
+    }
+}
+
+impl Validate for MultipleSubstFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MultipleSubstFormat2", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("sequences", |ctx| {
+                if self.sequences.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.sequences.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::MultipleSubstFormat2<'a>> for MultipleSubstFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::MultipleSubstFormat2<'a>, _: FontData) -> Self {
+        MultipleSubstFormat2 {
+            coverage: obj.coverage().to_owned_table(),
+            sequences: obj.sequences().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::MultipleSubstFormat2<'a>> for MultipleSubstFormat2 {}
+
+impl ReadArgs for MultipleSubstFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MultipleSubstFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::MultipleSubstFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: AlternateSubstFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AlternateSubstFormat2 {
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to AlternateSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    pub alternate_sets: Vec<OffsetMarker<AlternateSet2, WIDTH_24>>,
+}
+
+impl AlternateSubstFormat2 {
+    /// Construct a new `AlternateSubstFormat2`
+    pub fn new(coverage: CoverageTable, alternate_sets: Vec<AlternateSet2>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            alternate_sets: alternate_sets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for AlternateSubstFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.alternate_sets)).unwrap()).write_into(writer);
+        self.alternate_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AlternateSubstFormat2")
+    }
+}
+
+impl Validate for AlternateSubstFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("AlternateSubstFormat2", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("alternate_sets", |ctx| {
+                if self.alternate_sets.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.alternate_sets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSubstFormat2<'a>> for AlternateSubstFormat2 {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::gsub::AlternateSubstFormat2<'a>,
+        _: FontData,
+    ) -> Self {
+        AlternateSubstFormat2 {
+            coverage: obj.coverage().to_owned_table(),
+            alternate_sets: obj.alternate_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSubstFormat2<'a>>
+    for AlternateSubstFormat2
+{
+}
+
+impl ReadArgs for AlternateSubstFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for AlternateSubstFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::AlternateSubstFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LigatureSubstFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LigatureSubstFormat2 {
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to LigatureSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    pub ligature_sets: Vec<OffsetMarker<LigatureSet2, WIDTH_24>>,
+}
+
+impl LigatureSubstFormat2 {
+    /// Construct a new `LigatureSubstFormat2`
+    pub fn new(coverage: CoverageTable, ligature_sets: Vec<LigatureSet2>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            ligature_sets: ligature_sets.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for LigatureSubstFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.ligature_sets)).unwrap()).write_into(writer);
+        self.ligature_sets.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureSubstFormat2")
+    }
+}
+
+impl Validate for LigatureSubstFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigatureSubstFormat2", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("ligature_sets", |ctx| {
+                if self.ligature_sets.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.ligature_sets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSubstFormat2<'a>> for LigatureSubstFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSubstFormat2<'a>, _: FontData) -> Self {
+        LigatureSubstFormat2 {
+            coverage: obj.coverage().to_owned_table(),
+            ligature_sets: obj.ligature_sets().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSubstFormat2<'a>> for LigatureSubstFormat2 {}
+
+impl ReadArgs for LigatureSubstFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigatureSubstFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::LigatureSubstFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ReverseChainSingleSubstFormat2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ReverseChainSingleSubstFormat2 {
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable.
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to coverage tables in backtrack sequence, in
+    /// glyph sequence order.
+    pub backtrack_coverages: Vec<OffsetMarker<CoverageTable, WIDTH_24>>,
+    /// Array of offsets to coverage tables in lookahead sequence, in
+    /// glyph sequence order.
+    pub lookahead_coverages: Vec<OffsetMarker<CoverageTable, WIDTH_24>>,
+    /// Array of substitute glyph IDs — ordered by Coverage index.
+    pub substitute_glyph_ids: Vec<GlyphId24>,
+}
+
+impl ReverseChainSingleSubstFormat2 {
+    /// Construct a new `ReverseChainSingleSubstFormat2`
+    pub fn new(
+        coverage: CoverageTable,
+        backtrack_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        substitute_glyph_ids: Vec<GlyphId24>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            backtrack_coverages: backtrack_coverages.into_iter().map(Into::into).collect(),
+            lookahead_coverages: lookahead_coverages.into_iter().map(Into::into).collect(),
+            substitute_glyph_ids,
+        }
+    }
+}
+
+impl FontWrite for ReverseChainSingleSubstFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage.write_into(writer);
+        (u16::try_from(array_len(&self.backtrack_coverages)).unwrap()).write_into(writer);
+        self.backtrack_coverages.write_into(writer);
+        (u16::try_from(array_len(&self.lookahead_coverages)).unwrap()).write_into(writer);
+        self.lookahead_coverages.write_into(writer);
+        (Uint24::try_from(array_len(&self.substitute_glyph_ids)).unwrap()).write_into(writer);
+        self.substitute_glyph_ids.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ReverseChainSingleSubstFormat2")
+    }
+}
+
+impl Validate for ReverseChainSingleSubstFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ReverseChainSingleSubstFormat2", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("backtrack_coverages", |ctx| {
+                if self.backtrack_coverages.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.backtrack_coverages.validate_impl(ctx);
+            });
+            ctx.in_field("lookahead_coverages", |ctx| {
+                if self.lookahead_coverages.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.lookahead_coverages.validate_impl(ctx);
+            });
+            ctx.in_field("substitute_glyph_ids", |ctx| {
+                if self.substitute_glyph_ids.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat2<'a>>
+    for ReverseChainSingleSubstFormat2
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::gsub::ReverseChainSingleSubstFormat2<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        ReverseChainSingleSubstFormat2 {
+            coverage: obj.coverage().to_owned_table(),
+            backtrack_coverages: obj.backtrack_coverages().to_owned_table(),
+            lookahead_coverages: obj.lookahead_coverages().to_owned_table(),
+            substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat2<'a>>
+    for ReverseChainSingleSubstFormat2
+{
+}
+
+impl ReadArgs for ReverseChainSingleSubstFormat2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::ReverseChainSingleSubstFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: Sequence2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Sequence2 {
+    /// String of glyph IDs to substitute
+    pub substitute_glyph_ids: Vec<GlyphId24>,
+}
+
+impl Sequence2 {
+    /// Construct a new `Sequence2`
+    pub fn new(substitute_glyph_ids: Vec<GlyphId24>) -> Self {
+        Self {
+            substitute_glyph_ids,
+        }
+    }
+}
+
+impl FontWrite for Sequence2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.substitute_glyph_ids)).unwrap()).write_into(writer);
+        self.substitute_glyph_ids.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Sequence2")
+    }
+}
+
+impl Validate for Sequence2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Sequence2", |ctx| {
+            ctx.in_field("substitute_glyph_ids", |ctx| {
+                if self.substitute_glyph_ids.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::Sequence2<'a>> for Sequence2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::Sequence2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Sequence2 {
+            substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::Sequence2<'a>> for Sequence2 {}
+
+impl ReadArgs for Sequence2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Sequence2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::Sequence2 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: AlternateSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AlternateSet2 {
+    /// Array of alternate glyph IDs, in arbitrary order
+    pub alternate_glyph_ids: Vec<GlyphId24>,
+}
+
+impl AlternateSet2 {
+    /// Construct a new `AlternateSet2`
+    pub fn new(alternate_glyph_ids: Vec<GlyphId24>) -> Self {
+        Self {
+            alternate_glyph_ids,
+        }
+    }
+}
+
+impl FontWrite for AlternateSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.alternate_glyph_ids)).unwrap()).write_into(writer);
+        self.alternate_glyph_ids.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AlternateSet2")
+    }
+}
+
+impl Validate for AlternateSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("AlternateSet2", |ctx| {
+            ctx.in_field("alternate_glyph_ids", |ctx| {
+                if self.alternate_glyph_ids.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSet2<'a>> for AlternateSet2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::AlternateSet2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        AlternateSet2 {
+            alternate_glyph_ids: obj.alternate_glyph_ids().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSet2<'a>> for AlternateSet2 {}
+
+impl ReadArgs for AlternateSet2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for AlternateSet2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::AlternateSet2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LigatureSet2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LigatureSet2 {
+    /// Array of offsets to Ligature tables. Offsets are from beginning
+    /// of LigatureSet2 table, ordered by preference.
+    pub ligatures: Vec<OffsetMarker<Ligature2, WIDTH_24>>,
+}
+
+impl LigatureSet2 {
+    /// Construct a new `LigatureSet2`
+    pub fn new(ligatures: Vec<Ligature2>) -> Self {
+        Self {
+            ligatures: ligatures.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for LigatureSet2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.ligatures)).unwrap()).write_into(writer);
+        self.ligatures.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureSet2")
+    }
+}
+
+impl Validate for LigatureSet2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigatureSet2", |ctx| {
+            ctx.in_field("ligatures", |ctx| {
+                if self.ligatures.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.ligatures.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSet2<'a>> for LigatureSet2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSet2<'a>, _: FontData) -> Self {
+        LigatureSet2 {
+            ligatures: obj.ligatures().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSet2<'a>> for LigatureSet2 {}
+
+impl ReadArgs for LigatureSet2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigatureSet2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::LigatureSet2 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: Ligature2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Ligature2 {
+    /// glyph ID of ligature to substitute
+    pub ligature_glyph: GlyphId24,
+    /// Array of component glyph IDs — start with the second
+    /// component, ordered in writing direction
+    pub component_glyph_ids: Vec<GlyphId24>,
+}
+
+impl Ligature2 {
+    /// Construct a new `Ligature2`
+    pub fn new(ligature_glyph: GlyphId24, component_glyph_ids: Vec<GlyphId24>) -> Self {
+        Self {
+            ligature_glyph,
+            component_glyph_ids,
+        }
+    }
+}
+
+impl FontWrite for Ligature2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.ligature_glyph.write_into(writer);
+        (u16::try_from(plus_one(&self.component_glyph_ids.len())).unwrap()).write_into(writer);
+        self.component_glyph_ids.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Ligature2")
+    }
+}
+
+impl Validate for Ligature2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gsub::Ligature2<'a>> for Ligature2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::Ligature2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Ligature2 {
+            ligature_glyph: obj.ligature_glyph(),
+            component_glyph_ids: obj.component_glyph_ids().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gsub::Ligature2<'a>> for Ligature2 {}
+
+impl ReadArgs for Ligature2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Ligature2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::Ligature2 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: MultipleSubst.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MultipleSubst {
+    Format1(MultipleSubstFormat1),
+    Format2(MultipleSubstFormat2),
+}
+
+impl MultipleSubst {
+    /// Construct a new `MultipleSubstFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, sequences: Vec<Sequence>) -> Self {
+        Self::Format1(MultipleSubstFormat1::new(coverage, sequences))
+    }
+
+    /// Construct a new `MultipleSubstFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, sequences: Vec<Sequence2>) -> Self {
+        Self::Format2(MultipleSubstFormat2::new(coverage, sequences))
+    }
+}
+
+impl Default for MultipleSubst {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for MultipleSubst {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for MultipleSubst {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gsub::MultipleSubst<'_>> for MultipleSubst {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::MultipleSubst, _: FontData) -> Self {
+        use read_fonts::tables::gsub::MultipleSubst as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => MultipleSubst::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => MultipleSubst::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gsub::MultipleSubst<'_>> for MultipleSubst {}
+
+impl ReadArgs for MultipleSubst {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MultipleSubst {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::MultipleSubst as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<MultipleSubstFormat1> for MultipleSubst {
+    fn from(src: MultipleSubstFormat1) -> MultipleSubst {
+        MultipleSubst::Format1(src)
+    }
+}
+
+impl From<MultipleSubstFormat2> for MultipleSubst {
+    fn from(src: MultipleSubstFormat2) -> MultipleSubst {
+        MultipleSubst::Format2(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: AlternateSubst.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum AlternateSubst {
+    Format1(AlternateSubstFormat1),
+    Format2(AlternateSubstFormat2),
+}
+
+impl AlternateSubst {
+    /// Construct a new `AlternateSubstFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, alternate_sets: Vec<AlternateSet>) -> Self {
+        Self::Format1(AlternateSubstFormat1::new(coverage, alternate_sets))
+    }
+
+    /// Construct a new `AlternateSubstFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, alternate_sets: Vec<AlternateSet2>) -> Self {
+        Self::Format2(AlternateSubstFormat2::new(coverage, alternate_sets))
+    }
+}
+
+impl Default for AlternateSubst {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for AlternateSubst {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for AlternateSubst {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gsub::AlternateSubst<'_>> for AlternateSubst {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::AlternateSubst, _: FontData) -> Self {
+        use read_fonts::tables::gsub::AlternateSubst as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => AlternateSubst::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => AlternateSubst::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gsub::AlternateSubst<'_>> for AlternateSubst {}
+
+impl ReadArgs for AlternateSubst {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for AlternateSubst {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::AlternateSubst as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<AlternateSubstFormat1> for AlternateSubst {
+    fn from(src: AlternateSubstFormat1) -> AlternateSubst {
+        AlternateSubst::Format1(src)
+    }
+}
+
+impl From<AlternateSubstFormat2> for AlternateSubst {
+    fn from(src: AlternateSubstFormat2) -> AlternateSubst {
+        AlternateSubst::Format2(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LigatureSubst.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum LigatureSubst {
+    Format1(LigatureSubstFormat1),
+    Format2(LigatureSubstFormat2),
+}
+
+impl LigatureSubst {
+    /// Construct a new `LigatureSubstFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, ligature_sets: Vec<LigatureSet>) -> Self {
+        Self::Format1(LigatureSubstFormat1::new(coverage, ligature_sets))
+    }
+
+    /// Construct a new `LigatureSubstFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, ligature_sets: Vec<LigatureSet2>) -> Self {
+        Self::Format2(LigatureSubstFormat2::new(coverage, ligature_sets))
+    }
+}
+
+impl Default for LigatureSubst {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for LigatureSubst {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for LigatureSubst {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gsub::LigatureSubst<'_>> for LigatureSubst {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSubst, _: FontData) -> Self {
+        use read_fonts::tables::gsub::LigatureSubst as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => LigatureSubst::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => LigatureSubst::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gsub::LigatureSubst<'_>> for LigatureSubst {}
+
+impl ReadArgs for LigatureSubst {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigatureSubst {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::LigatureSubst as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<LigatureSubstFormat1> for LigatureSubst {
+    fn from(src: LigatureSubstFormat1) -> LigatureSubst {
+        LigatureSubst::Format1(src)
+    }
+}
+
+impl From<LigatureSubstFormat2> for LigatureSubst {
+    fn from(src: LigatureSubstFormat2) -> LigatureSubst {
+        LigatureSubst::Format2(src)
+    }
+}
+
+/// ISO Open Font Format, fifth edition: ReverseChainSingleSubst.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ReverseChainSingleSubst {
+    Format1(ReverseChainSingleSubstFormat1),
+    Format2(ReverseChainSingleSubstFormat2),
+}
+
+impl ReverseChainSingleSubst {
+    /// Construct a new `ReverseChainSingleSubstFormat1` subtable
+    pub fn format_1(
+        coverage: CoverageTable,
+        backtrack_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        substitute_glyph_ids: Vec<GlyphId16>,
+    ) -> Self {
+        Self::Format1(ReverseChainSingleSubstFormat1::new(
+            coverage,
+            backtrack_coverages,
+            lookahead_coverages,
+            substitute_glyph_ids,
+        ))
+    }
+
+    /// Construct a new `ReverseChainSingleSubstFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        backtrack_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        substitute_glyph_ids: Vec<GlyphId24>,
+    ) -> Self {
+        Self::Format2(ReverseChainSingleSubstFormat2::new(
+            coverage,
+            backtrack_coverages,
+            lookahead_coverages,
+            substitute_glyph_ids,
+        ))
+    }
+}
+
+impl Default for ReverseChainSingleSubst {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl FontWrite for ReverseChainSingleSubst {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for ReverseChainSingleSubst {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::gsub::ReverseChainSingleSubst<'_>> for ReverseChainSingleSubst {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::ReverseChainSingleSubst, _: FontData) -> Self {
+        use read_fonts::tables::gsub::ReverseChainSingleSubst as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => ReverseChainSingleSubst::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => ReverseChainSingleSubst::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::gsub::ReverseChainSingleSubst<'_>>
+    for ReverseChainSingleSubst
+{
+}
+
+impl ReadArgs for ReverseChainSingleSubst {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ReverseChainSingleSubst {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gsub::ReverseChainSingleSubst as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<ReverseChainSingleSubstFormat1> for ReverseChainSingleSubst {
+    fn from(src: ReverseChainSingleSubstFormat1) -> ReverseChainSingleSubst {
+        ReverseChainSingleSubst::Format1(src)
+    }
+}
+
+impl From<ReverseChainSingleSubstFormat2> for ReverseChainSingleSubst {
+    fn from(src: ReverseChainSingleSubstFormat2) -> ReverseChainSingleSubst {
+        ReverseChainSingleSubst::Format2(src)
     }
 }

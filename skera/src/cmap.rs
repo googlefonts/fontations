@@ -8,20 +8,18 @@ use crate::{
 };
 
 use crate::FastHashMap;
-use skrifa::raw::tables::cmap::UnicodeRange;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::cmap::{
-            Cmap, Cmap12, Cmap14, Cmap4, CmapSubtable, DefaultUvs, EncodingRecord, NonDefaultUvs,
-            PlatformId, SequentialMapGroup, UvsMapping, VariationSelector,
-        },
-        types::{FixedSize, GlyphId},
-        FontRef, TopLevelTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::cmap::{
+        Cmap, Cmap12, Cmap14, Cmap4, CmapSubtable, DefaultUvs, EncodingRecord, NonDefaultUvs,
+        PlatformId, SequentialMapGroup, UvsMapping, VariationSelector,
     },
+    types::{FixedSize, GlyphId},
     types::{Offset32, Uint24},
-    FontBuilder,
+    FontRef, TopLevelTable,
 };
+use skrifa::raw::tables::cmap::UnicodeRange;
+use write_fonts::FontBuilder;
 
 const INVALID_UNICODE_CHAR: u32 = u32::MAX;
 const UNICODE_MAX: u32 = 0x10FFFF_u32;

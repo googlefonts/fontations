@@ -3,40 +3,67 @@
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 #[tag = "GSUB"]
+#[skip_constructor]
 table Gsub {
     /// The major and minor version of the GSUB table, as a tuple (u16, u16)
     #[version]
     #[compile(self.compute_version())]
     version: MajorMinor,
     /// Offset to ScriptList table, from beginning of GSUB table
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(script_list)]
+    #[to_owned(obj.legacy_script_list().to_owned_table())]
     script_list_offset: Offset16<ScriptList>,
     /// Offset to FeatureList table, from beginning of GSUB table
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(feature_list)]
+    #[to_owned(obj.legacy_feature_list().to_owned_table())]
     feature_list_offset: Offset16<FeatureList>,
     /// Offset to LookupList table, from beginning of GSUB table
-    lookup_list_offset: Offset16<SubstitutionLookupList>,
+    #[nullable]
+    #[default(Some(Default::default()).into())]
+    #[offset_getter(lookup_list)]
+    #[to_owned(obj.legacy_lookup_list().to_owned_table())]
+    lookup_list_offset: Offset16<LegacySubstitutionLookupList>,
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
     #[since_version(1.1)]
     #[nullable]
     feature_variations_offset: Offset32<FeatureVariations>,
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    script_list2_offset: Offset32<ScriptList>,
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    feature_list2_offset: Offset32<FeatureList>,
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    #[since_version(1.2)]
+    #[nullable]
+    lookup_list2_offset: Offset32<SubstitutionLookupList2>,
 }
 
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
  group SubstitutionLookup(Lookup) {
     1 => Single(SingleSubst),
-    2 => Multiple(MultipleSubstFormat1),
-    3 => Alternate(AlternateSubstFormat1),
-    4 => Ligature(LigatureSubstFormat1),
+    2 => Multiple(MultipleSubst),
+    3 => Alternate(AlternateSubst),
+    4 => Ligature(LigatureSubst),
     5 => Contextual(SubstitutionSequenceContext),
     6 => ChainContextual(SubstitutionChainContext),
     7 => Extension(ExtensionSubtable),
-    8 => Reverse(ReverseChainSingleSubstFormat1),
+    8 => Reverse(ReverseChainSingleSubst),
 }
 
 /// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
 format u16 SingleSubst {
     Format1(SingleSubstFormat1),
     Format2(SingleSubstFormat2),
+    Format3(SingleSubstFormat3),
+    Format4(SingleSubstFormat4),
 }
 
 /// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
@@ -183,12 +210,12 @@ table ExtensionSubstFormat1 {
 /// A [GSUB Extension Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#ES) subtable
  group ExtensionSubtable(ExtensionSubstFormat1) {
     1 => Single(SingleSubst),
-    2 => Multiple(MultipleSubstFormat1),
-    3 => Alternate(AlternateSubstFormat1),
-    4 => Ligature(LigatureSubstFormat1),
+    2 => Multiple(MultipleSubst),
+    3 => Alternate(AlternateSubst),
+    4 => Ligature(LigatureSubst),
     5 => Contextual(SubstitutionSequenceContext),
     6 => ChainContextual(SubstitutionChainContext),
-    8 => Reverse(ReverseChainSingleSubstFormat1),
+    8 => Reverse(ReverseChainSingleSubst),
 }
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
@@ -221,3 +248,180 @@ table ReverseChainSingleSubstFormat1 {
     substitute_glyph_ids: [GlyphId16],
 }
 
+/// ISO Open Font Format, fifth edition: SingleSubstFormat3.
+table SingleSubstFormat3 {
+    /// Format identifier: format = 3
+    #[format = 3]
+    subst_format: u16,
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    coverage_offset: Offset32<CoverageTable>,
+    /// Add to original glyph ID to get substitute glyph ID
+    delta_glyph_id: Int24,
+}
+
+/// ISO Open Font Format, fifth edition: SingleSubstFormat4.
+table SingleSubstFormat4 {
+    /// Format identifier: format = 4
+    #[format = 4]
+    subst_format: u16,
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of glyph IDs in the substituteGlyphIDs array
+    #[compile(array_len($substitute_glyph_ids))]
+    glyph_count: Uint24,
+    /// Array of substitute glyph IDs — ordered by Coverage index
+    #[count($glyph_count)]
+    substitute_glyph_ids: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: MultipleSubstFormat2.
+table MultipleSubstFormat2 {
+    /// Format identifier: format = 2
+    #[format = 2]
+    subst_format: u16,
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of Sequence table offsets in the sequenceOffsets array
+    #[compile(array_len($sequence_offsets))]
+    sequence_count: Uint24,
+    /// Array of offsets to Sequence tables. Offsets are from beginning
+    /// of substitution subtable, ordered by Coverage index
+    #[count($sequence_count)]
+    sequence_offsets: [Offset24<Sequence2>],
+}
+
+/// ISO Open Font Format, fifth edition: AlternateSubstFormat2.
+table AlternateSubstFormat2 {
+    /// Format identifier: format = 2
+    #[format = 2]
+    subst_format: u16,
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of AlternateSet tables
+    #[compile(array_len($alternate_set_offsets))]
+    alternate_set_count: Uint24,
+    /// Array of offsets to AlternateSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    #[count($alternate_set_count)]
+    alternate_set_offsets: [Offset24<AlternateSet2>],
+}
+
+/// ISO Open Font Format, fifth edition: LigatureSubstFormat2.
+table LigatureSubstFormat2 {
+    /// Format identifier: format = 2
+    #[format = 2]
+    subst_format: u16,
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of LigatureSet tables
+    #[compile(array_len($ligature_set_offsets))]
+    ligature_set_count: Uint24,
+    /// Array of offsets to LigatureSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    #[count($ligature_set_count)]
+    ligature_set_offsets: [Offset24<LigatureSet2>],
+}
+
+/// ISO Open Font Format, fifth edition: ReverseChainSingleSubstFormat2.
+table ReverseChainSingleSubstFormat2 {
+    /// Format identifier: format = 2
+    #[format = 2]
+    subst_format: u16,
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable.
+    coverage_offset: Offset32<CoverageTable>,
+    /// Number of glyphs in the backtrack sequence.
+    #[compile(array_len($backtrack_coverage_offsets))]
+    backtrack_glyph_count: u16,
+    /// Array of offsets to coverage tables in backtrack sequence, in
+    /// glyph sequence order.
+    #[count($backtrack_glyph_count)]
+    backtrack_coverage_offsets: [Offset24<CoverageTable>],
+    /// Number of glyphs in lookahead sequence.
+    #[compile(array_len($lookahead_coverage_offsets))]
+    lookahead_glyph_count: u16,
+    /// Array of offsets to coverage tables in lookahead sequence, in
+    /// glyph sequence order.
+    #[count($lookahead_glyph_count)]
+    lookahead_coverage_offsets: [Offset24<CoverageTable>],
+    /// Number of glyph IDs in the substituteGlyphIDs array.
+    #[compile(array_len($substitute_glyph_ids))]
+    glyph_count: Uint24,
+    /// Array of substitute glyph IDs — ordered by Coverage index.
+    #[count($glyph_count)]
+    substitute_glyph_ids: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: Sequence2.
+table Sequence2 {
+    /// Number of glyph IDs in the substituteGlyphIDs array. This must
+    /// always be greater than 0.
+    #[compile(array_len($substitute_glyph_ids))]
+    glyph_count: u16,
+    /// String of glyph IDs to substitute
+    #[count($glyph_count)]
+    substitute_glyph_ids: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: AlternateSet2.
+table AlternateSet2 {
+    /// Number of glyph IDs in the alternateGlyphIDs array
+    #[compile(array_len($alternate_glyph_ids))]
+    glyph_count: u16,
+    /// Array of alternate glyph IDs, in arbitrary order
+    #[count($glyph_count)]
+    alternate_glyph_ids: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: LigatureSet2.
+table LigatureSet2 {
+    /// Number of Ligature tables
+    #[compile(array_len($ligature_offsets))]
+    ligature_count: u16,
+    /// Array of offsets to Ligature tables. Offsets are from beginning
+    /// of LigatureSet2 table, ordered by preference.
+    #[count($ligature_count)]
+    ligature_offsets: [Offset24<Ligature2>],
+}
+
+/// ISO Open Font Format, fifth edition: Ligature2.
+table Ligature2 {
+    /// glyph ID of ligature to substitute
+    ligature_glyph: GlyphId24,
+    /// Number of components in the ligature
+    #[compile(plus_one($component_glyph_ids.len()))]
+    component_count: u16,
+    /// Array of component glyph IDs — start with the second
+    /// component, ordered in writing direction
+    #[count(subtract($component_count, 1))]
+    component_glyph_ids: [GlyphId24],
+}
+
+/// ISO Open Font Format, fifth edition: MultipleSubst.
+format u16 MultipleSubst {
+    Format1(MultipleSubstFormat1),
+    Format2(MultipleSubstFormat2),
+}
+
+/// ISO Open Font Format, fifth edition: AlternateSubst.
+format u16 AlternateSubst {
+    Format1(AlternateSubstFormat1),
+    Format2(AlternateSubstFormat2),
+}
+
+/// ISO Open Font Format, fifth edition: LigatureSubst.
+format u16 LigatureSubst {
+    Format1(LigatureSubstFormat1),
+    Format2(LigatureSubstFormat2),
+}
+
+/// ISO Open Font Format, fifth edition: ReverseChainSingleSubst.
+format u16 ReverseChainSingleSubst {
+    Format1(ReverseChainSingleSubstFormat1),
+    Format2(ReverseChainSingleSubstFormat2),
+}

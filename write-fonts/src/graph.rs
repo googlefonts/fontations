@@ -593,10 +593,9 @@ impl Graph {
         true
     }
 
-    /// Find the root nodes of 32 (and later 24?)-bit space.
+    /// Find the root nodes of wide-offset spaces.
     ///
-    /// These are the set of nodes that have incoming long offsets, for which
-    /// no ancestor has an incoming long offset.
+    /// Prefer nested 32-bit roots over their enclosing wide-offset lists.
     ///
     /// Ported from the [find_space_roots] method in HarfBuzz.
     ///
@@ -613,16 +612,65 @@ impl Graph {
             }
             let obj = self.objects.get(&id).unwrap();
             for link in &obj.offsets {
-                //FIXME: harfbuzz has a bunch of logic here for 24-bit offsets
-                if link.len == OffsetLen::Offset32 {
-                    roots.insert(link.object);
-                    self.find_subgraph_hb(link.object, &mut visited);
+                if link.len != OffsetLen::Offset16 {
+                    // LookupList2 is itself reached through a wide header
+                    // offset. Its lookups, not the whole list, must become
+                    // separate spaces so narrow links can be packed locally.
+                    let mut pending = VecDeque::from([link.object]);
+                    let mut seen = HashSet::new();
+                    while let Some(root) = pending.pop_front() {
+                        if !seen.insert(root) {
+                            continue;
+                        }
+                        let nested = if root == link.object
+                            || matches!(
+                                self.objects[&root].type_,
+                                TableType::GsubLookup(LookupType::GSUB_EXT_TYPE)
+                                    | TableType::GposLookup(LookupType::GPOS_EXT_TYPE)
+                            ) {
+                            self.find_32bit_roots_hb(root)
+                        } else {
+                            BTreeSet::new()
+                        };
+                        if nested.is_empty() {
+                            roots.insert(root);
+                            self.find_subgraph_hb(root, &mut visited);
+                        } else {
+                            // A wide-list extension lookup adds another wide
+                            // boundary. Keep its targets independently packable,
+                            // but preserve each target's internal packing space.
+                            pending.extend(nested);
+                        }
+                    }
                 } else {
                     queue.push_back(link.object);
                 }
             }
         }
         (visited, roots)
+    }
+
+    /// Find topmost 32-bit roots within a wide-offset subgraph.
+    fn find_32bit_roots_hb(&self, start: ObjectId) -> BTreeSet<ObjectId> {
+        let mut visited = HashSet::new();
+        let mut roots = BTreeSet::new();
+        let mut queue = VecDeque::from([start]);
+        while let Some(id) = queue.pop_front() {
+            if !visited.insert(id) {
+                continue;
+            }
+            for link in &self.objects[&id].offsets {
+                if link.len == OffsetLen::Offset32 {
+                    roots.insert(link.object);
+                    visited.insert(link.object);
+                } else {
+                    queue.push_back(link.object);
+                }
+            }
+        }
+        // BFS also prevents traversing a node queued through a narrow link
+        // when another link at the same level makes it a wide-offset root.
+        roots
     }
 
     fn find_subgraph_hb(&self, idx: ObjectId, nodes: &mut HashSet<ObjectId>) {
@@ -703,6 +751,8 @@ impl Graph {
                 }
             }
             subgraph.insert(*root, inbound_wide_offsets);
+        }
+        for root in roots.iter() {
             self.find_subgraph_map_hb(*root, &mut subgraph);
         }
 
@@ -1553,6 +1603,55 @@ mod tests {
     }
 
     #[test]
+    fn pack_extended_header_with_nested_wide_lookup_offsets() {
+        // GSUB/GPOS 1.2: the header and LookupList2 both use Offset32.
+        // Two lookups share large coverage tables through narrow offsets.
+        // Isolating the entire list leaves only one root, so the coverage
+        // tables cannot be duplicated into independently packed lookups.
+        let ids = make_ids::<8>();
+        let sizes = [26, 10, 8, 8, 14, 14, 65520, 65520];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[3], OffsetLen::Offset32)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[5], OffsetLen::Offset16)
+            .add_link(ids[4], ids[6], OffsetLen::Offset16)
+            .add_link(ids[4], ids[7], OffsetLen::Offset16)
+            .add_link(ids[5], ids[6], OffsetLen::Offset16)
+            .add_link(ids[5], ids[7], OffsetLen::Offset16)
+            .build();
+        assert!(graph.pack_objects());
+        assert!(!graph.has_overflows());
+        assert_eq!(graph.nodes.len(), 10);
+    }
+
+    #[test]
+    fn pack_extended_header_with_nested_extension_offsets() {
+        // One wide-list lookup contains two extension subtables sharing
+        // large children through narrow links. The extension targets, not
+        // the lookup, need to be independently packable space roots.
+        let ids = make_ids::<9>();
+        let sizes = [26, 6, 10, 8, 8, 14, 14, 65520, 65520];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset32)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[5], OffsetLen::Offset32)
+            .add_link(ids[4], ids[6], OffsetLen::Offset32)
+            .add_link(ids[5], ids[7], OffsetLen::Offset16)
+            .add_link(ids[5], ids[8], OffsetLen::Offset16)
+            .add_link(ids[6], ids[7], OffsetLen::Offset16)
+            .add_link(ids[6], ids[8], OffsetLen::Offset16)
+            .build();
+        graph.objects.get_mut(&ids[2]).unwrap().type_ = TableType::GsubLookup(7);
+        assert!(graph.pack_objects());
+        assert!(!graph.has_overflows());
+        assert_eq!(graph.nodes.len(), 11);
+    }
+
+    #[test]
     fn all_roads_lead_to_overflow() {
         // this is a regression test for a bug we had where we would fail
         // to correctly duplicate shared subgraphs when there were
@@ -1635,6 +1734,25 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn connected_roots_keep_all_incoming_edges_during_isolation() {
+        let ids = make_ids::<4>();
+        let sizes = [8, 8, 8, 8];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .build();
+        graph.sort_shortest_distance();
+        graph.assign_spaces_hb();
+        // Root 2 has one wide parent plus one parent within this space.
+        // No edge comes from outside, so neither it nor its child needs
+        // duplication when the two connected roots are isolated together.
+        assert_eq!(graph.nodes.len(), 4);
+        assert_eq!(graph.nodes[&ids[1]].space, graph.nodes[&ids[2]].space);
     }
 
     #[test]
@@ -1787,6 +1905,7 @@ mod tests {
                     vec![],
                     vec![GlyphId16::new(id + 1)],
                 )
+                .into()
             })
             .collect();
 

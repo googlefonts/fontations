@@ -29,6 +29,16 @@ pub struct Gdef {
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
     pub item_var_store: NullableOffsetMarker<ItemVariationStore, WIDTH_32>,
+    /// 32-bit offset taking precedence over glyph_class_def_offset when nonzero.
+    pub glyph_class_def2: NullableOffsetMarker<ClassDef, WIDTH_32>,
+    /// 32-bit offset taking precedence over attach_list_offset when nonzero.
+    pub attach_list2: NullableOffsetMarker<AttachList, WIDTH_32>,
+    /// 32-bit offset taking precedence over lig_caret_list_offset when nonzero.
+    pub lig_caret_list2: NullableOffsetMarker<LigCaretList2, WIDTH_32>,
+    /// 32-bit offset taking precedence over mark_attach_class_def_offset when nonzero.
+    pub mark_attach_class_def2: NullableOffsetMarker<ClassDef, WIDTH_32>,
+    /// 32-bit offset taking precedence over mark_glyph_sets_def_offset when nonzero.
+    pub mark_glyph_sets_def2: NullableOffsetMarker<MarkGlyphSets, WIDTH_32>,
 }
 
 impl Gdef {
@@ -64,6 +74,21 @@ impl FontWrite for Gdef {
         version
             .compatible((1u16, 3u16))
             .then(|| self.item_var_store.write_into(writer));
+        version
+            .compatible((1u16, 4u16))
+            .then(|| self.glyph_class_def2.write_into(writer));
+        version
+            .compatible((1u16, 4u16))
+            .then(|| self.attach_list2.write_into(writer));
+        version
+            .compatible((1u16, 4u16))
+            .then(|| self.lig_caret_list2.write_into(writer));
+        version
+            .compatible((1u16, 4u16))
+            .then(|| self.mark_attach_class_def2.write_into(writer));
+        version
+            .compatible((1u16, 4u16))
+            .then(|| self.mark_glyph_sets_def2.write_into(writer));
     }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Gdef::TAG)
@@ -91,6 +116,21 @@ impl Validate for Gdef {
             ctx.in_field("item_var_store", |ctx| {
                 self.item_var_store.validate_impl(ctx);
             });
+            ctx.in_field("glyph_class_def2", |ctx| {
+                self.glyph_class_def2.validate_impl(ctx);
+            });
+            ctx.in_field("attach_list2", |ctx| {
+                self.attach_list2.validate_impl(ctx);
+            });
+            ctx.in_field("lig_caret_list2", |ctx| {
+                self.lig_caret_list2.validate_impl(ctx);
+            });
+            ctx.in_field("mark_attach_class_def2", |ctx| {
+                self.mark_attach_class_def2.validate_impl(ctx);
+            });
+            ctx.in_field("mark_glyph_sets_def2", |ctx| {
+                self.mark_glyph_sets_def2.validate_impl(ctx);
+            });
         })
     }
 }
@@ -102,12 +142,17 @@ impl TopLevelTable for Gdef {
 impl<'a> FromObjRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::Gdef<'a>, _: FontData) -> Self {
         Gdef {
-            glyph_class_def: obj.glyph_class_def().to_owned_table(),
-            attach_list: obj.attach_list().to_owned_table(),
-            lig_caret_list: obj.lig_caret_list().to_owned_table(),
-            mark_attach_class_def: obj.mark_attach_class_def().to_owned_table(),
-            mark_glyph_sets_def: obj.mark_glyph_sets_def().to_owned_table(),
+            glyph_class_def: obj.legacy_glyph_class_def().to_owned_table(),
+            attach_list: obj.legacy_attach_list().to_owned_table(),
+            lig_caret_list: obj.legacy_lig_caret_list().to_owned_table(),
+            mark_attach_class_def: obj.legacy_mark_attach_class_def().to_owned_table(),
+            mark_glyph_sets_def: obj.legacy_mark_glyph_sets_def().to_owned_table(),
             item_var_store: obj.item_var_store().to_owned_table(),
+            glyph_class_def2: obj.glyph_class_def2().to_owned_table(),
+            attach_list2: obj.attach_list2().to_owned_table(),
+            lig_caret_list2: obj.lig_caret_list2().to_owned_table(),
+            mark_attach_class_def2: obj.mark_attach_class_def2().to_owned_table(),
+            mark_glyph_sets_def2: obj.mark_glyph_sets_def2().to_owned_table(),
         }
     }
 }
@@ -731,6 +776,78 @@ impl ReadArgs for MarkGlyphSets {
 impl<'a> FontRead<'a> for MarkGlyphSets {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::MarkGlyphSets as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// ISO Open Font Format, fifth edition: LigCaretList2.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LigCaretList2 {
+    /// Offset to Coverage table - from beginning of LigCaretList2 table
+    pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
+    /// Array of offsets to LigGlyph tables, from beginning of
+    /// LigCaretList2 table —in Coverage Index order
+    pub lig_glyphs: Vec<OffsetMarker<LigGlyph, WIDTH_24>>,
+}
+
+impl LigCaretList2 {
+    /// Construct a new `LigCaretList2`
+    pub fn new(coverage: CoverageTable, lig_glyphs: Vec<LigGlyph>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            lig_glyphs: lig_glyphs.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for LigCaretList2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.coverage.write_into(writer);
+        (Uint24::try_from(array_len(&self.lig_glyphs)).unwrap()).write_into(writer);
+        self.lig_glyphs.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigCaretList2")
+    }
+}
+
+impl Validate for LigCaretList2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigCaretList2", |ctx| {
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
+            });
+            ctx.in_field("lig_glyphs", |ctx| {
+                if self.lig_glyphs.len() > to_usize(Uint24::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.lig_glyphs.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::gdef::LigCaretList2<'a>> for LigCaretList2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gdef::LigCaretList2<'a>, _: FontData) -> Self {
+        LigCaretList2 {
+            coverage: obj.coverage().to_owned_table(),
+            lig_glyphs: obj.lig_glyphs().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::gdef::LigCaretList2<'a>> for LigCaretList2 {}
+
+impl ReadArgs for LigCaretList2 {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigCaretList2 {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::gdef::LigCaretList2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }

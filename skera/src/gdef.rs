@@ -1,5 +1,13 @@
 //! impl subset() for GDEF
 
+mod extended;
+
+#[cfg(test)]
+mod lig_caret_tests;
+
+#[cfg(test)]
+mod attach_tests;
+
 use crate::{
     layout::{map_gsub_glyph, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
@@ -7,22 +15,19 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, Subset, SubsetError, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gdef::{
-                AttachList, AttachPoint, CaretValue, CaretValueFormat1, CaretValueFormat2,
-                CaretValueFormat3, Gdef, LigCaretList, LigGlyph, MarkGlyphSets,
-            },
-            layout::CoverageTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gdef::{
+            AttachList, AttachPoint, CaretValue, CaretValueFormat1, CaretValueFormat2,
+            CaretValueFormat3, Gdef, LigCaretList, LigCaretList2, LigGlyph, MarkGlyphSets,
         },
-        types::GlyphId,
-        FontRef, MinByteRange, ReadError, TopLevelTable,
+        layout::CoverageTable,
     },
-    types::{FixedSize, Offset16, Offset32},
-    FontBuilder,
+    types::{FixedSize, Offset16, Offset32, Uint24},
+    FontRef, MinByteRange, ReadError, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for GDEF in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/GDEF/GDEF.hh#L660>
@@ -46,6 +51,9 @@ fn subset_gdef(
     state: &mut SubsetState,
 ) -> Result<(), SerializeErrorFlags> {
     let version = gdef.version();
+    if version >= read_fonts::types::MajorMinor::new(1, 4) {
+        return extended::subset_extended_gdef(gdef, plan, s, state);
+    }
     // major version
     s.embed(version.major)?;
 
@@ -272,7 +280,7 @@ impl SubsetTable<'_> for AttachList<'_> {
             .enumerate()
             .take(plan.font_num_glyphs.min(src_glyph_count))
         {
-            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, glyph) else {
                 continue;
             };
 
@@ -300,60 +308,78 @@ impl SubsetTable<'_> for AttachPoint<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        s.embed_bytes(self.min_table_bytes()).map(|_| ())
+        let bytes = self.min_table_bytes();
+        if bytes.is_empty() {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
+        s.embed_bytes(bytes).map(|_| ())
     }
 }
 
-impl SubsetTable<'_> for LigCaretList<'_> {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        if self.coverage_offset().is_null() || self.lig_glyph_count() == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        //coverage offset
-        let coverage_offset_pos = s.embed(0_u16)?;
-        //lig_glyph_count
-        let lig_glyph_count_pos = s.embed(0_u16)?;
+macro_rules! subset_lig_caret_list {
+    ($table:ident, $offset:ident, $count:ident) => {
+        impl SubsetTable<'_> for $table<'_> {
+            type ArgsForSubset = ();
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                _args: Self::ArgsForSubset,
+            ) -> Result<Self::Output, SerializeErrorFlags> {
+                if self.coverage_offset().is_null() || u32::from(self.lig_glyph_count()) == 0 {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                if self.min_table_bytes().is_empty() {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                //coverage offset
+                let coverage_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                //lig_glyph_count
+                let lig_glyph_count_pos = s.allocate_size($count::RAW_BYTE_LEN, true)?;
 
-        let Ok(coverage) = self.coverage() else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-        };
+                let Ok(coverage) = self.coverage() else {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                };
 
-        let lig_glyphs = self.lig_glyphs();
-        let mut count = 0_u16;
-        let src_lig_glyph_count = self.lig_glyph_count() as usize;
-        let mut retained_glyphs =
-            Vec::with_capacity((plan.glyphset_gsub.len() as usize).min(src_lig_glyph_count));
+                let lig_glyphs = self.lig_glyphs();
+                let src_lig_glyph_count = usize::from(self.lig_glyph_count());
+                let mut retained_glyphs = Vec::with_capacity(
+                    (plan.glyphset_gsub.len() as usize).min(src_lig_glyph_count),
+                );
 
-        for (idx, glyph) in coverage
-            .iter()
-            .enumerate()
-            .take(plan.font_num_glyphs.min(src_lig_glyph_count))
-        {
-            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
-                continue;
-            };
+                for (idx, glyph) in coverage
+                    .iter()
+                    .enumerate()
+                    .take(plan.font_num_glyphs.min(src_lig_glyph_count))
+                {
+                    let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, glyph) else {
+                        continue;
+                    };
 
-            if !lig_glyphs.subset_offset(idx, s, plan, ()).is_empty()? {
-                count += 1;
-                retained_glyphs.push(new_gid);
+                    if !lig_glyphs.subset_offset(idx, s, plan, ()).is_empty()? {
+                        retained_glyphs.push(new_gid);
+                    }
+                }
+
+                if retained_glyphs.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+
+                let count = $count::try_from(retained_glyphs.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                s.copy_assign(lig_glyph_count_pos, count);
+                $offset::serialize_serialize::<CoverageTable>(
+                    s,
+                    &retained_glyphs,
+                    coverage_offset_pos,
+                )
             }
         }
-
-        if retained_glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-
-        s.copy_assign(lig_glyph_count_pos, count);
-        Offset16::serialize_serialize::<CoverageTable>(s, &retained_glyphs, coverage_offset_pos)
-    }
+    };
 }
+subset_lig_caret_list!(LigCaretList, Offset16, u16);
+subset_lig_caret_list!(LigCaretList2, Offset32, Uint24);
 
 impl SubsetTable<'_> for LigGlyph<'_> {
     type ArgsForSubset = ();
@@ -527,27 +553,33 @@ impl CollectVariationIndices for Gdef<'_> {
     }
 }
 
-impl CollectVariationIndices for LigCaretList<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        let Ok(coverage) = self.coverage() else {
-            return;
-        };
+macro_rules! collect_lig_caret_variations {
+    ($table:ident) => {
+        impl CollectVariationIndices for $table<'_> {
+            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+                let Ok(coverage) = self.coverage() else {
+                    return;
+                };
 
-        let lig_glyphs = self.lig_glyphs();
-        for (gid, lig_glyph) in coverage.iter().zip(lig_glyphs.iter_as_nullable()) {
-            let Some(lig_glyph) = lig_glyph else {
-                continue;
-            };
-            let Ok(lig_glyph) = lig_glyph else {
-                return;
-            };
-            if !plan.glyphset_gsub.contains(GlyphId::from(gid)) {
-                continue;
+                let lig_glyphs = self.lig_glyphs();
+                for (gid, lig_glyph) in coverage.iter().zip(lig_glyphs.iter_as_nullable()) {
+                    let Some(lig_glyph) = lig_glyph else {
+                        continue;
+                    };
+                    let Ok(lig_glyph) = lig_glyph else {
+                        return;
+                    };
+                    if !plan.glyphset_gsub.contains(gid) {
+                        continue;
+                    }
+                    lig_glyph.collect_variation_indices(plan, varidx_set);
+                }
             }
-            lig_glyph.collect_variation_indices(plan, varidx_set);
         }
-    }
+    };
 }
+collect_lig_caret_variations!(LigCaretList);
+collect_lig_caret_variations!(LigCaretList2);
 
 impl CollectVariationIndices for LigGlyph<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
@@ -601,13 +633,31 @@ impl CollectUsedMarkSets for MarkGlyphSets<'_> {
     }
 }
 
+impl SubsetTable<'_> for read_fonts::tables::gdef::LigCaretListTable<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(&self, plan: &Plan, s: &mut Serializer, _: ()) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Offset16(t) => t.subset(plan, s, ()),
+            Self::Offset24(t) => t.subset(plan, s, ()),
+        }
+    }
+}
+
+impl CollectVariationIndices for read_fonts::tables::gdef::LigCaretListTable<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        match self {
+            Self::Offset16(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Offset24(t) => t.collect_variation_indices(plan, varidx_set),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
-        read::{FontRef, TableProvider},
-        types::GlyphId,
-    };
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
+
     #[test]
     fn test_collect_var_indices() {
         let mut plan = Plan::default();

@@ -6,22 +6,40 @@ use crate::{
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{MarkArray, MarkRecord},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontData,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{AnchorTable, MarkArray, MarkArray2, MarkRecord, MarkRecord2},
+        layout::CoverageTable,
     },
-    types::Offset16,
+    types::GlyphId,
+    types::{FixedSize, Offset16, Offset24, Uint24},
+    FontData, MinByteRange, ReadError,
 };
+
+pub(crate) trait MarkRecordData {
+    fn mark_class(&self) -> u16;
+    fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError>;
+}
+
+macro_rules! mark_record_data {
+    ($record:ident) => {
+        impl MarkRecordData for $record {
+            fn mark_class(&self) -> u16 {
+                $record::mark_class(self)
+            }
+            fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
+                $record::mark_anchor(self, data)
+            }
+        }
+    };
+}
+mark_record_data!(MarkRecord);
+mark_record_data!(MarkRecord2);
 
 #[inline]
 pub(crate) fn collect_mark_record_varidx(
-    mark_record: &MarkRecord,
+    mark_record: &impl MarkRecordData,
     plan: &Plan,
     varidx_set: &mut IntSet<u32>,
     font_data: FontData,
@@ -33,19 +51,17 @@ pub(crate) fn collect_mark_record_varidx(
 
 pub(crate) fn get_mark_class_map(
     coverage: &CoverageTable,
-    mark_array: &MarkArray,
+    mark_records: &[impl MarkRecordData],
     glyph_set: &IntSet<GlyphId>,
 ) -> FastHashMap<u16, u16> {
-    let mark_records = mark_array.mark_records();
-
     let mut retained_classes = IntSet::<u16>::empty();
     let _ = for_each_intersected_coverage_index::<()>(
         coverage,
         glyph_set,
-        mark_array.mark_count(),
-        |idx| {
-            if let Some(mark_record) = mark_records.get(idx as usize) {
-                retained_classes.insert(mark_record.mark_class());
+        mark_records.len() as u32,
+        |index| {
+            if let Some(record) = mark_records.get(index as usize) {
+                retained_classes.insert(record.mark_class());
             }
             Ok(())
         },
@@ -57,107 +73,114 @@ pub(crate) fn get_mark_class_map(
         .collect()
 }
 
-/// Collect variation indices from the anchors of the retained MarkRecords
-/// and return the set of retained mark classes.
 pub(crate) fn collect_retained_mark_varidx_and_classes(
     coverage: &CoverageTable,
-    mark_array: &MarkArray,
+    mark_records: &[impl MarkRecordData],
+    mark_array_data: FontData,
     plan: &Plan,
     varidx_set: &mut IntSet<u32>,
 ) -> IntSet<u16> {
-    let mark_array_data = mark_array.offset_data();
-    let mark_records = mark_array.mark_records();
-
-    let mut retained_mark_classes = IntSet::empty();
+    let mut retained_classes = IntSet::empty();
     let _ = for_each_intersected_coverage_index::<()>(
         coverage,
         &plan.glyphset_gsub,
-        mark_array.mark_count(),
-        |idx| {
-            let mark_record = mark_records.get(idx as usize).ok_or(())?;
-            collect_mark_record_varidx(mark_record, plan, varidx_set, mark_array_data);
-            retained_mark_classes.insert(mark_record.mark_class());
+        mark_records.len() as u32,
+        |index| {
+            let record = mark_records.get(index as usize).ok_or(())?;
+            collect_mark_record_varidx(record, plan, varidx_set, mark_array_data);
+            retained_classes.insert(record.mark_class());
             Ok(())
         },
     );
-    retained_mark_classes
+    retained_classes
 }
 
-impl<'a> SubsetTable<'a> for MarkArray<'_> {
-    type ArgsForSubset = (&'a IntSet<u16>, &'a FastHashMap<u16, u16>);
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let (mark_record_idxes, mark_class_map) = args;
-        if mark_record_idxes.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        // mark count
-        s.embed(mark_record_idxes.len() as u16)?;
+macro_rules! subset_mark_array {
+    ($table:ident, $count:ident) => {
+        impl<'a> SubsetTable<'a> for $table<'_> {
+            type ArgsForSubset = (&'a IntSet<u32>, &'a FastHashMap<u16, u16>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<(), SerializeErrorFlags> {
+                let (mark_record_idxes, mark_class_map) = args;
+                if mark_record_idxes.is_empty() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                if self.min_table_bytes().is_empty() {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                }
+                let mark_len = usize::try_from(mark_record_idxes.len())
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                let mark_count = $count::try_from(mark_len)
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                s.embed(mark_count)?;
 
-        let font_data = self.offset_data();
-        let mark_records = self.mark_records();
-        // Every retained mark keeps its record, but as in harfbuzz the
-        // MarkArray is only worth keeping if at least one of those records
-        // still has an anchor. Otherwise report EMPTY: the Mark*Pos subtables
-        // propagate it and get dropped, matching harfbuzz returning false
-        // from MarkArray::subset.
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/main/src/OT/Layout/GPOS/MarkArray.hh>
-        let mut has_anchor = false;
-        for i in mark_record_idxes.iter() {
-            let Some(mark_record) = mark_records.get(i as usize) else {
-                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
-            };
-            has_anchor |= !mark_record
-                .subset(plan, s, (mark_class_map, font_data))
-                .is_empty()?;
+                let font_data = self.offset_data();
+                let mark_records = self.mark_records();
+                // Preserve records with null anchors while dropping an array
+                // if none of its retained records has an anchor.
+                let mut has_anchor = false;
+                for i in mark_record_idxes.iter() {
+                    let Some(mark_record) = mark_records.get(i as usize) else {
+                        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+                    };
+                    has_anchor |= !mark_record
+                        .subset(plan, s, (mark_class_map, font_data))
+                        .is_empty()?;
+                }
+                if !has_anchor {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                Ok(())
+            }
         }
-        if !has_anchor {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        Ok(())
-    }
+    };
 }
+subset_mark_array!(MarkArray, u16);
+subset_mark_array!(MarkArray2, Uint24);
 
-impl<'a> SubsetTable<'a> for MarkRecord {
-    type ArgsForSubset = (&'a FastHashMap<u16, u16>, FontData<'a>);
-    type Output = ();
-    /// Serializes the record. Returns `SERIALIZE_ERROR_EMPTY` if the record
-    /// was written but its anchor was not (null offset or empty anchor), in
-    /// which case the anchor offset is left as 0.
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let (class_map, font_data) = args;
-        let Some(new_mark_class) = class_map.get(&self.mark_class()) else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
-        };
+macro_rules! subset_mark_record {
+    ($record:ident, $offset:ident) => {
+        impl<'a> SubsetTable<'a> for $record {
+            type ArgsForSubset = (&'a FastHashMap<u16, u16>, FontData<'a>);
+            type Output = ();
+            fn subset(
+                &self,
+                plan: &Plan,
+                s: &mut Serializer,
+                args: Self::ArgsForSubset,
+            ) -> Result<(), SerializeErrorFlags> {
+                let (class_map, font_data) = args;
+                let Some(new_mark_class) = class_map.get(&self.mark_class()) else {
+                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+                };
 
-        s.embed(*new_mark_class)?;
+                s.embed(*new_mark_class)?;
 
-        let anchor_offset_pos = s.embed(0_u16)?;
-        if self.mark_anchor_offset().is_null() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                let anchor_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
+                if self.mark_anchor_offset().is_null() {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+                }
+                let mark_anchor = self
+                    .mark_anchor(font_data)
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+                $offset::serialize_subset(&mark_anchor, s, plan, (), anchor_offset_pos)
+            }
         }
-        let mark_anchor = self
-            .mark_anchor(font_data)
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
-        Offset16::serialize_subset(&mark_anchor, s, plan, (), anchor_offset_pos)
-    }
+    };
 }
+subset_mark_record!(MarkRecord, Offset16);
+subset_mark_record!(MarkRecord2, Offset24);
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::FontRead;
+    use read_fonts::FontRead;
 
     // MarkArray with two MarkRecords (class 0 and class 1). Record 0 has a
     // null anchor; record 1 points at `rec1_anchor_offset` (0 = null) where an
@@ -180,7 +203,7 @@ mod test {
     fn subset_mark_array(raw: &[u8]) -> (Result<(), SerializeErrorFlags>, Serializer) {
         let mark_array = MarkArray::read(FontData::new(raw)).unwrap();
         let plan = Plan::default();
-        let mark_record_idxes: IntSet<u16> = [0, 1].into_iter().collect();
+        let mark_record_idxes: IntSet<u32> = [0, 1].into_iter().collect();
         let mark_class_map: FastHashMap<u16, u16> = [(0, 0), (1, 1)].into_iter().collect();
 
         let mut s = Serializer::new(1024);

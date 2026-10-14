@@ -48,58 +48,56 @@ pub use parsing_util::{
 };
 use unicode_closure::unicode_closure;
 
+use read_fonts::{
+    collections::{int_set::Domain, IntSet},
+    tables::{
+        avar::Avar,
+        base::Base,
+        cbdt::Cbdt,
+        cblc::Cblc,
+        cff::Cff,
+        cff2::Cff2,
+        cmap::{Cmap, CmapSubtable, PlatformId},
+        colr::Colr,
+        cpal::Cpal,
+        cvar::Cvar,
+        fvar::Fvar,
+        gasp,
+        gdef::Gdef,
+        glyf::{Glyf, Glyph},
+        gpos::Gpos,
+        gsub::Gsub,
+        gvar::Gvar,
+        hdmx::Hdmx,
+        head::Head,
+        hhea::Hhea,
+        hmtx::Hmtx,
+        hvar::Hvar,
+        loca::Loca,
+        maxp::Maxp,
+        name::Name,
+        os2::Os2,
+        post::Post,
+        sbix::Sbix,
+        stat::Stat,
+        variations::NO_VARIATION_INDEX,
+        vhea::Vhea,
+        vmtx::Vmtx,
+        vorg::Vorg,
+        vvar::Vvar,
+    },
+    types::{GlyphId, NameId, Tag},
+    FontRef, TableProvider, TopLevelTable,
+};
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::MetadataProvider;
 use thiserror::Error;
-use write_fonts::{
-    read::{
-        collections::{int_set::Domain, IntSet},
-        limits::MAX_RECURSION_DEPTH,
-        tables::{
-            avar::Avar,
-            base::Base,
-            cbdt::Cbdt,
-            cblc::Cblc,
-            cff::Cff,
-            cff2::Cff2,
-            cmap::{Cmap, CmapSubtable, PlatformId},
-            colr::Colr,
-            cpal::Cpal,
-            cvar::Cvar,
-            fvar::Fvar,
-            gasp,
-            gdef::Gdef,
-            glyf::{Glyf, Glyph},
-            gpos::Gpos,
-            gsub::Gsub,
-            gvar::Gvar,
-            hdmx::Hdmx,
-            head::Head,
-            hhea::Hhea,
-            hmtx::Hmtx,
-            hvar::Hvar,
-            loca::Loca,
-            maxp::Maxp,
-            name::Name,
-            os2::Os2,
-            post::Post,
-            sbix::Sbix,
-            stat::Stat,
-            variations::NO_VARIATION_INDEX,
-            vhea::Vhea,
-            vmtx::Vmtx,
-            vorg::Vorg,
-            vvar::Vvar,
-        },
-        types::{GlyphId, NameId, Tag},
-        FontRef, TableProvider, TopLevelTable,
-    },
-    FontBuilder,
-};
+use write_fonts::FontBuilder;
 
 type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
+const MAX_NESTING_LEVEL: u8 = read_fonts::limits::MAX_RECURSION_DEPTH;
 // Support 24-bit gids. This should probably be extended to u32::MAX but
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
@@ -821,6 +819,26 @@ impl Plan {
 
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
+            if let Some(Ok(variations)) = gpos.feature_variations() {
+                layout::collect_feature_variation_condition_indices(
+                    &variations,
+                    self,
+                    &self.gpos_features_w_duplicates,
+                    &self.gpos_lookups,
+                    &mut varidx_set,
+                );
+            }
+        }
+        if let Ok(gsub) = font.gsub() {
+            if let Some(Ok(variations)) = gsub.feature_variations() {
+                layout::collect_feature_variation_condition_indices(
+                    &variations,
+                    self,
+                    &self.gsub_features_w_duplicates,
+                    &self.gsub_lookups,
+                    &mut varidx_set,
+                );
+            }
         }
 
         let vardata_count = var_store.item_variation_data_count() as u32;
@@ -958,14 +976,14 @@ fn glyf_closure_glyphs(
     gid: GlyphId,
     gids_to_retain: &mut IntSet<GlyphId>,
     operation_count: i32,
-    depth: usize,
+    depth: u8,
 ) -> i32 {
     if gids_to_retain.contains(gid) {
         return operation_count;
     }
     gids_to_retain.insert(gid);
 
-    if depth > MAX_RECURSION_DEPTH {
+    if depth > MAX_NESTING_LEVEL {
         return operation_count;
     }
     let depth = depth + 1;

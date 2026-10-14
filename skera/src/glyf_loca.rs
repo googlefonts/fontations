@@ -5,22 +5,20 @@ use crate::{
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
-use write_fonts::{
-    read::{
-        tables::{
-            glyf::{
-                CompositeGlyph, CompositeGlyphFlags, Glyf,
-                Glyph::{self, Composite, Simple},
-                SimpleGlyph, SimpleGlyphFlags,
-            },
-            head::Head,
-            loca::Loca,
+use read_fonts::{
+    tables::{
+        glyf::{
+            CompositeGlyph, CompositeGlyphFlags, Glyf,
+            Glyph::{self, Composite, Simple},
+            SimpleGlyph, SimpleGlyphFlags,
         },
-        types::GlyphId,
-        FontRef, TableProvider, TopLevelTable,
+        head::Head,
+        loca::Loca,
     },
-    FontBuilder,
+    types::GlyphId,
+    FontRef, TableProvider, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
@@ -571,7 +569,7 @@ mod test {
 
     #[test]
     fn test_subset_composite_glyph_drop_hints() {
-        use write_fonts::read::{FontData, FontRead};
+        use read_fonts::{FontData, FontRead};
 
         // Composite glyph with WE_HAVE_INSTRUCTIONS (0x0100) and 2 bytes instructions:
         let raw = [

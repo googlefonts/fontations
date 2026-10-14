@@ -1,4 +1,6 @@
 //! impl subset() for ReverseChainSingleSubst subtable
+mod extended;
+
 use crate::FastHashMap;
 use crate::{
     layout::map_gsub_glyph,
@@ -6,13 +8,11 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
-        types::GlyphId,
-        FontRef,
-    },
+use read_fonts::{
+    tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
+    types::GlyphId,
     types::Offset16,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
@@ -49,7 +49,7 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
             .iter()
             .zip(sub_glyphs)
             .filter_map(|(cov_g, sub_g)| {
-                let new_cov_g = map_gsub_glyph(glyph_map, GlyphId::from(cov_g))?;
+                let new_cov_g = map_gsub_glyph(glyph_map, cov_g)?;
                 let new_sub_g = map_gsub_glyph(glyph_map, GlyphId::from(sub_g.get()))?;
                 Some((new_cov_g, new_sub_g))
             })
@@ -68,14 +68,30 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
+impl<'a> SubsetTable<'a> for read_fonts::tables::gsub::ReverseChainSingleSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_reverse_chain_single_subst() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/gsub8_manually_created.otf"
