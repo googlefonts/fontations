@@ -52,14 +52,14 @@ impl<'a> Gdef<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
     pub fn glyph_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.glyph_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
@@ -72,7 +72,7 @@ impl<'a> Gdef<'a> {
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Nullable<Offset16> {
         let range = self.attach_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
@@ -85,7 +85,7 @@ impl<'a> Gdef<'a> {
     /// header (may be NULL)
     pub fn lig_caret_list_offset(&self) -> Nullable<Offset16> {
         let range = self.lig_caret_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
@@ -98,7 +98,7 @@ impl<'a> Gdef<'a> {
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Nullable<Offset16> {
         let range = self.mark_attach_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
@@ -278,7 +278,10 @@ impl<'a> AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -290,7 +293,7 @@ impl<'a> AttachList<'a> {
     /// Number of glyphs with attachment points
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to AttachPoint tables-from beginning of
@@ -376,7 +379,7 @@ impl<'a> AttachPoint<'a> {
     /// Number of attachment points on this glyph
     pub fn point_count(&self) -> u16 {
         let range = self.point_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of contour point indices -in increasing numerical order
@@ -447,7 +450,10 @@ impl<'a> LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -459,7 +465,7 @@ impl<'a> LigCaretList<'a> {
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> u16 {
         let range = self.lig_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to LigGlyph tables, from beginning of
@@ -545,7 +551,7 @@ impl<'a> LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
     pub fn caret_count(&self) -> u16 {
         let range = self.caret_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to CaretValue tables, from beginning of
@@ -696,13 +702,13 @@ impl<'a> CaretValueFormat1<'a> {
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
         let range = self.caret_value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
@@ -772,13 +778,13 @@ impl<'a> CaretValueFormat2<'a> {
     /// Format identifier: format = 2
     pub fn caret_value_format(&self) -> u16 {
         let range = self.caret_value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Contour point index on glyph
     pub fn caret_value_point_index(&self) -> u16 {
         let range = self.caret_value_point_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
@@ -836,13 +842,13 @@ impl<'a> CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     pub fn caret_value_format(&self) -> u16 {
         let range = self.caret_value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to Device table (non-variable font) / Variation Index
@@ -850,7 +856,10 @@ impl<'a> CaretValueFormat3<'a> {
     /// CaretValue table
     pub fn device_offset(&self) -> Offset16 {
         let range = self.device_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
@@ -920,13 +929,13 @@ impl<'a> MarkGlyphSets<'a> {
     /// Format identifier == 1
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of mark glyph sets defined
     pub fn mark_glyph_set_count(&self) -> u16 {
         let range = self.mark_glyph_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to mark glyph set coverage tables, from the

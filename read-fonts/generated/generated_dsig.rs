@@ -49,19 +49,19 @@ impl<'a> Dsig<'a> {
     /// Version number of the DSIG table (0x00000001)
     pub fn version(&self) -> u32 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of signatures in the table
     pub fn num_signatures(&self) -> u16 {
         let range = self.num_signatures_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Permission flags
     pub fn flags(&self) -> PermissionFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of signature records
@@ -476,7 +476,7 @@ impl<'a> SignatureBlockFormat1<'a> {
     /// Length (in bytes) of the PKCS#7 packet in the signature field.
     pub fn signature_length(&self) -> u32 {
         let range = self.signature_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// PKCS#7 packet

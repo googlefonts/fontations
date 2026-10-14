@@ -41,12 +41,12 @@ impl<'a> MajorMinorVersion<'a> {
 
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn always_present(&self) -> u16 {
         let range = self.always_present_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn if_11(&self) -> Option<u16> {
@@ -442,12 +442,12 @@ impl<'a> FlagDay<'a> {
 
     pub fn volume(&self) -> u16 {
         let range = self.volume_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn flags(&self) -> GotFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn foo(&self) -> Option<u16> {

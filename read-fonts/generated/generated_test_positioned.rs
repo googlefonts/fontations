@@ -43,7 +43,7 @@ impl<'a> PositionedTable<'a> {
     /// The size of each [Positioned] record in this table, in bytes.
     pub fn positioned_size(&self) -> u16 {
         let range = self.positioned_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A positioned record read straight from a table field.
@@ -221,18 +221,18 @@ impl<'a> NestedPositionedTable<'a> {
     /// The size of each [Positioned] record in this table, in bytes.
     pub fn positioned_size(&self) -> u16 {
         let range = self.positioned_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of pairs in every group.
     pub fn pairs_per_group(&self) -> u16 {
         let range = self.pairs_per_group_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn group_count(&self) -> u16 {
         let range = self.group_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn groups(&self) -> ComputedArray<'a, PositionedGroup<'a>> {

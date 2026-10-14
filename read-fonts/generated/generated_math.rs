@@ -51,13 +51,16 @@ impl<'a> Math<'a> {
     /// (major, minor) Version for the MATH table (1,0)
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to MathConstants table, from beginning of MATH table.
     pub fn math_constants_offset(&self) -> Offset16 {
         let range = self.math_constants_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`math_constants_offset`][Self::math_constants_offset].
@@ -69,7 +72,10 @@ impl<'a> Math<'a> {
     /// Offset to MathGlyphInfo table, from beginning of MATH table.
     pub fn math_glyph_info_offset(&self) -> Offset16 {
         let range = self.math_glyph_info_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`math_glyph_info_offset`][Self::math_glyph_info_offset].
@@ -81,7 +87,10 @@ impl<'a> Math<'a> {
     /// Offset to MathVariants table, from beginning of MATH table.
     pub fn math_variants_offset(&self) -> Offset16 {
         let range = self.math_variants_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`math_variants_offset`][Self::math_variants_offset].
@@ -265,21 +274,21 @@ impl<'a> MathConstants<'a> {
     /// Percentage of scaling down for level 1 superscripts and subscripts.
     pub fn script_percent_scale_down(&self) -> i16 {
         let range = self.script_percent_scale_down_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Percentage of scaling down for level 2 (scriptScript) superscripts and
     /// subscripts.
     pub fn script_script_percent_scale_down(&self) -> i16 {
         let range = self.script_script_percent_scale_down_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum height required for a delimited expression (contained within
     /// parentheses, etc.) to be treated as a sub-formula.
     pub fn delimited_sub_formula_min_height(&self) -> UfWord {
         let range = self.delimited_sub_formula_min_height_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum height of n-ary operators (such as integral and summation) for
@@ -287,7 +296,7 @@ impl<'a> MathConstants<'a> {
     /// elements, not embedded inline within text).
     pub fn display_operator_min_height(&self) -> UfWord {
         let range = self.display_operator_min_height_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// White space to be left between math formulas to ensure proper line
@@ -627,7 +636,7 @@ impl<'a> MathConstants<'a> {
     /// proportion to the ascender of the radical sign.
     pub fn radical_degree_bottom_raise_percent(&self) -> i16 {
         let range = self.radical_degree_bottom_raise_percent_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn script_percent_scale_down_byte_range(&self) -> Range<usize> {
@@ -1023,7 +1032,7 @@ impl<'a> MathGlyphInfo<'a> {
     /// MathGlyphInfo table. May be NULL.
     pub fn math_italics_correction_info_offset(&self) -> Nullable<Offset16> {
         let range = self.math_italics_correction_info_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`math_italics_correction_info_offset`][Self::math_italics_correction_info_offset].
@@ -1038,7 +1047,7 @@ impl<'a> MathGlyphInfo<'a> {
     /// MathGlyphInfo table. May be NULL.
     pub fn math_top_accent_attachment_offset(&self) -> Nullable<Offset16> {
         let range = self.math_top_accent_attachment_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`math_top_accent_attachment_offset`][Self::math_top_accent_attachment_offset].
@@ -1053,7 +1062,7 @@ impl<'a> MathGlyphInfo<'a> {
     /// beginning of the MathGlyphInfo table. May be NULL.
     pub fn extended_shape_coverage_offset(&self) -> Nullable<Offset16> {
         let range = self.extended_shape_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`extended_shape_coverage_offset`][Self::extended_shape_coverage_offset].
@@ -1066,7 +1075,7 @@ impl<'a> MathGlyphInfo<'a> {
     /// MathGlyphInfo table. May be NULL.
     pub fn math_kern_info_offset(&self) -> Nullable<Offset16> {
         let range = self.math_kern_info_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`math_kern_info_offset`][Self::math_kern_info_offset].
@@ -1149,7 +1158,10 @@ impl<'a> MathItalicsCorrectionInfo<'a> {
     /// MathItalicsCorrectionInfo table.
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
@@ -1162,7 +1174,7 @@ impl<'a> MathItalicsCorrectionInfo<'a> {
     /// covered glyphs.
     pub fn italics_correction_count(&self) -> u16 {
         let range = self.italics_correction_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of MathValueRecords defining italics correction values for each
@@ -1245,7 +1257,10 @@ impl<'a> MathTopAccentAttachment<'a> {
     /// MathTopAccentAttachment table.
     pub fn top_accent_coverage_offset(&self) -> Offset16 {
         let range = self.top_accent_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`top_accent_coverage_offset`][Self::top_accent_coverage_offset].
@@ -1258,7 +1273,7 @@ impl<'a> MathTopAccentAttachment<'a> {
     /// number of covered glyphs.
     pub fn top_accent_attachment_count(&self) -> u16 {
         let range = self.top_accent_attachment_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of MathValueRecords defining top accent attachment points for each
@@ -1341,7 +1356,10 @@ impl<'a> MathKernInfo<'a> {
     /// table.
     pub fn math_kern_coverage_offset(&self) -> Offset16 {
         let range = self.math_kern_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`math_kern_coverage_offset`][Self::math_kern_coverage_offset].
@@ -1354,7 +1372,7 @@ impl<'a> MathKernInfo<'a> {
     /// covered glyphs.
     pub fn math_kern_count(&self) -> u16 {
         let range = self.math_kern_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of MathKernInfoRecords, one for each covered glyph.
@@ -1535,7 +1553,7 @@ impl<'a> MathKern<'a> {
     /// Number of heights at which the kern value changes.
     pub fn height_count(&self) -> u16 {
         let range = self.height_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of correction heights, in design units, sorted from lowest to
@@ -1631,14 +1649,14 @@ impl<'a> MathVariants<'a> {
     /// design units.
     pub fn min_connector_overlap(&self) -> UfWord {
         let range = self.min_connector_overlap_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to the Coverage table for shapes growing in the vertical
     /// direction, from the beginning of the MathVariants table. May be NULL.
     pub fn vert_glyph_coverage_offset(&self) -> Nullable<Offset16> {
         let range = self.vert_glyph_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`vert_glyph_coverage_offset`][Self::vert_glyph_coverage_offset].
@@ -1651,7 +1669,7 @@ impl<'a> MathVariants<'a> {
     /// direction, from the beginning of the MathVariants table. May be NULL.
     pub fn horiz_glyph_coverage_offset(&self) -> Nullable<Offset16> {
         let range = self.horiz_glyph_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`horiz_glyph_coverage_offset`][Self::horiz_glyph_coverage_offset].
@@ -1665,7 +1683,7 @@ impl<'a> MathVariants<'a> {
     /// in the vertical Coverage table.
     pub fn vert_glyph_count(&self) -> u16 {
         let range = self.vert_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of glyphs for which information is provided for horizontally
@@ -1673,7 +1691,7 @@ impl<'a> MathVariants<'a> {
     /// in the horizontal Coverage table.
     pub fn horiz_glyph_count(&self) -> u16 {
         let range = self.horiz_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to MathGlyphConstruction tables, from the beginning of
@@ -1804,7 +1822,7 @@ impl<'a> MathGlyphConstruction<'a> {
     /// the MathGlyphConstruction table. May be NULL.
     pub fn glyph_assembly_offset(&self) -> Nullable<Offset16> {
         let range = self.glyph_assembly_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`glyph_assembly_offset`][Self::glyph_assembly_offset].
@@ -1816,7 +1834,7 @@ impl<'a> MathGlyphConstruction<'a> {
     /// Count of glyph growing variants for this glyph.
     pub fn variant_count(&self) -> u16 {
         let range = self.variant_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// MathGlyphVariantRecords for alternative variants of the base glyph.
@@ -1933,7 +1951,7 @@ impl<'a> GlyphAssembly<'a> {
     /// Number of parts in this assembly.
     pub fn part_count(&self) -> u16 {
         let range = self.part_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of part records, from left to right (for assemblies that extend

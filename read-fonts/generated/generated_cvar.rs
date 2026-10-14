@@ -49,7 +49,7 @@ impl<'a> Cvar<'a> {
     /// Major/minor version number of the CVT variations table — set to (1,0).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A packed field. The high 4 bits are flags, and the low 12 bits
@@ -58,13 +58,16 @@ impl<'a> Cvar<'a> {
     /// and 4095.
     pub fn tuple_variation_count(&self) -> TupleVariationCount {
         let range = self.tuple_variation_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset from the start of the 'cvar' table to the serialized data.
     pub fn data_offset(&self) -> Offset16 {
         let range = self.data_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`data_offset`][Self::data_offset].

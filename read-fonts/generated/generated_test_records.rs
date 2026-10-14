@@ -41,7 +41,7 @@ impl<'a> BasicTable<'a> {
 
     pub fn simple_count(&self) -> u16 {
         let range = self.simple_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
@@ -274,7 +274,7 @@ impl<'a> VarLenItem<'a> {
 
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn data(&self) -> &'a [u8] {

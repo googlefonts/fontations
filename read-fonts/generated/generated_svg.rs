@@ -48,14 +48,17 @@ impl<'a> Svg<'a> {
     /// Table version (starting at 0). Set to 0.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to the SVGDocumentList, from the start of the SVG table.
     /// Must be non-zero.
     pub fn svg_document_list_offset(&self) -> Offset32 {
         let range = self.svg_document_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset32::new(Default::default()))
     }
 
     /// Attempt to resolve [`svg_document_list_offset`][Self::svg_document_list_offset].
@@ -131,7 +134,7 @@ impl<'a> SVGDocumentList<'a> {
     /// Number of SVGDocumentRecords. Must be non-zero.
     pub fn num_entries(&self) -> u16 {
         let range = self.num_entries_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of SVGDocumentRecords.

@@ -52,19 +52,19 @@ impl<'a> Colr<'a> {
     /// Table version number - set to 0 or 1.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of BaseGlyph records; may be 0 in a version 1 table.
     pub fn num_base_glyph_records(&self) -> u16 {
         let range = self.num_base_glyph_records_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to baseGlyphRecords array (may be NULL).
     pub fn base_glyph_records_offset(&self) -> Nullable<Offset32> {
         let range = self.base_glyph_records_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`base_glyph_records_offset`][Self::base_glyph_records_offset].
@@ -78,7 +78,7 @@ impl<'a> Colr<'a> {
     /// Offset to layerRecords array (may be NULL).
     pub fn layer_records_offset(&self) -> Nullable<Offset32> {
         let range = self.layer_records_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`layer_records_offset`][Self::layer_records_offset].
@@ -91,7 +91,7 @@ impl<'a> Colr<'a> {
     /// Number of Layer records; may be 0 in a version 1 table.
     pub fn num_layer_records(&self) -> u16 {
         let range = self.num_layer_records_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to BaseGlyphList table.
@@ -354,7 +354,7 @@ impl<'a> BaseGlyphList<'a> {
 
     pub fn num_base_glyph_paint_records(&self) -> u32 {
         let range = self.num_base_glyph_paint_records_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
@@ -460,7 +460,7 @@ impl<'a> LayerList<'a> {
 
     pub fn num_layers(&self) -> u32 {
         let range = self.num_layers_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offsets to Paint tables.
@@ -538,13 +538,13 @@ impl<'a> ClipList<'a> {
     /// Set to 1.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of Clip records.
     pub fn num_clips(&self) -> u32 {
         let range = self.num_clips_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Clip records. Sorted by startGlyphID.
@@ -765,31 +765,31 @@ impl<'a> ClipBoxFormat1<'a> {
     /// Set to 1.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum x of clip box.
     pub fn x_min(&self) -> FWord {
         let range = self.x_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum y of clip box.
     pub fn y_min(&self) -> FWord {
         let range = self.y_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum x of clip box.
     pub fn x_max(&self) -> FWord {
         let range = self.x_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum y of clip box.
     pub fn y_max(&self) -> FWord {
         let range = self.y_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -880,37 +880,37 @@ impl<'a> ClipBoxFormat2<'a> {
     /// Set to 2.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum x of clip box. For variation, use varIndexBase + 0.
     pub fn x_min(&self) -> FWord {
         let range = self.x_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum y of clip box. For variation, use varIndexBase + 1.
     pub fn y_min(&self) -> FWord {
         let range = self.y_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum x of clip box. For variation, use varIndexBase + 2.
     pub fn x_max(&self) -> FWord {
         let range = self.x_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum y of clip box. For variation, use varIndexBase + 3.
     pub fn y_max(&self) -> FWord {
         let range = self.y_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1125,13 +1125,13 @@ impl<'a> ColorLine<'a> {
     /// An Extend enum value.
     pub fn extend(&self) -> Extend {
         let range = self.extend_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of ColorStop records.
     pub fn num_stops(&self) -> u16 {
         let range = self.num_stops_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn color_stops(&self) -> &'a [ColorStop] {
@@ -1207,13 +1207,13 @@ impl<'a> VarColorLine<'a> {
     /// An Extend enum value.
     pub fn extend(&self) -> Extend {
         let range = self.extend_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of ColorStop records.
     pub fn num_stops(&self) -> u16 {
         let range = self.num_stops_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Allows for variations.
@@ -1586,19 +1586,19 @@ impl<'a> PaintColrLayers<'a> {
     /// Set to 1.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of offsets to paint tables to read from LayerList.
     pub fn num_layers(&self) -> u8 {
         let range = self.num_layers_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Index (base 0) into the LayerList.
     pub fn first_layer_index(&self) -> u32 {
         let range = self.first_layer_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1674,19 +1674,19 @@ impl<'a> PaintSolid<'a> {
     /// Set to 2.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Index for a CPAL palette entry.
     pub fn palette_index(&self) -> u16 {
         let range = self.palette_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Alpha value.
     pub fn alpha(&self) -> F2Dot14 {
         let range = self.alpha_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1751,25 +1751,25 @@ impl<'a> PaintVarSolid<'a> {
     /// Set to 3.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Index for a CPAL palette entry.
     pub fn palette_index(&self) -> u16 {
         let range = self.palette_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Alpha value. For variation, use varIndexBase + 0.
     pub fn alpha(&self) -> F2Dot14 {
         let range = self.alpha_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1846,13 +1846,16 @@ impl<'a> PaintLinearGradient<'a> {
     /// Set to 4.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to ColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.color_line_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
@@ -1864,37 +1867,37 @@ impl<'a> PaintLinearGradient<'a> {
     /// Start point (p₀) x coordinate.
     pub fn x0(&self) -> FWord {
         let range = self.x0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start point (p₀) y coordinate.
     pub fn y0(&self) -> FWord {
         let range = self.y0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End point (p₁) x coordinate.
     pub fn x1(&self) -> FWord {
         let range = self.x1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End point (p₁) y coordinate.
     pub fn y1(&self) -> FWord {
         let range = self.y1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Rotation point (p₂) x coordinate.
     pub fn x2(&self) -> FWord {
         let range = self.x2_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Rotation point (p₂) y coordinate.
     pub fn y2(&self) -> FWord {
         let range = self.y2_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1996,13 +1999,16 @@ impl<'a> PaintVarLinearGradient<'a> {
     /// Set to 5.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to VarColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.color_line_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
@@ -2015,48 +2021,48 @@ impl<'a> PaintVarLinearGradient<'a> {
     /// varIndexBase + 0.
     pub fn x0(&self) -> FWord {
         let range = self.x0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start point (p₀) y coordinate. For variation, use
     /// varIndexBase + 1.
     pub fn y0(&self) -> FWord {
         let range = self.y0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End point (p₁) x coordinate. For variation, use varIndexBase
     /// + 2.
     pub fn x1(&self) -> FWord {
         let range = self.x1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End point (p₁) y coordinate. For variation, use varIndexBase
     /// + 3.
     pub fn y1(&self) -> FWord {
         let range = self.y1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Rotation point (p₂) x coordinate. For variation, use
     /// varIndexBase + 4.
     pub fn x2(&self) -> FWord {
         let range = self.x2_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Rotation point (p₂) y coordinate. For variation, use
     /// varIndexBase + 5.
     pub fn y2(&self) -> FWord {
         let range = self.y2_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2163,13 +2169,16 @@ impl<'a> PaintRadialGradient<'a> {
     /// Set to 6.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to ColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.color_line_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
@@ -2181,37 +2190,37 @@ impl<'a> PaintRadialGradient<'a> {
     /// Start circle center x coordinate.
     pub fn x0(&self) -> FWord {
         let range = self.x0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start circle center y coordinate.
     pub fn y0(&self) -> FWord {
         let range = self.y0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start circle radius.
     pub fn radius0(&self) -> UfWord {
         let range = self.radius0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End circle center x coordinate.
     pub fn x1(&self) -> FWord {
         let range = self.x1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End circle center y coordinate.
     pub fn y1(&self) -> FWord {
         let range = self.y1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End circle radius.
     pub fn radius1(&self) -> UfWord {
         let range = self.radius1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2313,13 +2322,16 @@ impl<'a> PaintVarRadialGradient<'a> {
     /// Set to 7.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to VarColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.color_line_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
@@ -2332,46 +2344,46 @@ impl<'a> PaintVarRadialGradient<'a> {
     /// varIndexBase + 0.
     pub fn x0(&self) -> FWord {
         let range = self.x0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start circle center y coordinate. For variation, use
     /// varIndexBase + 1.
     pub fn y0(&self) -> FWord {
         let range = self.y0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start circle radius. For variation, use varIndexBase + 2.
     pub fn radius0(&self) -> UfWord {
         let range = self.radius0_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End circle center x coordinate. For variation, use varIndexBase
     /// + 3.
     pub fn x1(&self) -> FWord {
         let range = self.x1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End circle center y coordinate. For variation, use varIndexBase
     /// + 4.
     pub fn y1(&self) -> FWord {
         let range = self.y1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End circle radius. For variation, use varIndexBase + 5.
     pub fn radius1(&self) -> UfWord {
         let range = self.radius1_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2476,13 +2488,16 @@ impl<'a> PaintSweepGradient<'a> {
     /// Set to 8.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to ColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.color_line_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
@@ -2494,27 +2509,27 @@ impl<'a> PaintSweepGradient<'a> {
     /// Center x coordinate.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Center y coordinate.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn start_angle(&self) -> F2Dot14 {
         let range = self.start_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn end_angle(&self) -> F2Dot14 {
         let range = self.end_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2602,13 +2617,16 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// Set to 9.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to VarColorLine table.
     pub fn color_line_offset(&self) -> Offset24 {
         let range = self.color_line_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
@@ -2620,13 +2638,13 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// Center x coordinate. For variation, use varIndexBase + 0.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Center y coordinate. For variation, use varIndexBase + 1.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Start of the angular range of the gradient, 180° in
@@ -2634,7 +2652,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// varIndexBase + 2.
     pub fn start_angle(&self) -> F2Dot14 {
         let range = self.start_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// End of the angular range of the gradient, 180° in
@@ -2642,13 +2660,13 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// varIndexBase + 3.
     pub fn end_angle(&self) -> F2Dot14 {
         let range = self.end_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2737,13 +2755,16 @@ impl<'a> PaintGlyph<'a> {
     /// Set to 10.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint table.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -2755,7 +2776,7 @@ impl<'a> PaintGlyph<'a> {
     /// Glyph ID for the source outline.
     pub fn glyph_id(&self) -> GlyphId16 {
         let range = self.glyph_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2819,13 +2840,13 @@ impl<'a> PaintColrGlyph<'a> {
     /// Set to 11.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Glyph ID for a BaseGlyphList base glyph.
     pub fn glyph_id(&self) -> GlyphId16 {
         let range = self.glyph_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2884,13 +2905,16 @@ impl<'a> PaintTransform<'a> {
     /// Set to 12.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -2902,7 +2926,10 @@ impl<'a> PaintTransform<'a> {
     /// Offset to an Affine2x3 table.
     pub fn transform_offset(&self) -> Offset24 {
         let range = self.transform_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
@@ -2973,13 +3000,16 @@ impl<'a> PaintVarTransform<'a> {
     /// Set to 13.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -2991,7 +3021,10 @@ impl<'a> PaintVarTransform<'a> {
     /// Offset to a VarAffine2x3 table.
     pub fn transform_offset(&self) -> Offset24 {
         let range = self.transform_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
@@ -3062,37 +3095,37 @@ impl<'a> Affine2x3<'a> {
     /// x-component of transformed x-basis vector.
     pub fn xx(&self) -> Fixed {
         let range = self.xx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y-component of transformed x-basis vector.
     pub fn yx(&self) -> Fixed {
         let range = self.yx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x-component of transformed y-basis vector.
     pub fn xy(&self) -> Fixed {
         let range = self.xy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y-component of transformed y-basis vector.
     pub fn yy(&self) -> Fixed {
         let range = self.yy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Translation in x direction.
     pub fn dx(&self) -> Fixed {
         let range = self.dx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Translation in y direction.
     pub fn dy(&self) -> Fixed {
         let range = self.dy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn xx_byte_range(&self) -> Range<usize> {
@@ -3187,46 +3220,46 @@ impl<'a> VarAffine2x3<'a> {
     /// varIndexBase + 0.
     pub fn xx(&self) -> Fixed {
         let range = self.xx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 1.
     pub fn yx(&self) -> Fixed {
         let range = self.yx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 2.
     pub fn xy(&self) -> Fixed {
         let range = self.xy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 3.
     pub fn yy(&self) -> Fixed {
         let range = self.yy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 4.
     pub fn dx(&self) -> Fixed {
         let range = self.dx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 5.
     pub fn dy(&self) -> Fixed {
         let range = self.dy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn xx_byte_range(&self) -> Range<usize> {
@@ -3325,13 +3358,16 @@ impl<'a> PaintTranslate<'a> {
     /// Set to 14.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -3343,13 +3379,13 @@ impl<'a> PaintTranslate<'a> {
     /// Translation in x direction.
     pub fn dx(&self) -> FWord {
         let range = self.dx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Translation in y direction.
     pub fn dy(&self) -> FWord {
         let range = self.dy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3423,13 +3459,16 @@ impl<'a> PaintVarTranslate<'a> {
     /// Set to 15.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -3441,19 +3480,19 @@ impl<'a> PaintVarTranslate<'a> {
     /// Translation in x direction. For variation, use varIndexBase + 0.
     pub fn dx(&self) -> FWord {
         let range = self.dx_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Translation in y direction. For variation, use varIndexBase + 1.
     pub fn dy(&self) -> FWord {
         let range = self.dy_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3530,13 +3569,16 @@ impl<'a> PaintScale<'a> {
     /// Set to 16.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -3548,13 +3590,13 @@ impl<'a> PaintScale<'a> {
     /// Scale factor in x direction.
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.scale_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Scale factor in y direction.
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.scale_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3628,13 +3670,16 @@ impl<'a> PaintVarScale<'a> {
     /// Set to 17.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -3647,20 +3692,20 @@ impl<'a> PaintVarScale<'a> {
     /// 0.
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.scale_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.scale_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3741,13 +3786,16 @@ impl<'a> PaintScaleAroundCenter<'a> {
     /// Set to 18.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -3759,25 +3807,25 @@ impl<'a> PaintScaleAroundCenter<'a> {
     /// Scale factor in x direction.
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.scale_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Scale factor in y direction.
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.scale_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of scaling.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of scaling.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3865,13 +3913,16 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Set to 19.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -3884,34 +3935,34 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     /// 0.
     pub fn scale_x(&self) -> F2Dot14 {
         let range = self.scale_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
     pub fn scale_y(&self) -> F2Dot14 {
         let range = self.scale_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 3.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3999,13 +4050,16 @@ impl<'a> PaintScaleUniform<'a> {
     /// Set to 20.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4017,7 +4071,7 @@ impl<'a> PaintScaleUniform<'a> {
     /// Scale factor in x and y directions.
     pub fn scale(&self) -> F2Dot14 {
         let range = self.scale_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4082,13 +4136,16 @@ impl<'a> PaintVarScaleUniform<'a> {
     /// Set to 21.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4101,13 +4158,13 @@ impl<'a> PaintVarScaleUniform<'a> {
     /// varIndexBase + 0.
     pub fn scale(&self) -> F2Dot14 {
         let range = self.scale_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4181,13 +4238,16 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Set to 22.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4199,19 +4259,19 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Scale factor in x and y directions.
     pub fn scale(&self) -> F2Dot14 {
         let range = self.scale_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of scaling.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of scaling.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4292,13 +4352,16 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Set to 23.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4311,27 +4374,27 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// varIndexBase + 0.
     pub fn scale(&self) -> F2Dot14 {
         let range = self.scale_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 1.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4413,13 +4476,16 @@ impl<'a> PaintRotate<'a> {
     /// Set to 24.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4432,7 +4498,7 @@ impl<'a> PaintRotate<'a> {
     /// value.
     pub fn angle(&self) -> F2Dot14 {
         let range = self.angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4497,13 +4563,16 @@ impl<'a> PaintVarRotate<'a> {
     /// Set to 25.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4516,13 +4585,13 @@ impl<'a> PaintVarRotate<'a> {
     /// value. For variation, use varIndexBase + 0.
     pub fn angle(&self) -> F2Dot14 {
         let range = self.angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4596,13 +4665,16 @@ impl<'a> PaintRotateAroundCenter<'a> {
     /// Set to 26.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4615,19 +4687,19 @@ impl<'a> PaintRotateAroundCenter<'a> {
     /// value.
     pub fn angle(&self) -> F2Dot14 {
         let range = self.angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of rotation.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of rotation.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4708,13 +4780,16 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Set to 27.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4727,27 +4802,27 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     /// value. For variation, use varIndexBase + 0.
     pub fn angle(&self) -> F2Dot14 {
         let range = self.angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 1.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4830,13 +4905,16 @@ impl<'a> PaintSkew<'a> {
     /// Set to 28.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4849,14 +4927,14 @@ impl<'a> PaintSkew<'a> {
     /// counter-clockwise degrees per 1.0 of value.
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.x_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.y_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -4930,13 +5008,16 @@ impl<'a> PaintVarSkew<'a> {
     /// Set to 29.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -4950,7 +5031,7 @@ impl<'a> PaintVarSkew<'a> {
     /// varIndexBase + 0.
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.x_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
@@ -4958,13 +5039,13 @@ impl<'a> PaintVarSkew<'a> {
     /// varIndexBase + 1.
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.y_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -5045,13 +5126,16 @@ impl<'a> PaintSkewAroundCenter<'a> {
     /// Set to 30.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -5064,26 +5148,26 @@ impl<'a> PaintSkewAroundCenter<'a> {
     /// counter-clockwise degrees per 1.0 of value.
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.x_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.y_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of rotation.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of rotation.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -5171,13 +5255,16 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Set to 31.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a Paint subtable.
     pub fn paint_offset(&self) -> Offset24 {
         let range = self.paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
@@ -5191,7 +5278,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// varIndexBase + 0.
     pub fn x_skew_angle(&self) -> F2Dot14 {
         let range = self.x_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Angle of skew in the direction of the y-axis, 180° in
@@ -5199,27 +5286,27 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// varIndexBase + 1.
     pub fn y_skew_angle(&self) -> F2Dot14 {
         let range = self.y_skew_angle_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
     pub fn center_x(&self) -> FWord {
         let range = self.center_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 3.
     pub fn center_y(&self) -> FWord {
         let range = self.center_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Base index into DeltaSetIndexMap.
     pub fn var_index_base(&self) -> u32 {
         let range = self.var_index_base_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -5310,13 +5397,16 @@ impl<'a> PaintComposite<'a> {
     /// Set to 32.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a source Paint table.
     pub fn source_paint_offset(&self) -> Offset24 {
         let range = self.source_paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`source_paint_offset`][Self::source_paint_offset].
@@ -5328,13 +5418,16 @@ impl<'a> PaintComposite<'a> {
     /// A CompositeMode enumeration value.
     pub fn composite_mode(&self) -> CompositeMode {
         let range = self.composite_mode_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Offset to a backdrop Paint table.
     pub fn backdrop_paint_offset(&self) -> Offset24 {
         let range = self.backdrop_paint_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset24::new(Default::default()))
     }
 
     /// Attempt to resolve [`backdrop_paint_offset`][Self::backdrop_paint_offset].

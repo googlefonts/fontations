@@ -41,7 +41,7 @@ impl<'a> CountAll16<'a> {
 
     pub fn some_field(&self) -> u16 {
         let range = self.some_field_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
@@ -109,7 +109,7 @@ impl<'a> CountAll32<'a> {
 
     pub fn some_field(&self) -> u16 {
         let range = self.some_field_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {

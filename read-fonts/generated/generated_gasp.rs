@@ -48,13 +48,13 @@ impl<'a> Gasp<'a> {
     /// Version number (set to 1)
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Number of records to follow
     pub fn num_ranges(&self) -> u16 {
         let range = self.num_ranges_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Sorted by ppem

@@ -59,7 +59,7 @@ impl<'a> BaseArray<'a> {
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
         let range = self.base_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.
@@ -272,7 +272,7 @@ impl<'a> Face<'a> {
 
     pub fn field(&self) -> u16 {
         let range = self.field_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn field_byte_range(&self) -> Range<usize> {

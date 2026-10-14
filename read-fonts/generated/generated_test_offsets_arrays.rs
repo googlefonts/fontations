@@ -47,13 +47,16 @@ impl<'a> KindsOfOffsets<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A normal offset
     pub fn nonnullable_offset(&self) -> Offset16 {
         let range = self.nonnullable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`nonnullable_offset`][Self::nonnullable_offset].
@@ -65,7 +68,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// An offset that is nullable, but always present
     pub fn nullable_offset(&self) -> Nullable<Offset16> {
         let range = self.nullable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Attempt to resolve [`nullable_offset`][Self::nullable_offset].
@@ -77,13 +80,16 @@ impl<'a> KindsOfOffsets<'a> {
     /// count of the array at array_offset
     pub fn array_offset_count(&self) -> u16 {
         let range = self.array_offset_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// An offset to an array:
     pub fn array_offset(&self) -> Offset16 {
         let range = self.array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`array_offset`][Self::array_offset].
@@ -96,7 +102,10 @@ impl<'a> KindsOfOffsets<'a> {
     /// An offset to an array of records
     pub fn record_array_offset(&self) -> Offset16 {
         let range = self.record_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data
+            .read_at(range.start)
+            .ok()
+            .unwrap_or(Offset16::new(Default::default()))
     }
 
     /// Attempt to resolve [`record_array_offset`][Self::record_array_offset].
@@ -264,13 +273,13 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// The version
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// The number of items in each array
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// A normal array offset
@@ -426,13 +435,13 @@ impl<'a> KindsOfArrays<'a> {
 
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// the number of items in each array
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// an array of scalars
@@ -558,7 +567,7 @@ impl<'a> VarLenHaver<'a> {
 
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy<'a>> {
@@ -647,7 +656,7 @@ impl<'a> OffsetAfterArray<'a> {
 
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
@@ -777,7 +786,7 @@ impl<'a> Dummy<'a> {
 
     pub fn value(&self) -> u16 {
         let range = self.value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn value_byte_range(&self) -> Range<usize> {

@@ -92,31 +92,31 @@ impl<'a> SimpleGlyph<'a> {
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
         let range = self.number_of_contours_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
         let range = self.x_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
         let range = self.y_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
         let range = self.x_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
         let range = self.y_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of point indices for the last point of each contour,
@@ -651,31 +651,31 @@ impl<'a> CompositeGlyph<'a> {
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
         let range = self.number_of_contours_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
         let range = self.x_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
         let range = self.y_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
         let range = self.x_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
         let range = self.y_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// component flag
