@@ -5,8 +5,8 @@ use std::collections::{HashMap, HashSet};
 
 use font_types::Fixed;
 use incremental_font_transfer::{
-    patch_group::{PatchGroup, UrlStatus},
-    patchmap::{DesignSpace, FeatureSet, PatchUrl, SubsetDefinition},
+    patch_group::UrlStatus,
+    patchmap::{DesignSpace, FeatureSet, PatchMap, PatchUrl, SubsetDefinition},
 };
 use libfuzzer_sys::{arbitrary, fuzz_target};
 use read_fonts::{
@@ -86,9 +86,12 @@ fuzz_target!(|input: FuzzInput| {
 
     let subset_definition = input.to_subset_definition();
 
+    let Ok(patch_map) = PatchMap::new(&font) else {
+        return;
+    };
+
     // TODO(garretrieger): generate a random patch data map.
-    let Ok(group) = PatchGroup::select_next_patches(font, &Default::default(), &subset_definition)
-    else {
+    let Ok(group) = patch_map.select_next_patches(&Default::default(), &subset_definition) else {
         return;
     };
 
@@ -112,5 +115,6 @@ fuzz_target!(|input: FuzzInput| {
     // This allows the fuzzer to more effectively explore code gated behind brotli decoding.
     //
     // TODO(garretrieger): In addition to the noop decoder, also have one that can return all of the possible errors.
-    let _ = black_box(group.apply_next_patches_with_decoder(&mut url_map, &NoopBrotliDecoder));
+    let _ =
+        black_box(group.apply_next_patches_with_decoder(font, &mut url_map, &NoopBrotliDecoder));
 });

@@ -3,7 +3,7 @@
 //! This provides methods for selecting a maximal group of patches that are compatible with each other and
 //! additionally methods for applying that group of patches.
 
-use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError, TableProvider};
+use read_fonts::{tables::ift::CompatibilityId, FontRef, ReadError};
 use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
 use std::{
     cmp::Ordering,
@@ -18,6 +18,23 @@ use crate::{
     },
 };
 
+/// A group of compatible patches selected from a [`PatchMap`].
+///
+/// This is a group which can be applied simultaneously to the font the [`PatchMap`]
+/// was derived from. Patches are initially missing data which must be fetched and
+/// supplied to the patch application method.
+///
+/// Also optionally includes a list of patches which are not compatible but have been
+/// requested to be preloaded.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectedPatches {
+    patches: Option<CompatibleGroup>,
+
+    // These patches aren't compatible, but have been requested as preloads by the
+    // patch mapping.
+    preload_urls: BTreeSet<PatchUrl>,
+}
+
 /// A group of patches derived from a single IFT font.
 ///
 /// This is a group which can be applied simultaneously to that font. Patches are
@@ -26,23 +43,24 @@ use crate::{
 ///
 /// Also optionally includes a list of patches which are not compatible but have been
 /// requested to be preloaded.
+#[deprecated(
+    since = "0.10.0",
+    note = "Use PatchMap::new(&font)?.select_next_patches(patch_data, subset_definition) instead."
+)]
 #[derive(Clone)]
 pub struct PatchGroup<'a> {
     font: FontRef<'a>,
-    patches: Option<CompatibleGroup>,
-
-    // These patches aren't compatible, but have been requested as preloads by the
-    // patch mapping.
-    preload_urls: BTreeSet<PatchUrl>,
+    selected: SelectedPatches,
 }
 
 // We implement Debug manually because FontRef does not implement Debug unconditionally.
 // Additionally, FontRef may be too verbose to be helpful.
+#[allow(deprecated)]
 impl std::fmt::Debug for PatchGroup<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PatchGroup")
-            .field("patches", &self.patches)
-            .field("preload_urls", &self.preload_urls)
+            .field("patches", &self.selected.patches)
+            .field("preload_urls", &self.selected.preload_urls)
             .finish_non_exhaustive()
     }
 }
@@ -74,6 +92,7 @@ impl Selection {
     }
 }
 
+#[allow(deprecated)]
 impl PatchGroup<'_> {
     /// Intersect the available and unapplied patches in ift_font against subset_definition
     ///
@@ -86,17 +105,67 @@ impl PatchGroup<'_> {
         patch_data: &HashMap<PatchUrl, UrlStatus>,
         subset_definition: &SubsetDefinition,
     ) -> Result<PatchGroup<'b>, ReadError> {
-        let candidates = PatchMap::new(&ift_font)?.intersecting_patches(subset_definition)?;
+        let selected =
+            PatchMap::new(&ift_font)?.select_next_patches(patch_data, subset_definition)?;
+        Ok(PatchGroup {
+            font: ift_font,
+            selected,
+        })
+    }
+
+    /// Returns an iterator over URLs in this group.
+    pub fn urls(&self) -> impl Iterator<Item = &PatchUrl> {
+        self.selected.urls()
+    }
+
+    /// Returns true if there is at least one url associated with this group.
+    pub fn has_urls(&self) -> bool {
+        self.selected.has_urls()
+    }
+
+    pub fn next_invalidating_patch(&self) -> Option<&PatchInfo> {
+        self.selected.next_invalidating_patch()
+    }
+
+    /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
+    ///
+    /// Returns the bytes of the updated font.
+    pub fn apply_next_patches(
+        self,
+        patch_data: &mut HashMap<PatchUrl, UrlStatus>,
+    ) -> Result<Vec<u8>, PatchingError> {
+        self.selected.apply_next_patches(self.font, patch_data)
+    }
+
+    /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
+    ///
+    /// Returns the bytes of the updated font.
+    pub fn apply_next_patches_with_decoder<D: SharedBrotliDecoder>(
+        self,
+        patch_data: &mut HashMap<PatchUrl, UrlStatus>,
+        brotli_decoder: &D,
+    ) -> Result<Vec<u8>, PatchingError> {
+        self.selected
+            .apply_next_patches_with_decoder(self.font, patch_data, brotli_decoder)
+    }
+}
+
+impl SelectedPatches {
+    pub(crate) fn select_next_patches(
+        patch_map: &PatchMap,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
+        subset_definition: &SubsetDefinition,
+    ) -> Result<SelectedPatches, ReadError> {
+        let candidates = patch_map.intersecting_patches(subset_definition)?;
         if candidates.is_empty() {
-            return Ok(PatchGroup {
-                font: ift_font,
+            return Ok(SelectedPatches {
                 patches: None,
                 preload_urls: Default::default(),
             });
         }
 
-        let ift_compat_id = ift_font.ift().ok().map(|t| t.compatibility_id());
-        let iftx_compat_id = ift_font.iftx().ok().map(|t| t.compatibility_id());
+        let ift_compat_id = patch_map.ift_compat_id();
+        let iftx_compat_id = patch_map.iftx_compat_id();
         if ift_compat_id == iftx_compat_id {
             // The spec disallows two tables with same compat ids.
             // See: https://w3c.github.io/IFT/Overview.html#extend-font-subset
@@ -110,8 +179,7 @@ impl PatchGroup<'_> {
             iftx_compat_id,
         )?;
 
-        Ok(PatchGroup {
-            font: ift_font,
+        Ok(SelectedPatches {
             patches: Some(compat_group),
             preload_urls,
         })
@@ -353,9 +421,10 @@ impl PatchGroup<'_> {
     /// Returns the bytes of the updated font.
     pub fn apply_next_patches(
         self,
+        font: FontRef<'_>,
         patch_data: &mut HashMap<PatchUrl, UrlStatus>,
     ) -> Result<Vec<u8>, PatchingError> {
-        self.apply_next_patches_with_decoder(patch_data, &BuiltInBrotliDecoder)
+        self.apply_next_patches_with_decoder(font, patch_data, &BuiltInBrotliDecoder)
     }
 
     /// Attempt to apply the next patch (or patches if non-invalidating) listed in this group.
@@ -363,6 +432,7 @@ impl PatchGroup<'_> {
     /// Returns the bytes of the updated font.
     pub fn apply_next_patches_with_decoder<D: SharedBrotliDecoder>(
         self,
+        font: FontRef<'_>,
         patch_data: &mut HashMap<PatchUrl, UrlStatus>,
         brotli_decoder: &D,
     ) -> Result<Vec<u8>, PatchingError> {
@@ -373,9 +443,7 @@ impl PatchGroup<'_> {
 
             match entry {
                 UrlStatus::Pending(patch_data) => {
-                    let r = self
-                        .font
-                        .apply_table_keyed_patch(patch, patch_data, brotli_decoder)?;
+                    let r = font.apply_table_keyed_patch(patch, patch_data, brotli_decoder)?;
                     *entry = UrlStatus::Applied;
                     return Ok(r);
                 }
@@ -402,8 +470,7 @@ impl PatchGroup<'_> {
                 return Err(PatchingError::EmptyPatchList);
             }
 
-            self.font
-                .apply_glyph_keyed_patches(accumulated_info.into_iter(), brotli_decoder)?
+            font.apply_glyph_keyed_patches(accumulated_info.into_iter(), brotli_decoder)?
         };
 
         for info in self.non_invalidating_patch_iter() {
@@ -861,7 +928,7 @@ mod tests {
 
     #[test]
     fn full_invalidation() {
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p1_full()],
             &Default::default(),
             Some(cid_1()),
@@ -875,7 +942,7 @@ mod tests {
         );
         assert!(preloads.is_empty());
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 p1_full(),
                 p2_partial_c1(),
@@ -906,7 +973,7 @@ mod tests {
         let mut p1_full = p1_full();
         p1_full.preload_urls.extend(expected_preloads.clone());
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p1_full.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -920,7 +987,7 @@ mod tests {
         );
         assert_eq!(preloads, BTreeSet::from(expected_preloads.clone()));
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 p1_full,
                 p2_partial_c1(),
@@ -950,7 +1017,7 @@ mod tests {
             .preload_urls
             .extend(preload_list(&["//foo.bar/04".to_string()]));
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p1_full.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -967,7 +1034,7 @@ mod tests {
 
     #[test]
     fn full_invalidation_selection_order() {
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![full(3, 9), full(1, 7), full(2, 24)],
             &Default::default(),
             Some(cid_1()),
@@ -985,7 +1052,7 @@ mod tests {
     #[test]
     fn partial_invalidation_selection_order() {
         // Only IFT
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 partial(3, cid_1(), 9),
                 partial(1, cid_1(), 23),
@@ -1009,7 +1076,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // Only IFTX
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 partial(4, cid_2(), 1),
                 partial(5, cid_2(), 22),
@@ -1034,7 +1101,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // Both
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 partial(3, cid_1(), 9),
                 partial(1, cid_1(), 23),
@@ -1070,7 +1137,7 @@ mod tests {
         // 3 -> 0C
         // //foo.bar/{id}
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 partial(3, cid_1(), 9),
                 partial(1, cid_1(), 23),
@@ -1095,7 +1162,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // With multiple preloaded
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![
                 partial(3, cid_1(), 9),
                 partial(1, cid_1(), 23),
@@ -1135,7 +1202,7 @@ mod tests {
         partial_c2.preload_urls.extend(expected_preloads_c2.clone());
 
         // Only IFT
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![partial_c1.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -1155,7 +1222,7 @@ mod tests {
         assert_eq!(preloads, BTreeSet::from(expected_preloads_c1.clone()));
 
         // Only IFTX
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![partial_c2.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -1176,7 +1243,7 @@ mod tests {
         assert_eq!(preloads, BTreeSet::from(expected_preloads_c2.clone()));
 
         // Both
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![partial_c1, partial_c2],
             &Default::default(),
             Some(cid_1()),
@@ -1224,7 +1291,7 @@ mod tests {
             .preload_urls
             .extend(preload_list(&expected_preloads_c2));
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![partial_c1, partial_c2],
             &Default::default(),
             Some(cid_1()),
@@ -1272,7 +1339,7 @@ mod tests {
             .extend(preload_list(&expected_preloads_c2));
 
         // (no inval, no inval)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p4_no_c1, p5_no_c2.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -1299,7 +1366,7 @@ mod tests {
         );
 
         // (None, no inval)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p4_no_c2, p5_no_c2],
             &Default::default(),
             Some(cid_1()),
@@ -1348,7 +1415,7 @@ mod tests {
         ]));
 
         // (no inval, no inval)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p4_no_c1, p5_no_c2.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -1378,7 +1445,7 @@ mod tests {
     #[test]
     fn mixed() {
         // (partial, no inval)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1401,7 +1468,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // (no inval, partial)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p4_no_c1(), p5_no_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1424,7 +1491,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // (partial, empty)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1()],
             &Default::default(),
             Some(cid_1()),
@@ -1444,7 +1511,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // (empty, partial)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p5_no_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1487,7 +1554,7 @@ mod tests {
             .extend(preload_list(&["hij".to_string(), "def".to_string()]));
 
         // (partial, no inval)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1, p4_no_c1.clone(), p5_no_c2.clone()],
             &Default::default(),
             Some(cid_1()),
@@ -1513,7 +1580,7 @@ mod tests {
         );
 
         // (no inval, partial)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p3_partial_c2, p4_no_c1, p5_no_c2],
             &Default::default(),
             Some(cid_1()),
@@ -1542,7 +1609,7 @@ mod tests {
     #[test]
     fn missing_compat_ids() {
         // (None, None)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             &Default::default(),
             None,
@@ -1560,7 +1627,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // (Some, None)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1580,7 +1647,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // (None, Some)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p4_no_c1(), p5_no_c2()],
             &Default::default(),
             None,
@@ -1603,7 +1670,7 @@ mod tests {
     #[test]
     fn dedups_urls() {
         // Duplicates inside a scope
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c1()],
             &Default::default(),
             Some(cid_1()),
@@ -1624,7 +1691,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // Duplicates across scopes (no invalidation + no invalidation)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p4_no_c1(), p4_no_c2(), p5_no_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1648,7 +1715,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // Duplicates across scopes (partial + partial)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_partial_c2(), p3_partial_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1670,7 +1737,7 @@ mod tests {
         assert!(preloads.is_empty());
 
         // Duplicates across scopes (partial + no invalidation)
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p2_partial_c1(), p2_no_c2(), p5_no_c2()],
             &Default::default(),
             Some(cid_1()),
@@ -1692,7 +1759,7 @@ mod tests {
         );
         assert!(preloads.is_empty());
 
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             vec![p3_partial_c2(), p3_no_c1(), p4_no_c1()],
             &Default::default(),
             Some(cid_1()),
@@ -1715,9 +1782,8 @@ mod tests {
         assert!(preloads.is_empty());
     }
 
-    fn create_group_for(urls: Vec<PatchMapEntry>) -> PatchGroup<'static> {
-        let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
-        let (group, preloads) = PatchGroup::select_next_patches_from_candidates(
+    fn create_group_for(urls: Vec<PatchMapEntry>) -> SelectedPatches {
+        let (group, preloads) = SelectedPatches::select_next_patches_from_candidates(
             urls,
             &Default::default(),
             Some(cid_1()),
@@ -1725,17 +1791,14 @@ mod tests {
         )
         .unwrap();
 
-        PatchGroup {
-            font: data,
+        SelectedPatches {
             patches: Some(group),
             preload_urls: preloads,
         }
     }
 
-    fn empty_group() -> PatchGroup<'static> {
-        let data = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
-        PatchGroup {
-            font: data,
+    fn empty_group() -> SelectedPatches {
+        SelectedPatches {
             patches: None,
             preload_urls: Default::default(),
         }
@@ -1832,7 +1895,10 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([55].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         assert!(!g.has_urls());
         assert_eq!(
@@ -1841,7 +1907,7 @@ mod tests {
         );
 
         assert_eq!(
-            g.apply_next_patches(&mut Default::default()),
+            g.apply_next_patches(font, &mut Default::default()),
             Err(PatchingError::EmptyPatchList)
         );
     }
@@ -1852,7 +1918,10 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         assert!(g.has_urls());
         let mut patch_data = HashMap::from([
@@ -1866,7 +1935,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font, &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1909,7 +1978,10 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         assert!(g.has_urls());
         let mut patch_data = HashMap::from([
@@ -1924,7 +1996,7 @@ mod tests {
         ]);
 
         let new_font = g
-            .apply_next_patches_with_decoder(&mut patch_data, &CustomBrotliDecoder)
+            .apply_next_patches_with_decoder(font, &mut patch_data, &CustomBrotliDecoder)
             .unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
@@ -1959,14 +2031,17 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         let mut patch_data = HashMap::from([(
             PatchUrl::new("foo/04"),
             UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font, &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -1988,14 +2063,17 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         let mut patch_data = HashMap::from([(
             PatchUrl::new("foo/04"),
             UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
         )]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font, &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -2027,7 +2105,10 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font.clone(), &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         let mut patch_2 = table_keyed_patch();
         patch_2.write_at("compat_id", 2u32);
@@ -2045,7 +2126,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font.clone(), &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -2093,7 +2174,10 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font.clone(), &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         let patch_ift = table_keyed_patch();
         let patch_iftx =
@@ -2110,7 +2194,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font.clone(), &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         assert_eq!(
@@ -2154,7 +2238,10 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         let patch1 =
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
@@ -2176,7 +2263,7 @@ mod tests {
             ),
         ]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font, &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -2202,7 +2289,10 @@ mod tests {
         );
 
         // there should be no more applicable patches left now.
-        let g = PatchGroup::select_next_patches(new_font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&new_font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
         assert!(!g.has_urls());
     }
 
@@ -2253,7 +2343,10 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         let patch =
             assemble_glyph_keyed_patch(glyph_keyed_patch_header(), glyf_u16_glyph_patches());
@@ -2263,7 +2356,7 @@ mod tests {
             UrlStatus::Pending(patch.as_slice().to_vec()),
         )]);
 
-        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = g.apply_next_patches(font, &mut patch_data).unwrap();
         let new_font = FontRef::new(&new_font).unwrap();
 
         let new_glyf: &[u8] = new_font.table_data(Tag::new(b"glyf")).unwrap().as_bytes();
@@ -2286,7 +2379,10 @@ mod tests {
 
         // there should be one IFTX patch for foo/04 left now.
         let all = SubsetDefinition::all();
-        let group = PatchGroup::select_next_patches(new_font, &Default::default(), &all).unwrap();
+        let group = PatchMap::new(&new_font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &all)
+            .unwrap();
         let mut info = patch_info_iftx("foo/04");
         info.application_flag_bit_indices = ApplicativeBitIndices::one(334);
         assert_eq!(
@@ -2310,7 +2406,9 @@ mod tests {
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font.clone(), &Default::default(), &s);
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s);
 
         assert!(g.is_err(), "did not fail as expected.");
         if let Err(err) = g {
@@ -2326,9 +2424,7 @@ mod tests {
         let font = base_font(Some(buffer), None);
         let font = FontRef::new(&font).unwrap();
 
-        let s = SubsetDefinition::codepoints([5].into_iter().collect());
-
-        let Err(err) = PatchGroup::select_next_patches(font, &Default::default(), &s) else {
+        let Err(err) = PatchMap::new(&font) else {
             panic!("Should have failed")
         };
         assert_eq!(
@@ -2361,7 +2457,10 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         let s = SubsetDefinition::codepoints([10].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         // Expected ID ordering
         // IFT
@@ -2408,7 +2507,10 @@ mod tests {
         let font = FontRef::new(font.as_slice()).unwrap();
 
         let s = SubsetDefinition::codepoints([10].into_iter().collect());
-        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+        let g = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(&Default::default(), &s)
+            .unwrap();
 
         // Expected ID ordering
         // IFT
@@ -2429,5 +2531,33 @@ mod tests {
             .collect();
 
         assert_eq!(urls, expected_urls);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn deprecated_patch_group_compat() {
+        let font = base_font(Some(table_keyed()), None);
+        let font = FontRef::new(&font).unwrap();
+
+        let s = SubsetDefinition::codepoints([5].into_iter().collect());
+        let g = PatchGroup::select_next_patches(font, &Default::default(), &s).unwrap();
+
+        assert!(g.has_urls());
+        assert_eq!(
+            g.urls().map(|url| url.as_ref()).collect::<Vec<&str>>(),
+            vec!["foo/04"]
+        );
+
+        let mut patch_data = HashMap::from([(
+            PatchUrl::new("foo/04"),
+            UrlStatus::Pending(table_keyed_patch().as_slice().to_vec()),
+        )]);
+
+        let new_font = g.apply_next_patches(&mut patch_data).unwrap();
+        let new_font = FontRef::new(&new_font).unwrap();
+        assert_eq!(
+            new_font.table_data(Tag::new(b"tab1")).unwrap().as_bytes(),
+            TABLE_1_FINAL_STATE,
+        );
     }
 }

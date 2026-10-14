@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use incremental_font_transfer::patch_group::{PatchGroup, UrlStatus};
-use incremental_font_transfer::patchmap::{PatchUrl, SubsetDefinition};
+use incremental_font_transfer::patch_group::UrlStatus;
+use incremental_font_transfer::patchmap::{PatchMap, PatchUrl, SubsetDefinition};
 use read_fonts::collections::IntSet;
 use read_fonts::FontRef;
 use std::collections::HashMap;
@@ -60,12 +60,11 @@ impl FontEntry {
         let mut newly_loaded: HashMap<PatchUrl, Vec<u8>> = HashMap::new();
         let mut current_font = start_font;
         loop {
-            let pg = PatchGroup::select_next_patches(
-                FontRef::new(&current_font).unwrap(),
-                &patch_data,
-                subset,
-            )
-            .unwrap();
+            let font = FontRef::new(&current_font).unwrap();
+            let pg = PatchMap::new(&font)
+                .unwrap()
+                .select_next_patches(&patch_data, subset)
+                .unwrap();
             if !pg.has_urls() {
                 break;
             }
@@ -78,7 +77,7 @@ impl FontEntry {
                     newly_loaded.insert(url.clone(), bytes);
                 }
             }
-            current_font = pg.apply_next_patches(&mut patch_data).unwrap();
+            current_font = pg.apply_next_patches(font, &mut patch_data).unwrap();
         }
         (current_font, patch_data, newly_loaded)
     }
@@ -115,17 +114,16 @@ fn apply_all_patches(
 ) -> usize {
     let mut count = 0;
     loop {
-        let pg = PatchGroup::select_next_patches(
-            FontRef::new(current_font).unwrap(),
-            patch_data,
-            subset,
-        )
-        .unwrap();
+        let font = FontRef::new(current_font).unwrap();
+        let pg = PatchMap::new(&font)
+            .unwrap()
+            .select_next_patches(patch_data, subset)
+            .unwrap();
         if !pg.has_urls() {
             break;
         }
         count += 1;
-        *current_font = pg.apply_next_patches(patch_data).unwrap();
+        *current_font = pg.apply_next_patches(font, patch_data).unwrap();
     }
     count
 }
@@ -143,14 +141,13 @@ fn bench_patch_selection(c: &mut Criterion) {
         let font_bytes = entry.font_bytes();
         let patch_data: HashMap<PatchUrl, UrlStatus> = HashMap::new();
         let subset = SubsetDefinition::all();
-        let url_count = PatchGroup::select_next_patches(
-            FontRef::new(&font_bytes).unwrap(),
-            &patch_data,
-            &subset,
-        )
-        .unwrap()
-        .urls()
-        .count();
+        let font = FontRef::new(&font_bytes).unwrap();
+        let patch_map = PatchMap::new(&font).unwrap();
+        let url_count = patch_map
+            .select_next_patches(&patch_data, &subset)
+            .unwrap()
+            .urls()
+            .count();
 
         group.bench_with_input(
             BenchmarkId::new(entry.dir, format!("{url_count}-patches")),
@@ -158,7 +155,9 @@ fn bench_patch_selection(c: &mut Criterion) {
             |b, (font_bytes, patch_data, subset)| {
                 b.iter(|| {
                     let font = FontRef::new(font_bytes).unwrap();
-                    PatchGroup::select_next_patches(font, patch_data, subset)
+                    PatchMap::new(&font)
+                        .unwrap()
+                        .select_next_patches(patch_data, subset)
                 });
             },
         );
@@ -247,16 +246,15 @@ fn bench_apply_patches_incremental(c: &mut Criterion) {
                     .collect();
                 let subset = chars_to_subset(TEXT_LATIN.chars());
                 loop {
-                    let pg = PatchGroup::select_next_patches(
-                        FontRef::new(&current_font).unwrap(),
-                        &patch_data,
-                        &subset,
-                    )
-                    .unwrap();
+                    let font = FontRef::new(&current_font).unwrap();
+                    let pg = PatchMap::new(&font)
+                        .unwrap()
+                        .select_next_patches(&patch_data, &subset)
+                        .unwrap();
                     if !pg.has_urls() {
                         return current_font;
                     }
-                    current_font = pg.apply_next_patches(&mut patch_data).unwrap();
+                    current_font = pg.apply_next_patches(font, &mut patch_data).unwrap();
                 }
             });
         },
@@ -282,16 +280,15 @@ fn bench_apply_patches_incremental(c: &mut Criterion) {
                     .collect();
                 let subset = chars_to_subset(TEXT_LATIN.chars().chain(TEXT_VIETNAMESE.chars()));
                 loop {
-                    let pg = PatchGroup::select_next_patches(
-                        FontRef::new(&current_font).unwrap(),
-                        &patch_data,
-                        &subset,
-                    )
-                    .unwrap();
+                    let font = FontRef::new(&current_font).unwrap();
+                    let pg = PatchMap::new(&font)
+                        .unwrap()
+                        .select_next_patches(&patch_data, &subset)
+                        .unwrap();
                     if !pg.has_urls() {
                         return current_font;
                     }
-                    current_font = pg.apply_next_patches(&mut patch_data).unwrap();
+                    current_font = pg.apply_next_patches(font, &mut patch_data).unwrap();
                 }
             });
         },
@@ -319,16 +316,15 @@ fn bench_apply_patches_incremental(c: &mut Criterion) {
                         .chain(TEXT_GREEK_CYRILLIC.chars()),
                 );
                 loop {
-                    let pg = PatchGroup::select_next_patches(
-                        FontRef::new(&current_font).unwrap(),
-                        &patch_data,
-                        &subset,
-                    )
-                    .unwrap();
+                    let font = FontRef::new(&current_font).unwrap();
+                    let pg = PatchMap::new(&font)
+                        .unwrap()
+                        .select_next_patches(&patch_data, &subset)
+                        .unwrap();
                     if !pg.has_urls() {
                         return current_font;
                     }
-                    current_font = pg.apply_next_patches(&mut patch_data).unwrap();
+                    current_font = pg.apply_next_patches(font, &mut patch_data).unwrap();
                 }
             });
         },
@@ -364,16 +360,15 @@ fn bench_apply_patches_incremental(c: &mut Criterion) {
                     .collect();
                 let subset = chars_to_subset(SC_TEXT_OPENING.chars());
                 loop {
-                    let pg = PatchGroup::select_next_patches(
-                        FontRef::new(&current_font).unwrap(),
-                        &patch_data,
-                        &subset,
-                    )
-                    .unwrap();
+                    let font = FontRef::new(&current_font).unwrap();
+                    let pg = PatchMap::new(&font)
+                        .unwrap()
+                        .select_next_patches(&patch_data, &subset)
+                        .unwrap();
                     if !pg.has_urls() {
                         return current_font;
                     }
-                    current_font = pg.apply_next_patches(&mut patch_data).unwrap();
+                    current_font = pg.apply_next_patches(font, &mut patch_data).unwrap();
                 }
             });
         },
@@ -396,16 +391,15 @@ fn bench_apply_patches_incremental(c: &mut Criterion) {
                 let subset =
                     chars_to_subset(SC_TEXT_OPENING.chars().chain(SC_TEXT_REMAINING.chars()));
                 loop {
-                    let pg = PatchGroup::select_next_patches(
-                        FontRef::new(&current_font).unwrap(),
-                        &patch_data,
-                        &subset,
-                    )
-                    .unwrap();
+                    let font = FontRef::new(&current_font).unwrap();
+                    let pg = PatchMap::new(&font)
+                        .unwrap()
+                        .select_next_patches(&patch_data, &subset)
+                        .unwrap();
                     if !pg.has_urls() {
                         return current_font;
                     }
-                    current_font = pg.apply_next_patches(&mut patch_data).unwrap();
+                    current_font = pg.apply_next_patches(font, &mut patch_data).unwrap();
                 }
             });
         },

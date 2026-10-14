@@ -11,8 +11,8 @@ use std::{
 use clap::Parser;
 use font_types::{Fixed, Tag};
 use incremental_font_transfer::{
-    patch_group::{PatchGroup, UrlStatus},
-    patchmap::{DesignSpace, FeatureSet, PatchUrl, SubsetDefinition},
+    patch_group::UrlStatus,
+    patchmap::{DesignSpace, FeatureSet, PatchMap, PatchUrl, SubsetDefinition},
 };
 use read_fonts::collections::{IntSet, RangeSet};
 use read_fonts::tables::ift::{GlyphKeyedPatch, GlyphPatches};
@@ -118,7 +118,9 @@ fn main() {
         it_count += 1;
         println!(">> Iteration {}", it_count);
         let font = FontRef::new(&font_bytes).expect("Input font parsing failed");
-        let next_patches = PatchGroup::select_next_patches(font, &patch_data, &subset_definition)
+        let next_patches = PatchMap::new(&font)
+            .expect("Patch map parsing failed")
+            .select_next_patches(&patch_data, &subset_definition)
             .expect("Patch selection failed");
         if !next_patches.has_urls() {
             println!("    No outstanding patches, all done.");
@@ -196,7 +198,7 @@ fn main() {
         }
 
         font_bytes = next_patches
-            .apply_next_patches(&mut patch_data)
+            .apply_next_patches(font, &mut patch_data)
             .expect("Patch application failed.");
     }
 

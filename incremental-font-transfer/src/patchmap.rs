@@ -22,6 +22,7 @@ use read_fonts::{
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 
+use crate::patch_group::{SelectedPatches, UrlStatus};
 use crate::short_string::ShortString;
 use crate::url_templates;
 use crate::url_templates::UrlTemplateError;
@@ -106,6 +107,32 @@ impl PatchMap {
     pub fn has_intersecting_patches(&self, subset_definition: &SubsetDefinition) -> bool {
         self.tables()
             .any(|table| table.has_intersecting_patches(subset_definition))
+    }
+
+    /// Intersect the available and unapplied patches in this patch map against `subset_definition`.
+    ///
+    /// `patch_data` provides any patch data that has been previously loaded, keyed by [`PatchUrl`].
+    /// May be empty if no patch data is loaded yet.
+    ///
+    /// Returns a group of [`SelectedPatches`] which would be applied next.
+    pub fn select_next_patches(
+        &self,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
+        subset_definition: &SubsetDefinition,
+    ) -> Result<SelectedPatches, ReadError> {
+        SelectedPatches::select_next_patches(self, patch_data, subset_definition)
+    }
+
+    pub(crate) fn ift_compat_id(&self) -> Option<CompatibilityId> {
+        self.tables[0]
+            .as_ref()
+            .map(|t| t.tag.expected_compat_id().clone())
+    }
+
+    pub(crate) fn iftx_compat_id(&self) -> Option<CompatibilityId> {
+        self.tables[1]
+            .as_ref()
+            .map(|t| t.tag.expected_compat_id().clone())
     }
 
     /// Iterates over the mapping tables present in the font, "IFT" before "IFTX".
