@@ -166,15 +166,18 @@ impl<'a> Shaper<'a> {
                 lookups.extend(alternate.lookup_list_indices().iter().map(|ix| ix.get()));
             }
         }
+        // Without lookup variations, a single location uses one list as is.
+        let mut merged = all_locations;
         if let Some(lookup_variations) = variations.lookup_variations() {
-            if all_locations {
-                lookup_variations.add_all(feature_ix, &mut lookups);
+            merged = if all_locations {
+                lookup_variations.add_all(feature_ix, &mut lookups)
             } else {
-                lookup_variations.apply(feature_ix, self.coords, delta, &mut lookups);
-            }
+                lookup_variations.apply(feature_ix, self.coords, delta, &mut lookups)
+            } || merged;
         }
-        lookups.sort_unstable();
-        lookups.dedup();
+        if merged {
+            sort_and_dedup(&mut lookups);
+        }
         Some(lookups)
     }
 
@@ -945,11 +948,45 @@ enum ProcessLookupError {
     ExceededMaxDepth,
 }
 
+/// Sorts lookup indices and removes duplicates, in time linear in the list
+/// and the largest index.
+///
+/// Lists merged from several features are short, but they come from font
+/// data, so a quadratic sort is not safe, and a bitset is smaller than the
+/// generic sort.
+fn sort_and_dedup(lookups: &mut Vec<u16>) {
+    let Some(&max) = lookups.iter().max() else {
+        return;
+    };
+    let mut seen = vec![0u64; usize::from(max) / 64 + 1];
+    for &index in lookups.iter() {
+        seen[usize::from(index) / 64] |= 1 << (index % 64);
+    }
+    lookups.clear();
+    for (word_index, &word) in seen.iter().enumerate() {
+        let mut word = word;
+        while word != 0 {
+            lookups.push((word_index * 64) as u16 + word.trailing_zeros() as u16);
+            word &= word - 1;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{super::style, *};
     use font_test_data::bebuffer::BeBuffer;
     use raw::{tables::gsub::OriginalSubstitutionLookupList, FontData, FontRead};
+
+    #[test]
+    fn sort_and_dedup_lookups() {
+        let mut lookups = vec![300, 2, 65535, 2, 0, 300, 64, 63];
+        sort_and_dedup(&mut lookups);
+        assert_eq!(lookups, [0, 2, 63, 64, 300, 65535]);
+        let mut empty = vec![];
+        sort_and_dedup(&mut empty);
+        assert!(empty.is_empty());
+    }
 
     #[test]
     fn small_caps_subst() {
