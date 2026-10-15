@@ -264,6 +264,9 @@ impl Context<'_> {
             Paint::Glyph(v) => {
                 self.paint(&mut v.paint, depth + 1)?;
             }
+            Paint::Glyph2(v) => {
+                self.paint(&mut v.paint, depth + 1)?;
+            }
             Paint::ColrGlyph(_) => {}
             Paint::Transform(v) => {
                 self.paint(&mut v.paint, depth + 1)?;

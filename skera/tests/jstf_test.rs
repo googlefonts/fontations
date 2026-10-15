@@ -117,7 +117,10 @@ fn check(bytes: &[u8], weight: f32, width: f32) {
             let PositionLookup::Cursive(cursive) = maximum.lookups[1].as_ref() else {
                 panic!()
             };
-            let anchors = &cursive.subtables[0].entry_exit_record[0];
+            let CursivePos::Format1(cursive) = cursive.subtables[0].as_ref() else {
+                panic!()
+            };
+            let anchors = &cursive.entry_exit_record[0];
             let anchor = anchors.entry_anchor.as_ref().unwrap();
             let (x, y, dx, dy) = match anchor {
                 AnchorTable::Format1(v) => (v.x_coordinate, v.y_coordinate, None, None),
@@ -141,7 +144,10 @@ fn check(bytes: &[u8], weight: f32, width: f32) {
             let PositionLookup::Cursive(ref_cursive) = ref_max.lookups[1].as_ref() else {
                 panic!()
             };
-            let AnchorTable::Format3(ref_exit) = ref_cursive.subtables[0].entry_exit_record[0]
+            let CursivePos::Format1(ref_cursive) = ref_cursive.subtables[0].as_ref() else {
+                panic!()
+            };
+            let AnchorTable::Format3(ref_exit) = ref_cursive.entry_exit_record[0]
                 .exit_anchor
                 .as_ref()
                 .unwrap()
