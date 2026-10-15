@@ -726,7 +726,9 @@ mod tests {
         let lookuplist = wlayout::LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookuplist).unwrap();
 
-        let rlookuplist = rgpos::PositionLookupList::read(FontData::new(&bytes)).unwrap();
+        let rlookuplist = rgpos::PositionLookupList::from(
+            rgpos::LegacyPositionLookupList::read(FontData::new(&bytes)).unwrap(),
+        );
         let rlookup = rlookuplist.lookups().get(0).unwrap();
         assert_eq!(rlookup.lookup_type(), LookupType::GPOS_EXT_TYPE);
         let PositionSubtables::Pair(subs) = rlookup.subtables().unwrap() else {
@@ -949,7 +951,9 @@ mod tests {
         let lookup_list = wlayout::LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookup_list).unwrap();
 
-        let rlookuplist = rgpos::PositionLookupList::read(FontData::new(&bytes)).unwrap();
+        let rlookuplist = rgpos::PositionLookupList::from(
+            rgpos::LegacyPositionLookupList::read(FontData::new(&bytes)).unwrap(),
+        );
         assert_eq!(rlookuplist.lookup_count(), 1);
         let rlookup = rlookuplist.lookups().get(0).unwrap();
         let subtables = match rlookup.subtables().unwrap() {

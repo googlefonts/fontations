@@ -58,13 +58,15 @@ pub enum LookupListTable<'a, T: FontRead<'a, Args = ()>> {
     Offset32(LookupList2<'a, T>),
 }
 
-impl<'a, T: FontRead<'a, Args = ()>> ReadArgs for LookupListTable<'a, T> {
-    type Args = ();
+impl<'a, T: FontRead<'a, Args = ()>> From<LookupList<'a, T>> for LookupListTable<'a, T> {
+    fn from(list: LookupList<'a, T>) -> Self {
+        Self::Offset16(list)
+    }
 }
 
-impl<'a, T: FontRead<'a, Args = ()> + 'a> FontRead<'a> for LookupListTable<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        LookupList::read(data).map(Self::Offset16)
+impl<'a, T: FontRead<'a, Args = ()>> From<LookupList2<'a, T>> for LookupListTable<'a, T> {
+    fn from(list: LookupList2<'a, T>) -> Self {
+        Self::Offset32(list)
     }
 }
 
@@ -91,19 +93,51 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> LookupListTable<'a, T> {
     }
 }
 
-pub(crate) fn preferred_offset(
-    legacy: Nullable<Offset16>,
-    extended: Option<Nullable<Offset32>>,
-    has_extended_header: bool,
-) -> Result<Offset32, ReadError> {
-    if has_extended_header {
-        let extended = extended.ok_or(ReadError::OutOfBounds)?;
-        let extended = *extended.offset();
-        if !extended.is_null() {
-            return Ok(extended);
+/// The offset a header field resolves through, for headers that carry both
+/// an original 16-bit offset and an extended 32-bit one.
+///
+/// The extended offset applies when the header version has it and it is
+/// nonzero; otherwise the original one does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum HeaderOffset {
+    Original(Offset32),
+    Extended(Offset32),
+}
+
+impl HeaderOffset {
+    /// Chooses between the two offsets of a header field. An extended header
+    /// too short to hold its extended offset is an error.
+    pub(crate) fn select(
+        original: Nullable<Offset16>,
+        extended: Option<Nullable<Offset32>>,
+        has_extended: bool,
+    ) -> Result<Self, ReadError> {
+        if has_extended {
+            let extended = *extended.ok_or(ReadError::OutOfBounds)?.offset();
+            if !extended.is_null() {
+                return Ok(Self::Extended(extended));
+            }
+        }
+        Ok(Self::Original(Offset32::new(original.offset().to_u32())))
+    }
+
+    pub(crate) fn offset(self) -> Offset32 {
+        match self {
+            Self::Original(offset) | Self::Extended(offset) => offset,
         }
     }
-    Ok(Offset32::new(legacy.offset().to_u32()))
+
+    pub(crate) fn is_null(self) -> bool {
+        self.offset().is_null()
+    }
+
+    /// Resolves the offset, or returns `None` if it is null.
+    pub(crate) fn resolve<'a, T: FontRead<'a, Args = ()>>(
+        self,
+        data: FontData<'a>,
+    ) -> Option<Result<T, ReadError>> {
+        (!self.is_null()).then(|| self.offset().resolve(data))
+    }
 }
 
 impl CoverageFormat3<'_> {
@@ -191,6 +225,51 @@ impl ClassRangeRecord2 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn original(offset: u16) -> Nullable<Offset16> {
+        Scalar::from_raw(offset.to_be_bytes())
+    }
+
+    fn extended(offset: u32) -> Option<Nullable<Offset32>> {
+        Some(Scalar::from_raw(offset.to_be_bytes()))
+    }
+
+    #[test]
+    fn header_offset_prefers_nonzero_extended_offset() {
+        assert_eq!(
+            HeaderOffset::select(original(10), extended(70000), true),
+            Ok(HeaderOffset::Extended(Offset32::new(70000)))
+        );
+    }
+
+    #[test]
+    fn header_offset_falls_back_to_original_offset() {
+        // A zero extended offset defers to the original one.
+        assert_eq!(
+            HeaderOffset::select(original(10), extended(0), true),
+            Ok(HeaderOffset::Original(Offset32::new(10)))
+        );
+        // A header version without the extended field ignores it.
+        assert_eq!(
+            HeaderOffset::select(original(10), extended(70000), false),
+            Ok(HeaderOffset::Original(Offset32::new(10)))
+        );
+        assert!(HeaderOffset::select(original(0), extended(0), true)
+            .unwrap()
+            .is_null());
+    }
+
+    #[test]
+    fn header_offset_requires_extended_field_in_extended_header() {
+        assert_eq!(
+            HeaderOffset::select(original(10), None, true),
+            Err(ReadError::OutOfBounds)
+        );
+        assert_eq!(
+            HeaderOffset::select(original(10), None, false),
+            Ok(HeaderOffset::Original(Offset32::new(10)))
+        );
+    }
 
     #[test]
     fn coverage_24bit_glyphs_and_indices() {

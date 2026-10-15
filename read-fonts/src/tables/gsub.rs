@@ -2,11 +2,12 @@
 //!
 //! [GSUB]: https://docs.microsoft.com/en-us/typography/opentype/spec/gsub
 
+use super::layout::extended::HeaderOffset;
 pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,
 };
-use super::layout::{ExtensionLookup, LookupFlag, Subtables};
+use super::layout::{ExtensionLookup, LookupFlag, LookupListTable, Subtables};
 
 #[cfg(feature = "std")]
 mod closure;
@@ -17,14 +18,34 @@ mod tests;
 include!("../../generated/generated_gsub.rs");
 
 impl<'a> Gsub<'a> {
+    /// The offset to the script list, original or extended.
+    pub(crate) fn selected_script_list_offset(&self) -> Result<HeaderOffset, ReadError> {
+        self.select_offset(self.script_list_offset(), self.script_list2_offset())
+    }
+
+    /// The offset to the feature list, original or extended.
+    pub(crate) fn selected_feature_list_offset(&self) -> Result<HeaderOffset, ReadError> {
+        self.select_offset(self.feature_list_offset(), self.feature_list2_offset())
+    }
+
+    /// The offset to the lookup list, original or extended.
+    pub(crate) fn selected_lookup_list_offset(&self) -> Result<HeaderOffset, ReadError> {
+        self.select_offset(self.lookup_list_offset(), self.lookup_list2_offset())
+    }
+
+    fn select_offset(
+        &self,
+        original: Nullable<Offset16>,
+        extended: Option<Nullable<Offset32>>,
+    ) -> Result<HeaderOffset, ReadError> {
+        HeaderOffset::select(original, extended, self.version() >= MajorMinor::new(1, 2))
+    }
+
     /// Resolves the table, preferring the 32-bit offset when present.
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        super::layout::extended::preferred_offset(
-            self.script_list_offset(),
-            self.script_list2_offset(),
-            self.version() >= MajorMinor::new(1, 2),
-        )?
-        .resolve(self.offset_data())
+        self.selected_script_list_offset()?
+            .offset()
+            .resolve(self.offset_data())
     }
 
     /// Resolves the original 16-bit offset without applying precedence.
@@ -34,12 +55,9 @@ impl<'a> Gsub<'a> {
 
     /// Resolves the table, preferring the 32-bit offset when present.
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        super::layout::extended::preferred_offset(
-            self.feature_list_offset(),
-            self.feature_list2_offset(),
-            self.version() >= MajorMinor::new(1, 2),
-        )?
-        .resolve(self.offset_data())
+        self.selected_feature_list_offset()?
+            .offset()
+            .resolve(self.offset_data())
     }
 
     /// Resolves the original 16-bit offset without applying precedence.
@@ -49,23 +67,10 @@ impl<'a> Gsub<'a> {
 
     /// Resolves the lookup list, preferring LookupList2 when its offset is nonzero.
     pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
-        let offset = super::layout::extended::preferred_offset(
-            self.lookup_list_offset(),
-            self.lookup_list2_offset(),
-            self.version() >= MajorMinor::new(1, 2),
-        )?;
-        if self.version() >= MajorMinor::new(1, 2)
-            && self
-                .lookup_list2_offset()
-                .is_some_and(|offset| !offset.offset().is_null())
-        {
-            offset
-                .resolve(self.offset_data())
-                .map(super::layout::LookupListTable::Offset32)
-        } else {
-            offset
-                .resolve(self.offset_data())
-                .map(super::layout::LookupListTable::Offset16)
+        let data = self.offset_data();
+        match self.selected_lookup_list_offset()? {
+            HeaderOffset::Original(offset) => offset.resolve(data).map(LookupListTable::Offset16),
+            HeaderOffset::Extended(offset) => offset.resolve(data).map(LookupListTable::Offset32),
         }
     }
 

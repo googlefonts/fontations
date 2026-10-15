@@ -988,7 +988,7 @@ enum ProcessLookupError {
 mod tests {
     use super::{super::style, *};
     use font_test_data::bebuffer::BeBuffer;
-    use raw::{FontData, FontRead};
+    use raw::{tables::gsub::LegacySubstitutionLookupList, FontData, FontRead};
 
     #[test]
     fn small_caps_subst() {
@@ -1145,8 +1145,9 @@ mod tests {
             bytes.extend(subtable);
             bytes.extend([0, 3, 0, 0, 1, 1, 0, 0]); // Coverage3: gid 65536
             let mut cluster_shaper = shaper.cluster_shaper(style);
-            cluster_shaper.lookup_list =
-                Some(SubstitutionLookupList::read(FontData::new(&bytes)).unwrap());
+            cluster_shaper.lookup_list = Some(SubstitutionLookupList::from(
+                LegacySubstitutionLookupList::read(FontData::new(&bytes)).unwrap(),
+            ));
             let mut cluster = ShapedCluster::new();
             cluster.push(ShapedGlyph {
                 id: GlyphId::new(65536),
@@ -1169,7 +1170,9 @@ mod tests {
             bad_lookup_builder.lookups.push(i as u16 + 1);
         }
         let lookup_list_buf = bad_lookup_builder.build();
-        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let lookup_list = SubstitutionLookupList::from(
+            LegacySubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap(),
+        );
         let mut set_buf = [0u8; 8192];
         let mut visited_set = VisitedLookupSet(&mut set_buf);
         let mut gsub_handler = GsubHandler::new(
@@ -1195,7 +1198,9 @@ mod tests {
         bad_lookup_builder.lookups.push(1);
         bad_lookup_builder.lookups.push(0);
         let lookup_list_buf = bad_lookup_builder.build();
-        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let lookup_list = SubstitutionLookupList::from(
+            LegacySubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap(),
+        );
         let mut set_buf = [0u8; 8192];
         let mut visited_set = VisitedLookupSet(&mut set_buf);
         let mut gsub_handler = GsubHandler::new(
@@ -1214,7 +1219,9 @@ mod tests {
         let shaper = Shaper::new(&font, ShaperMode::BestEffort);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
         let lookup_list_buf = BadLookupBuilder::default().build();
-        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let lookup_list = SubstitutionLookupList::from(
+            LegacySubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap(),
+        );
         let mut set_buf = [0u8; 8192];
         let mut visited_set = VisitedLookupSet(&mut set_buf);
         let gsub_handler = GsubHandler::new(
