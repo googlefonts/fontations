@@ -29,7 +29,7 @@ impl UnscaledStyleMetrics {
         } else {
             ShaperMode::Nominal
         };
-        let shaper = Shaper::new(font, shaper_mode);
+        let shaper = Shaper::new(font, shaper_mode).with_coords(coords);
         compute_unscaled_style_metrics(&shaper, coords, style, QuirksMode::Aot)
     }
 

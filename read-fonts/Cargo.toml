@@ -1,6 +1,6 @@
 [package]
 name = "read-fonts"
-version = "0.45.0"
+version = "0.45.1"
 description = "Reading OpenType font files."
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
@@ -22,8 +22,7 @@ scaler_test = []
 # experimental support for incremental font transfer (https://www.w3.org/TR/IFT/)
 # code behind this feature does not honor semver and may break at any time.
 ift = []
-# Enables experimental implementations of proposed changes to the spec
-# as discussed at https://github.com/harfbuzz/boring-expansion-spec
+# Does nothing. The cubic outlines it once enabled are now always read.
 spec_next = []
 # Enables support for a new font API, as proposed at
 # https://github.com/googlefonts/oxidize/pull/77

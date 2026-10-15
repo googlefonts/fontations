@@ -37,10 +37,13 @@ impl GlyphStyles {
     /// Precomputes the full set of glyph styles for the given outlines.
     pub fn new(outlines: &OutlineGlyphCollection) -> Self {
         if let Some(font) = outlines.font() {
+            // The style table is sized by the glyph count, which a font can
+            // overstate; it never needs more entries than there are outlines.
             let glyph_count = font
-                .maxp()
-                .map(|maxp| maxp.num_glyphs() as u32)
-                .unwrap_or_default();
+                .selected_maxp()
+                .map(|maxp| maxp.num_glyphs())
+                .unwrap_or_default()
+                .min(outlines.stored_glyph_count());
             let shaper = Shaper::new(font, SHAPER_MODE);
             Self(Arc::new(GlyphStyleMap::new(glyph_count, &shaper)))
         } else {

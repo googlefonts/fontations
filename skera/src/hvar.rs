@@ -116,7 +116,7 @@ pub(crate) fn serialize_index_maps(
 
 #[derive(Default)]
 pub(crate) struct IndexMapSubsetPlan {
-    map_count: u16,
+    map_count: u32,
     /// Number of entries a map covering every output glyph would have,
     /// i.e. (largest new glyph id) + 1.
     full_map_count: u32,
@@ -187,7 +187,7 @@ impl IndexMapSubsetPlan {
         if last_gid.is_none() {
             return Ok(this);
         }
-        this.map_count = (last_gid.unwrap().to_u32() + 1) as u16;
+        this.map_count = last_gid.unwrap().to_u32() + 1;
 
         if index_map.is_none() {
             outer_map.add(0);
@@ -195,7 +195,7 @@ impl IndexMapSubsetPlan {
             this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
         } else {
             for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
-                if new_gid.to_u32() >= this.map_count as u32 {
+                if new_gid.to_u32() >= this.map_count {
                     break;
                 }
 
@@ -240,7 +240,7 @@ impl IndexMapSubsetPlan {
         }
 
         for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
-            if new_gid.to_u32() as u16 >= self.map_count {
+            if new_gid.to_u32() >= self.map_count {
                 break;
             }
 
@@ -273,7 +273,7 @@ impl IndexMapSubsetPlan {
         // glyph is equivalent to implicit glyph-id indexing; drop it. A
         // truncated map doesn't qualify: glyphs past its end share its last
         // value, not their own ids.
-        if !self.can_drop_to_implicit || self.map_count as u32 != self.full_map_count {
+        if !self.can_drop_to_implicit || self.map_count != self.full_map_count {
             return false;
         }
         (0..self.full_map_count).all(|i| self.output_map.get(&i).copied().unwrap_or(0) == i)
@@ -284,7 +284,7 @@ impl IndexMapSubsetPlan {
             self.outer_bit_count,
             self.inner_bit_count,
             &self.output_map,
-            self.map_count as u32,
+            self.map_count,
         )
     }
 }
