@@ -14,12 +14,12 @@ use read_fonts::tables::glyf::outline::PathContourStart;
 /// **If you add a new one make sure to update the fuzzer.**
 #[derive(Debug, Default, Copy, Clone)]
 pub enum PathStyle {
-    /// If the first point is off-curve, check if the last is on-curve
+    /// If the first point is quadratic off-curve, check if the last is on-curve.
     /// If it is, start there. If it isn't, start at the implied midpoint
     /// between first and last.
     #[default]
     FreeType,
-    /// If the first point is off-curve, check if the second is on-curve.
+    /// If the first point is quadratic off-curve, check if the second is on-curve.
     /// If it is, start there. If it isn't, start at the implied midpoint
     /// between first and second.
     ///
