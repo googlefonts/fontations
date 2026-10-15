@@ -333,14 +333,26 @@ impl Encoding {
         self.kind
     }
 
-    /// Returns the encoding record index within [`sfnt_tag`](Self::sfnt_tag).
+    /// Returns the index of this encoding's record in the `cmap` table, or
+    /// `None` for an encoding from DMAP or a Type 1 font.
     pub fn sfnt_index(self) -> Option<u32> {
+        self.record_index().filter(|_| self.index & Self::DMAP == 0)
+    }
+
+    /// Returns the index of this encoding's record in the DMAP table, if it
+    /// comes from DMAP.
+    pub fn dmap_index(self) -> Option<u32> {
+        self.record_index().filter(|_| self.index & Self::DMAP != 0)
+    }
+
+    /// The record index within the table named by [`sfnt_tag`](Self::sfnt_tag).
+    fn record_index(self) -> Option<u32> {
         (self.index < Self::TYPE1_UNICODE).then_some(self.index & !Self::DMAP)
     }
 
     /// Returns the SFNT mapping table tag (`cmap` or `DMAP`), if applicable.
     pub fn sfnt_tag(self) -> Option<Tag> {
-        self.sfnt_index().map(|_| {
+        self.record_index().map(|_| {
             if self.index & Self::DMAP != 0 {
                 Tag::new(b"DMAP")
             } else {
@@ -351,7 +363,7 @@ impl Encoding {
 
     /// Returns the SFNT platform and encoding identifiers, if applicable.
     pub fn sfnt_ids(self) -> Option<(u16, u16)> {
-        self.sfnt_index()
+        self.record_index()
             .map(|_| (self.platform_id, self.encoding_id))
     }
 
@@ -460,7 +472,7 @@ impl<'a> EncodingTables<'a> {
             &self.cmap
         };
         tables
-            .get(encoding.sfnt_index()? as usize)?
+            .get(encoding.record_index()? as usize)?
             .as_ref()
             .filter(|table| table.encoding == encoding)
     }
@@ -851,7 +863,9 @@ mod tests {
         );
         let encoding = font.charmap().encodings().next().unwrap();
         assert_eq!(encoding.sfnt_tag(), Some(Tag::new(b"DMAP")));
-        assert_eq!(encoding.sfnt_index(), Some(0));
+        // The index is into DMAP, so it is not an index into cmap.
+        assert_eq!(encoding.sfnt_index(), None);
+        assert_eq!(encoding.dmap_index(), Some(0));
         assert_eq!(font.charmap().map_code(encoding, 65), Some(GlyphId::new(3)));
     }
 

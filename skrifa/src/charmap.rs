@@ -463,6 +463,10 @@ impl<'a> MappingSelection<'a> {
         let mut mapping_kind = MappingKind::None;
         let mut codepoint_subtable = None;
         let mut variant_subtable = None;
+        if let Some((index, subtable)) = cmap.uvs_subtable() {
+            mapping_index.variant_subtable = Some(index);
+            variant_subtable = Some(subtable);
+        }
         let mut maybe_choose_subtable = |kind, index, subtable| {
             if kind > mapping_kind {
                 mapping_kind = kind;
@@ -479,25 +483,8 @@ impl<'a> MappingSelection<'a> {
         // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1818>
         for (i, record) in cmap.encoding_records().iter().enumerate().rev() {
             match (record.platform_id(), record.encoding_id()) {
-                (PlatformId::Unicode, ENCODING_APPLE_ID_VARIANT_SELECTOR) => {
-                    // Unicode variation sequences
-                    if let Ok(subtable) = record.subtable(cmap.offset_data()) {
-                        let subtable = match subtable {
-                            CmapSubtable::Format14(table) => UvsSubtable::from(table),
-                            CmapSubtable::Format15(table) => UvsSubtable::from(table),
-                            _ => continue,
-                        };
-                        if variant_subtable.is_none()
-                            || (subtable.format() == 15
-                                && variant_subtable
-                                    .as_ref()
-                                    .is_some_and(|current: &UvsSubtable| current.format() == 14))
-                        {
-                            mapping_index.variant_subtable = Some(i as u16);
-                            variant_subtable = Some(subtable);
-                        }
-                    }
-                }
+                // Unicode variation sequences are chosen by Cmap::uvs_subtable.
+                (PlatformId::Unicode, ENCODING_APPLE_ID_VARIANT_SELECTOR) => {}
                 (PlatformId::Windows, ENCODING_MS_SYMBOL) => {
                     // Symbol
                     if let Some(subtable) = SupportedSubtable::from_cmap_record(cmap, record) {

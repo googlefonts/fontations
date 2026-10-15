@@ -18,6 +18,7 @@ const UNICODE_1_1_ENCODING: u16 = 1;
 const UNICODE_ISO_ENCODING: u16 = 2;
 const UNICODE_2_0_BMP_ENCODING: u16 = 3;
 const UNICODE_2_0_FULL_ENCODING: u16 = 4;
+const UNICODE_VARIATION_SEQUENCES_ENCODING: u16 = 5;
 const UNICODE_FULL_ENCODING: u16 = 6;
 
 /// Result of mapping a codepoint with a variation selector.
@@ -113,11 +114,19 @@ impl<'a> Cmap<'a> {
             .or_else(|| find(PlatformId::Macintosh, 0))
     }
 
-    /// Returns the index and subtable for Unicode variation sequences,
-    /// preferring format 15 over format 14.
+    /// Returns the index and subtable for Unicode variation sequences.
+    ///
+    /// Only Unicode records with encoding 5 hold them. A format 15 subtable
+    /// is preferred over format 14, and among records of the same format the
+    /// last one wins, following FreeType's reverse search of the records.
     pub fn uvs_subtable(&self) -> Option<(u16, UvsSubtable<'a>)> {
         let mut format14 = None;
-        for (index, record) in self.encoding_records().iter().enumerate() {
+        for (index, record) in self.encoding_records().iter().enumerate().rev() {
+            if record.platform_id() != PlatformId::Unicode
+                || record.encoding_id() != UNICODE_VARIATION_SEQUENCES_ENCODING
+            {
+                continue;
+            }
             match record.subtable(self.offset_data()) {
                 Ok(CmapSubtable::Format15(subtable)) => {
                     return Some((index as u16, subtable.into()))
