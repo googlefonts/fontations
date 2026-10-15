@@ -589,3 +589,47 @@ fn nested_cff2_blends_survive_subsetting_and_instancing() {
         }
     }
 }
+
+#[test]
+fn fractional_full_instance_matches_harfbuzz_coordinate_rounding() {
+    let input = std::fs::read("test-data/fonts/SourceSerif4Variable-Roman-HelloWorld.otf").unwrap();
+    let input = FontRef::new(&input).unwrap();
+    let output = skera::instance_font(
+        &input,
+        &skera::parse_axis_limits("wght=355.474853515625,opsz=39.33837890625").unwrap(),
+    )
+    .unwrap();
+    let output = FontRef::new(&output).unwrap();
+    let reference =
+        std::fs::read("test-data/expected/cff2-instances/hb-fractional-source-serif.otf").unwrap();
+    let reference = FontRef::new(&reference).unwrap();
+    fn cff<'a>(font: &FontRef<'a>) -> CffFontRef<'a> {
+        CffFontRef::new(
+            font.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap()
+    }
+    let a = cff(&output);
+    let b = cff(&reference);
+    assert_eq!(a.num_glyphs(), b.num_glyphs());
+    for gid in 0..a.num_glyphs() {
+        let gid = GlyphId::new(gid);
+        let paths = |font: &CffFontRef| {
+            let subfont = font.subfont(font.subfont_index(gid).unwrap(), &[]).unwrap();
+            let mut path = Vec::<PathElement>::new();
+            font.draw(&subfont, gid, &[], None, &mut path).unwrap();
+            path
+        };
+        assert_eq!(paths(&a), paths(&b), "glyph {gid:?}");
+        assert_eq!(
+            output.hmtx().unwrap().advance(gid),
+            reference.hmtx().unwrap().advance(gid)
+        );
+        assert_eq!(
+            output.hmtx().unwrap().side_bearing(gid),
+            reference.hmtx().unwrap().side_bearing(gid)
+        );
+    }
+}
