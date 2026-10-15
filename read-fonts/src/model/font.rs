@@ -38,7 +38,9 @@ use crate::{
     TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VorgTable, VvarTable};
+use cache::{
+    CffFont, GlyfLoca, GvarTable, HvarTable, MetricsTable, TableCache, VorgTable, VvarTable,
+};
 use core::{
     any::Any,
     str::FromStr,
@@ -977,14 +979,16 @@ impl SharedFont {
         let Some(tables) = self.tables_arc() else {
             return empty_glyph_metrics();
         };
-        self.0
+        &self
+            .0
             .h_metrics
             .get_or_init(|| {
                 TableCache::read(tables.clone(), |tables| {
-                    tables.h_glyph_metric_records().unwrap_or_default()
+                    MetricsTable(tables.h_glyph_metric_records().unwrap_or_default())
                 })
             })
             .get()
+            .0
     }
 
     /// Returns the vertical glyph metrics, parsed once for the font.
@@ -996,14 +1000,16 @@ impl SharedFont {
         let Some(tables) = self.tables_arc() else {
             return empty_glyph_metrics();
         };
-        self.0
+        &self
+            .0
             .v_metrics
             .get_or_init(|| {
                 TableCache::read(tables.clone(), |tables| {
-                    tables.v_glyph_metric_records().unwrap_or_default()
+                    MetricsTable(tables.v_glyph_metric_records().unwrap_or_default())
                 })
             })
             .get()
+            .0
     }
 
     /// Returns the outline tables, parsed once for the font.
@@ -1114,10 +1120,10 @@ struct SharedFontRepr {
     style_metrics: Once<Box<StyleMetrics>>,
     // The horizontal glyph metrics, parsed once for the font. Held beside
     // the tables they borrow, which is what lets them live here at all.
-    h_metrics: Once<TableCache<GlyphMetricRecords<'static>>>,
+    h_metrics: Once<TableCache<MetricsTable<'static>>>,
     // The vertical glyph metrics, read only when something measures
     // vertically.
-    v_metrics: Once<TableCache<GlyphMetricRecords<'static>>>,
+    v_metrics: Once<TableCache<MetricsTable<'static>>>,
     // `HVAR` states the deltas a location makes to a metric outright, and
     // `gvar` states them as phantom points on an outline, which `glyf` and
     // `loca` are read to reach and which outlines will read for their own

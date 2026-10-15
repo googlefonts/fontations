@@ -115,7 +115,7 @@ mod tests {
 /// independently of the outlines, with the original tables used if they are
 /// absent.
 /// Nothing here depends on a location, so every location shares one parse.
-#[derive(Clone, Default, yoke::Yokeable)]
+#[derive(Clone, Default)]
 pub struct GlyphMetricRecords<'a> {
     pub(crate) metrics: &'a [LongMetric],
     /// Bare side bearings after the last long metric.

@@ -13,7 +13,8 @@
 use super::Tables;
 use crate::ps::cff::CffFontRef;
 use crate::tables::{
-    glyf::Glyf, gvar::SelectedGvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar,
+    glyf::Glyf, gvar::SelectedGvar, hmtx::GlyphMetricRecords, hvar::Hvar, loca::Loca, vorg::Vorg,
+    vvar::Vvar,
 };
 use crate::TableProvider;
 use alloc::sync::Arc;
@@ -50,6 +51,10 @@ impl<'a> GlyfLoca<'a> {
         Self(tables.selected_glyf_loca(None).ok())
     }
 }
+
+/// The glyph metrics of one direction.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct MetricsTable<'a>(pub(crate) GlyphMetricRecords<'a>);
 
 /// The table stating how a location changes horizontal metrics.
 #[derive(Clone, Default, Yokeable)]

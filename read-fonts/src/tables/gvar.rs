@@ -20,7 +20,7 @@ use super::{
 pub type GlyphVariationData<'a> = TupleVariationData<'a, GlyphDelta>;
 
 /// Glyph variations from GVAR or the original gvar table.
-#[derive(Clone, yoke::Yokeable)]
+#[derive(Clone)]
 pub enum SelectedGvar<'a> {
     /// The original `gvar` table.
     Original(Gvar<'a>),
