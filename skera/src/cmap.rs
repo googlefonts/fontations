@@ -31,7 +31,7 @@ impl Subset for Cmap<'_> {
     fn subset(
         &self,
         plan: &Plan,
-        _font: &FontRef,
+        font: &FontRef,
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
@@ -75,7 +75,10 @@ impl Subset for Cmap<'_> {
             return Err(SubsetTableError(Cmap::TAG));
         }
 
-        serialize_cmap(self, s, plan, &retained_encoding_records)
+        let has_dmap = font
+            .table_data(read_fonts::types::Tag::new(b"DMAP"))
+            .is_some();
+        serialize_cmap(self, s, plan, &retained_encoding_records, has_dmap)
             .map_err(|_| SubsetTableError(Cmap::TAG))
     }
 }
@@ -228,11 +231,38 @@ fn can_drop_format12(
     false
 }
 
+/// The mappings a cmap subtable keeps, for the codepoints `keep` accepts.
+///
+/// Without DMAP these are the font's best mappings projected onto the
+/// subtable, as HarfBuzz does. With DMAP, whose mappings take precedence in
+/// the best list, each subtable maps through its own original glyphs.
+fn cmap_mappings(
+    subtable: &CmapSubtable,
+    plan: &Plan,
+    has_dmap: bool,
+    keep: impl Fn(u32) -> bool,
+) -> Vec<(u32, GlyphId)> {
+    let mappings = plan
+        .unicode_to_new_gid_list
+        .iter()
+        .filter(|(cp, _)| keep(*cp));
+    if !has_dmap {
+        return mappings.copied().collect();
+    }
+    mappings
+        .filter_map(|&(cp, _)| {
+            let old_gid = subtable.map_codepoint(cp)?;
+            Some((cp, *plan.glyph_map.get(&old_gid)?))
+        })
+        .collect()
+}
+
 fn serialize_cmap(
     cmap: &Cmap,
     s: &mut Serializer,
     plan: &Plan,
     retained_encoding_records: &[(usize, &EncodingRecord)],
+    has_dmap: bool,
 ) -> Result<(), SerializeErrorFlags> {
     // allocate header: version + numTables
     s.allocate_size(HEADER_SIZE, false)?;
@@ -264,11 +294,8 @@ fn serialize_cmap(
             else {
                 continue;
             };
-            let cp_to_new_gid_list: Vec<(u32, GlyphId)> = plan
-                .unicode_to_new_gid_list
-                .iter()
-                .filter_map(|(cp, gid)| unicodes_set.contains(*cp).then_some((*cp, *gid)))
-                .collect();
+            let cp_to_new_gid_list =
+                cmap_mappings(&subtable, plan, has_dmap, |cp| unicodes_set.contains(cp));
 
             let snap = s.snapshot();
             format4_objidx = match serialize_encoding_record(
@@ -312,12 +339,9 @@ fn serialize_cmap(
                 continue;
             }
 
-            let cp_to_new_gid_list: Vec<(u32, GlyphId)> = plan
-                .unicode_to_new_gid_list
-                .iter()
-                .filter(|&(cp, _gid)| cmap12_subset_unicodes.contains(*cp))
-                .map(|(cp, gid)| (*cp, *gid))
-                .collect();
+            let cp_to_new_gid_list = cmap_mappings(&subtable, plan, has_dmap, |cp| {
+                cmap12_subset_unicodes.contains(cp)
+            });
             format12_objidx = serialize_encoding_record(
                 record,
                 &subtable,

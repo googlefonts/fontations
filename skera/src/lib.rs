@@ -1403,7 +1403,12 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gsub::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
-        Gvar::TAG if font.data_for_tag(GvarExtended::TAG).is_some() => Ok(()),
+        Gvar::TAG
+            if font.data_for_tag(GvarExtended::TAG).is_some()
+                && !plan.drop_tables.contains(GvarExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Gvar::TAG => font
             .gvar()
@@ -1433,7 +1438,12 @@ fn subset_table<'a>(
         //Skip, handled by Hmtx
         Hhea::TAG | HheaExtended::TAG => Ok(()),
 
-        Hmtx::TAG if font.data_for_tag(HmtxExtended::TAG).is_some() => Ok(()),
+        Hmtx::TAG
+            if font.data_for_tag(HmtxExtended::TAG).is_some()
+                && !plan.drop_tables.contains(HmtxExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Hmtx::TAG => font
             .hmtx()
@@ -1451,7 +1461,12 @@ fn subset_table<'a>(
         //Skip, handled by Vmtx
         Vhea::TAG | VheaExtended::TAG => Ok(()),
 
-        Vmtx::TAG if font.data_for_tag(VmtxExtended::TAG).is_some() => Ok(()),
+        Vmtx::TAG
+            if font.data_for_tag(VmtxExtended::TAG).is_some()
+                && !plan.drop_tables.contains(VmtxExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Vmtx::TAG => font
             .vmtx()

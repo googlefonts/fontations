@@ -74,6 +74,32 @@ fn dmap_subset_preserves_nominal_overrides_and_zero_fallback() {
 }
 
 #[test]
+fn cmap_subtables_keep_their_own_mappings_beside_dmap() {
+    let nominal = format12(&[(65, 10), (66, 11)]);
+    let overrides = format12(&[(65, 40)]);
+    let cmap = table(&[(0, 4, &nominal)]);
+    let dmap = table(&[(0, 4, &overrides)]);
+    let data = font_with_cmaps(Some(&cmap), Some(&dmap));
+    let font = FontRef::new(&data).unwrap();
+    for retain_gids in [false, true] {
+        let plan = plan(&font, &[65, 66], retain_gids);
+        let output = subset_font(&font, &plan).unwrap();
+        let output = FontRef::new(&output).unwrap();
+        let cmap = output.cmap().unwrap();
+        let subtable = cmap.subtable(0).unwrap();
+        // DMAP's glyph for A must not leak into cmap.
+        assert_eq!(
+            subtable.map_codepoint(65u32),
+            plan.glyph_map.get(&GlyphId::new(10)).copied()
+        );
+        assert_eq!(
+            subtable.map_codepoint(66u32),
+            plan.glyph_map.get(&GlyphId::new(11)).copied()
+        );
+    }
+}
+
+#[test]
 fn dmap_subset_closes_variants_and_preserves_default_and_zero_fallback() {
     let nominal = format12(&[(65, 10), (66, 11), (67, 12), (68, 13)]);
     let overrides = format12(&[(65, 40), (66, 41)]);
