@@ -101,14 +101,14 @@ impl U16Or32 {
 impl<'a> GlyphVariationDataHeader<'a> {
     fn raw_tuple_header_data(&self) -> FontData<'a> {
         let range = self.tuple_variation_headers_byte_range();
-        self.data.split_off(range.start).unwrap()
+        self.offset_data().split_off(range.start).unwrap()
     }
 }
 
 impl<'a> GlyphVariationDataHeaderExtended<'a> {
     fn raw_tuple_header_data(&self) -> FontData<'a> {
         let range = self.tuple_variation_headers_byte_range();
-        self.data.split_off(range.start).unwrap()
+        self.offset_data().split_off(range.start).unwrap()
     }
 }
 
@@ -117,7 +117,7 @@ macro_rules! impl_gvar_header {
         impl<'a> $table<'a> {
             /// Offset from the start of this table to the shared tuple records.
             pub fn shared_tuples_offset(&self) -> Offset32 {
-                self.data
+                self.offset_data()
                     .read_at(self.shared_tuples_offset_byte_range().start)
                     .ok()
                     .unwrap()

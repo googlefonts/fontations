@@ -181,14 +181,15 @@ pub(crate) mod codegen_prelude {
                 &self,
                 offset: O,
             ) -> Result<R, ReadError> {
-                offset.resolve(self.data)
+                offset.resolve(self.offset_data())
             }
 
             /// Return a reference to this table's raw data.
             ///
             /// We use this in the compile crate to resolve offsets.
+            #[inline(always)]
             pub fn offset_data(&self) -> FontData<'a> {
-                self.data
+                FontData::new(self.data.data())
             }
 
             /// Return a reference to the table's 'Shape' struct.

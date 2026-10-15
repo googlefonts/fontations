@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Hhea<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,44 @@ impl<'a> FontRead<'a> for Hhea<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct HheaFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub ascender: BigEndian<FWord>,
+    pub descender: BigEndian<FWord>,
+    pub line_gap: BigEndian<FWord>,
+    pub advance_width_max: BigEndian<UfWord>,
+    pub min_left_side_bearing: BigEndian<FWord>,
+    pub min_right_side_bearing: BigEndian<FWord>,
+    pub x_max_extent: BigEndian<FWord>,
+    pub caret_slope_rise: BigEndian<i16>,
+    pub caret_slope_run: BigEndian<i16>,
+    pub caret_offset: BigEndian<i16>,
+    pub reserved1: BigEndian<i16>,
+    pub reserved2: BigEndian<i16>,
+    pub reserved3: BigEndian<i16>,
+    pub reserved4: BigEndian<i16>,
+    pub metric_data_format: BigEndian<i16>,
+    pub number_of_h_metrics: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<HheaFixedHeader>() <= Hhea::MIN_SIZE);
+
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 #[derive(Clone)]
 pub struct Hhea<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, HheaFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -63,86 +93,73 @@ impl<'a> Hhea<'a> {
 
     /// The major/minor version (1, 0)
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Typographic ascent.
     pub fn ascender(&self) -> FWord {
-        let range = self.ascender_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().ascender.get()
     }
 
     /// Typographic descent.
     pub fn descender(&self) -> FWord {
-        let range = self.descender_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().descender.get()
     }
 
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
     pub fn line_gap(&self) -> FWord {
-        let range = self.line_gap_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().line_gap.get()
     }
 
     /// Maximum advance width value in 'hmtx' table.
     pub fn advance_width_max(&self) -> UfWord {
-        let range = self.advance_width_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().advance_width_max.get()
     }
 
     /// Minimum left sidebearing value in 'hmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
     pub fn min_left_side_bearing(&self) -> FWord {
-        let range = self.min_left_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().min_left_side_bearing.get()
     }
 
     /// Minimum right sidebearing value; calculated as min(aw - (lsb +
     /// xMax - xMin)) for glyphs with contours (empty glyphs should be ignored).
     pub fn min_right_side_bearing(&self) -> FWord {
-        let range = self.min_right_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().min_right_side_bearing.get()
     }
 
     /// Max(lsb + (xMax-xMin))
     pub fn x_max_extent(&self) -> FWord {
-        let range = self.x_max_extent_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_max_extent.get()
     }
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
     pub fn caret_slope_rise(&self) -> i16 {
-        let range = self.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_slope_rise.get()
     }
 
     /// 0 for vertical caret, 1 for horizontal.
     pub fn caret_slope_run(&self) -> i16 {
-        let range = self.caret_slope_run_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_slope_run.get()
     }
 
     /// The amount by which a slanted highlight on a glyph needs to be
     /// shifted to produce the best appearance. Set to 0 for
     /// non-slanted fonts
     pub fn caret_offset(&self) -> i16 {
-        let range = self.caret_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_offset.get()
     }
 
     /// 0 for current format.
     pub fn metric_data_format(&self) -> i16 {
-        let range = self.metric_data_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().metric_data_format.get()
     }
 
     /// Number of hMetric entries in 'hmtx' table
     pub fn number_of_h_metrics(&self) -> u16 {
-        let range = self.number_of_h_metrics_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().number_of_h_metrics.get()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -253,7 +270,8 @@ const _: () = assert!(FontData::default_data_long_enough(Hhea::MIN_SIZE));
 impl Default for Hhea<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -264,7 +282,7 @@ impl<'a> MinByteRange<'a> for HheaExtended<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -283,14 +301,44 @@ impl<'a> FontRead<'a> for HheaExtended<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct HheaExtendedFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub ascender: BigEndian<FWord>,
+    pub descender: BigEndian<FWord>,
+    pub line_gap: BigEndian<FWord>,
+    pub advance_width_max: BigEndian<UfWord>,
+    pub min_left_side_bearing: BigEndian<FWord>,
+    pub min_right_side_bearing: BigEndian<FWord>,
+    pub x_max_extent: BigEndian<FWord>,
+    pub caret_slope_rise: BigEndian<i16>,
+    pub caret_slope_run: BigEndian<i16>,
+    pub caret_offset: BigEndian<i16>,
+    pub reserved1: BigEndian<i16>,
+    pub reserved2: BigEndian<i16>,
+    pub reserved3: BigEndian<i16>,
+    pub reserved4: BigEndian<i16>,
+    pub metric_data_format: BigEndian<i16>,
+    pub number_of_h_metrics: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<HheaExtendedFixedHeader>() <= HheaExtended::MIN_SIZE);
+
 /// HHEA header table (ISO/IEC 14496-22:2026, 5.1.10).
 #[derive(Clone)]
 pub struct HheaExtended<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, HheaExtendedFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -315,69 +363,56 @@ impl<'a> HheaExtended<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     pub fn ascender(&self) -> FWord {
-        let range = self.ascender_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().ascender.get()
     }
 
     pub fn descender(&self) -> FWord {
-        let range = self.descender_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().descender.get()
     }
 
     pub fn line_gap(&self) -> FWord {
-        let range = self.line_gap_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().line_gap.get()
     }
 
     pub fn advance_width_max(&self) -> UfWord {
-        let range = self.advance_width_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().advance_width_max.get()
     }
 
     pub fn min_left_side_bearing(&self) -> FWord {
-        let range = self.min_left_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().min_left_side_bearing.get()
     }
 
     pub fn min_right_side_bearing(&self) -> FWord {
-        let range = self.min_right_side_bearing_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().min_right_side_bearing.get()
     }
 
     pub fn x_max_extent(&self) -> FWord {
-        let range = self.x_max_extent_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_max_extent.get()
     }
 
     pub fn caret_slope_rise(&self) -> i16 {
-        let range = self.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_slope_rise.get()
     }
 
     pub fn caret_slope_run(&self) -> i16 {
-        let range = self.caret_slope_run_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_slope_run.get()
     }
 
     pub fn caret_offset(&self) -> i16 {
-        let range = self.caret_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_offset.get()
     }
 
     pub fn metric_data_format(&self) -> i16 {
-        let range = self.metric_data_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().metric_data_format.get()
     }
 
     /// Number of long metric records in HMTX.
     pub fn number_of_h_metrics(&self) -> u32 {
-        let range = self.number_of_h_metrics_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().number_of_h_metrics.get()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -488,7 +523,8 @@ const _: () = assert!(FontData::default_data_long_enough(HheaExtended::MIN_SIZE)
 impl Default for HheaExtended<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

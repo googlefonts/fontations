@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Maxp<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,29 @@ impl<'a> FontRead<'a> for Maxp<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MaxpFixedHeader {
+    pub version: BigEndian<Version16Dot16>,
+    pub num_glyphs: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MaxpFixedHeader>() <= Maxp::MIN_SIZE);
+
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
 #[derive(Clone)]
 pub struct Maxp<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MaxpFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,21 +62,19 @@ impl<'a> Maxp<'a> {
 
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     pub fn version(&self) -> Version16Dot16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// The number of glyphs in the font.
     pub fn num_glyphs(&self) -> u16 {
-        let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_glyphs.get()
     }
 
     /// Maximum points in a non-composite glyph.
     pub fn max_points(&self) -> Option<u16> {
         let range = self.max_points_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -69,7 +82,7 @@ impl<'a> Maxp<'a> {
     pub fn max_contours(&self) -> Option<u16> {
         let range = self.max_contours_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -77,7 +90,7 @@ impl<'a> Maxp<'a> {
     pub fn max_composite_points(&self) -> Option<u16> {
         let range = self.max_composite_points_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -85,7 +98,7 @@ impl<'a> Maxp<'a> {
     pub fn max_composite_contours(&self) -> Option<u16> {
         let range = self.max_composite_contours_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -94,7 +107,7 @@ impl<'a> Maxp<'a> {
     pub fn max_zones(&self) -> Option<u16> {
         let range = self.max_zones_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -102,7 +115,7 @@ impl<'a> Maxp<'a> {
     pub fn max_twilight_points(&self) -> Option<u16> {
         let range = self.max_twilight_points_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -110,7 +123,7 @@ impl<'a> Maxp<'a> {
     pub fn max_storage(&self) -> Option<u16> {
         let range = self.max_storage_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -118,7 +131,7 @@ impl<'a> Maxp<'a> {
     pub fn max_function_defs(&self) -> Option<u16> {
         let range = self.max_function_defs_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -126,7 +139,7 @@ impl<'a> Maxp<'a> {
     pub fn max_instruction_defs(&self) -> Option<u16> {
         let range = self.max_instruction_defs_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -136,7 +149,7 @@ impl<'a> Maxp<'a> {
     pub fn max_stack_elements(&self) -> Option<u16> {
         let range = self.max_stack_elements_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -144,7 +157,7 @@ impl<'a> Maxp<'a> {
     pub fn max_size_of_instructions(&self) -> Option<u16> {
         let range = self.max_size_of_instructions_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -153,7 +166,7 @@ impl<'a> Maxp<'a> {
     pub fn max_component_elements(&self) -> Option<u16> {
         let range = self.max_component_elements_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -161,7 +174,7 @@ impl<'a> Maxp<'a> {
     pub fn max_component_depth(&self) -> Option<u16> {
         let range = self.max_component_depth_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -313,7 +326,8 @@ const _: () = assert!(FontData::default_data_long_enough(Maxp::MIN_SIZE));
 impl Default for Maxp<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -324,7 +338,7 @@ impl<'a> MinByteRange<'a> for MaxpExtended<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -343,14 +357,29 @@ impl<'a> FontRead<'a> for MaxpExtended<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MaxpExtendedFixedHeader {
+    pub version: BigEndian<Version16Dot16>,
+    pub num_glyphs: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MaxpExtendedFixedHeader>() <= MaxpExtended::MIN_SIZE);
+
 /// MAXP maximum profile table (ISO/IEC 14496-22:2026, 5.1.12).
 #[derive(Clone)]
 pub struct MaxpExtended<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MaxpExtendedFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -359,21 +388,19 @@ impl<'a> MaxpExtended<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn version(&self) -> Version16Dot16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// The number of glyphs in the font.
     pub fn num_glyphs(&self) -> Uint24 {
-        let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_glyphs.get()
     }
 
     /// Maximum points in a non-composite glyph.
     pub fn max_points(&self) -> Option<u16> {
         let range = self.max_points_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -381,7 +408,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_contours(&self) -> Option<u16> {
         let range = self.max_contours_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -389,7 +416,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_composite_points(&self) -> Option<u16> {
         let range = self.max_composite_points_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -397,7 +424,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_composite_contours(&self) -> Option<u16> {
         let range = self.max_composite_contours_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -405,7 +432,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_zones(&self) -> Option<u16> {
         let range = self.max_zones_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -413,7 +440,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_twilight_points(&self) -> Option<u16> {
         let range = self.max_twilight_points_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -421,7 +448,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_storage(&self) -> Option<u16> {
         let range = self.max_storage_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -429,7 +456,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_function_defs(&self) -> Option<u16> {
         let range = self.max_function_defs_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -437,7 +464,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_instruction_defs(&self) -> Option<u16> {
         let range = self.max_instruction_defs_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -445,7 +472,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_stack_elements(&self) -> Option<u16> {
         let range = self.max_stack_elements_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -453,7 +480,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_size_of_instructions(&self) -> Option<u16> {
         let range = self.max_size_of_instructions_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -461,7 +488,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_component_elements(&self) -> Option<u16> {
         let range = self.max_component_elements_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -469,7 +496,7 @@ impl<'a> MaxpExtended<'a> {
     pub fn max_component_depth(&self) -> Option<u16> {
         let range = self.max_component_depth_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -621,7 +648,8 @@ const _: () = assert!(FontData::default_data_long_enough(MaxpExtended::MIN_SIZE)
 impl Default for MaxpExtended<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

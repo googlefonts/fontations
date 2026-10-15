@@ -102,6 +102,27 @@ use raw::FontRef;
 #[doc(inline)]
 pub use {error::DrawError, pen::OutlinePen};
 
+// A sized adapter lets the private drawing APIs share one pen type.
+struct ErasedPen<'a>(&'a mut dyn OutlinePen);
+
+impl OutlinePen for ErasedPen<'_> {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.0.move_to(x, y);
+    }
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.0.line_to(x, y);
+    }
+    fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
+        self.0.quad_to(cx, cy, x, y);
+    }
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.0.curve_to(cx0, cy0, cx1, cy1, x, y);
+    }
+    fn close(&mut self) {
+        self.0.close();
+    }
+}
+
 use self::glyf::{FreeTypeScaler, HarfBuzzScaler};
 use super::instance::{LocationRef, NormalizedCoord, Size};
 use core::fmt::Debug;
@@ -350,7 +371,17 @@ impl<'a> OutlineGlyph<'a> {
         settings: impl Into<DrawSettings<'a>>,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
-        let settings: DrawSettings<'a> = settings.into();
+        let mut pen = ErasedPen(pen);
+        self.draw_dyn(settings.into(), &mut pen)
+    }
+
+    // Compile the drawing dispatcher once instead of once per caller's pen.
+    #[inline(never)]
+    fn draw_dyn(
+        &self,
+        settings: DrawSettings<'a>,
+        pen: &mut ErasedPen<'_>,
+    ) -> Result<AdjustedMetrics, DrawError> {
         match (settings.instance, settings.path_style) {
             (DrawInstance::Unhinted(size, location), PathStyle::FreeType) => {
                 self.draw_unhinted(size, location, settings.memory, settings.path_style, pen)

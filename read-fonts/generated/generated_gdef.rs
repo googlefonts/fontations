@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Gdef<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,32 @@ impl<'a> FontRead<'a> for Gdef<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GdefFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub glyph_class_def_offset: BigEndian<Nullable<Offset16>>,
+    pub attach_list_offset: BigEndian<Nullable<Offset16>>,
+    pub lig_caret_list_offset: BigEndian<Nullable<Offset16>>,
+    pub mark_attach_class_def_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GdefFixedHeader>() <= Gdef::MIN_SIZE);
+
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[derive(Clone)]
 pub struct Gdef<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GdefFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -51,36 +69,31 @@ impl<'a> Gdef<'a> {
 
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
     pub fn glyph_class_def_offset(&self) -> Nullable<Offset16> {
-        let range = self.glyph_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().glyph_class_def_offset.get()
     }
 
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Nullable<Offset16> {
-        let range = self.attach_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().attach_list_offset.get()
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn lig_caret_list_offset(&self) -> Nullable<Offset16> {
-        let range = self.lig_caret_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().lig_caret_list_offset.get()
     }
 
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Nullable<Offset16> {
-        let range = self.mark_attach_class_def_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark_attach_class_def_offset.get()
     }
 
     /// Offset to the table of mark glyph set definitions, from
@@ -88,7 +101,7 @@ impl<'a> Gdef<'a> {
     pub fn mark_glyph_sets_def_offset(&self) -> Option<Nullable<Offset16>> {
         let range = self.mark_glyph_sets_def_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -97,13 +110,13 @@ impl<'a> Gdef<'a> {
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.item_var_store_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_var_store_offset().map(|x| x.resolve(data))?
     }
 
@@ -111,13 +124,13 @@ impl<'a> Gdef<'a> {
     pub fn glyph_class_def2_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.glyph_class_def2_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`glyph_class_def2_offset`][Self::glyph_class_def2_offset].
     pub fn glyph_class_def2(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.glyph_class_def2_offset().map(|x| x.resolve(data))?
     }
 
@@ -125,13 +138,13 @@ impl<'a> Gdef<'a> {
     pub fn attach_list2_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.attach_list2_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`attach_list2_offset`][Self::attach_list2_offset].
     pub fn attach_list2(&self) -> Option<Result<AttachList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.attach_list2_offset().map(|x| x.resolve(data))?
     }
 
@@ -139,13 +152,13 @@ impl<'a> Gdef<'a> {
     pub fn lig_caret_list2_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.lig_caret_list2_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`lig_caret_list2_offset`][Self::lig_caret_list2_offset].
     pub fn lig_caret_list2(&self) -> Option<Result<LigCaretList2<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lig_caret_list2_offset().map(|x| x.resolve(data))?
     }
 
@@ -153,13 +166,13 @@ impl<'a> Gdef<'a> {
     pub fn mark_attach_class_def2_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.mark_attach_class_def2_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`mark_attach_class_def2_offset`][Self::mark_attach_class_def2_offset].
     pub fn mark_attach_class_def2(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_attach_class_def2_offset()
             .map(|x| x.resolve(data))?
     }
@@ -168,13 +181,13 @@ impl<'a> Gdef<'a> {
     pub fn mark_glyph_sets_def2_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.mark_glyph_sets_def2_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`mark_glyph_sets_def2_offset`][Self::mark_glyph_sets_def2_offset].
     pub fn mark_glyph_sets_def2(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_glyph_sets_def2_offset()
             .map(|x| x.resolve(data))?
     }
@@ -285,7 +298,8 @@ const _: () = assert!(FontData::default_data_long_enough(Gdef::MIN_SIZE));
 impl Default for Gdef<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -338,7 +352,7 @@ impl<'a> MinByteRange<'a> for AttachList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -352,14 +366,29 @@ impl<'a> FontRead<'a> for AttachList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AttachListFixedHeader {
+    pub coverage_offset: BigEndian<Offset16>,
+    pub glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AttachListFixedHeader>() <= AttachList::MIN_SIZE);
+
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 #[derive(Clone)]
 pub struct AttachList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AttachListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -369,35 +398,33 @@ impl<'a> AttachList<'a> {
 
     /// Offset to Coverage table - from beginning of AttachList table
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Number of glyphs with attachment points
     pub fn glyph_count(&self) -> u16 {
-        let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().glyph_count.get()
     }
 
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
     pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.attach_point_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`attach_point_offsets`][Self::attach_point_offsets].
     pub fn attach_points(&self) -> ArrayOfOffsets<'a, AttachPoint<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.attach_point_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -428,7 +455,8 @@ const _: () = assert!(FontData::default_data_long_enough(AttachList::MIN_SIZE));
 impl Default for AttachList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -439,7 +467,7 @@ impl<'a> MinByteRange<'a> for AttachPoint<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -453,14 +481,28 @@ impl<'a> FontRead<'a> for AttachPoint<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AttachPointFixedHeader {
+    pub point_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AttachPointFixedHeader>() <= AttachPoint::MIN_SIZE);
+
 /// Part of [AttachList]
 #[derive(Clone)]
 pub struct AttachPoint<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AttachPointFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -470,14 +512,16 @@ impl<'a> AttachPoint<'a> {
 
     /// Number of attachment points on this glyph
     pub fn point_count(&self) -> u16 {
-        let range = self.point_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().point_count.get()
     }
 
     /// Array of contour point indices -in increasing numerical order
     pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.point_indices_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn point_count_byte_range(&self) -> Range<usize> {
@@ -499,7 +543,8 @@ const _: () = assert!(FontData::default_data_long_enough(AttachPoint::MIN_SIZE))
 impl Default for AttachPoint<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -510,7 +555,7 @@ impl<'a> MinByteRange<'a> for LigCaretList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -524,14 +569,29 @@ impl<'a> FontRead<'a> for LigCaretList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigCaretListFixedHeader {
+    pub coverage_offset: BigEndian<Offset16>,
+    pub lig_glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigCaretListFixedHeader>() <= LigCaretList::MIN_SIZE);
+
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
 #[derive(Clone)]
 pub struct LigCaretList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, LigCaretListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -541,35 +601,33 @@ impl<'a> LigCaretList<'a> {
 
     /// Offset to Coverage table - from beginning of LigCaretList table
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> u16 {
-        let range = self.lig_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().lig_glyph_count.get()
     }
 
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.lig_glyph_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
     pub fn lig_glyphs(&self) -> ArrayOfOffsets<'a, LigGlyph<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.lig_glyph_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -600,7 +658,8 @@ const _: () = assert!(FontData::default_data_long_enough(LigCaretList::MIN_SIZE)
 impl Default for LigCaretList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -611,7 +670,7 @@ impl<'a> MinByteRange<'a> for LigGlyph<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -625,14 +684,28 @@ impl<'a> FontRead<'a> for LigGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigGlyphFixedHeader {
+    pub caret_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigGlyphFixedHeader>() <= LigGlyph::MIN_SIZE);
+
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
 #[derive(Clone)]
 pub struct LigGlyph<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, LigGlyphFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -642,20 +715,22 @@ impl<'a> LigGlyph<'a> {
 
     /// Number of CaretValue tables for this ligature (components - 1)
     pub fn caret_count(&self) -> u16 {
-        let range = self.caret_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_count.get()
     }
 
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
     pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.caret_value_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`caret_value_offsets`][Self::caret_value_offsets].
     pub fn caret_values(&self) -> ArrayOfOffsets<'a, CaretValue<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.caret_value_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -680,7 +755,8 @@ const _: () = assert!(FontData::default_data_long_enough(LigGlyph::MIN_SIZE));
 impl Default for LigGlyph<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -762,7 +838,7 @@ impl<'a> MinByteRange<'a> for CaretValueFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -776,14 +852,30 @@ impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CaretValueFormat1FixedHeader {
+    pub caret_value_format: BigEndian<u16>,
+    pub coordinate: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<CaretValueFormat1FixedHeader>() <= CaretValueFormat1::MIN_SIZE);
+
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
 #[derive(Clone)]
 pub struct CaretValueFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, CaretValueFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -793,14 +885,12 @@ impl<'a> CaretValueFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
-        let range = self.caret_value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_value_format.get()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().coordinate.get()
     }
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
@@ -823,7 +913,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for CaretValueFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -838,7 +929,7 @@ impl<'a> MinByteRange<'a> for CaretValueFormat2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -852,14 +943,30 @@ impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CaretValueFormat2FixedHeader {
+    pub caret_value_format: BigEndian<u16>,
+    pub caret_value_point_index: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<CaretValueFormat2FixedHeader>() <= CaretValueFormat2::MIN_SIZE);
+
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
 #[derive(Clone)]
 pub struct CaretValueFormat2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, CaretValueFormat2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -869,14 +976,12 @@ impl<'a> CaretValueFormat2<'a> {
 
     /// Format identifier: format = 2
     pub fn caret_value_format(&self) -> u16 {
-        let range = self.caret_value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_value_format.get()
     }
 
     /// Contour point index on glyph
     pub fn caret_value_point_index(&self) -> u16 {
-        let range = self.caret_value_point_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_value_point_index.get()
     }
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
@@ -902,7 +1007,7 @@ impl<'a> MinByteRange<'a> for CaretValueFormat3<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -916,14 +1021,31 @@ impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CaretValueFormat3FixedHeader {
+    pub caret_value_format: BigEndian<u16>,
+    pub coordinate: BigEndian<i16>,
+    pub device_offset: BigEndian<Offset16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<CaretValueFormat3FixedHeader>() <= CaretValueFormat3::MIN_SIZE);
+
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 #[derive(Clone)]
 pub struct CaretValueFormat3<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, CaretValueFormat3FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -933,30 +1055,24 @@ impl<'a> CaretValueFormat3<'a> {
 
     /// Format identifier-format = 3
     pub fn caret_value_format(&self) -> u16 {
-        let range = self.caret_value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().caret_value_format.get()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().coordinate.get()
     }
 
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
     pub fn device_offset(&self) -> Offset16 {
-        let range = self.device_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().device_offset.get()
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     pub fn device(&self) -> Result<DeviceOrVariationIndex<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.device_offset().resolve(data)
     }
 
@@ -989,7 +1105,7 @@ impl<'a> MinByteRange<'a> for MarkGlyphSets<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1003,14 +1119,29 @@ impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkGlyphSetsFixedHeader {
+    pub format: BigEndian<u16>,
+    pub mark_glyph_set_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MarkGlyphSetsFixedHeader>() <= MarkGlyphSets::MIN_SIZE);
+
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
 #[derive(Clone)]
 pub struct MarkGlyphSets<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MarkGlyphSetsFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1020,26 +1151,27 @@ impl<'a> MarkGlyphSets<'a> {
 
     /// Format identifier == 1
     pub fn format(&self) -> u16 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     /// Number of mark glyph sets defined
     pub fn mark_glyph_set_count(&self) -> u16 {
-        let range = self.mark_glyph_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark_glyph_set_count.get()
     }
 
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
     pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1070,7 +1202,8 @@ const _: () = assert!(FontData::default_data_long_enough(MarkGlyphSets::MIN_SIZE
 impl Default for MarkGlyphSets<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1081,7 +1214,7 @@ impl<'a> MinByteRange<'a> for LigCaretList2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1095,14 +1228,29 @@ impl<'a> FontRead<'a> for LigCaretList2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigCaretList2FixedHeader {
+    pub coverage_offset: BigEndian<Offset32>,
+    pub lig_glyph_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigCaretList2FixedHeader>() <= LigCaretList2::MIN_SIZE);
+
 /// ISO Open Font Format, fifth edition: LigCaretList2.
 #[derive(Clone)]
 pub struct LigCaretList2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, LigCaretList2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1112,35 +1260,33 @@ impl<'a> LigCaretList2<'a> {
 
     /// Offset to Coverage table - from beginning of LigCaretList2 table
     pub fn coverage_offset(&self) -> Offset32 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> Uint24 {
-        let range = self.lig_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().lig_glyph_count.get()
     }
 
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList2 table —in Coverage Index order
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.lig_glyph_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
     pub fn lig_glyphs(&self) -> ArrayOfOffsets<'a, LigGlyph<'a>, Offset24> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.lig_glyph_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1171,7 +1317,8 @@ const _: () = assert!(FontData::default_data_long_enough(LigCaretList2::MIN_SIZE
 impl Default for LigCaretList2<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

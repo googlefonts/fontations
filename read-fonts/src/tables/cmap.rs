@@ -34,7 +34,9 @@ pub enum MapVariant {
 impl<'a> Dmap<'a> {
     /// Returns a cmap view of this table, whose structure and subtables are identical.
     pub fn as_cmap(&self) -> Cmap<'a> {
-        Cmap { data: self.data }
+        // The two tables share a layout, so data that parsed as one parses
+        // as the other.
+        Cmap::read(self.offset_data()).unwrap_or_default()
     }
 }
 
