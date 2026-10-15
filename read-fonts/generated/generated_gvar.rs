@@ -179,6 +179,165 @@ impl Default for Gvar<'_> {
     }
 }
 
+impl<'a> MinByteRange<'a> for GvarExtended<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_variation_data_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl TopLevelTable for GvarExtended<'_> {
+    /// `GVAR`
+    const TAG: Tag = Tag::new(b"GVAR");
+}
+
+impl ReadArgs for GvarExtended<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for GvarExtended<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GvarExtendedFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub axis_count: BigEndian<u16>,
+    pub shared_tuple_count: BigEndian<u16>,
+    pub shared_tuples_offset: BigEndian<Offset32>,
+    pub glyph_count: BigEndian<Uint24>,
+    pub flags: BigEndian<GvarFlags>,
+    pub glyph_variation_data_array_offset: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GvarExtendedFixedHeader>() <= GvarExtended::MIN_SIZE);
+
+/// GVAR glyph variations table (ISO/IEC 14496-22:2026, 7.3.9).
+#[derive(Clone)]
+pub struct GvarExtended<'a> {
+    data: TableDataRef<'a, GvarExtendedFixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> GvarExtended<'a> {
+    pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN
+        + GvarFlags::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn version(&self) -> MajorMinor {
+        self.data.header().version.get()
+    }
+
+    pub fn axis_count(&self) -> u16 {
+        self.data.header().axis_count.get()
+    }
+
+    pub fn shared_tuple_count(&self) -> u16 {
+        self.data.header().shared_tuple_count.get()
+    }
+
+    /// Number of glyphs, equal to numGlyphs in MAXP.
+    pub fn glyph_count(&self) -> Uint24 {
+        self.data.header().glyph_count.get()
+    }
+
+    pub fn flags(&self) -> GvarFlags {
+        self.data.header().flags.get()
+    }
+
+    pub fn glyph_variation_data_array_offset(&self) -> u32 {
+        self.data.header().glyph_variation_data_array_offset.get()
+    }
+
+    pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
+        let range = self.glyph_variation_data_offsets_byte_range();
+        ComputedArray::new(self.offset_data(), range, self.flags()).unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn shared_tuple_count_byte_range(&self) -> Range<usize> {
+        let start = self.axis_count_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn shared_tuples_offset_byte_range(&self) -> Range<usize> {
+        let start = self.shared_tuple_count_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.shared_tuples_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        let end = start + GvarFlags::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_variation_data_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_variation_data_offsets_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.glyph_variation_data_array_offset_byte_range().end;
+        let end = start
+            + (transforms::add(glyph_count, 1_usize))
+                .saturating_mul(<U16Or32 as ComputeSize>::compute_size(self.flags()).unwrap_or(0));
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GvarExtended::MIN_SIZE));
+
+impl Default for GvarExtended<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
@@ -687,6 +846,113 @@ const _: () = assert!(FontData::default_data_long_enough(
 ));
 
 impl Default for GlyphVariationDataHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for GlyphVariationDataHeaderExtended<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.tuple_variation_headers_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for GlyphVariationDataHeaderExtended<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for GlyphVariationDataHeaderExtended<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphVariationDataHeaderExtendedFixedHeader {
+    pub tuple_variation_count: BigEndian<TupleVariationCount>,
+    pub serialized_data_offset: BigEndian<Offset24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<GlyphVariationDataHeaderExtendedFixedHeader>()
+        <= GlyphVariationDataHeaderExtended::MIN_SIZE
+);
+
+/// Per-glyph variation header in GVAR (ISO/IEC 14496-22:2026, 7.3.9.1.3).
+#[derive(Clone)]
+pub struct GlyphVariationDataHeaderExtended<'a> {
+    data: TableDataRef<'a, GlyphVariationDataHeaderExtendedFixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> GlyphVariationDataHeaderExtended<'a> {
+    pub const MIN_SIZE: usize = (TupleVariationCount::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn tuple_variation_count(&self) -> TupleVariationCount {
+        self.data.header().tuple_variation_count.get()
+    }
+
+    pub fn serialized_data_offset(&self) -> Offset24 {
+        self.data.header().serialized_data_offset.get()
+    }
+
+    /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].
+    pub fn serialized_data(&self) -> Result<FontData<'a>, ReadError> {
+        let data = self.offset_data();
+        self.serialized_data_offset().resolve(data)
+    }
+
+    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader<'a>> {
+        let range = self.tuple_variation_headers_byte_range();
+        self.offset_data()
+            .split_off(range.start)
+            .and_then(|d| VarLenArray::read(d).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + TupleVariationCount::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn serialized_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_variation_count_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
+        let start = self.serialized_data_offset_byte_range().end;
+        let end = start + self.offset_data().len().saturating_sub(start);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    GlyphVariationDataHeaderExtended::MIN_SIZE
+));
+
+impl Default for GlyphVariationDataHeaderExtended<'_> {
     fn default() -> Self {
         Self {
             data: TableDataRef::new(FontData::default_table_data().as_bytes())

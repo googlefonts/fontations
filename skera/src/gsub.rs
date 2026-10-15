@@ -1,5 +1,6 @@
 //! impl subset() for GSUB table
 mod alternate_subst;
+mod extended;
 mod ligature_subst;
 mod multiple_subst;
 mod reverse_chain_single_subst;
@@ -14,18 +15,16 @@ use crate::{
     LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError, SubsetFlags,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
-            layout::LookupFlag,
-        },
-        types::{Compatible, MajorMinor, Offset16, Offset32, Tag},
-        FontRead, FontRef, TopLevelTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
+        layout::LookupFlag,
     },
-    FontBuilder,
+    types::{Compatible, MajorMinor, Offset16, Offset32, Tag},
+    FontRead, FontRef, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gsub<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -76,7 +75,12 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
-        find_duplicate_features(&feature_list, lookup_indices, feature_indices)
+        let mut duplicates =
+            find_duplicate_features(&feature_list, lookup_indices, feature_indices);
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::protect_lookup_variation_features(&variations, &mut duplicates);
+        }
+        duplicates
     }
 
     fn prune_langsys(
@@ -151,6 +155,9 @@ fn subset_gsub(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    if gsub.version() >= MajorMinor::new(1, 2) {
+        return subset_extended_layout(gsub, plan, font, state, s);
+    }
     let version_pos = s.embed(gsub.version())?;
     let mut c = SubsetLayoutContext::new(Gsub::TAG);
     let script_list_offset_pos = s.embed(0_u16)?;
@@ -219,6 +226,8 @@ fn subset_gsub(
 
     Ok(())
 }
+
+crate::layout::header::subset_extended_layout!(Gsub, gsub_lookups);
 
 impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
@@ -323,7 +332,7 @@ where
 mod test {
     use super::*;
     use font_test_data::closure as test_data;
-    use write_fonts::read::{types::NameId, FontRef, TableProvider};
+    use read_fonts::{types::NameId, FontRef, TableProvider};
 
     #[test]
     fn test_nameid_closure() {

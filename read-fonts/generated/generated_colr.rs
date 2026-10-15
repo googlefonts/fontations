@@ -759,6 +759,7 @@ impl ReadArgs for ClipBox<'_> {
 }
 
 impl<'a> FontRead<'a> for ClipBox<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
@@ -1454,6 +1455,7 @@ pub enum Paint<'a> {
     SkewAroundCenter(PaintSkewAroundCenter<'a>),
     VarSkewAroundCenter(PaintVarSkewAroundCenter<'a>),
     Composite(PaintComposite<'a>),
+    Glyph2(PaintGlyph2<'a>),
 }
 
 impl Default for Paint<'_> {
@@ -1498,6 +1500,7 @@ impl<'a> Paint<'a> {
             Self::SkewAroundCenter(item) => item.offset_data(),
             Self::VarSkewAroundCenter(item) => item.offset_data(),
             Self::Composite(item) => item.offset_data(),
+            Self::Glyph2(item) => item.offset_data(),
         }
     }
 
@@ -1536,6 +1539,7 @@ impl<'a> Paint<'a> {
             Self::SkewAroundCenter(item) => item.format(),
             Self::VarSkewAroundCenter(item) => item.format(),
             Self::Composite(item) => item.format(),
+            Self::Glyph2(item) => item.format(),
         }
     }
 }
@@ -1545,6 +1549,7 @@ impl ReadArgs for Paint<'_> {
 }
 
 impl<'a> FontRead<'a> for Paint<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
@@ -1590,6 +1595,7 @@ impl<'a> FontRead<'a> for Paint<'a> {
                 Ok(Self::VarSkewAroundCenter(FontRead::read(data)?))
             }
             PaintComposite::FORMAT => Ok(Self::Composite(FontRead::read(data)?)),
+            PaintGlyph2::FORMAT => Ok(Self::Glyph2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1630,6 +1636,7 @@ impl<'a> MinByteRange<'a> for Paint<'a> {
             Self::SkewAroundCenter(item) => item.min_byte_range(),
             Self::VarSkewAroundCenter(item) => item.min_byte_range(),
             Self::Composite(item) => item.min_byte_range(),
+            Self::Glyph2(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
@@ -1666,6 +1673,7 @@ impl<'a> MinByteRange<'a> for Paint<'a> {
             Self::SkewAroundCenter(item) => item.min_table_bytes(),
             Self::VarSkewAroundCenter(item) => item.min_table_bytes(),
             Self::Composite(item) => item.min_table_bytes(),
+            Self::Glyph2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -3040,6 +3048,102 @@ impl<'a> PaintGlyph<'a> {
     pub fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
         let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+impl Format<u8> for PaintGlyph2<'_> {
+    const FORMAT: u8 = 33;
+}
+
+impl<'a> MinByteRange<'a> for PaintGlyph2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for PaintGlyph2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PaintGlyph2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PaintGlyph2FixedHeader {
+    pub format: u8,
+    pub paint_offset: BigEndian<Offset24>,
+    pub glyph_id: BigEndian<GlyphId24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PaintGlyph2FixedHeader>() <= PaintGlyph2::MIN_SIZE);
+
+/// PaintGlyph2, format 33 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct PaintGlyph2<'a> {
+    data: TableDataRef<'a, PaintGlyph2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PaintGlyph2<'a> {
+    pub const MIN_SIZE: usize =
+        (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + GlyphId24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Set to 33.
+    pub fn format(&self) -> u8 {
+        self.data.header().format
+    }
+
+    /// Offset to a Paint table.
+    pub fn paint_offset(&self) -> Offset24 {
+        self.data.header().paint_offset.get()
+    }
+
+    /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
+        let data = self.offset_data();
+        self.paint_offset().resolve(data)
+    }
+
+    /// Glyph ID for the source outline.
+    pub fn glyph_id(&self) -> GlyphId24 {
+        self.data.header().glyph_id.get()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn paint_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.paint_offset_byte_range().end;
+        let end = start + GlyphId24::RAW_BYTE_LEN;
         start..end
     }
 }

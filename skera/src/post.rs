@@ -4,14 +4,12 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetFlags,
 };
-use write_fonts::{
-    read::{
-        tables::post::{Post, DEFAULT_GLYPH_NAMES},
-        FontRef, MinByteRange, TopLevelTable,
-    },
+use read_fonts::{
+    tables::post::{Post, DEFAULT_GLYPH_NAMES},
     types::{BigEndian, Version16Dot16},
-    FontBuilder,
+    FontRef, MinByteRange, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for post in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-post-table.hh#L96
@@ -27,9 +25,11 @@ impl Subset for Post<'_> {
         s.embed_bytes(self.min_table_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
+        // Version 2 counts glyphs in 16 bits, so a larger subset has no names.
         let glyph_names = plan
             .subset_flags
-            .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);
+            .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES)
+            && plan.num_output_glyphs <= usize::from(u16::MAX);
         //version 3 does not have any glyph names
         if !glyph_names {
             s.copy_assign(self.version_byte_range().start, Version16Dot16::VERSION_3_0);

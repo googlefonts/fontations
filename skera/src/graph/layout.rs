@@ -4,7 +4,7 @@ use crate::{
     graph::{Graph, Parents, RepackError},
     serialize::{Link, LinkWidth, ObjIdx},
 };
-use write_fonts::types::{FixedSize, Offset16, Scalar};
+use read_fonts::types::{FixedSize, Offset16, Scalar};
 
 pub(super) struct DataBytes<'a> {
     bytes: &'a mut [u8],

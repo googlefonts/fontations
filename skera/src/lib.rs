@@ -20,6 +20,7 @@ mod hvar;
 mod inc_bimap;
 mod layout;
 mod maxp;
+mod metrics;
 mod name;
 mod offset;
 mod offset_array;
@@ -48,58 +49,56 @@ pub use parsing_util::{
 };
 use unicode_closure::unicode_closure;
 
+use read_fonts::{
+    collections::{int_set::Domain, IntSet},
+    tables::{
+        avar::Avar,
+        base::Base,
+        cbdt::Cbdt,
+        cblc::Cblc,
+        cff::Cff,
+        cff2::Cff2,
+        cmap::{Cmap, Dmap},
+        colr::Colr,
+        cpal::Cpal,
+        cvar::Cvar,
+        fvar::Fvar,
+        gasp,
+        gdef::Gdef,
+        glyf::{Glyf, Glyph},
+        gpos::Gpos,
+        gsub::Gsub,
+        gvar::{Gvar, GvarExtended},
+        hdmx::Hdmx,
+        head::Head,
+        hhea::{Hhea, HheaExtended},
+        hmtx::{Hmtx, HmtxExtended},
+        hvar::Hvar,
+        loca::Loca,
+        maxp::{Maxp, MaxpExtended},
+        name::Name,
+        os2::Os2,
+        post::Post,
+        sbix::Sbix,
+        stat::Stat,
+        variations::NO_VARIATION_INDEX,
+        vhea::{Vhea, VheaExtended},
+        vmtx::{Vmtx, VmtxExtended},
+        vorg::Vorg,
+        vvar::Vvar,
+    },
+    types::{GlyphId, NameId, Tag},
+    FontRef, TableProvider, TopLevelTable,
+};
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::MetadataProvider;
 use thiserror::Error;
-use write_fonts::{
-    read::{
-        collections::{int_set::Domain, IntSet},
-        limits::MAX_RECURSION_DEPTH,
-        tables::{
-            avar::Avar,
-            base::Base,
-            cbdt::Cbdt,
-            cblc::Cblc,
-            cff::Cff,
-            cff2::Cff2,
-            cmap::{Cmap, CmapSubtable, PlatformId},
-            colr::Colr,
-            cpal::Cpal,
-            cvar::Cvar,
-            fvar::Fvar,
-            gasp,
-            gdef::Gdef,
-            glyf::{Glyf, Glyph},
-            gpos::Gpos,
-            gsub::Gsub,
-            gvar::Gvar,
-            hdmx::Hdmx,
-            head::Head,
-            hhea::Hhea,
-            hmtx::Hmtx,
-            hvar::Hvar,
-            loca::Loca,
-            maxp::Maxp,
-            name::Name,
-            os2::Os2,
-            post::Post,
-            sbix::Sbix,
-            stat::Stat,
-            variations::NO_VARIATION_INDEX,
-            vhea::Vhea,
-            vmtx::Vmtx,
-            vorg::Vorg,
-            vvar::Vvar,
-        },
-        types::{GlyphId, NameId, Tag},
-        FontRef, TableProvider, TopLevelTable,
-    },
-    FontBuilder,
-};
+use write_fonts::FontBuilder;
 
 type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
+const MAX_NESTING_LEVEL: usize = read_fonts::limits::MAX_RECURSION_DEPTH;
 // Support 24-bit gids. This should probably be extended to u32::MAX but
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
@@ -546,31 +545,23 @@ impl Plan {
     }
 
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
-        if let Ok(cmap) = font.cmap() {
-            let encoding_records = cmap.encoding_records();
-            if let Ok(i) = encoding_records.binary_search_by(|r| {
-                if r.platform_id() != PlatformId::Unicode {
-                    r.platform_id().cmp(&PlatformId::Unicode)
-                } else if r.encoding_id() != 5 {
-                    r.encoding_id().cmp(&5)
-                } else {
-                    std::cmp::Ordering::Equal
-                }
-            }) {
-                if let Ok(CmapSubtable::Format14(cmap14)) = encoding_records
-                    .get(i)
-                    .unwrap()
-                    .subtable(cmap.offset_data())
-                {
-                    self.unicodes.extend(
-                        cmap14
-                            .var_selector()
-                            .iter()
-                            .map(|s| s.var_selector().to_u32())
-                            .filter(|v| input_unicodes.contains(*v)),
-                    );
-                }
-            }
+        for cmap in [
+            font.cmap().ok(),
+            font.dmap().ok().map(|dmap| dmap.as_cmap()),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let Some((_, subtable)) = cmap.uvs_subtable() else {
+                continue;
+            };
+            self.unicodes.extend(
+                subtable
+                    .var_selector()
+                    .iter()
+                    .map(|s| s.var_selector().to_u32())
+                    .filter(|v| input_unicodes.contains(*v)),
+            );
         }
     }
 
@@ -581,6 +572,11 @@ impl Plan {
         //glyph closure for cmap
         if let Ok(cmap) = font.cmap() {
             cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+        }
+        if let Ok(dmap) = font.dmap() {
+            // Keep cmap variants too: a zero DMAP variant falls back to cmap.
+            dmap.as_cmap()
+                .closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         }
 
         // layout closure
@@ -598,8 +594,7 @@ impl Plan {
         }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
-        if let Ok(loca) = font.loca(None) {
-            let glyf = font.glyf().expect("Error reading glyf table");
+        if let Ok((glyf, loca)) = font.selected_glyf_loca(None) {
             let operation_count =
                 self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
             for gid in self.glyphset_colred.iter() {
@@ -649,7 +644,7 @@ impl Plan {
             self.new_to_old_gid_list.extend(
                 self.glyphset
                     .iter()
-                    .zip(0u16..)
+                    .zip(0u32..)
                     .map(|x| (GlyphId::from(x.1), x.0)),
             );
             self.num_output_glyphs = self.new_to_old_gid_list.len();
@@ -823,6 +818,26 @@ impl Plan {
 
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
+            if let Some(Ok(variations)) = gpos.feature_variations() {
+                layout::collect_feature_variation_condition_indices(
+                    &variations,
+                    self,
+                    &self.gpos_features_w_duplicates,
+                    &self.gpos_lookups,
+                    &mut varidx_set,
+                );
+            }
+        }
+        if let Ok(gsub) = font.gsub() {
+            if let Some(Ok(variations)) = gsub.feature_variations() {
+                layout::collect_feature_variation_condition_indices(
+                    &variations,
+                    self,
+                    &self.gsub_features_w_duplicates,
+                    &self.gsub_lookups,
+                    &mut varidx_set,
+                );
+            }
         }
 
         let vardata_count = var_store.item_variation_data_count() as u32;
@@ -971,7 +986,7 @@ fn glyf_closure_glyphs(
     }
     gids_to_retain.insert(gid);
 
-    if depth > MAX_RECURSION_DEPTH {
+    if depth > MAX_NESTING_LEVEL {
         return operation_count;
     }
     let depth = depth + 1;
@@ -986,7 +1001,7 @@ fn glyf_closure_glyphs(
             operation_count = glyf_closure_glyphs(
                 loca,
                 glyf,
-                child.glyph.into(),
+                child.glyph,
                 gids_to_retain,
                 operation_count,
                 depth,
@@ -1001,8 +1016,13 @@ fn remove_invalid_gids(gids: &mut IntSet<GlyphId>, num_glyphs: usize) {
 }
 
 fn get_font_num_glyphs(font: &FontRef) -> usize {
-    let ret = font.loca(None).map(|loca| loca.len()).unwrap_or_default();
-    let maxp = font.maxp().expect("Error reading maxp table");
+    let ret = font
+        .selected_glyf_loca(None)
+        .map(|(_, loca)| loca.len())
+        .unwrap_or_default();
+    let maxp = font
+        .selected_maxp()
+        .expect("Error reading maximum profile table");
     ret.max(maxp.num_glyphs() as usize)
 }
 
@@ -1342,6 +1362,14 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Cmap::TAG))?
             .subset(plan, font, s, builder),
 
+        Dmap::TAG => font
+            .dmap()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(Dmap::TAG)
+            })?
+            .subset(plan, font, s, builder),
+
         Colr::TAG => font
             .colr()
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
@@ -1359,10 +1387,25 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
+        Glyf::TAG
+            if font.data_for_tag(glyf_loca::GLYF).is_some()
+                && !plan.drop_tables.contains(glyf_loca::GLYF) =>
+        {
+            Ok(())
+        }
+
         Glyf::TAG => font
             .glyf()
             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
             .subset(plan, font, s, builder),
+
+        glyf_loca::GLYF => {
+            let glyf = font.glyf_extended().map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(glyf_loca::GLYF)
+            })?;
+            glyf_loca::subset_glyf(&glyf, plan, font, s, builder, true)
+        }
 
         Gpos::TAG => font
             .gpos()
@@ -1374,9 +1417,24 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Gsub::TAG))?
             .subset_with_state(plan, font, state, s, builder),
 
+        Gvar::TAG
+            if font.data_for_tag(GvarExtended::TAG).is_some()
+                && !plan.drop_tables.contains(GvarExtended::TAG) =>
+        {
+            Ok(())
+        }
+
         Gvar::TAG => font
             .gvar()
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
+            .subset(plan, font, s, builder),
+
+        GvarExtended::TAG => font
+            .gvar_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(GvarExtended::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Hdmx::TAG => font
@@ -1385,26 +1443,56 @@ fn subset_table<'a>(
             .subset(plan, font, s, builder),
 
         //handled by glyf table if exists
-        Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
+        Head::TAG => font.selected_glyf_loca(None).map(|_| ()).or_else(|_| {
             font.head()
                 .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
                 .subset(plan, font, s, builder)
         }),
 
         //Skip, handled by Hmtx
-        Hhea::TAG => Ok(()),
+        Hhea::TAG | HheaExtended::TAG => Ok(()),
+
+        Hmtx::TAG
+            if font.data_for_tag(HmtxExtended::TAG).is_some()
+                && !plan.drop_tables.contains(HmtxExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
             .subset(plan, font, s, builder),
 
+        HmtxExtended::TAG => font
+            .hmtx_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(HmtxExtended::TAG)
+            })?
+            .subset(plan, font, s, builder),
+
         //Skip, handled by Vmtx
-        Vhea::TAG => Ok(()),
+        Vhea::TAG | VheaExtended::TAG => Ok(()),
+
+        Vmtx::TAG
+            if font.data_for_tag(VmtxExtended::TAG).is_some()
+                && !plan.drop_tables.contains(VmtxExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Vmtx::TAG => font
             .vmtx()
             .map_err(|_| SubsetError::SubsetTableError(Vmtx::TAG))?
+            .subset(plan, font, s, builder),
+
+        VmtxExtended::TAG => font
+            .vmtx_extended()
+            .map_err(|_| {
+                s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                SubsetError::SubsetTableError(VmtxExtended::TAG)
+            })?
             .subset(plan, font, s, builder),
 
         Hvar::TAG => font
@@ -1422,11 +1510,24 @@ fn subset_table<'a>(
         MVAR | CVT => passthrough_table(tag, font, s),
 
         //Skip, handled by glyf
-        Loca::TAG => Ok(()),
+        Loca::TAG | glyf_loca::LOCA => Ok(()),
+
+        // Hybrid output is not maintained: MAXP describes the retained glyph space.
+        Maxp::TAG
+            if font.data_for_tag(MaxpExtended::TAG).is_some()
+                && !plan.drop_tables.contains(MaxpExtended::TAG) =>
+        {
+            Ok(())
+        }
 
         Maxp::TAG => font
             .maxp()
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?
+            .subset(plan, font, s, builder),
+
+        MaxpExtended::TAG => font
+            .maxp_extended()
+            .map_err(|_| SubsetError::SubsetTableError(MaxpExtended::TAG))?
             .subset(plan, font, s, builder),
 
         Name::TAG => font

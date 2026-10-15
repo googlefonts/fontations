@@ -43,9 +43,9 @@ impl<'a> FontRead<'a> for Gsub<'a> {
 #[doc(hidden)]
 pub struct GsubFixedHeader {
     pub version: BigEndian<MajorMinor>,
-    pub script_list_offset: BigEndian<Offset16>,
-    pub feature_list_offset: BigEndian<Offset16>,
-    pub lookup_list_offset: BigEndian<Offset16>,
+    pub script_list_offset: BigEndian<Nullable<Offset16>>,
+    pub feature_list_offset: BigEndian<Nullable<Offset16>>,
+    pub lookup_list_offset: BigEndian<Nullable<Offset16>>,
 }
 
 #[allow(clippy::absurd_extreme_comparisons)]
@@ -71,36 +71,18 @@ impl<'a> Gsub<'a> {
     }
 
     /// Offset to ScriptList table, from beginning of GSUB table
-    pub fn script_list_offset(&self) -> Offset16 {
+    pub fn script_list_offset(&self) -> Nullable<Offset16> {
         self.data.header().script_list_offset.get()
     }
 
-    /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
-    pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        let data = self.offset_data();
-        self.script_list_offset().resolve(data)
-    }
-
     /// Offset to FeatureList table, from beginning of GSUB table
-    pub fn feature_list_offset(&self) -> Offset16 {
+    pub fn feature_list_offset(&self) -> Nullable<Offset16> {
         self.data.header().feature_list_offset.get()
     }
 
-    /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
-    pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        let data = self.offset_data();
-        self.feature_list_offset().resolve(data)
-    }
-
     /// Offset to LookupList table, from beginning of GSUB table
-    pub fn lookup_list_offset(&self) -> Offset16 {
+    pub fn lookup_list_offset(&self) -> Nullable<Offset16> {
         self.data.header().lookup_list_offset.get()
-    }
-
-    /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
-    pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
-        let data = self.offset_data();
-        self.lookup_list_offset().resolve(data)
     }
 
     /// Offset to FeatureVariations table, from beginning of the GSUB
@@ -116,6 +98,48 @@ impl<'a> Gsub<'a> {
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = self.offset_data();
         self.feature_variations_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    pub fn script_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.script_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.offset_data().read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`script_list2_offset`][Self::script_list2_offset].
+    pub fn script_list2(&self) -> Option<Result<ScriptList<'a>, ReadError>> {
+        let data = self.offset_data();
+        self.script_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    pub fn feature_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.feature_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.offset_data().read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`feature_list2_offset`][Self::feature_list2_offset].
+    pub fn feature_list2(&self) -> Option<Result<FeatureList<'a>, ReadError>> {
+        let data = self.offset_data();
+        self.feature_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    pub fn lookup_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.lookup_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.offset_data().read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`lookup_list2_offset`][Self::lookup_list2_offset].
+    pub fn lookup_list2(&self) -> Option<Result<SubstitutionLookupList2<'a>, ReadError>> {
+        let data = self.offset_data();
+        self.lookup_list2_offset().map(|x| x.resolve(data))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -151,6 +175,36 @@ impl<'a> Gsub<'a> {
         };
         start..end
     }
+
+    pub fn script_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.feature_variations_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn feature_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.script_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn lookup_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.feature_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
 }
 
 const _: () = assert!(FontData::default_data_long_enough(Gsub::MIN_SIZE));
@@ -167,13 +221,13 @@ impl Default for Gsub<'_> {
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
 pub enum SubstitutionLookup<'a> {
     Single(Lookup<'a, SingleSubst<'a>>),
-    Multiple(Lookup<'a, MultipleSubstFormat1<'a>>),
-    Alternate(Lookup<'a, AlternateSubstFormat1<'a>>),
-    Ligature(Lookup<'a, LigatureSubstFormat1<'a>>),
+    Multiple(Lookup<'a, MultipleSubst<'a>>),
+    Alternate(Lookup<'a, AlternateSubst<'a>>),
+    Ligature(Lookup<'a, LigatureSubst<'a>>),
     Contextual(Lookup<'a, SubstitutionSequenceContext<'a>>),
     ChainContextual(Lookup<'a, SubstitutionChainContext<'a>>),
     Extension(Lookup<'a, ExtensionSubtable<'a>>),
-    Reverse(Lookup<'a, ReverseChainSingleSubstFormat1<'a>>),
+    Reverse(Lookup<'a, ReverseChainSingleSubst<'a>>),
 }
 
 impl Default for SubstitutionLookup<'_> {
@@ -227,6 +281,8 @@ impl<'a> SubstitutionLookup<'a> {
 pub enum SingleSubst<'a> {
     Format1(SingleSubstFormat1<'a>),
     Format2(SingleSubstFormat2<'a>),
+    Format3(SingleSubstFormat3<'a>),
+    Format4(SingleSubstFormat4<'a>),
 }
 
 impl Default for SingleSubst<'_> {
@@ -241,6 +297,8 @@ impl<'a> SingleSubst<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
             Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
         }
     }
 
@@ -249,15 +307,8 @@ impl<'a> SingleSubst<'a> {
         match self {
             Self::Format1(item) => item.subst_format(),
             Self::Format2(item) => item.subst_format(),
-        }
-    }
-
-    /// Offset to Coverage table, from beginning of substitution
-    /// subtable
-    pub fn coverage_offset(&self) -> Offset16 {
-        match self {
-            Self::Format1(item) => item.coverage_offset(),
-            Self::Format2(item) => item.coverage_offset(),
+            Self::Format3(item) => item.subst_format(),
+            Self::Format4(item) => item.subst_format(),
         }
     }
 }
@@ -267,11 +318,14 @@ impl ReadArgs for SingleSubst<'_> {
 }
 
 impl<'a> FontRead<'a> for SingleSubst<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             SingleSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SingleSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SingleSubstFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            SingleSubstFormat4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -282,12 +336,16 @@ impl<'a> MinByteRange<'a> for SingleSubst<'a> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         match self {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1445,12 +1503,12 @@ impl<T> Default for ExtensionSubstFormat1<'_, T> {
 /// A [GSUB Extension Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#ES) subtable
 pub enum ExtensionSubtable<'a> {
     Single(ExtensionSubstFormat1<'a, SingleSubst<'a>>),
-    Multiple(ExtensionSubstFormat1<'a, MultipleSubstFormat1<'a>>),
-    Alternate(ExtensionSubstFormat1<'a, AlternateSubstFormat1<'a>>),
-    Ligature(ExtensionSubstFormat1<'a, LigatureSubstFormat1<'a>>),
+    Multiple(ExtensionSubstFormat1<'a, MultipleSubst<'a>>),
+    Alternate(ExtensionSubstFormat1<'a, AlternateSubst<'a>>),
+    Ligature(ExtensionSubstFormat1<'a, LigatureSubst<'a>>),
     Contextual(ExtensionSubstFormat1<'a, SubstitutionSequenceContext<'a>>),
     ChainContextual(ExtensionSubstFormat1<'a, SubstitutionChainContext<'a>>),
-    Reverse(ExtensionSubstFormat1<'a, ReverseChainSingleSubstFormat1<'a>>),
+    Reverse(ExtensionSubstFormat1<'a, ReverseChainSingleSubst<'a>>),
 }
 
 impl Default for ExtensionSubtable<'_> {
@@ -1706,6 +1764,1429 @@ impl Default for ReverseChainSingleSubstFormat1<'_> {
         Self {
             data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
                 .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+impl Format<u16> for SingleSubstFormat3<'_> {
+    const FORMAT: u16 = 3;
+}
+
+impl<'a> MinByteRange<'a> for SingleSubstFormat3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.delta_glyph_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SingleSubstFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SingleSubstFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SingleSubstFormat3FixedHeader {
+    pub subst_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub delta_glyph_id: BigEndian<Int24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SingleSubstFormat3FixedHeader>() <= SingleSubstFormat3::MIN_SIZE);
+
+/// SingleSubstFormat3 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct SingleSubstFormat3<'a> {
+    data: TableDataRef<'a, SingleSubstFormat3FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SingleSubstFormat3<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Int24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 3
+    pub fn subst_format(&self) -> u16 {
+        self.data.header().subst_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Add to original glyph ID to get substitute glyph ID
+    pub fn delta_glyph_id(&self) -> Int24 {
+        self.data.header().delta_glyph_id.get()
+    }
+
+    pub fn subst_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.subst_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn delta_glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Int24::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+impl Format<u16> for SingleSubstFormat4<'_> {
+    const FORMAT: u16 = 4;
+}
+
+impl<'a> MinByteRange<'a> for SingleSubstFormat4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitute_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SingleSubstFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SingleSubstFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SingleSubstFormat4FixedHeader {
+    pub subst_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub glyph_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SingleSubstFormat4FixedHeader>() <= SingleSubstFormat4::MIN_SIZE);
+
+/// SingleSubstFormat4 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct SingleSubstFormat4<'a> {
+    data: TableDataRef<'a, SingleSubstFormat4FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SingleSubstFormat4<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 4
+    pub fn subst_format(&self) -> u16 {
+        self.data.header().subst_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of glyph IDs in the substituteGlyphIDs array
+    pub fn glyph_count(&self) -> Uint24 {
+        self.data.header().glyph_count.get()
+    }
+
+    /// Array of substitute glyph IDs — ordered by Coverage index
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.substitute_glyph_ids_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn subst_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.subst_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.glyph_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl Format<u16> for MultipleSubstFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for MultipleSubstFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.sequence_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for MultipleSubstFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MultipleSubstFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MultipleSubstFormat2FixedHeader {
+    pub subst_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub sequence_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<MultipleSubstFormat2FixedHeader>() <= MultipleSubstFormat2::MIN_SIZE
+);
+
+/// MultipleSubstFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct MultipleSubstFormat2<'a> {
+    data: TableDataRef<'a, MultipleSubstFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MultipleSubstFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn subst_format(&self) -> u16 {
+        self.data.header().subst_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of Sequence table offsets in the sequenceOffsets array
+    pub fn sequence_count(&self) -> Uint24 {
+        self.data.header().sequence_count.get()
+    }
+
+    /// Array of offsets to Sequence tables. Offsets are from beginning
+    /// of substitution subtable, ordered by Coverage index
+    pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.sequence_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
+    pub fn sequences(&self) -> ArrayOfOffsets<'a, Sequence2<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.sequence_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn subst_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.subst_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn sequence_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn sequence_offsets_byte_range(&self) -> Range<usize> {
+        let sequence_count = self.sequence_count();
+        let start = self.sequence_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(sequence_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl Format<u16> for AlternateSubstFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for AlternateSubstFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.alternate_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for AlternateSubstFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for AlternateSubstFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AlternateSubstFormat2FixedHeader {
+    pub subst_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub alternate_set_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<AlternateSubstFormat2FixedHeader>() <= AlternateSubstFormat2::MIN_SIZE
+);
+
+/// AlternateSubstFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct AlternateSubstFormat2<'a> {
+    data: TableDataRef<'a, AlternateSubstFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> AlternateSubstFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn subst_format(&self) -> u16 {
+        self.data.header().subst_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of AlternateSet tables
+    pub fn alternate_set_count(&self) -> Uint24 {
+        self.data.header().alternate_set_count.get()
+    }
+
+    /// Array of offsets to AlternateSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.alternate_set_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
+    pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, AlternateSet2<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.alternate_set_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn subst_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.subst_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn alternate_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn alternate_set_offsets_byte_range(&self) -> Range<usize> {
+        let alternate_set_count = self.alternate_set_count();
+        let start = self.alternate_set_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(alternate_set_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl Format<u16> for LigatureSubstFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for LigatureSubstFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for LigatureSubstFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigatureSubstFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigatureSubstFormat2FixedHeader {
+    pub subst_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub ligature_set_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<LigatureSubstFormat2FixedHeader>() <= LigatureSubstFormat2::MIN_SIZE
+);
+
+/// LigatureSubstFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct LigatureSubstFormat2<'a> {
+    data: TableDataRef<'a, LigatureSubstFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LigatureSubstFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn subst_format(&self) -> u16 {
+        self.data.header().subst_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of LigatureSet tables
+    pub fn ligature_set_count(&self) -> Uint24 {
+        self.data.header().ligature_set_count.get()
+    }
+
+    /// Array of offsets to LigatureSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.ligature_set_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
+    pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, LigatureSet2<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.ligature_set_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn subst_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.subst_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ligature_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ligature_set_offsets_byte_range(&self) -> Range<usize> {
+        let ligature_set_count = self.ligature_set_count();
+        let start = self.ligature_set_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(ligature_set_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl Format<u16> for ReverseChainSingleSubstFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for ReverseChainSingleSubstFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitute_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ReverseChainSingleSubstFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct ReverseChainSingleSubstFormat2FixedHeader {
+    pub subst_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub backtrack_glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<ReverseChainSingleSubstFormat2FixedHeader>()
+        <= ReverseChainSingleSubstFormat2::MIN_SIZE
+);
+
+/// ReverseChainSingleSubstFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct ReverseChainSingleSubstFormat2<'a> {
+    data: TableDataRef<'a, ReverseChainSingleSubstFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ReverseChainSingleSubstFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn subst_format(&self) -> u16 {
+        self.data.header().subst_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable.
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of glyphs in the backtrack sequence.
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        self.data.header().backtrack_glyph_count.get()
+    }
+
+    /// Array of offsets to coverage tables in backtrack sequence, in
+    /// glyph sequence order.
+    pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.backtrack_coverage_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of glyphs in lookahead sequence.
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        let range = self.lookahead_glyph_count_byte_range();
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// Array of offsets to coverage tables in lookahead sequence, in
+    /// glyph sequence order.
+    pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.lookahead_coverage_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of glyph IDs in the substituteGlyphIDs array.
+    pub fn glyph_count(&self) -> Uint24 {
+        let range = self.glyph_count_byte_range();
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// Array of substitute glyph IDs — ordered by Coverage index.
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.substitute_glyph_ids_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn subst_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.subst_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn backtrack_coverage_offsets_byte_range(&self) -> Range<usize> {
+        let backtrack_glyph_count = self.backtrack_glyph_count();
+        let start = self.backtrack_glyph_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(backtrack_glyph_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_coverage_offsets_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lookahead_coverage_offsets_byte_range(&self) -> Range<usize> {
+        let lookahead_glyph_count = self.lookahead_glyph_count();
+        let start = self.lookahead_glyph_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(lookahead_glyph_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_coverage_offsets_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.glyph_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for Sequence2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.substitute_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for Sequence2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Sequence2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Sequence2FixedHeader {
+    pub glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Sequence2FixedHeader>() <= Sequence2::MIN_SIZE);
+
+/// Sequence2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct Sequence2<'a> {
+    data: TableDataRef<'a, Sequence2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Sequence2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of glyph IDs in the substituteGlyphIDs array. This must
+    /// always be greater than 0.
+    pub fn glyph_count(&self) -> u16 {
+        self.data.header().glyph_count.get()
+    }
+
+    /// String of glyph IDs to substitute
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.substitute_glyph_ids_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.glyph_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Sequence2::MIN_SIZE));
+
+impl Default for Sequence2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for AlternateSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.alternate_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for AlternateSet2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for AlternateSet2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AlternateSet2FixedHeader {
+    pub glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AlternateSet2FixedHeader>() <= AlternateSet2::MIN_SIZE);
+
+/// AlternateSet2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct AlternateSet2<'a> {
+    data: TableDataRef<'a, AlternateSet2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> AlternateSet2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of glyph IDs in the alternateGlyphIDs array
+    pub fn glyph_count(&self) -> u16 {
+        self.data.header().glyph_count.get()
+    }
+
+    /// Array of alternate glyph IDs, in arbitrary order
+    pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.alternate_glyph_ids_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn alternate_glyph_ids_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.glyph_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AlternateSet2::MIN_SIZE));
+
+impl Default for AlternateSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for LigatureSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for LigatureSet2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigatureSet2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigatureSet2FixedHeader {
+    pub ligature_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigatureSet2FixedHeader>() <= LigatureSet2::MIN_SIZE);
+
+/// LigatureSet2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct LigatureSet2<'a> {
+    data: TableDataRef<'a, LigatureSet2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LigatureSet2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of Ligature tables
+    pub fn ligature_count(&self) -> u16 {
+        self.data.header().ligature_count.get()
+    }
+
+    /// Array of offsets to Ligature tables. Offsets are from beginning
+    /// of LigatureSet2 table, ordered by preference.
+    pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.ligature_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
+    pub fn ligatures(&self) -> ArrayOfOffsets<'a, Ligature2<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.ligature_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn ligature_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ligature_offsets_byte_range(&self) -> Range<usize> {
+        let ligature_count = self.ligature_count();
+        let start = self.ligature_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(ligature_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LigatureSet2::MIN_SIZE));
+
+impl Default for LigatureSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for Ligature2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.component_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for Ligature2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for Ligature2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Ligature2FixedHeader {
+    pub ligature_glyph: BigEndian<GlyphId24>,
+    pub component_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Ligature2FixedHeader>() <= Ligature2::MIN_SIZE);
+
+/// Ligature2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct Ligature2<'a> {
+    data: TableDataRef<'a, Ligature2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Ligature2<'a> {
+    pub const MIN_SIZE: usize = (GlyphId24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// glyph ID of ligature to substitute
+    pub fn ligature_glyph(&self) -> GlyphId24 {
+        self.data.header().ligature_glyph.get()
+    }
+
+    /// Number of components in the ligature
+    pub fn component_count(&self) -> u16 {
+        self.data.header().component_count.get()
+    }
+
+    /// Array of component glyph IDs — start with the second
+    /// component, ordered in writing direction
+    pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId24>] {
+        let range = self.component_glyph_ids_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn ligature_glyph_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + GlyphId24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn component_count_byte_range(&self) -> Range<usize> {
+        let start = self.ligature_glyph_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn component_glyph_ids_byte_range(&self) -> Range<usize> {
+        let component_count = self.component_count();
+        let start = self.component_count_byte_range().end;
+        let end = start
+            + (transforms::subtract(component_count, 1_usize))
+                .saturating_mul(GlyphId24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Ligature2::MIN_SIZE));
+
+impl Default for Ligature2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+/// MultipleSubst (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum MultipleSubst<'a> {
+    Format1(MultipleSubstFormat1<'a>),
+    Format2(MultipleSubstFormat2<'a>),
+}
+
+impl Default for MultipleSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> MultipleSubst<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+}
+
+impl ReadArgs for MultipleSubst<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MultipleSubst<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            MultipleSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            MultipleSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for MultipleSubst<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+/// AlternateSubst (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum AlternateSubst<'a> {
+    Format1(AlternateSubstFormat1<'a>),
+    Format2(AlternateSubstFormat2<'a>),
+}
+
+impl Default for AlternateSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> AlternateSubst<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+}
+
+impl ReadArgs for AlternateSubst<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for AlternateSubst<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            AlternateSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            AlternateSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for AlternateSubst<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+/// LigatureSubst (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum LigatureSubst<'a> {
+    Format1(LigatureSubstFormat1<'a>),
+    Format2(LigatureSubstFormat2<'a>),
+}
+
+impl Default for LigatureSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> LigatureSubst<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+}
+
+impl ReadArgs for LigatureSubst<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for LigatureSubst<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            LigatureSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            LigatureSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for LigatureSubst<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+/// ReverseChainSingleSubst (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum ReverseChainSingleSubst<'a> {
+    Format1(ReverseChainSingleSubstFormat1<'a>),
+    Format2(ReverseChainSingleSubstFormat2<'a>),
+}
+
+impl Default for ReverseChainSingleSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> ReverseChainSingleSubst<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+
+    /// Number of glyphs in the backtrack sequence.
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.backtrack_glyph_count(),
+            Self::Format2(item) => item.backtrack_glyph_count(),
+        }
+    }
+
+    /// Number of glyphs in lookahead sequence.
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.lookahead_glyph_count(),
+            Self::Format2(item) => item.lookahead_glyph_count(),
+        }
+    }
+}
+
+impl ReadArgs for ReverseChainSingleSubst<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ReverseChainSingleSubst<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            ReverseChainSingleSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            ReverseChainSingleSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for ReverseChainSingleSubst<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }

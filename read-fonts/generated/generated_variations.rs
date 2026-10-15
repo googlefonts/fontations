@@ -503,6 +503,7 @@ impl ReadArgs for DeltaSetIndexMap<'_> {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {

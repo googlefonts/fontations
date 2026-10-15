@@ -19,21 +19,17 @@ use crate::{
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{
-                ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables,
-            },
-            layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
-        },
-        types::Tag,
-        FontRead, FontRef, ReadError, TopLevelTable,
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables},
+        layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
     },
+    types::Tag,
     types::{Compatible, MajorMinor, Offset16, Offset32},
-    FontBuilder,
+    FontRead, FontRef, ReadError, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gpos<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -84,7 +80,12 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
-        find_duplicate_features(&feature_list, lookup_indices, feature_indices)
+        let mut duplicates =
+            find_duplicate_features(&feature_list, lookup_indices, feature_indices);
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::protect_lookup_variation_features(&variations, &mut duplicates);
+        }
+        duplicates
     }
 
     fn prune_langsys(
@@ -152,6 +153,9 @@ fn subset_gpos(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    if gpos.version() >= MajorMinor::new(1, 2) {
+        return subset_extended_layout(gpos, plan, font, state, s);
+    }
     let version_pos = s.embed(gpos.version())?;
     let mut c = SubsetLayoutContext::new(Gpos::TAG);
     let script_list_offset_pos = s.embed(0_u16)?;
@@ -217,6 +221,8 @@ fn subset_gpos(
     }
     Ok(())
 }
+
+crate::layout::header::subset_extended_layout!(Gpos, gpos_lookups);
 
 impl<'a> SubsetTable<'a> for PositionLookup<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
@@ -394,7 +400,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     #[test]
     fn test_prune_langsys() {

@@ -8,31 +8,29 @@ use crate::{
     variations::DeltaSetIndexMapSerializePlan,
     Plan, Subset, SubsetError, SubsetTable,
 };
-use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            colr::{
-                BaseGlyph, BaseGlyphList, BaseGlyphPaint, ClipBox, ClipBoxFormat1, ClipBoxFormat2,
-                ClipList, ColorLine, ColorStop, Colr, Layer, LayerList, Paint, PaintColrGlyph,
-                PaintColrLayers, PaintComposite, PaintGlyph, PaintLinearGradient,
-                PaintRadialGradient, PaintRotate, PaintRotateAroundCenter, PaintScale,
-                PaintScaleAroundCenter, PaintScaleUniform, PaintScaleUniformAroundCenter,
-                PaintSkew, PaintSkewAroundCenter, PaintSolid, PaintSweepGradient, PaintTransform,
-                PaintTranslate, PaintVarLinearGradient, PaintVarRadialGradient, PaintVarRotate,
-                PaintVarRotateAroundCenter, PaintVarScale, PaintVarScaleAroundCenter,
-                PaintVarScaleUniform, PaintVarScaleUniformAroundCenter, PaintVarSkew,
-                PaintVarSkewAroundCenter, PaintVarSolid, PaintVarSweepGradient, PaintVarTransform,
-                PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
-            },
-            variations::{DeltaSetIndexMap, NO_VARIATION_INDEX},
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        colr::{
+            BaseGlyph, BaseGlyphList, BaseGlyphPaint, ClipBox, ClipBoxFormat1, ClipBoxFormat2,
+            ClipList, ColorLine, ColorStop, Colr, Layer, LayerList, Paint, PaintColrGlyph,
+            PaintColrLayers, PaintComposite, PaintGlyph, PaintGlyph2, PaintLinearGradient,
+            PaintRadialGradient, PaintRotate, PaintRotateAroundCenter, PaintScale,
+            PaintScaleAroundCenter, PaintScaleUniform, PaintScaleUniformAroundCenter, PaintSkew,
+            PaintSkewAroundCenter, PaintSolid, PaintSweepGradient, PaintTransform, PaintTranslate,
+            PaintVarLinearGradient, PaintVarRadialGradient, PaintVarRotate,
+            PaintVarRotateAroundCenter, PaintVarScale, PaintVarScaleAroundCenter,
+            PaintVarScaleUniform, PaintVarScaleUniformAroundCenter, PaintVarSkew,
+            PaintVarSkewAroundCenter, PaintVarSolid, PaintVarSweepGradient, PaintVarTransform,
+            PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
         },
-        FontRef, MinByteRange, TopLevelTable,
+        variations::{DeltaSetIndexMap, NO_VARIATION_INDEX},
     },
-    types::{GlyphId, Offset24, Offset32},
-    FontBuilder,
+    types::{GlyphId, GlyphId24, Offset24, Offset32},
+    FontRef, MinByteRange, TopLevelTable,
 };
+use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
+use write_fonts::FontBuilder;
 
 // reference: subset() for COLR in Harfbuzz:
 // <https://github.com/harfbuzz/harfbuzz/blob/043980a60eb2fe93dd65b8c2f5eaa021fd8653f2/src/OT/Color/COLR/COLR.hh#L2414>
@@ -711,6 +709,7 @@ impl SubsetTable<'_> for Paint<'_> {
             Self::SweepGradient(item) => item.subset(plan, s, args),
             Self::VarSweepGradient(item) => item.subset(plan, s, args),
             Self::Glyph(item) => item.subset(plan, s, args),
+            Self::Glyph2(item) => item.subset(plan, s, args),
             Self::ColrGlyph(item) => item.subset(plan, s, args),
             Self::Transform(item) => item.subset(plan, s, args),
             Self::VarTransform(item) => item.subset(plan, s, args),
@@ -1000,6 +999,42 @@ impl SubsetTable<'_> for PaintGlyph<'_> {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         };
         s.embed(new_gid.to_u32() as u16)?;
+
+        let Ok(paint) = self.paint() else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        };
+        Offset24::serialize_subset(&paint, s, plan, (), offset_pos)
+    }
+}
+
+impl SubsetTable<'_> for PaintGlyph2<'_> {
+    type ArgsForSubset = ();
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        let old_gid = GlyphId::from(self.glyph_id());
+        let Some(new_gid) = plan.glyph_map.get(&old_gid) else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+        let Some(new_gid) = GlyphId24::checked_new(new_gid.to_u32()) else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+        let fits_u16 = new_gid.to_u32() <= u16::MAX as u32;
+        s.embed(if fits_u16 { 10u8 } else { self.format() })?;
+        let offset_pos = s.embed_bytes(&[0_u8; 3])?;
+        if fits_u16 {
+            s.embed(new_gid.to_u32() as u16)?;
+        } else {
+            s.embed(new_gid)?;
+        }
 
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1664,7 +1699,59 @@ fn downgrade_to_v0(base_glyph_list: Option<&BaseGlyphList>, plan: &Plan) -> bool
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{read::TableProvider, types::GlyphId};
+    use read_fonts::{types::GlyphId, FontData, FontRead, TableProvider};
+
+    #[test]
+    fn test_subset_paint_glyph2_chooses_smallest_glyph_format() {
+        let paint = Paint::read(FontData::new(font_test_data::colr::PAINT_GLYPH2)).unwrap();
+        for new_gid in [0, 0xffff, 0x10000, 0xffffff] {
+            let mut plan = Plan::default();
+            plan.glyph_map
+                .insert(GlyphId::new(0x123456), GlyphId::new(new_gid));
+            plan.colr_palettes.insert(7, 3);
+            let mut serializer = Serializer::new(128);
+            serializer.start_serialize().unwrap();
+            paint.subset(&plan, &mut serializer, ()).unwrap();
+            serializer.end_serialize();
+            assert!(!serializer.in_error());
+            let data = serializer.copy_bytes();
+            let (glyph_id, child) = match Paint::read(FontData::new(&data)).unwrap() {
+                Paint::Glyph(paint) => {
+                    assert!(new_gid <= 0xffff);
+                    assert_eq!(paint.paint_offset().to_u32(), 6);
+                    (paint.glyph_id().to_u32(), paint.paint().unwrap())
+                }
+                Paint::Glyph2(paint) => {
+                    assert!(new_gid > 0xffff);
+                    assert_eq!(paint.paint_offset().to_u32(), 7);
+                    (paint.glyph_id().to_u32(), paint.paint().unwrap())
+                }
+                _ => panic!("expected glyph paint"),
+            };
+            assert_eq!(glyph_id, new_gid);
+            let Paint::Solid(solid) = child else {
+                panic!("expected PaintSolid");
+            };
+            assert_eq!(solid.palette_index(), 3);
+        }
+    }
+
+    #[test]
+    fn test_subset_paint_glyph2_rejects_missing_or_overflowing_mapping() {
+        let paint = Paint::read(FontData::new(font_test_data::colr::PAINT_GLYPH2)).unwrap();
+        for new_gid in [None, Some(0x1000000)] {
+            let mut plan = Plan::default();
+            if let Some(new_gid) = new_gid {
+                plan.glyph_map
+                    .insert(GlyphId::new(0x123456), GlyphId::new(new_gid));
+            }
+            let mut serializer = Serializer::new(128);
+            serializer.start_serialize().unwrap();
+            assert!(paint.subset(&plan, &mut serializer, ()).is_err());
+            assert!(serializer.in_error());
+        }
+    }
+
     #[test]
     fn test_subset_colr_retain_all() {
         let ttf: &[u8] = include_bytes!("../test-data/fonts/TwemojiMozilla.subset.ttf");

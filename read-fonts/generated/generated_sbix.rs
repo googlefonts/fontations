@@ -322,11 +322,11 @@ impl TopLevelTable for Sbix<'_> {
 }
 
 impl ReadArgs for Sbix<'_> {
-    type Args = u16;
+    type Args = u32;
 }
 
 impl<'a> FontRead<'a> for Sbix<'a> {
-    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u32) -> Result<Self, ReadError> {
         let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
@@ -345,7 +345,7 @@ impl<'a> Sbix<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
+    pub fn read(data: FontData<'a>, num_glyphs: u32) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, args)
     }
@@ -368,7 +368,7 @@ const _: () = assert!(std::mem::size_of::<SbixFixedHeader>() <= Sbix::MIN_SIZE);
 #[derive(Clone)]
 pub struct Sbix<'a> {
     data: TableDataRef<'a, SbixFixedHeader>,
-    num_glyphs: u16,
+    num_glyphs: u32,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -410,7 +410,7 @@ impl<'a> Sbix<'a> {
         ArrayOfOffsets::new(offsets, data, args)
     }
 
-    pub(crate) fn num_glyphs(&self) -> u16 {
+    pub(crate) fn num_glyphs(&self) -> u32 {
         self.num_glyphs
     }
 
@@ -464,11 +464,11 @@ impl<'a> MinByteRange<'a> for Strike<'a> {
 }
 
 impl ReadArgs for Strike<'_> {
-    type Args = u16;
+    type Args = u32;
 }
 
 impl<'a> FontRead<'a> for Strike<'a> {
-    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u32) -> Result<Self, ReadError> {
         let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
@@ -487,7 +487,7 @@ impl<'a> Strike<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
+    pub fn read(data: FontData<'a>, num_glyphs: u32) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, args)
     }
@@ -509,7 +509,7 @@ const _: () = assert!(std::mem::size_of::<StrikeFixedHeader>() <= Strike::MIN_SI
 #[derive(Clone)]
 pub struct Strike<'a> {
     data: TableDataRef<'a, StrikeFixedHeader>,
-    num_glyphs: u16,
+    num_glyphs: u32,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -536,7 +536,7 @@ impl<'a> Strike<'a> {
             .unwrap_or_default()
     }
 
-    pub(crate) fn num_glyphs(&self) -> u16 {
+    pub(crate) fn num_glyphs(&self) -> u32 {
         self.num_glyphs
     }
 

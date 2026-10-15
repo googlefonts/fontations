@@ -6,14 +6,12 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Serialize, Subset, SubsetError,
 };
-use write_fonts::{
-    read::{
-        tables::{variations::DeltaSetIndexMap, vvar::Vvar},
-        FontRef, ReadError, TopLevelTable,
-    },
+use read_fonts::{
+    tables::{variations::DeltaSetIndexMap, vvar::Vvar},
     types::{FixedSize, Offset32},
-    FontBuilder,
+    FontRef, ReadError, TopLevelTable,
 };
+use write_fonts::FontBuilder;
 
 // reference: subset() for HVAR in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/bcd5aa368d3fd3ef741ea29df15d3d56011811c0/src/hb-ot-var-hvar-table.hh#L330>
@@ -85,10 +83,8 @@ impl ListupIndexMaps for Vvar<'_> {
 mod test {
     use super::*;
     use crate::SubsetFlags;
-    use write_fonts::{
-        read::{FontData, FontRead},
-        types::GlyphId,
-    };
+    use read_fonts::{types::GlyphId, FontData, FontRead};
+
     #[test]
     fn test_subset_vvar_noop() {
         let raw_bytes: [u8; 102] = [

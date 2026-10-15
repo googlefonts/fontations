@@ -7,7 +7,7 @@ use std::{
 };
 
 use hashbrown::HashTable;
-use write_fonts::types::{FixedSize, Scalar, Uint24};
+use read_fonts::types::{FixedSize, Scalar, Uint24};
 
 /// An error which occurred during the serialization of a table using Serializer.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1111,7 +1111,7 @@ impl PoolIdxHashTable {
 
 #[cfg(test)]
 mod test {
-    use write_fonts::types::{Offset16, Offset32, UfWord, Uint24};
+    use read_fonts::types::{Offset16, Offset32, UfWord, Uint24};
 
     use super::*;
 
