@@ -171,7 +171,7 @@ impl<'a> CmapSubtable<'a> {
 
     /// Attempts to map the given codepoint to a nominal glyph identifier using
     /// the underlying subtable.
-    #[inline]
+    #[inline(always)]
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         match self {
             Self::Format0(item) => item.map_codepoint(codepoint),
