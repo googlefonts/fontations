@@ -103,6 +103,9 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
         }
 
         impl<'a> FontRead<'a> for #name<'a> {
+            // Lookups resolve some subtables per glyph, and the dispatch is
+            // small enough to inline there.
+            #[inline]
             fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                 let format: #format = data.read_at(#format_offset)?;
                 #maybe_allow_lint
