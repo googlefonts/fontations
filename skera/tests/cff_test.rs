@@ -199,13 +199,14 @@ fn seac_components_join_the_glyph_mapping() {
 
 #[test]
 fn full_cff2_instances_match_harfbuzz() {
-    for (filename, request) in [
-        ("AdobeVFPrototype.otf", "wght=650,CNTR=40"),
-        ("Cantarell-VF-ABC.otf", "wght=650"),
-        ("NotoSansJP-VF.subset.otf", "wght=500"),
+    for (filename, request, full_average) in [
+        ("AdobeVFPrototype.otf", "wght=650,CNTR=40", 529),
+        ("Cantarell-VF-ABC.otf", "wght=650", 611),
+        ("NotoSansJP-VF.subset.otf", "wght=500", 1000),
         (
             "SourceSerif4Variable-Roman-HelloWorld.otf",
             "wght=650,opsz=48",
+            530,
         ),
     ] {
         let data = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
@@ -237,6 +238,11 @@ fn full_cff2_instances_match_harfbuzz() {
         assert!(a.var_store().is_none());
         assert!(output.fvar().is_err());
         assert!(output.hvar().is_err());
+        assert_eq!(
+            instance.os2().unwrap().x_avg_char_width(),
+            full_average,
+            "{filename}"
+        );
         assert_eq!(a.num_glyphs(), b.num_glyphs());
         for gid in 0..a.num_glyphs() {
             let gid = GlyphId::new(gid);
@@ -314,6 +320,13 @@ fn partial_cff2_instances_match_harfbuzz() {
             None,
         )
         .unwrap();
+        if let Some(store) = a.var_store() {
+            for data in store.item_variation_data().iter().flatten() {
+                let data = data.unwrap();
+                assert_eq!(data.item_count(), 0);
+                assert_eq!(data.word_delta_count(), 0);
+            }
+        }
         assert_eq!(output.axes().len(), reference.axes().len());
         assert_eq!(a.num_glyphs(), b.num_glyphs());
         for fraction in [0.25, 0.75] {
@@ -418,5 +431,51 @@ fn cff2_downgrade_preserves_outlines_and_cff1_widths() {
                 instance.hmtx().unwrap().advance(gid).unwrap() as i32
             );
         }
+    }
+}
+
+#[test]
+fn full_cff2_instances_preserve_half_unit_contours() {
+    let data = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+    let font = FontRef::new(&data).unwrap();
+    for (gid, request) in [(81, "wght=550,CNTR=50"), (40, "wght=725,CNTR=75")] {
+        let instanced =
+            skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()).unwrap();
+        let instance = FontRef::new(&instanced).unwrap();
+        let p = Plan::new(
+            &[GlyphId::new(0), GlyphId::new(gid)].into_iter().collect(),
+            &IntSet::empty(),
+            &instance,
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::<NameId>::all(),
+            &IntSet::all(),
+        );
+        let out = subset_font(&instance, &p).unwrap();
+        let reference = std::fs::read(format!(
+            "test-data/expected/cff2-instances/hb-AdobeVFPrototype-gid{gid}.otf"
+        ))
+        .unwrap();
+        let paths = |bytes: &[u8]| {
+            let font = FontRef::new(bytes).unwrap();
+            let cff = CffFontRef::new(
+                font.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+                0,
+                None,
+            )
+            .unwrap();
+            (0..cff.num_glyphs())
+                .map(|gid| {
+                    let gid = GlyphId::new(gid);
+                    let sf = cff.subfont(cff.subfont_index(gid).unwrap(), &[]).unwrap();
+                    let mut path = Vec::<PathElement>::new();
+                    cff.draw(&sf, gid, &[], None, &mut path).unwrap();
+                    path
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(paths(&out), paths(&reference), "{request} glyph {gid}");
     }
 }

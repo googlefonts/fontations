@@ -1440,6 +1440,37 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
     }
 }
 
+/// Visit borrowed conditions before recursively materializing an owned tree.
+pub(crate) fn walk_conditions(
+    condition: &Condition,
+    depth: usize,
+    remaining: &mut usize,
+    visit: &mut impl FnMut(&Condition),
+) -> Result<(), ReadError> {
+    if depth > 32 || *remaining == 0 {
+        return Err(ReadError::MalformedData("condition tree exceeds limits"));
+    }
+    *remaining -= 1;
+    visit(condition);
+    match condition {
+        Condition::Format3And(v) => {
+            for child in v.conditions().iter() {
+                walk_conditions(&child?, depth + 1, remaining, visit)?;
+            }
+        }
+        Condition::Format4Or(v) => {
+            for child in v.conditions().iter() {
+                walk_conditions(&child?, depth + 1, remaining, visit)?;
+            }
+        }
+        Condition::Format5Negate(v) => {
+            walk_conditions(&v.condition()?, depth + 1, remaining, visit)?
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
     type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut SubsetLayoutContext);
     type Output = ();
