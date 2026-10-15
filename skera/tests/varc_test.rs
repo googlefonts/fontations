@@ -223,6 +223,61 @@ fn referenced_axes_are_rejected_in_component_lists_regions_and_nested_conditions
     }
 }
 
+#[test]
+fn original_ranges_preserve_referenced_varc_axes() {
+    for name in [
+        "varc-unrelated-axis",
+        "varc-unrelated-axis-avar2",
+        "varc-unrelated-axis-avar2-store",
+    ] {
+        let bytes = std::fs::read(format!("test-data/fonts/{name}.ttf")).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for pin in [false, true] {
+            let baseline = if pin { "DUMY=0.5" } else { "" };
+            let expected = skera::instance_font(
+                &font,
+                &skera::parse_axis_limits_for_font(&font, baseline).unwrap(),
+            )
+            .unwrap();
+            let expected = FontRef::new(&expected).unwrap();
+            for request in [
+                "wght=::",
+                "opsz=::",
+                "0000=::",
+                "COND=::",
+                "wght=::,opsz=::,0000=::,COND=::",
+            ] {
+                let request = format!("{request},{baseline}");
+                let result = skera::instance_font(
+                    &font,
+                    &skera::parse_axis_limits_for_font(&font, &request).unwrap(),
+                )
+                .unwrap();
+                let result = FontRef::new(&result).unwrap();
+                assert_eq!(
+                    owned_varc(&result),
+                    owned_varc(&expected),
+                    "{name}: {request}"
+                );
+                assert_eq!(
+                    result.fvar().unwrap().axes().unwrap(),
+                    expected.fvar().unwrap().axes().unwrap()
+                );
+                for location in [
+                    vec![],
+                    vec![(Tag::new(b"wght"), 840.3), (Tag::new(b"COND"), 0.75)],
+                    vec![(Tag::new(b"0000"), -0.5)],
+                ] {
+                    assert_paths_close(
+                        &draw(&result, GlyphId::new(2), &location),
+                        &draw(&expected, GlyphId::new(2), &location),
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[cfg(feature = "cli")]
 #[test]
 fn cli_instances_ignore_varc_references_removed_by_subsetting() {
