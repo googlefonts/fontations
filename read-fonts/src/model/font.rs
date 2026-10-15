@@ -41,7 +41,7 @@ use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VorgTable, Vvar
 use core::{
     any::Any,
     str::FromStr,
-    sync::atomic::{self, AtomicU32},
+    sync::atomic::{self, AtomicBool, AtomicU32},
 };
 use types::{F2Dot14, Fixed, GlyphId, Point, Tag};
 
@@ -769,6 +769,8 @@ impl CoordStorage {
 struct FeatureVarsStorage {
     gsub: AtomicU32,
     gpos: AtomicU32,
+    /// Written before the indices, so it is current once they are.
+    has_lookup_variations: AtomicBool,
 }
 
 impl Default for FeatureVarsStorage {
@@ -790,6 +792,7 @@ impl FeatureVarsStorage {
         Self {
             gsub: AtomicU32::new(Self::UNCHECKED),
             gpos: AtomicU32::new(Self::UNCHECKED),
+            has_lookup_variations: AtomicBool::new(false),
         }
     }
 
@@ -802,11 +805,14 @@ impl FeatureVarsStorage {
             return SelectedFeatureVariations {
                 gsub: Self::decode(gsub),
                 gpos: Self::decode(gpos),
+                has_lookup_variations: self.has_lookup_variations.load(atomic::Ordering::Relaxed),
             };
         }
         // Two threads that race here select the same indices, so the second
         // store writes what the first did.
         let selected = SelectedFeatureVariations::new(&font.tables(), coords);
+        self.has_lookup_variations
+            .store(selected.has_lookup_variations, atomic::Ordering::Relaxed);
         self.gsub
             .store(Self::encode(selected.gsub), atomic::Ordering::Release);
         self.gpos
@@ -1406,6 +1412,7 @@ mod tests {
         let expected = SelectedFeatureVariations {
             gsub: Some(0),
             gpos: None,
+            has_lookup_variations: false,
         };
         assert_eq!(font.feature_variations(), expected);
         assert_eq!(font.shared().0.feature_vars.gsub.load(Ordering::Acquire), 0);
@@ -1467,7 +1474,8 @@ mod tests {
                             vars,
                             SelectedFeatureVariations {
                                 gsub: Some(0),
-                                gpos: None
+                                gpos: None,
+                                has_lookup_variations: false,
                             }
                         );
                     }

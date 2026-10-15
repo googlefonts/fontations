@@ -182,6 +182,9 @@ pub struct SelectedFeatureVariations {
     pub gsub: Option<u32>,
     /// Feature variation index for the GPOS table.
     pub gpos: Option<u32>,
+    /// True if either table has lookup variations, which then have to be
+    /// resolved per feature.
+    pub has_lookup_variations: bool,
 }
 
 impl SelectedFeatureVariations {
@@ -211,6 +214,15 @@ impl SelectedFeatureVariations {
                     .flatten()
             })
             .flatten();
+        let has_lookup_variations = feature_var_tables.iter().any(|table| {
+            table.as_ref().is_some_and(|table| {
+                table.as_ref().is_ok_and(|table| {
+                    table
+                        .lookup_variation_records()
+                        .is_some_and(|records| !records.is_empty())
+                })
+            })
+        });
         let [gsub, gpos] = feature_var_tables.map(|feature_vars| {
             feature_vars
                 .transpose()
@@ -236,7 +248,11 @@ impl SelectedFeatureVariations {
                     })
                 })
         });
-        Self { gsub, gpos }
+        Self {
+            gsub,
+            gpos,
+            has_lookup_variations,
+        }
     }
 }
 
