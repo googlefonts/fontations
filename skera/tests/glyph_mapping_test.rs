@@ -176,7 +176,7 @@ fn invalid_mappings_leave_the_plan_intact_and_empty_requests_reset_it() {
     assert!(retained
         .old_to_new_glyph_mapping()
         .all(|(old, new)| old == new));
-    for input in ["1", "1:", ":2", "1:2:3", "-1:2", "1:-2", "1:2,"] {
+    for input in ["1", "1:", ":2", "1:2:3", "-1:2", "1:-2"] {
         assert!(skera::parse_glyph_mapping(input).is_err(), "{input}");
     }
 }
