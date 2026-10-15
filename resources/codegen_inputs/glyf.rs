@@ -135,10 +135,8 @@ flags u8 SimpleGlyphFlags {
     /// for the glyph. See additional details below.
     OVERLAP_SIMPLE = 0x40,
 
-    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment
-    /// 
-    /// * [Spec](https://github.com/harfbuzz/boring-expansion-spec/blob/main/glyf1-cubicOutlines.md)
-    /// * [harfbuzz](https://github.com/harfbuzz/harfbuzz/blob/c1ca46e4ebb6457dfe00a5441d52a4a66134ac58/src/OT/glyf/SimpleGlyph.hh#L23)
+    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment in GLYF
+    /// (ISO/IEC 14496-22:2026, 5.2.8).
     CUBIC = 0x80,
 }
 
@@ -217,9 +215,12 @@ flags u16 CompositeGlyphFlags {
     /// Bit 12: The composite is designed not to have the component
     /// offset scaled. Ignored if ARGS_ARE_XY_VALUES is not set.
     UNSCALED_COMPONENT_OFFSET = 0x1000,
+    /// Bit 13: The component glyph identifier uses 24-bit encoding in GLYF
+    /// (ISO/IEC 14496-22:2026, 5.2.8).
+    GID_IS_24_BIT = 0x2000,
 
-    ///// Bits 4, 13, 14 and 15 are reserved: set to 0.
-    //Reserved = 0xE010,
+    ///// Bits 4, 14 and 15 are reserved: set to 0.
+    //Reserved = 0xC010,
 }
 
 /// Simple or composite glyph.
@@ -229,4 +230,3 @@ format i16 Glyph {
     #[match_if($format < 0)]
     Composite(CompositeGlyph),
 }
-
