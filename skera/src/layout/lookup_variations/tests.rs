@@ -452,7 +452,7 @@ fn lookup_variations_prevent_default_only_feature_deduplication() {
     let retained = [1u16, 7].into_iter().collect();
     let selected: IntSet<u16> = [0u16, 1, 2].into_iter().collect();
     let mut duplicates =
-        crate::layout::find_duplicate_features(&table, &retained, selected.clone());
+        crate::layout::find_duplicate_features(&table, &retained, selected.clone(), None);
     assert_eq!(duplicates.get(&1), Some(&0));
     assert_eq!(duplicates.get(&2), Some(&0));
     input[12..14].copy_from_slice(&2u16.to_be_bytes());
@@ -463,7 +463,7 @@ fn lookup_variations_prevent_default_only_feature_deduplication() {
     assert_eq!(duplicates.get(&2), Some(&2));
     input[12..14].fill(0);
     let variations = FeatureVariations::read(FontData::new(&input)).unwrap();
-    let mut duplicates = crate::layout::find_duplicate_features(&table, &retained, selected);
+    let mut duplicates = crate::layout::find_duplicate_features(&table, &retained, selected, None);
     protect_lookup_variation_features(&variations, &mut duplicates);
     for i in 0..3 {
         assert_eq!(duplicates.get(&i), Some(&i));
