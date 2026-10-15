@@ -816,6 +816,38 @@ impl<'a> Cmap14<'a> {
     }
 }
 
+impl<'a> Cmap15<'a> {
+    /// Maps a codepoint and variation selector to a nominal glyph identifier.
+    pub fn map_variant(
+        &self,
+        codepoint: impl Into<u32>,
+        selector: impl Into<u32>,
+    ) -> Option<MapVariant> {
+        UvsSubtable::from(self.clone()).map_variant(codepoint, selector)
+    }
+
+    /// Returns an iterator over all (codepoint, selector, mapping variant)
+    /// triples in the subtable.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// triples. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
+    pub fn iter(&self) -> Cmap15Iter<'a> {
+        UvsSubtable::from(self.clone()).iter()
+    }
+
+    /// Returns an iterator over all (codepoint, selector, mapping variant)
+    /// triples in the subtable within the given limits.
+    pub fn iter_with_limits(&self, limits: CmapIterLimits) -> Cmap15Iter<'a> {
+        UvsSubtable::from(self.clone()).iter_with_limits(limits)
+    }
+
+    #[cfg(feature = "std")]
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        UvsSubtable::from(self.clone()).closure_glyphs(unicodes, glyph_set);
+    }
+}
+
 /// A Unicode variation sequences subtable: format 14, or format 15, whose
 /// non-default mappings carry 24-bit glyph IDs.
 #[derive(Clone)]
@@ -950,6 +982,10 @@ impl<'a> UvsSubtable<'a> {
 /// Iterator over all (codepoint, selector, mapping variant) triples in a
 /// format 14 subtable.
 pub type Cmap14Iter<'a> = UvsSubtableIter<'a>;
+
+/// Iterator over all (codepoint, selector, mapping variant) triples in a
+/// format 15 subtable.
+pub type Cmap15Iter<'a> = UvsSubtableIter<'a>;
 
 /// Iterator over all (codepoint, selector, mapping variant) triples in a
 /// Unicode variation sequences subtable.
