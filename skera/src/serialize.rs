@@ -168,7 +168,7 @@ impl LinkWidth {
 
 pub(crate) type ObjIdx = usize;
 
-#[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
+#[derive(Default, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct Link {
     width: LinkWidth,
     is_signed: bool,
@@ -176,6 +176,19 @@ pub(crate) struct Link {
     bias: u32,
     position: u32,
     objidx: ObjIdx,
+}
+
+// Hashes every field compared by `Eq`, but packed into three writes instead of one
+// write per field: objects are hashed together with all their links when packed,
+// which is hot for fonts with many small subtables.
+impl Hash for Link {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.objidx as u64);
+        state.write_u64(((self.bias as u64) << 32) | self.position as u64);
+        state.write_u32(
+            self.width as u32 | (self.is_signed as u32) << 8 | (self.whence as u32) << 16,
+        );
+    }
 }
 
 impl Link {
