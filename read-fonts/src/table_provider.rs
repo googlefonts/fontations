@@ -109,7 +109,7 @@ pub trait TableProvider<'a> {
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
-        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let num_glyphs = self.selected_maxp()?.num_glyphs();
         let data = self.expect_data_for_tag(tables::hdmx::Hdmx::TAG)?;
         tables::hdmx::Hdmx::read(data, num_glyphs)
     }
@@ -365,7 +365,7 @@ pub trait TableProvider<'a> {
 
     fn sbix(&self) -> Result<tables::sbix::Sbix<'a>, ReadError> {
         // should we make the user pass this in?
-        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let num_glyphs = self.selected_maxp()?.num_glyphs();
         let data = self.expect_data_for_tag(tables::sbix::Sbix::TAG)?;
         tables::sbix::Sbix::read(data, num_glyphs)
     }

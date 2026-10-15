@@ -21,11 +21,11 @@ impl TopLevelTable for Hdmx<'_> {
 }
 
 impl ReadArgs for Hdmx<'_> {
-    type Args = u16;
+    type Args = u32;
 }
 
 impl<'a> FontRead<'a> for Hdmx<'a> {
-    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u32) -> Result<Self, ReadError> {
         let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
@@ -44,7 +44,7 @@ impl<'a> Hdmx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
+    pub fn read(data: FontData<'a>, num_glyphs: u32) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, args)
     }
@@ -67,7 +67,7 @@ const _: () = assert!(std::mem::size_of::<HdmxFixedHeader>() <= Hdmx::MIN_SIZE);
 #[derive(Clone)]
 pub struct Hdmx<'a> {
     data: TableDataRef<'a, HdmxFixedHeader>,
-    num_glyphs: u16,
+    num_glyphs: u32,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -101,7 +101,7 @@ impl<'a> Hdmx<'a> {
         .unwrap_or_default()
     }
 
-    pub(crate) fn num_glyphs(&self) -> u16 {
+    pub(crate) fn num_glyphs(&self) -> u32 {
         self.num_glyphs
     }
 

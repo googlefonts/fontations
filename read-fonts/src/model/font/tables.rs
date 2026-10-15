@@ -241,7 +241,7 @@ impl<'a> TableProvider<'a> for &'a Tables {
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
-        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let num_glyphs = self.selected_maxp()?.num_glyphs();
         self.load_table_with_args(self.hdmx_state(), num_glyphs)
     }
 
@@ -442,7 +442,7 @@ impl<'a> TableProvider<'a> for &'a Tables {
 
     fn sbix(&self) -> Result<tables::sbix::Sbix<'a>, ReadError> {
         // should we make the user pass this in?
-        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let num_glyphs = self.selected_maxp()?.num_glyphs();
         self.load_table_with_args(self.sbix_state(), num_glyphs)
     }
 
