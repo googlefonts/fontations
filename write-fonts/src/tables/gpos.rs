@@ -1056,7 +1056,7 @@ mod tests {
             Some(24)
         );
         let invalid = ClassDef::from_iter([(GlyphId16::new(8), u16::MAX)]);
-        assert_eq!(invalid.class_count(), u16::MAX);
+        assert_eq!(invalid.class_count(), u32::from(u16::MAX) + 1);
         let mut owned: PairPosFormat2 = read.to_owned_table();
         owned.class_def2 = invalid.into();
         assert!(crate::dump_table(&owned).is_err());
