@@ -61,4 +61,29 @@ impl VariationScalars {
         }
         Some(sum)
     }
+
+    /// HarfBuzz uses float region scalars but double products and accumulation
+    /// for condition signs, so large cancelling deltas retain their low bits.
+    pub fn condition_delta(&self, store: &ItemVariationStore, index: DeltaSetIndex) -> Option<f64> {
+        if index == DeltaSetIndex::NO_VARIATION_INDEX {
+            return Some(0.);
+        }
+        let data = store
+            .item_variation_data()
+            .get(index.outer as usize)?
+            .ok()?;
+        if index.inner >= data.item_count() {
+            return None;
+        }
+        let mut sum = 0f64;
+        for (region, delta) in data
+            .region_indexes()
+            .iter()
+            .zip(data.delta_set(index.inner))
+        {
+            let scalar = self.0.get(region.get() as usize)?;
+            sum += *scalar as f64 * delta as f64;
+        }
+        Some(sum)
+    }
 }
