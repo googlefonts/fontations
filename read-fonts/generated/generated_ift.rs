@@ -309,7 +309,7 @@ impl<'a> MinByteRange<'a> for IftPatchMap<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -323,14 +323,38 @@ impl<'a> FontRead<'a> for IftPatchMap<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct IftPatchMapFixedHeader {
+    pub format: u8,
+    pub _reserved_0: u8,
+    pub _reserved_1: u8,
+    pub _reserved_2: u8,
+    pub field_flags: BigEndian<PatchMapFieldPresenceFlags>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub default_patch_format: u8,
+    pub entry_count: BigEndian<Uint24>,
+    pub entries_offset: BigEndian<Offset32>,
+    pub entry_id_string_data_offset: BigEndian<Nullable<Offset32>>,
+    pub url_template_length: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<IftPatchMapFixedHeader>() <= IftPatchMap::MIN_SIZE);
+
 /// [Patch Map Table](https://w3c.github.io/IFT/Overview.html#patch-map-table)
 #[derive(Clone)]
 pub struct IftPatchMap<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, IftPatchMapFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -350,78 +374,70 @@ impl<'a> IftPatchMap<'a> {
 
     /// Format identifier: format = 2
     pub fn format(&self) -> u8 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format
     }
 
     pub fn field_flags(&self) -> PatchMapFieldPresenceFlags {
-        let range = self.field_flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().field_flags.get()
     }
 
     /// Unique ID that identifies compatible patches.
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.compatibility_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().compatibility_id.get()
     }
 
     /// Patch format number for patches referenced by this mapping.
     pub fn default_patch_format(&self) -> u8 {
-        let range = self.default_patch_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().default_patch_format
     }
 
     pub fn entry_count(&self) -> Uint24 {
-        let range = self.entry_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().entry_count.get()
     }
 
     pub fn entries_offset(&self) -> Offset32 {
-        let range = self.entries_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().entries_offset.get()
     }
 
     /// Attempt to resolve [`entries_offset`][Self::entries_offset].
     pub fn entries(&self) -> Result<MappingEntries<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.entries_offset().resolve(data)
     }
 
     pub fn entry_id_string_data_offset(&self) -> Nullable<Offset32> {
-        let range = self.entry_id_string_data_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().entry_id_string_data_offset.get()
     }
 
     /// Attempt to resolve [`entry_id_string_data_offset`][Self::entry_id_string_data_offset].
     pub fn entry_id_string_data(&self) -> Option<Result<IdStringData<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.entry_id_string_data_offset().resolve(data)
     }
 
     pub fn url_template_length(&self) -> u16 {
-        let range = self.url_template_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().url_template_length.get()
     }
 
     pub fn url_template(&self) -> &'a [u8] {
         let range = self.url_template_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn cff_charstrings_offset(&self) -> Option<u32> {
         let range = self.cff_charstrings_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     pub fn cff2_charstrings_offset(&self) -> Option<u32> {
         let range = self.cff2_charstrings_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -531,7 +547,8 @@ const _: () = assert!(FontData::default_data_long_enough(IftPatchMap::MIN_SIZE))
 impl Default for IftPatchMap<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -542,7 +559,7 @@ impl<'a> MinByteRange<'a> for MappingEntries<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -556,13 +573,25 @@ impl<'a> FontRead<'a> for MappingEntries<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MappingEntriesFixedHeader {}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MappingEntriesFixedHeader>() <= MappingEntries::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct MappingEntries<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MappingEntriesFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -572,13 +601,16 @@ impl<'a> MappingEntries<'a> {
 
     pub fn entry_data(&self) -> &'a [u8] {
         let range = self.entry_data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn entry_data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -589,7 +621,8 @@ const _: () = assert!(FontData::default_data_long_enough(MappingEntries::MIN_SIZ
 impl Default for MappingEntries<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -600,7 +633,7 @@ impl<'a> MinByteRange<'a> for EntryData<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -614,13 +647,27 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct EntryDataFixedHeader {
+    pub format_flags: BigEndian<EntryFormatFlags>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<EntryDataFixedHeader>() <= EntryData::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct EntryData<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, EntryDataFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -629,49 +676,48 @@ impl<'a> EntryData<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format_flags(&self) -> EntryFormatFlags {
-        let range = self.format_flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format_flags.get()
     }
 
     pub fn feature_count(&self) -> Option<u8> {
         let range = self.feature_count_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     pub fn feature_tags(&self) -> Option<&'a [BigEndian<Tag>]> {
         let range = self.feature_tags_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
+            .then(|| self.offset_data().read_array(range).ok())
             .flatten()
     }
 
     pub fn design_space_count(&self) -> Option<u16> {
         let range = self.design_space_count_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     pub fn design_space_segments(&self) -> Option<&'a [DesignSpaceSegment]> {
         let range = self.design_space_segments_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
+            .then(|| self.offset_data().read_array(range).ok())
             .flatten()
     }
 
     pub fn match_mode_and_count(&self) -> Option<MatchModeAndCount> {
         let range = self.match_mode_and_count_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     pub fn child_indices(&self) -> Option<&'a [BigEndian<Uint24>]> {
         let range = self.child_indices_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
+            .then(|| self.offset_data().read_array(range).ok())
             .flatten()
     }
 
@@ -767,8 +813,8 @@ impl<'a> EntryData<'a> {
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.child_indices_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -778,7 +824,8 @@ const _: () = assert!(FontData::default_data_long_enough(EntryData::MIN_SIZE));
 impl Default for EntryData<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1139,7 +1186,7 @@ impl<'a> MinByteRange<'a> for IdStringData<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1153,13 +1200,25 @@ impl<'a> FontRead<'a> for IdStringData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct IdStringDataFixedHeader {}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<IdStringDataFixedHeader>() <= IdStringData::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct IdStringData<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, IdStringDataFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1169,13 +1228,16 @@ impl<'a> IdStringData<'a> {
 
     pub fn id_data(&self) -> &'a [u8] {
         let range = self.id_data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn id_data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -1186,7 +1248,8 @@ const _: () = assert!(FontData::default_data_long_enough(IdStringData::MIN_SIZE)
 impl Default for IdStringData<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1197,7 +1260,7 @@ impl<'a> MinByteRange<'a> for TableKeyedPatch<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1211,14 +1274,32 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct TableKeyedPatchFixedHeader {
+    pub format: BigEndian<Tag>,
+    pub _reserved: BigEndian<u32>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub patches_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<TableKeyedPatchFixedHeader>() <= TableKeyedPatch::MIN_SIZE);
+
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
 #[derive(Clone)]
 pub struct TableKeyedPatch<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, TableKeyedPatchFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1228,29 +1309,29 @@ impl<'a> TableKeyedPatch<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> Tag {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     /// Unique ID that identifies compatible patches.
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.compatibility_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().compatibility_id.get()
     }
 
     pub fn patches_count(&self) -> u16 {
-        let range = self.patches_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().patches_count.get()
     }
 
     pub fn patch_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.patch_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`patch_offsets`][Self::patch_offsets].
     pub fn patches(&self) -> ArrayOfOffsets<'a, TablePatch<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.patch_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1295,7 +1376,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for TableKeyedPatch<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1306,7 +1388,7 @@ impl<'a> MinByteRange<'a> for TablePatch<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1320,14 +1402,30 @@ impl<'a> FontRead<'a> for TablePatch<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct TablePatchFixedHeader {
+    pub tag: BigEndian<Tag>,
+    pub flags: BigEndian<TablePatchFlags>,
+    pub max_uncompressed_length: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<TablePatchFixedHeader>() <= TablePatch::MIN_SIZE);
+
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
 #[derive(Clone)]
 pub struct TablePatch<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, TablePatchFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1337,23 +1435,23 @@ impl<'a> TablePatch<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn tag(&self) -> Tag {
-        let range = self.tag_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().tag.get()
     }
 
     pub fn flags(&self) -> TablePatchFlags {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flags.get()
     }
 
     pub fn max_uncompressed_length(&self) -> u32 {
-        let range = self.max_uncompressed_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().max_uncompressed_length.get()
     }
 
     pub fn brotli_stream(&self) -> &'a [u8] {
         let range = self.brotli_stream_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn tag_byte_range(&self) -> Range<usize> {
@@ -1376,8 +1474,8 @@ impl<'a> TablePatch<'a> {
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -1387,7 +1485,8 @@ const _: () = assert!(FontData::default_data_long_enough(TablePatch::MIN_SIZE));
 impl Default for TablePatch<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1696,7 +1795,7 @@ impl<'a> MinByteRange<'a> for GlyphKeyedPatch<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1710,14 +1809,33 @@ impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphKeyedPatchFixedHeader {
+    pub format: BigEndian<Tag>,
+    pub _reserved: BigEndian<u32>,
+    pub flags: BigEndian<GlyphKeyedFlags>,
+    pub compatibility_id: BigEndian<CompatibilityId>,
+    pub max_uncompressed_length: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<GlyphKeyedPatchFixedHeader>() <= GlyphKeyedPatch::MIN_SIZE);
+
 /// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
 #[derive(Clone)]
 pub struct GlyphKeyedPatch<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyphKeyedPatchFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1730,28 +1848,27 @@ impl<'a> GlyphKeyedPatch<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> Tag {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     pub fn flags(&self) -> GlyphKeyedFlags {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flags.get()
     }
 
     pub fn compatibility_id(&self) -> CompatibilityId {
-        let range = self.compatibility_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().compatibility_id.get()
     }
 
     pub fn max_uncompressed_length(&self) -> u32 {
-        let range = self.max_uncompressed_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().max_uncompressed_length.get()
     }
 
     pub fn brotli_stream(&self) -> &'a [u8] {
         let range = self.brotli_stream_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1786,8 +1903,8 @@ impl<'a> GlyphKeyedPatch<'a> {
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -1799,7 +1916,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for GlyphKeyedPatch<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -2108,7 +2226,7 @@ impl<'a> MinByteRange<'a> for GlyphPatches<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2124,6 +2242,9 @@ impl<'a> FontRead<'a> for GlyphPatches<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data, flags })
     }
 }
@@ -2139,10 +2260,22 @@ impl<'a> GlyphPatches<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphPatchesFixedHeader {
+    pub glyph_count: BigEndian<u32>,
+    pub table_count: u8,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GlyphPatchesFixedHeader>() <= GlyphPatches::MIN_SIZE);
+
 /// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
 #[derive(Clone)]
 pub struct GlyphPatches<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyphPatchesFixedHeader>,
     flags: GlyphKeyedFlags,
 }
 
@@ -2152,33 +2285,37 @@ impl<'a> GlyphPatches<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn glyph_count(&self) -> u32 {
-        let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().glyph_count.get()
     }
 
     pub fn table_count(&self) -> u8 {
-        let range = self.table_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().table_count
     }
 
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {
         let range = self.glyph_ids_byte_range();
-        ComputedArray::new(self.data, range, self.flags()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.flags()).unwrap_or_default()
     }
 
     pub fn tables(&self) -> &'a [BigEndian<Tag>] {
         let range = self.tables_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.glyph_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`glyph_data_offsets`][Self::glyph_data_offsets].
     pub fn glyph_data(&self) -> ArrayOfOffsets<'a, GlyphData<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.glyph_data_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -2231,7 +2368,8 @@ const _: () = assert!(FontData::default_data_long_enough(GlyphPatches::MIN_SIZE)
 impl Default for GlyphPatches<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             flags: Default::default(),
         }
     }
@@ -2243,7 +2381,7 @@ impl<'a> MinByteRange<'a> for GlyphData<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2257,13 +2395,25 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphDataFixedHeader {}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GlyphDataFixedHeader>() <= GlyphData::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct GlyphData<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyphDataFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -2273,13 +2423,16 @@ impl<'a> GlyphData<'a> {
 
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -2290,7 +2443,8 @@ const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
 impl Default for GlyphData<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

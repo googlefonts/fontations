@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Vmtx<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -32,6 +32,9 @@ impl<'a> FontRead<'a> for Vmtx<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             number_of_long_ver_metrics,
@@ -50,10 +53,19 @@ impl<'a> Vmtx<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct VmtxFixedHeader {}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<VmtxFixedHeader>() <= Vmtx::MIN_SIZE);
+
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[derive(Clone)]
 pub struct Vmtx<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, VmtxFixedHeader>,
     number_of_long_ver_metrics: u16,
 }
 
@@ -66,13 +78,19 @@ impl<'a> Vmtx<'a> {
     /// glyph. Records are indexed by glyph ID.
     pub fn v_metrics(&self) -> &'a [LongMetric] {
         let range = self.v_metrics_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Top side bearings for glyph IDs greater than or equal to numberOfLongMetrics.
     pub fn top_side_bearings(&self) -> &'a [BigEndian<i16>] {
         let range = self.top_side_bearings_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub(crate) fn number_of_long_ver_metrics(&self) -> u16 {
@@ -90,8 +108,9 @@ impl<'a> Vmtx<'a> {
 
     pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.v_metrics_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / i16::RAW_BYTE_LEN
+                * i16::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -102,7 +121,8 @@ const _: () = assert!(FontData::default_data_long_enough(Vmtx::MIN_SIZE));
 impl Default for Vmtx<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             number_of_long_ver_metrics: Default::default(),
         }
     }
