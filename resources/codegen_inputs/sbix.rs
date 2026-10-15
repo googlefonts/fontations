@@ -9,7 +9,7 @@ flags u16 HeaderFlags {
 }
 
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
-#[read_args(num_glyphs: u16)]
+#[read_args(num_glyphs: u32)]
 #[tag = "sbix"]
 table Sbix {
     /// Table version number — set to 1.
@@ -30,7 +30,7 @@ table Sbix {
 }
 
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
-#[read_args(num_glyphs: u16)]
+#[read_args(num_glyphs: u32)]
 table Strike {
     /// The PPEM size for which this strike was designed.
     ppem: u16,

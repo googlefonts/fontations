@@ -144,7 +144,7 @@ impl UnscaledStyleMetricsSet {
         // The metrics_styles() iterator does not report exact size so we
         // preallocate and extend here rather than collect to avoid
         // over allocating memory.
-        let shaper = Shaper::new(font, shaper_mode);
+        let shaper = Shaper::new(font, shaper_mode).with_coords(coords);
         let mut vec = Vec::with_capacity(style_map.metrics_count());
         vec.extend(style_map.metrics_styles().map(|style| {
             compute_unscaled_style_metrics(&shaper, coords, style, QuirksMode::default())
@@ -185,7 +185,7 @@ impl UnscaledStyleMetricsSet {
                 // The std RwLock doesn't support upgrading and contention is
                 // expected to be low, so let's just race to compute the new
                 // metrics.
-                let shaper = Shaper::new(font, shaper_mode);
+                let shaper = Shaper::new(font, shaper_mode).with_coords(coords);
                 let style_class = style.style_class()?;
                 let metrics = compute_unscaled_style_metrics(
                     &shaper,
