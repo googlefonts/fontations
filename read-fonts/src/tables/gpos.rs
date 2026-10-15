@@ -332,6 +332,26 @@ impl<'a> PairPosFormat2<'a> {
             format2,
         }
     }
+}
+
+impl<'a> PairPosFormat4<'a> {
+    /// Returns the two-dimensional array of class value records, located but
+    /// not read.
+    pub fn class_value_records(&self) -> ClassValueRecords<'a> {
+        let format1 = self.value_format1();
+        let format2 = self.value_format2();
+        let format1_len = format1.record_byte_len();
+        ClassValueRecords {
+            data: self.offset_data(),
+            start: self.class1_records_byte_range().start as u32,
+            record_size: (format1_len + format2.record_byte_len()) as u32,
+            format1_len: format1_len as u32,
+            class1_count: self.class1_count(),
+            class2_count: self.class2_count(),
+            format1,
+            format2,
+        }
+    }
 
     /// Returns the pair of value records for the given classes, located but
     /// not read.
