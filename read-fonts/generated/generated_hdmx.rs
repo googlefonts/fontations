@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Hdmx<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -21,17 +21,20 @@ impl TopLevelTable for Hdmx<'_> {
 }
 
 impl ReadArgs for Hdmx<'_> {
-    type Args = u16;
+    type Args = u32;
 }
 
 impl<'a> FontRead<'a> for Hdmx<'a> {
-    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u32) -> Result<Self, ReadError> {
         let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data, num_glyphs })
     }
 }
@@ -41,17 +44,30 @@ impl<'a> Hdmx<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
+    pub fn read(data: FontData<'a>, num_glyphs: u32) -> Result<Self, ReadError> {
         let args = num_glyphs;
         Self::read_with_args(data, args)
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct HdmxFixedHeader {
+    pub version: BigEndian<u16>,
+    pub num_records: BigEndian<u16>,
+    pub size_device_record: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<HdmxFixedHeader>() <= Hdmx::MIN_SIZE);
+
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
 #[derive(Clone)]
 pub struct Hdmx<'a> {
-    data: FontData<'a>,
-    num_glyphs: u16,
+    data: TableDataRef<'a, HdmxFixedHeader>,
+    num_glyphs: u32,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -61,34 +77,31 @@ impl<'a> Hdmx<'a> {
 
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Number of device records.
     pub fn num_records(&self) -> u16 {
-        let range = self.num_records_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_records.get()
     }
 
     /// Size of device record, 32-bit aligned.
     pub fn size_device_record(&self) -> u32 {
-        let range = self.size_device_record_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().size_device_record.get()
     }
 
     /// Array of device records.
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.records_byte_range();
         ComputedArray::new(
-            self.data,
+            self.offset_data(),
             range,
             (self.num_glyphs(), self.size_device_record()),
         )
         .unwrap_or_default()
     }
 
-    pub(crate) fn num_glyphs(&self) -> u16 {
+    pub(crate) fn num_glyphs(&self) -> u32 {
         self.num_glyphs
     }
 
@@ -130,7 +143,8 @@ const _: () = assert!(FontData::default_data_long_enough(Hdmx::MIN_SIZE));
 impl Default for Hdmx<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             num_glyphs: Default::default(),
         }
     }

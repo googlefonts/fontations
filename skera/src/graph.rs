@@ -441,7 +441,7 @@ impl Vertex {
                 2 => prev_dist - table_size,
                 _ => 0,
             }
-            .clamp(0, 0x7FFFFFFFFFF_i64)
+            .clamp(0, i64::MAX >> 18)
         };
 
         (distance << 18) | (0x003FFFF & order as i64)
@@ -546,6 +546,9 @@ pub(crate) struct Graph {
     ordering_scratch: Vec<usize>,
     num_roots_for_space: Vec<usize>,
     data: Vec<u8>,
+    /// The LookupList2 of a version 1.2 GSUB or GPOS table, whose lookups
+    /// rather than the whole list become packing spaces.
+    wide_lookup_list: Option<usize>,
 
     // graph state flags
     parents_invalid: bool,
@@ -568,6 +571,7 @@ impl Graph {
             data: s.data(),
             parents_invalid: true,
             positions_invalid: true,
+            wide_lookup_list: None,
             distance_invalid: true,
             ..Default::default()
         };
@@ -601,7 +605,12 @@ impl Graph {
         self.vertices.get_mut(obj_idx)
     }
 
-    fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
+    /// Records the LookupList2 of a version 1.2 GSUB or GPOS table.
+    pub(crate) fn set_wide_lookup_list(&mut self, obj_idx: Option<ObjIdx>) {
+        self.wide_lookup_list = obj_idx;
+    }
+
+    pub(crate) fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
         let v = self.vertex(obj_idx)?;
         self.data.get(v.head..v.tail)
     }
@@ -922,6 +931,15 @@ impl Graph {
 
     pub(crate) fn assign_spaces(&mut self) -> Result<bool, RepackError> {
         self.update_parents()?;
+        // Extension promotion changes the graph; discard earlier packing attempts.
+        for vertex in &mut self.vertices {
+            vertex.space = 0;
+            vertex.priority = 0;
+        }
+        self.num_roots_for_space.clear();
+        self.num_roots_for_space.push(1);
+        self.distance_invalid = true;
+        self.positions_invalid = true;
         let (mut roots, mut visited) = self.find_space_roots()?;
         if roots.is_empty() {
             return Ok(false);
@@ -1034,6 +1052,18 @@ impl Graph {
     }
 
     fn find_space_roots(&self) -> Result<(IntSet<u32>, IntSet<u32>), RepackError> {
+        let (roots, visited) = self.find_space_roots_with_nested(true)?;
+        if roots.len() < MAX_SPACES as u64 {
+            return Ok((roots, visited));
+        }
+        // Keep the coarser outer 32-bit spaces if refinement exceeds the budget.
+        self.find_space_roots_with_nested(false)
+    }
+
+    fn find_space_roots_with_nested(
+        &self,
+        prefer_inner: bool,
+    ) -> Result<(IntSet<u32>, IntSet<u32>), RepackError> {
         let root_idx = self.root_idx();
         let mut visited = IntSet::empty();
         let mut roots = IntSet::empty();
@@ -1051,11 +1081,19 @@ impl Graph {
                     continue;
                 }
 
+                // As in HarfBuzz, a 24-bit link's subgraph splits at its
+                // 32-bit links; so does a wide lookup list, whose lookups
+                // need their own spaces. Other 32-bit links are roots.
+                if l.link_width() == LinkWidth::Three && *i == root_idx {
+                    continue;
+                }
+                let nested = match l.link_width() {
+                    LinkWidth::Three => true,
+                    LinkWidth::Four => prefer_inner && self.wide_lookup_list == Some(l.obj_idx()),
+                    _ => false,
+                };
                 match l.link_width() {
-                    LinkWidth::Three => {
-                        if *i == root_idx {
-                            continue;
-                        }
+                    LinkWidth::Three | LinkWidth::Four if nested => {
                         let mut sub_roots = IntSet::empty();
                         let obj_idx = l.obj_idx();
                         self.find_32bit_roots(obj_idx, &mut sub_roots, &mut queue)?;
@@ -1190,8 +1228,11 @@ impl Graph {
 
         let mut parents = IntSet::empty();
         let mut subgraph_map = FastHashMap::default();
+        // Seed every root before traversal can count edges into another root.
         for root_idx in roots.iter() {
             subgraph_map.insert(root_idx, self.wide_parents(root_idx as usize, &mut parents));
+        }
+        for root_idx in roots.iter() {
             self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map)?;
         }
 
@@ -1444,9 +1485,8 @@ impl Graph {
             }
         }
 
-        if !self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())? {
-            return Ok(false);
-        }
+        // An already isolated subgraph can still need its own packing space.
+        self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())?;
         self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
@@ -2482,5 +2522,117 @@ pub(crate) mod test {
         assert_eq!(roots2.len(), 1);
         assert!(roots2.contains(a as u32));
         assert!(!roots2.contains(b as u32));
+    }
+
+    #[test]
+    fn connected_space_roots_preserve_all_incoming_edges() {
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let a = add_object(&mut s, &[0u8; 2], 2, false);
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_wide_offset(&mut s, a);
+        add_wide_offset(&mut s, b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(&s).unwrap();
+        // A later-created child models the forward edges introduced by
+        // extension promotion or duplication during repacking.
+        graph
+            .add_parent_child_link(a, b, LinkWidth::Two, 0, false)
+            .unwrap();
+        graph.sort_shortest_distance().unwrap();
+        let count = graph.vertices.len();
+        assert!(graph.assign_spaces().unwrap());
+        assert_eq!(graph.vertices.len(), count);
+        graph.sort_shortest_distance().unwrap();
+        graph.is_fully_connected().unwrap();
+    }
+
+    #[test]
+    fn already_isolated_subgraph_can_move_to_a_new_space() {
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"cc", 2, false);
+        s.push().unwrap();
+        let offset = s.embed(0u16).unwrap();
+        s.add_link(offset..offset + 2, child, OffsetWhence::Head, 0, false)
+            .unwrap();
+        let a = s.pop_pack(false).unwrap();
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_wide_offset(&mut s, a);
+        add_wide_offset(&mut s, b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(&s).unwrap();
+        graph.update_parents().unwrap();
+        graph.vertices[a].space = 1;
+        graph.vertices[b].space = 1;
+        graph.num_roots_for_space = vec![1, 2];
+        let count = graph.vertices.len();
+        let overflow = Overflow(((a as u64) << 32) | child as u64);
+        assert!(graph.try_isolating_subgraphs(&[overflow]).unwrap());
+        assert_eq!(graph.vertices.len(), count);
+        assert_eq!(graph.vertices[a].space, 2);
+        assert_eq!(graph.vertices[b].space, 1);
+        assert_eq!(graph.num_roots_for_space, vec![1, 1, 1]);
+        graph.sort_shortest_distance().unwrap();
+        graph.is_fully_connected().unwrap();
+    }
+
+    #[test]
+    fn large_distances_keep_their_packing_order() {
+        let mut vertex = Vertex {
+            tail: 128,
+            distance: (1u64 << 43) + 256,
+            ..Default::default()
+        };
+        let order = 7;
+        for (priority, modifier) in [(0, 0), (1, 64), (2, 128)] {
+            vertex.priority = priority;
+            let expected = (((vertex.distance - modifier) as i64) << 18) | order;
+            assert_eq!(vertex.modified_distance(order as u32), expected);
+        }
+        vertex.priority = 3;
+        assert_eq!(vertex.modified_distance(order as u32), order);
+        vertex.priority = 0;
+        vertex.distance = u64::MAX / 2;
+        assert_eq!(vertex.modified_distance(0), (i64::MAX >> 18) << 18);
+    }
+
+    #[test]
+    fn nested_wide_offsets_form_spaces_within_the_budget() {
+        for count in [2, MAX_SPACES] {
+            let mut s = Serializer::new(count * 16 + 1024);
+            s.start_serialize().unwrap();
+            let leaves: Vec<_> = (0..count)
+                .map(|i| add_object(&mut s, &(i as u32).to_be_bytes(), 4, false))
+                .collect();
+            s.push().unwrap();
+            for leaf in &leaves {
+                add_wide_offset(&mut s, *leaf);
+            }
+            let list = s.pop_pack(false).unwrap();
+            s.push().unwrap();
+            add_wide_offset(&mut s, list);
+            s.pop_pack(false).unwrap();
+            s.end_serialize();
+            let mut graph = Graph::from_serializer(&s).unwrap();
+            // The list stands in for a GSUB/GPOS LookupList2.
+            graph.set_wide_lookup_list(Some(list));
+            let (roots, _) = graph.find_space_roots().unwrap();
+            if count < MAX_SPACES {
+                assert_eq!(roots.len(), count as u64);
+                assert!(leaves.iter().all(|idx| roots.contains(*idx as u32)));
+            } else {
+                assert_eq!(roots.len(), 1);
+                assert!(roots.contains(list as u32));
+            }
+            assert!(graph.assign_spaces().unwrap());
+            assert!(graph.num_roots_for_space.len() < MAX_SPACES);
+            graph.sort_shortest_distance().unwrap();
+            graph.is_fully_connected().unwrap();
+        }
     }
 }
