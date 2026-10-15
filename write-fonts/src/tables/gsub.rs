@@ -106,7 +106,7 @@ impl<'a> FontRead<'a> for SubstitutionLookupList {
 
 super::layout::lookup_type!(gsub, MultipleSubst, 2);
 super::layout::lookup_type!(gsub, MultipleSubstFormat2, 2);
-super::layout::legacy_lookup!(
+super::layout::original_lookup!(
     SubstitutionLookup,
     Multiple,
     MultipleSubstFormat1,
@@ -115,7 +115,7 @@ super::layout::legacy_lookup!(
 
 super::layout::lookup_type!(gsub, AlternateSubst, 3);
 super::layout::lookup_type!(gsub, AlternateSubstFormat2, 3);
-super::layout::legacy_lookup!(
+super::layout::original_lookup!(
     SubstitutionLookup,
     Alternate,
     AlternateSubstFormat1,
@@ -124,7 +124,7 @@ super::layout::legacy_lookup!(
 
 super::layout::lookup_type!(gsub, LigatureSubst, 4);
 super::layout::lookup_type!(gsub, LigatureSubstFormat2, 4);
-super::layout::legacy_lookup!(
+super::layout::original_lookup!(
     SubstitutionLookup,
     Ligature,
     LigatureSubstFormat1,
@@ -133,7 +133,7 @@ super::layout::legacy_lookup!(
 
 super::layout::lookup_type!(gsub, ReverseChainSingleSubst, 8);
 super::layout::lookup_type!(gsub, ReverseChainSingleSubstFormat2, 8);
-super::layout::legacy_lookup!(
+super::layout::original_lookup!(
     SubstitutionLookup,
     Reverse,
     ReverseChainSingleSubstFormat1,

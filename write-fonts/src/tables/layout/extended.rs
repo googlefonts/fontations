@@ -21,12 +21,25 @@ fn wide_coverage_roundtrips_without_truncation() {
 
 #[test]
 fn wide_coverage_count() {
-    let coverage: CoverageTable = (0..=65536).map(GlyphId::new).collect();
+    let coverage: CoverageTable = (0..=65536).map(|g| GlyphId::new(g * 2)).collect();
     let bytes = dump_table(&coverage).unwrap();
     assert_eq!(&bytes[..5], &[0, 3, 1, 0, 1]);
     let read = read_fonts::tables::layout::CoverageTable::read(FontData::new(&bytes)).unwrap();
-    assert_eq!(read.get(GlyphId::new(65536)), Some(65536));
+    assert_eq!(read.get(GlyphId::new(131072)), Some(65536));
     assert_eq!(read.population(), 65537);
+}
+
+#[test]
+fn wide_coverage_uses_ranges_when_smaller() {
+    let coverage: CoverageTable = (0..=65536).chain(70000..70003).map(GlyphId::new).collect();
+    let bytes = dump_table(&coverage).unwrap();
+    assert_eq!(&bytes[..5], &[0, 4, 0, 0, 2]);
+    let read = read_fonts::tables::layout::CoverageTable::read(FontData::new(&bytes)).unwrap();
+    assert_eq!(read.get(GlyphId::new(65536)), Some(65536));
+    assert_eq!(read.get(GlyphId::new(70002)), Some(65539));
+    assert_eq!(read.population(), 65540);
+    let owned: CoverageTable = read.to_owned_table();
+    assert_eq!(owned, coverage);
 }
 
 #[test]

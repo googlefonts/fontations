@@ -479,19 +479,19 @@ impl RemapVarStore<VariationIndex> for MarkArray {
 
 super::layout::lookup_type!(gpos, CursivePos, 3);
 super::layout::lookup_type!(gpos, CursivePosFormat2, 3);
-super::layout::legacy_lookup!(PositionLookup, Cursive, CursivePosFormat1, CursivePos);
+super::layout::original_lookup!(PositionLookup, Cursive, CursivePosFormat1, CursivePos);
 
 super::layout::lookup_type!(gpos, MarkBasePos, 4);
 super::layout::lookup_type!(gpos, MarkBasePosFormat2, 4);
-super::layout::legacy_lookup!(PositionLookup, MarkToBase, MarkBasePosFormat1, MarkBasePos);
+super::layout::original_lookup!(PositionLookup, MarkToBase, MarkBasePosFormat1, MarkBasePos);
 
 super::layout::lookup_type!(gpos, MarkLigPos, 5);
 super::layout::lookup_type!(gpos, MarkLigPosFormat2, 5);
-super::layout::legacy_lookup!(PositionLookup, MarkToLig, MarkLigPosFormat1, MarkLigPos);
+super::layout::original_lookup!(PositionLookup, MarkToLig, MarkLigPosFormat1, MarkLigPos);
 
 super::layout::lookup_type!(gpos, MarkMarkPos, 6);
 super::layout::lookup_type!(gpos, MarkMarkPosFormat2, 6);
-super::layout::legacy_lookup!(PositionLookup, MarkToMark, MarkMarkPosFormat1, MarkMarkPos);
+super::layout::original_lookup!(PositionLookup, MarkToMark, MarkMarkPosFormat1, MarkMarkPos);
 
 impl SinglePosFormat3 {
     fn compute_value_format(&self) -> ValueFormat {

@@ -51,12 +51,9 @@ macro_rules! lookup_type {
     };
 }
 
-/// A macro to define a newtype around an existing table, that defers all
-/// impls to that table.
-///
-/// We use this to ensure that shared lookup types (Sequence/Chain
-/// lookups) can be given different lookup ids for each of GSUB/GPOS.
-macro_rules! legacy_lookup {
+/// Converts a lookup of an original subtable format into the lookup enum,
+/// wrapping each subtable in the enum of all its formats.
+macro_rules! original_lookup {
     ($group:ident, $variant:ident, $old:ty, $new:ty) => {
         impl From<Lookup<$old>> for $group {
             fn from(lookup: Lookup<$old>) -> Self {
@@ -74,8 +71,13 @@ macro_rules! legacy_lookup {
     };
 }
 
-pub(crate) use legacy_lookup;
+pub(crate) use original_lookup;
 
+/// A macro to define a newtype around an existing table, that defers all
+/// impls to that table.
+///
+/// We use this to ensure that shared lookup types (Sequence/Chain
+/// lookups) can be given different lookup ids for each of GSUB/GPOS.
 macro_rules! table_newtype {
     ($name:ident, $inner:ident, $read_type:path) => {
         /// A typed wrapper around a shared table.
@@ -659,12 +661,25 @@ impl FromIterator<GlyphId> for CoverageTable {
                 .map(|g| GlyphId16::new(g.to_u32() as u16))
                 .collect();
         }
-        Self::Format3(CoverageFormat3::new(
-            glyphs
-                .into_iter()
-                .map(|g| GlyphId24::checked_new(g.to_u32()).expect("glyph ID exceeds 24 bits"))
-                .collect(),
-        ))
+        let glyphs: Vec<_> = glyphs
+            .into_iter()
+            .map(|g| GlyphId24::checked_new(g.to_u32()).expect("glyph ID exceeds 24 bits"))
+            .collect();
+        let mut ranges: Vec<RangeRecord2> = Vec::new();
+        for (index, glyph) in glyphs.iter().enumerate() {
+            if let Some(last) = ranges.last_mut() {
+                if last.end_glyph_id.to_u32() + 1 == glyph.to_u32() {
+                    last.end_glyph_id = *glyph;
+                    continue;
+                }
+            }
+            ranges.push(RangeRecord2::new(*glyph, *glyph, Uint24::new(index as u32)));
+        }
+        // A range record is the size of three glyph IDs.
+        if ranges.len() * 3 < glyphs.len() {
+            return Self::Format4(CoverageFormat4::new(ranges));
+        }
+        Self::Format3(CoverageFormat3::new(glyphs))
     }
 }
 
