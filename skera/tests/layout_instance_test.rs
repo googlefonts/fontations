@@ -419,7 +419,8 @@ fn partial_conditions_keep_fractional_sign_boundaries_without_changing_positions
                 let position = |bytes: &[u8]| {
                     let font = FontRef::new(bytes).unwrap();
                     let table: Gpos = font.gpos().unwrap().to_owned_table();
-                    let PositionLookup::Single(lookup) = table.lookup_list.lookups[5].as_ref()
+                    let PositionLookup::Single(lookup) =
+                        table.lookup_list.as_ref().unwrap().lookups[5].as_ref()
                     else {
                         panic!()
                     };
