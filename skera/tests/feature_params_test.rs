@@ -41,6 +41,7 @@ fn synthetic_font() -> Vec<u8> {
         Script::new(Some(LangSys::new(vec![0, 1, 2, 3])), vec![]),
     )]);
     let variations = FeatureVariations {
+        lookup_variation_records: None,
         feature_variation_records: vec![FeatureVariationRecord {
             condition_set: ConditionSet::new(vec![Condition::format_1_axis_range(
                 0,
