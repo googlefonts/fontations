@@ -819,6 +819,7 @@ impl<'a> Cmap14<'a> {
         UvsSubtable::from(self.clone()).iter_with_limits(limits)
     }
 
+    /// Adds the glyphs that variation sequences of `unicodes` map to.
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         UvsSubtable::from(self.clone()).closure_glyphs(unicodes, glyph_set);
@@ -851,6 +852,7 @@ impl<'a> Cmap15<'a> {
         UvsSubtable::from(self.clone()).iter_with_limits(limits)
     }
 
+    /// Adds the glyphs that variation sequences of `unicodes` map to.
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         UvsSubtable::from(self.clone()).closure_glyphs(unicodes, glyph_set);

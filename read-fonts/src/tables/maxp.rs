@@ -5,7 +5,9 @@ include!("../../generated/generated_maxp.rs");
 /// A maximum profile from MAXP or the original maxp table.
 #[derive(Clone)]
 pub enum SelectedMaxp<'a> {
+    /// The original `maxp` table.
     Original(Maxp<'a>),
+    /// The `MAXP` table (ISO/IEC 14496-22:2026).
     Extended(MaxpExtended<'a>),
 }
 

@@ -22,7 +22,9 @@ pub type GlyphVariationData<'a> = TupleVariationData<'a, GlyphDelta>;
 /// Glyph variations from GVAR or the original gvar table.
 #[derive(Clone, yoke::Yokeable)]
 pub enum SelectedGvar<'a> {
+    /// The original `gvar` table.
     Original(Gvar<'a>),
+    /// The `GVAR` table (ISO/IEC 14496-22:2026).
     Extended(GvarExtended<'a>),
 }
 
@@ -39,6 +41,7 @@ impl<'a> From<GvarExtended<'a>> for SelectedGvar<'a> {
 }
 
 impl<'a> SelectedGvar<'a> {
+    /// Returns the number of glyphs with variation data.
     pub fn glyph_count(&self) -> u32 {
         match self {
             Self::Original(table) => table.glyph_count().into(),

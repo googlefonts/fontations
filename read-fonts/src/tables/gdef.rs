@@ -91,11 +91,14 @@ impl<'a> Gdef<'a> {
 /// LigCaretList or LigCaretList2, selected by the GDEF header.
 #[derive(Clone)]
 pub enum SelectedLigCaretList<'a> {
+    /// A LigCaretList, with 16-bit offsets.
     Original(LigCaretList<'a>),
+    /// A LigCaretList2, with 24-bit offsets.
     Extended(LigCaretList2<'a>),
 }
 
 impl<'a> SelectedLigCaretList<'a> {
+    /// Returns the coverage of the ligature glyphs.
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         match self {
             Self::Original(t) => t.coverage(),
@@ -103,6 +106,7 @@ impl<'a> SelectedLigCaretList<'a> {
         }
     }
 
+    /// Returns the number of ligature glyphs.
     pub fn lig_glyph_count(&self) -> u32 {
         match self {
             Self::Original(t) => u32::from(t.lig_glyph_count()),
@@ -110,6 +114,7 @@ impl<'a> SelectedLigCaretList<'a> {
         }
     }
 
+    /// Returns the caret tables of the ligature glyphs, in coverage order.
     pub fn lig_glyphs(&self) -> super::layout::LayoutOffsetArray<'a, LigGlyph<'a>> {
         match self {
             Self::Original(t) => super::layout::LayoutOffsetArray::Offset16(t.lig_glyphs()),
@@ -119,6 +124,8 @@ impl<'a> SelectedLigCaretList<'a> {
 }
 
 impl<'a> Gdef<'a> {
+    /// Resolves the ligature caret list, preferring LigCaretList2 when its
+    /// offset is nonzero.
     pub fn lig_caret_list(&self) -> Option<Result<SelectedLigCaretList<'a>, ReadError>> {
         let offset =
             match self.select_offset(self.lig_caret_list_offset(), self.lig_caret_list2_offset()) {
@@ -139,6 +146,7 @@ impl<'a> Gdef<'a> {
         })
     }
 
+    /// Resolves the original 16-bit offset without applying precedence.
     pub fn original_lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
         self.lig_caret_list_offset().resolve(self.offset_data())
     }

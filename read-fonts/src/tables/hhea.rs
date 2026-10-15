@@ -5,7 +5,9 @@ include!("../../generated/generated_hhea.rs");
 /// A horizontal header from HHEA or hhea.
 #[derive(Clone)]
 pub enum SelectedHhea<'a> {
+    /// The original `hhea` table.
     Original(Hhea<'a>),
+    /// The `HHEA` table (ISO/IEC 14496-22:2026).
     Extended(HheaExtended<'a>),
 }
 

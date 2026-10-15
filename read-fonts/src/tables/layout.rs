@@ -267,6 +267,7 @@ fn bit_storage(v: u32) -> u32 {
 }
 
 impl<'a> CoverageTable<'a> {
+    /// Iterates over the covered glyphs, in coverage order.
     pub fn iter(&self) -> impl Iterator<Item = GlyphId> + 'a {
         let (one, two, three, four) = match self {
             Self::Format1(t) => (
@@ -328,6 +329,7 @@ impl<'a> CoverageTable<'a> {
         }
     }
 
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
     #[cfg(feature = "std")]
     pub fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
         match self {
@@ -345,6 +347,7 @@ impl<'a> CoverageTable<'a> {
         }
     }
 
+    /// Returns the intersection of this table and input 'glyphs' set.
     #[cfg(feature = "std")]
     pub fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
         match self {
@@ -372,6 +375,7 @@ impl<'a> CoverageTable<'a> {
         }
     }
 
+    /// Return the number of glyphs in this table
     pub fn population(&self) -> usize {
         match self {
             Self::Format1(t) => t.population(),
@@ -383,6 +387,7 @@ impl<'a> CoverageTable<'a> {
         }
     }
 
+    /// Return the cost of looking up a glyph in this table
     pub fn cost(&self) -> u32 {
         match self {
             Self::Format1(t) => t.cost(),
@@ -560,6 +565,7 @@ impl RangeRecord {
 }
 
 impl CoverageFormat3<'_> {
+    /// If this glyph is in the coverage table, returns its index
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid = GlyphId24::checked_new(gid.into().to_u32())?;
         self.glyph_array()
@@ -570,6 +576,7 @@ impl CoverageFormat3<'_> {
 }
 
 impl CoverageFormat4<'_> {
+    /// If this glyph is in the coverage table, returns its index
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid = gid.into().to_u32();
         let records = self.range_records();
@@ -594,10 +601,12 @@ impl CoverageFormat4<'_> {
 }
 
 impl RangeRecord2 {
+    /// Iterates over the glyphs in this range.
     pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
         (self.start_glyph_id().to_u32()..=self.end_glyph_id().to_u32()).map(GlyphId::new)
     }
 
+    /// Return the number of glyphs in this record
     pub fn population(&self) -> usize {
         self.end_glyph_id()
             .to_u32()
@@ -1044,6 +1053,7 @@ impl ClassRangeRecord {
 }
 
 impl ClassDefFormat3<'_> {
+    /// Get the class for this glyph id
     pub fn get(&self, gid: impl Into<GlyphId>) -> u32 {
         let gid = gid.into().to_u32();
         if gid > Uint24::MAX.to_u32() {
@@ -1056,6 +1066,7 @@ impl ClassDefFormat3<'_> {
 }
 
 impl ClassDefFormat4<'_> {
+    /// Get the class for this glyph id
     pub fn get(&self, gid: impl Into<GlyphId>) -> u32 {
         let gid = gid.into().to_u32();
         let records = self.class_range_records();
@@ -1070,6 +1081,7 @@ impl ClassDefFormat4<'_> {
 }
 
 impl ClassRangeRecord2 {
+    /// Return the number of glyphs explicitly assigned to a class in this record
     pub fn population(&self) -> usize {
         self.end_glyph_id()
             .to_u32()
@@ -1122,6 +1134,7 @@ impl ClassDef<'_> {
             }))
     }
 
+    /// Return the number of glyphs explicitly assigned to a class in this table
     pub fn population(&self) -> usize {
         match self {
             Self::Format1(t) => t.population(),
@@ -1136,6 +1149,7 @@ impl ClassDef<'_> {
         }
     }
 
+    /// Return the cost of looking up a glyph in this table
     pub fn cost(&self) -> u32 {
         match self {
             Self::Format1(t) => t.cost(),
@@ -1145,6 +1159,7 @@ impl ClassDef<'_> {
         }
     }
 
+    /// Returns class values for the intersected glyphs of this table and input 'glyphs' set.
     #[cfg(feature = "std")]
     pub fn intersect_classes(&self, glyphs: &IntSet<GlyphId>) -> IntSet<u32> {
         match self {
@@ -1167,6 +1182,7 @@ impl ClassDef<'_> {
         }
     }
 
+    /// Returns intersected glyphs of this table and input 'glyphs' set that are assigned to input class value.
     #[cfg(feature = "std")]
     pub fn intersected_class_glyphs(
         &self,
@@ -1201,6 +1217,7 @@ impl ClassDef<'_> {
         }
     }
 
+    /// Checks whether any glyph in the given glyphs set intersects with this table and is assigned to the specified class value.
     #[cfg(feature = "std")]
     pub fn intersects_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u32) -> bool {
         match self {

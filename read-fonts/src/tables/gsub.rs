@@ -214,6 +214,7 @@ impl<'a> SubstitutionLookup<'a> {
 }
 
 impl<'a> MultipleSubst<'a> {
+    /// Returns the coverage table of either format.
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         match self {
             Self::Format1(t) => t.coverage(),

@@ -1,11 +1,13 @@
-//! the [vhea (Horizontal Header)](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) table
+//! the [vhea (Vertical Header)](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) table
 
 include!("../../generated/generated_vhea.rs");
 
 /// A vertical header from VHEA or vhea.
 #[derive(Clone)]
 pub enum SelectedVhea<'a> {
+    /// The original `vhea` table.
     Original(Vhea<'a>),
+    /// The `VHEA` table (ISO/IEC 14496-22:2026).
     Extended(VheaExtended<'a>),
 }
 

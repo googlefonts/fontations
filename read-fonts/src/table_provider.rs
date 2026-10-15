@@ -254,6 +254,7 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Reads the `GVAR` table only (ISO/IEC 14496-22:2026).
     fn gvar_extended(&self) -> Result<tables::gvar::GvarExtended<'a>, ReadError> {
         self.expect_table()
     }
@@ -291,6 +292,7 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Reads the `DMAP` table (ISO/IEC 14496-22:2026).
     fn dmap(&self) -> Result<tables::cmap::Dmap<'a>, ReadError> {
         self.expect_table()
     }

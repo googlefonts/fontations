@@ -5,12 +5,16 @@ use super::*;
 /// An offset array whose serialized offsets have one of the layout widths.
 #[derive(Clone)]
 pub enum LayoutOffsetArray<'a, T: FontRead<'a, Args = ()>> {
+    /// 16-bit offsets.
     Offset16(ArrayOfOffsets<'a, T, Offset16>),
+    /// 24-bit offsets.
     Offset24(ArrayOfOffsets<'a, T, Offset24>),
+    /// 32-bit offsets.
     Offset32(ArrayOfOffsets<'a, T, Offset32>),
 }
 
 impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
+    /// Returns the number of offsets.
     pub fn len(&self) -> usize {
         match self {
             Self::Offset16(array) => array.len(),
@@ -19,10 +23,12 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
         }
     }
 
+    /// Returns `true` if there are no offsets.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Resolves the offset at `index`.
     pub fn get(&self, index: usize) -> Result<T, ReadError> {
         match self {
             Self::Offset16(array) => array.get(index),
@@ -31,6 +37,7 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
         }
     }
 
+    /// Iterates over the resolved offsets.
     pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
         let (one, two, three) = match self {
             Self::Offset16(array) => (Some(array.iter()), None, None),
@@ -43,6 +50,7 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
             .chain(three.into_iter().flatten())
     }
 
+    /// Iterates over the resolved offsets, with null offsets as `None`.
     pub fn iter_as_nullable(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
         self.iter().map(|result| match result {
             Err(ReadError::NullOffset) => None,
@@ -55,7 +63,9 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
 /// the LookupList2 of a version 1.2 header.
 #[derive(Clone)]
 pub enum SelectedLookupList<'a, T: FontRead<'a, Args = ()>> {
+    /// A LookupList, with 16-bit offsets.
     Original(LookupList<'a, T>),
+    /// A LookupList2, with 32-bit offsets.
     Extended(LookupList2<'a, T>),
 }
 
@@ -72,6 +82,7 @@ impl<'a, T: FontRead<'a, Args = ()>> From<LookupList2<'a, T>> for SelectedLookup
 }
 
 impl<'a, T: FontRead<'a, Args = ()> + 'a> SelectedLookupList<'a, T> {
+    /// Returns the number of lookups.
     pub fn lookup_count(&self) -> u16 {
         match self {
             Self::Original(table) => table.lookup_count(),
@@ -79,6 +90,7 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> SelectedLookupList<'a, T> {
         }
     }
 
+    /// Returns the offsets to the lookups.
     pub fn lookups(&self) -> LayoutOffsetArray<'a, T> {
         match self {
             Self::Original(table) => LayoutOffsetArray::Offset16(table.lookups()),
@@ -86,6 +98,7 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> SelectedLookupList<'a, T> {
         }
     }
 
+    /// Returns the data the lookup offsets are relative to.
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
             Self::Original(table) => table.offset_data(),
