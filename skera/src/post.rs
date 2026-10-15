@@ -25,9 +25,11 @@ impl Subset for Post<'_> {
         s.embed_bytes(self.min_table_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
+        // Version 2 counts glyphs in 16 bits, so a larger subset has no names.
         let glyph_names = plan
             .subset_flags
-            .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);
+            .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES)
+            && plan.num_output_glyphs <= usize::from(u16::MAX);
         //version 3 does not have any glyph names
         if !glyph_names {
             s.copy_assign(self.version_byte_range().start, Version16Dot16::VERSION_3_0);
@@ -86,8 +88,12 @@ fn subset_post_v2tail(
     };
 
     let mut new_name_idx = 258_u16;
-    let mut old_to_new_idx_map = FastHashMap::default();
-    let mut name_bytes_to_new_idx_map = FastHashMap::default();
+    // at most one entry per retained glyph; reserve up front to avoid rehashing
+    let num_glyphs = plan.new_to_old_gid_list.len();
+    let mut old_to_new_idx_map =
+        FastHashMap::with_capacity_and_hasher(num_glyphs, foldhash::fast::FixedState::default());
+    let mut name_bytes_to_new_idx_map =
+        FastHashMap::with_capacity_and_hasher(num_glyphs, foldhash::fast::FixedState::default());
 
     for (new_gid, old_gid) in plan
         .new_to_old_gid_list
