@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Feat<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,31 @@ impl<'a> FontRead<'a> for Feat<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct FeatFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub feature_name_count: BigEndian<u16>,
+    pub _reserved1: BigEndian<u16>,
+    pub _reserved2: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<FeatFixedHeader>() <= Feat::MIN_SIZE);
+
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
 #[derive(Clone)]
 pub struct Feat<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, FeatFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -49,20 +66,21 @@ impl<'a> Feat<'a> {
     /// Version number of the feature name table (0x00010000 for the current
     /// version).
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// The number of entries in the feature name array.
     pub fn feature_name_count(&self) -> u16 {
-        let range = self.feature_name_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().feature_name_count.get()
     }
 
     /// The feature name array, sorted by feature type.
     pub fn names(&self) -> &'a [FeatureName] {
         let range = self.names_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -103,7 +121,8 @@ const _: () = assert!(FontData::default_data_long_enough(Feat::MIN_SIZE));
 impl Default for Feat<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -181,7 +200,7 @@ impl<'a> MinByteRange<'a> for SettingNameArray<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -197,6 +216,9 @@ impl<'a> FontRead<'a> for SettingNameArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data, n_settings })
     }
 }
@@ -212,9 +234,19 @@ impl<'a> SettingNameArray<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SettingNameArrayFixedHeader {}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SettingNameArrayFixedHeader>() <= SettingNameArray::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct SettingNameArray<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SettingNameArrayFixedHeader>,
     n_settings: u16,
 }
 
@@ -226,7 +258,10 @@ impl<'a> SettingNameArray<'a> {
     /// List of setting names for a feature.
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.settings_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub(crate) fn n_settings(&self) -> u16 {
@@ -250,7 +285,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for SettingNameArray<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             n_settings: Default::default(),
         }
     }

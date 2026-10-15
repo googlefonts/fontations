@@ -5,7 +5,11 @@ use crate::{
     FontWrite,
 };
 
-use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId16, FontRead, ReadArgs};
+use read_fonts::{
+    tables::glyf::CompositeGlyphFlags,
+    types::{GlyphId, Uint24},
+    FontRead, ReadArgs,
+};
 
 use super::Bbox;
 
@@ -22,7 +26,7 @@ pub struct CompositeGlyph {
 /// A single component glyph (part of a [`CompositeGlyph`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Component {
-    pub glyph: GlyphId16,
+    pub glyph: GlyphId,
     pub anchor: Anchor,
     pub flags: ComponentFlags,
     pub transform: Transform,
@@ -102,7 +106,7 @@ impl<'a> FontRead<'a> for CompositeGlyph {
 impl Component {
     /// Create a new component.
     pub fn new(
-        glyph: GlyphId16,
+        glyph: GlyphId,
         anchor: Anchor,
         transform: Transform,
         flags: impl Into<ComponentFlags>,
@@ -117,7 +121,15 @@ impl Component {
     /// Compute the flags for this glyph, excepting `MORE_COMPONENTS` and
     /// `WE_HAVE_INSTRUCTIONS`, which must be set manually
     fn compute_flag(&self) -> CompositeGlyphFlags {
-        self.anchor.compute_flags() | self.transform.compute_flags() | self.flags.into()
+        let glyph_flag = if self.glyph.to_u32() > u16::MAX as u32 {
+            CompositeGlyphFlags::GID_IS_24_BIT
+        } else {
+            CompositeGlyphFlags::empty()
+        };
+        self.anchor.compute_flags()
+            | self.transform.compute_flags()
+            | self.flags.into()
+            | glyph_flag
     }
 
     /// like `FontWrite` but lets us pass in the flags that must be determined
@@ -125,7 +137,11 @@ impl Component {
     fn write_into(&self, writer: &mut crate::TableWriter, extra_flags: CompositeGlyphFlags) {
         let flags = self.compute_flag() | extra_flags;
         flags.bits().write_into(writer);
-        self.glyph.write_into(writer);
+        if flags.contains(CompositeGlyphFlags::GID_IS_24_BIT) {
+            Uint24::new(self.glyph.to_u32()).write_into(writer);
+        } else {
+            (self.glyph.to_u32() as u16).write_into(writer);
+        }
         self.anchor.write_into(writer);
         self.transform.write_into(writer);
     }
@@ -246,6 +262,13 @@ impl crate::validate::Validate for CompositeGlyph {
         if self.instructions.len() > u16::MAX as usize {
             ctx.report("instructions len overflows");
         }
+        if self
+            .components
+            .iter()
+            .any(|component| component.glyph.to_u32() > 0xffffff)
+        {
+            ctx.report("component glyph identifier overflows 24 bits");
+        }
     }
 }
 
@@ -324,6 +347,97 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn roundtrip_extended_composite_components() {
+        let half = read_fonts::types::F2Dot14::from_f32(0.5);
+        let bbox = Bbox {
+            x_min: 0,
+            y_min: 0,
+            x_max: 80,
+            y_max: 80,
+        };
+        for gid in [65535, 65536, 0xffffff] {
+            for anchor in [
+                Anchor::Offset { x: 1, y: -2 },
+                Anchor::Point {
+                    base: 256,
+                    component: 512,
+                },
+            ] {
+                for transform in [
+                    Transform::default(),
+                    Transform {
+                        xx: half,
+                        yy: half,
+                        ..Default::default()
+                    },
+                    Transform {
+                        xx: half,
+                        ..Default::default()
+                    },
+                    Transform {
+                        xy: half,
+                        ..Default::default()
+                    },
+                ] {
+                    let mut glyph = CompositeGlyph::new(
+                        Component::new(
+                            GlyphId::new(gid),
+                            anchor,
+                            transform,
+                            ComponentFlags::default(),
+                        ),
+                        bbox,
+                    );
+                    glyph.add_component(
+                        Component::new(
+                            GlyphId::new(7),
+                            Anchor::Offset { x: 3, y: 4 },
+                            Transform::default(),
+                            ComponentFlags::default(),
+                        ),
+                        bbox,
+                    );
+                    glyph.set_instructions(&[0xb0, 0, 0x21]);
+                    let bytes = crate::dump_table(&glyph).unwrap();
+                    let read = read_glyf::CompositeGlyph::read(bytes.as_slice().into()).unwrap();
+                    let components: Vec<_> = read.components().collect();
+                    let ids: Vec<_> = read.component_glyphs_and_flags().map(|c| c.0).collect();
+                    assert_eq!(ids, [GlyphId::new(gid), GlyphId::new(7)]);
+                    assert_eq!(components[0].glyph, ids[0]);
+                    assert_eq!(components[0].anchor, anchor);
+                    assert_eq!(components[0].transform, transform);
+                    assert_eq!(
+                        components[0]
+                            .flags
+                            .contains(CompositeGlyphFlags::GID_IS_24_BIT),
+                        gid > 65535
+                    );
+                    assert!(!components[1]
+                        .flags
+                        .contains(CompositeGlyphFlags::GID_IS_24_BIT));
+                    assert_eq!(
+                        read.count_and_instructions(),
+                        (2, Some(&[0xb0, 0, 0x21][..]))
+                    );
+                    let owned: CompositeGlyph = read.to_owned_table();
+                    assert_eq!(owned, glyph);
+                    assert_eq!(crate::dump_table(&owned).unwrap(), bytes);
+                }
+            }
+        }
+        let glyph = CompositeGlyph::new(
+            Component::new(
+                GlyphId::new(0x1000000),
+                Anchor::Offset { x: 0, y: 0 },
+                Transform::default(),
+                ComponentFlags::default(),
+            ),
+            bbox,
+        );
+        assert!(crate::dump_table(&glyph).is_err());
+    }
 
     #[test]
     fn roundtrip_composite() {
