@@ -1,7 +1,7 @@
 #![parse_module(read_fonts::tables::hdmx)]
 
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
-#[read_args(num_glyphs: u16)]
+#[read_args(num_glyphs: u32)]
 #[tag = "hdmx"]
 table Hdmx {
     /// Table version number (set to 0).
