@@ -8,7 +8,7 @@ use crate::{
 use read_fonts::{
     collections::IntSet,
     tables::{layout::CoverageTable, math::*},
-    types::{GlyphId, GlyphId16, Offset16, Tag},
+    types::{GlyphId, Offset16, Tag},
     ArrayOfOffsets, FontData, FontRef, MinByteRange, ReadError, TableProvider,
 };
 
@@ -60,9 +60,9 @@ fn read<T>(s: &mut Serializer, result: std::result::Result<T, ReadError>) -> Res
     result.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
 }
 
-fn map_glyph(plan: &Plan, s: &mut Serializer, gid: GlyphId16) -> Result<u16> {
+fn map_glyph(plan: &Plan, s: &mut Serializer, gid: impl Into<GlyphId>) -> Result<u16> {
     plan.glyph_map
-        .get(&GlyphId::from(gid))
+        .get(&gid.into())
         .and_then(|g| u16::try_from(g.to_u32()).ok())
         .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))
 }
