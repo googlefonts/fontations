@@ -162,7 +162,7 @@ impl<'a> TupleVariationHeader<'a> {
         self.tuple_index().embedded_peak_tuple().then(|| {
             let range = self.peak_tuple_byte_range();
             Tuple {
-                values: self.data.read_array(range).unwrap(),
+                values: self.offset_data().read_array(range).unwrap(),
             }
         })
     }
@@ -174,7 +174,7 @@ impl<'a> TupleVariationHeader<'a> {
         self.tuple_index().intermediate_region().then(|| {
             let range = self.intermediate_start_tuple_byte_range();
             Tuple {
-                values: self.data.read_array(range).unwrap(),
+                values: self.offset_data().read_array(range).unwrap(),
             }
         })
     }
@@ -186,7 +186,7 @@ impl<'a> TupleVariationHeader<'a> {
         self.tuple_index().intermediate_region().then(|| {
             let range = self.intermediate_end_tuple_byte_range();
             Tuple {
-                values: self.data.read_array(range).unwrap(),
+                values: self.offset_data().read_array(range).unwrap(),
             }
         })
     }
@@ -200,10 +200,10 @@ impl<'a> TupleVariationHeader<'a> {
             let end_range = self.intermediate_end_tuple_byte_range();
             (
                 Tuple {
-                    values: self.data.read_array(start_range).unwrap(),
+                    values: self.offset_data().read_array(start_range).unwrap(),
                 },
                 Tuple {
-                    values: self.data.read_array(end_range).unwrap(),
+                    values: self.offset_data().read_array(end_range).unwrap(),
                 },
             )
         })
