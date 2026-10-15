@@ -1,6 +1,7 @@
 //! The [JSTF](https://learn.microsoft.com/en-us/typography/opentype/spec/jstf) table.
 
-pub use super::gpos::PositionLookupList;
+/// Positioning lookups embedded in JSTF, whose offsets are always 16-bit.
+pub type JstfMax<'a> = super::gpos::OriginalPositionLookupList<'a>;
 
 include!("../../generated/generated_jstf.rs");
 

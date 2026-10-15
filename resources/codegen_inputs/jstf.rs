@@ -69,7 +69,7 @@ table JstfPriority {
     #[nullable]
     gpos_shrinkage_disable_offset: Offset16<JstfModList>,
     #[nullable]
-    shrinkage_jstf_max_offset: Offset16<PositionLookupList>,
+    shrinkage_jstf_max_offset: Offset16<JstfMax>,
     #[nullable]
     gsub_extension_enable_offset: Offset16<JstfModList>,
     #[nullable]
@@ -79,7 +79,7 @@ table JstfPriority {
     #[nullable]
     gpos_extension_disable_offset: Offset16<JstfModList>,
     #[nullable]
-    extension_jstf_max_offset: Offset16<PositionLookupList>,
+    extension_jstf_max_offset: Offset16<JstfMax>,
 }
 
 /// Indices of GSUB or GPOS lookups to enable or disable.
