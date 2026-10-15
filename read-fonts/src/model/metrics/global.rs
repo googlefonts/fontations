@@ -165,7 +165,8 @@ impl Metrics {
                 descender: metric(vhea.descender().to_i16() as i32, deltas, tags::VDSC),
                 line_gap: metric(vhea.line_gap().to_i16() as i32, deltas, tags::VLGP),
             });
-            metrics.max_advance_height = Some(F48Dot16::from_i32(vhea.advance_height_max()));
+            metrics.max_advance_height =
+                Some(F48Dot16::from_i32(vhea.advance_height_max().to_u16() as i32));
         }
         if let Ok(os2) = tables.os2() {
             metrics.typo_line = Some(LineBox {

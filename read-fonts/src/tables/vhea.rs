@@ -20,11 +20,14 @@ impl SelectedVhea<'_> {
         }
     }
 
-    /// Maximum advance height, preserving VHEA's signed field.
-    pub fn advance_height_max(&self) -> i32 {
+    /// Maximum advance height.
+    ///
+    /// VHEA states this as a signed value, which is read as unsigned like
+    /// that of vhea, HHEA and hhea.
+    pub fn advance_height_max(&self) -> UfWord {
         match self {
-            Self::Original(table) => table.advance_height_max().to_u16() as i32,
-            Self::Extended(table) => table.advance_height_max().to_i16() as i32,
+            Self::Original(table) => table.advance_height_max(),
+            Self::Extended(table) => UfWord::new(table.advance_height_max().to_i16() as u16),
         }
     }
 
