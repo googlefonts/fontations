@@ -74,6 +74,10 @@ struct Args {
     #[arg(long, alias = "variations")]
     instance: Option<String>,
 
+    /// Convert a full CFF2 instance to CFF1 outlines.
+    #[arg(long)]
+    downgrade_cff2: bool,
+
     /// Keep legacy (non-Unicode) 'name' table entries
     #[arg(long)]
     name_legacy: bool,
@@ -144,6 +148,18 @@ fn main() {
             })
     });
     let font = instance_bytes
+        .as_deref()
+        .map(FontRef::new)
+        .transpose()
+        .unwrap()
+        .unwrap_or(font);
+    let cff1_bytes = args.downgrade_cff2.then(|| {
+        skera::downgrade_cff2(&font).unwrap_or_else(|err| {
+            eprintln!("{err}");
+            std::process::exit(1);
+        })
+    });
+    let font = cff1_bytes
         .as_deref()
         .map(FontRef::new)
         .transpose()

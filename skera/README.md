@@ -15,6 +15,10 @@ and COLRv1 paint tables.
 The library's `instance_font` preserves glyph IDs; create a `Plan` from the
 returned font to subset the instance.
 
+Add `--downgrade-cff2` to emit a full instance as CID-keyed CFF1. The library
+also exposes `downgrade_cff2`; it preserves glyph IDs and encodes CFF1 widths
+from the instanced metrics.
+
 Full instancing supports `avar` version 2. Partial instancing currently
 requires separable axis maps (`avar` version 1).
 
