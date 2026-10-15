@@ -1520,8 +1520,6 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
     }
 }
 
-/// Visit borrowed conditions before recursively materializing an owned tree.
-
 impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
     type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut SubsetLayoutContext);
     type Output = ();
