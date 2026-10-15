@@ -102,6 +102,22 @@ impl SubsetTable<'_> for Sequence<'_> {
     }
 }
 
+impl<'a> SubsetTable<'a> for read_fonts::tables::gsub::MultipleSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
