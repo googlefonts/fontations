@@ -17,7 +17,7 @@
 use read_fonts::{
     tables::cmap::{
         self, Cmap, Cmap12, Cmap12Iter, Cmap13, Cmap13Iter, Cmap4, Cmap4Iter, CmapIterLimits,
-        CmapSubtable, EncodingRecord, PlatformId, VariationSubtable, VariationSubtableIter,
+        CmapSubtable, EncodingRecord, PlatformId, UvsSubtable, UvsSubtableIter,
     },
     types::GlyphId,
     FontData, FontRef, TableProvider,
@@ -64,7 +64,7 @@ pub struct Charmap<'a> {
 #[derive(Clone, Default)]
 struct TableCharmap<'a> {
     codepoint_subtable: Option<CodepointSubtable<'a>>,
-    variant_subtable: Option<VariationSubtable<'a>>,
+    variant_subtable: Option<UvsSubtable<'a>>,
 }
 
 impl<'a> Charmap<'a> {
@@ -264,8 +264,8 @@ impl TableMappingIndex {
                 .variant_subtable
                 .and_then(|index| get_subtable(data, records, index))
                 .and_then(|subtable| match subtable {
-                    CmapSubtable::Format14(table) => Some(VariationSubtable::Format14(table)),
-                    CmapSubtable::Format15(table) => Some(VariationSubtable::Format15(table)),
+                    CmapSubtable::Format14(table) => Some(UvsSubtable::from(table)),
+                    CmapSubtable::Format15(table) => Some(UvsSubtable::from(table)),
                     _ => None,
                 }),
         }
@@ -333,9 +333,9 @@ enum MappingsInner<'a> {
 /// This is created with the [`Charmap::variant_mappings`] method.
 #[derive(Clone)]
 pub struct VariantMappings<'a> {
-    dmap: Option<VariationSubtableIter<'a>>,
-    cmap: Option<VariationSubtableIter<'a>>,
-    dmap_subtable: Option<VariationSubtable<'a>>,
+    dmap: Option<UvsSubtableIter<'a>>,
+    cmap: Option<UvsSubtableIter<'a>>,
+    dmap_subtable: Option<UvsSubtable<'a>>,
 }
 
 impl Iterator for VariantMappings<'_> {
@@ -448,7 +448,7 @@ struct MappingSelection<'a> {
     /// greatest coverage.
     codepoint_subtable: Option<SupportedSubtable<'a>>,
     /// Subtable that supports mapping Unicode variation sequences.
-    variant_subtable: Option<VariationSubtable<'a>>,
+    variant_subtable: Option<UvsSubtable<'a>>,
 }
 
 impl<'a> MappingSelection<'a> {
@@ -483,13 +483,15 @@ impl<'a> MappingSelection<'a> {
                     // Unicode variation sequences
                     if let Ok(subtable) = record.subtable(cmap.offset_data()) {
                         let subtable = match subtable {
-                            CmapSubtable::Format14(table) => VariationSubtable::Format14(table),
-                            CmapSubtable::Format15(table) => VariationSubtable::Format15(table),
+                            CmapSubtable::Format14(table) => UvsSubtable::from(table),
+                            CmapSubtable::Format15(table) => UvsSubtable::from(table),
                             _ => continue,
                         };
                         if variant_subtable.is_none()
-                            || (matches!(subtable, VariationSubtable::Format15(_))
-                                && matches!(variant_subtable, Some(VariationSubtable::Format14(_))))
+                            || (subtable.format() == 15
+                                && variant_subtable
+                                    .as_ref()
+                                    .is_some_and(|current: &UvsSubtable| current.format() == 14))
                         {
                             mapping_index.variant_subtable = Some(i as u16);
                             variant_subtable = Some(subtable);

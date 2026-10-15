@@ -104,7 +104,7 @@ fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), Se
     s.embed(0u16)?;
     let count_pos = s.embed(0u16)?;
     let mut count = 0;
-    let variation_index = dmap.variation_subtable().map(|(index, _)| index as usize);
+    let variation_index = dmap.uvs_subtable().map(|(index, _)| index as usize);
     for (index, record) in dmap.encoding_records().iter().enumerate() {
         let retain = retain_encoding_record_for_subset(record, dmap)
             || (record.platform_id() == PlatformId::Unicode

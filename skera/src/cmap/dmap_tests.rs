@@ -2,7 +2,7 @@ use super::*;
 use crate::{subset_font, SubsetFlags};
 use font_test_data::cmap::{font_with_cmaps, format12, format14, format15, table};
 use read_fonts::{
-    tables::cmap::{MapVariant, VariationSubtable},
+    tables::cmap::MapVariant,
     types::{NameId, Tag},
     FontData, FontRead, TableProvider,
 };
@@ -98,12 +98,7 @@ fn dmap_subset_closes_variants_and_preserves_default_and_zero_fallback() {
                     };
                     assert_eq!(output.charmap().map_variant(cp, 0xe0100u32), Some(expected));
                 }
-                let (_, delta_uvs) = output
-                    .dmap()
-                    .unwrap()
-                    .as_cmap()
-                    .variation_subtable()
-                    .unwrap();
+                let (_, delta_uvs) = output.dmap().unwrap().as_cmap().uvs_subtable().unwrap();
                 assert_eq!(
                     delta_uvs.map_variant(67u32, 0xe0100u32),
                     Some(MapVariant::Variant(GlyphId::NOTDEF))
@@ -326,8 +321,8 @@ fn dmap_subset_keeps_wide_nominal_and_variant_glyph_ids() {
                 .language(),
             0
         );
-        let (_, variant) = output.variation_subtable().unwrap();
-        assert!(matches!(variant, VariationSubtable::Format15(_)));
+        let (_, variant) = output.uvs_subtable().unwrap();
+        assert_eq!(variant.format(), 15);
         assert_eq!(
             variant.map_variant(65u32, 0xe0100u32),
             Some(MapVariant::Variant(GlyphId::new(variant_gid)))

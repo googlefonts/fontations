@@ -1244,7 +1244,15 @@ mod tests {
     #[test]
     fn cmap14_round_trip() {
         let font = read_fonts::FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
-        let (_, cmap14) = font.cmap().unwrap().uvs_subtable().unwrap();
+        let cmap = font.cmap().unwrap();
+        let cmap14 = cmap
+            .encoding_records()
+            .iter()
+            .find_map(|record| match record.subtable(cmap.offset_data()) {
+                Ok(read_fonts::tables::cmap::CmapSubtable::Format14(table)) => Some(table),
+                _ => None,
+            })
+            .unwrap();
         let owned: write::Cmap14 = cmap14.to_owned_table();
         let bytes = dump_table(&owned).unwrap();
         assert_eq!(
@@ -1269,7 +1277,7 @@ mod tests {
         let dmap = write::Dmap::new(cmap.encoding_records.clone());
         assert_eq!(dump_table(&dmap).unwrap(), bytes);
         let cmap = Cmap::read(bytes.as_slice().into()).unwrap();
-        let (_, subtable) = cmap.variation_subtable().unwrap();
+        let (_, subtable) = cmap.uvs_subtable().unwrap();
         assert_eq!(
             subtable.map_variant(67u32, 0xe0100u32),
             Some(read_fonts::tables::cmap::MapVariant::Variant(GlyphId::new(
@@ -1317,7 +1325,8 @@ mod tests {
         assert_eq!(bytes.len(), 108);
         for selector in 0xe0100..=0xe0102u32 {
             assert_eq!(
-                read.map_variant(0x4e08u32, selector),
+                read_fonts::tables::cmap::UvsSubtable::from(read.clone())
+                    .map_variant(0x4e08u32, selector),
                 Some(read_fonts::tables::cmap::MapVariant::Variant(GlyphId::new(
                     70000
                 )))

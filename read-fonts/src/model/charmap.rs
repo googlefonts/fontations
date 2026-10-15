@@ -6,8 +6,7 @@ use crate::{
     ps::type1::Type1Font,
     tables::{
         cmap::{
-            Cmap, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId,
-            VariationSubtable,
+            Cmap, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId, UvsSubtable,
         },
         name::MacRomanMapping,
     },
@@ -565,7 +564,7 @@ pub(crate) struct UnicodeCharmap<'a> {
 #[derive(Clone, Default, Yokeable)]
 struct UnicodeSubtables<'a> {
     subtable: Option<CmapSubtable<'a>>,
-    vs_subtable: Option<VariationSubtable<'a>>,
+    vs_subtable: Option<UvsSubtable<'a>>,
     is_symbol: bool,
     is_mac_roman: bool,
 }
@@ -653,7 +652,7 @@ impl<'a> UnicodeSubtables<'a> {
             .unwrap_or((None, false, false));
         Self {
             subtable,
-            vs_subtable: cmap.variation_subtable().map(|(_, subtable)| subtable),
+            vs_subtable: cmap.uvs_subtable().map(|(_, subtable)| subtable),
             is_symbol,
             is_mac_roman,
         }

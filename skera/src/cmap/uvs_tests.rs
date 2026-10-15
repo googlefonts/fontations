@@ -41,6 +41,7 @@ fn cmap15_subset_preserves_wide_format_and_prunes_uvs_records() {
     assert_eq!(output.format(), 15);
     assert_eq!(output.length() as usize, output.offset_data().len());
     assert_eq!(output.num_var_selector_records(), 1);
+    let output = read_fonts::tables::cmap::UvsSubtable::from(output);
     for (cp, expected) in [
         (65, Some(MapVariant::UseDefault)),
         (66, None),
@@ -138,11 +139,8 @@ fn cmap15_subset_planner_closes_preferred_variation_glyphs() {
     let output = subset_font(&font, &plan).unwrap();
     let output = FontRef::new(&output).unwrap();
     let cmap = output.cmap().unwrap();
-    let (_, variation) = cmap.variation_subtable().unwrap();
-    assert!(matches!(
-        variation,
-        read_fonts::tables::cmap::VariationSubtable::Format15(_)
-    ));
+    let (_, variation) = cmap.uvs_subtable().unwrap();
+    assert_eq!(variation.format(), 15);
     assert_eq!(
         variation.map_variant(65u32, 0xe0100u32),
         Some(MapVariant::Variant(GlyphId::new(2)))

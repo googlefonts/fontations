@@ -58,7 +58,7 @@ use read_fonts::{
         cblc::Cblc,
         cff::Cff,
         cff2::Cff2,
-        cmap::{Cmap, Dmap, VariationSubtable},
+        cmap::{Cmap, Dmap},
         colr::Colr,
         cpal::Cpal,
         cvar::Cvar,
@@ -552,25 +552,16 @@ impl Plan {
         .into_iter()
         .flatten()
         {
-            let Some((_, subtable)) = cmap.variation_subtable() else {
+            let Some((_, subtable)) = cmap.uvs_subtable() else {
                 continue;
             };
-            match subtable {
-                VariationSubtable::Format14(table) => self.unicodes.extend(
-                    table
-                        .var_selector()
-                        .iter()
-                        .map(|s| s.var_selector().to_u32())
-                        .filter(|v| input_unicodes.contains(*v)),
-                ),
-                VariationSubtable::Format15(table) => self.unicodes.extend(
-                    table
-                        .var_selector()
-                        .iter()
-                        .map(|s| s.var_selector().to_u32())
-                        .filter(|v| input_unicodes.contains(*v)),
-                ),
-            }
+            self.unicodes.extend(
+                subtable
+                    .var_selector()
+                    .iter()
+                    .map(|s| s.var_selector().to_u32())
+                    .filter(|v| input_unicodes.contains(*v)),
+            );
         }
     }
 
