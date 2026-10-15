@@ -1,5 +1,5 @@
 //! Apply variation deltas while walking owned layout tables.
-use super::{rebase::renormalize, scalars::VariationScalars, AxisPlan, StorePlan};
+use super::{optimize, rebase::renormalize, scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
 use read_fonts::{
     tables::variations::{DeltaSetIndex, ItemVariationStore},
@@ -24,6 +24,20 @@ struct ConditionRow {
     deltas: Vec<f64>,
     bias: Option<i32>,
 }
+macro_rules! select_header_fields {
+    ($table:ident) => {
+        if $table.script_list2.is_some() {
+            $table.script_list = Default::default();
+        }
+        if $table.feature_list2.is_some() {
+            $table.feature_list = Default::default();
+        }
+        if $table.lookup_list2.is_some() {
+            $table.lookup_list = Default::default();
+        }
+    };
+}
+
 struct Context<'a> {
     store: Option<ItemVariationStore<'a>>,
     coords: &'a [F2Dot14],
@@ -32,6 +46,7 @@ struct Context<'a> {
     scalars: OnceCell<Option<VariationScalars>>,
     store_plan: OnceCell<StorePlan>,
     constant_indices: RefCell<BTreeMap<u32, bool>>,
+    remapping: Option<&'a optimize::IndexMap>,
 }
 impl Context<'_> {
     fn scalars(&self) -> Option<&VariationScalars> {
@@ -48,8 +63,9 @@ impl Context<'_> {
             return Ok(None);
         };
         if self.store_plan.get().is_none() {
-            let plan = StorePlan::new(store, self.axes)
+            let mut plan = StorePlan::new(store, self.axes)
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GDEF")))?;
+            plan.preserve_original_region_order(store, self.axes)?;
             let _ = self.store_plan.set(plan);
         }
         Ok(self.store_plan.get())
@@ -121,6 +137,7 @@ impl Context<'_> {
     }
     fn device(&self, d: &DeviceOrVariationIndex) -> Result<Option<i32>, SubsetError> {
         match d {
+            DeviceOrVariationIndex::VariationIndex(_) if self.remapping.is_some() => Ok(Some(0)),
             DeviceOrVariationIndex::VariationIndex(v) => self
                 .delta(v.delta_set_outer_index, v.delta_set_inner_index)
                 .map(Some),
@@ -131,6 +148,11 @@ impl Context<'_> {
     fn device_is_constant(&self, device: &DeviceOrVariationIndex) -> Result<bool, SubsetError> {
         Ok(match device {
             DeviceOrVariationIndex::VariationIndex(v) => {
+                if let Some(map) = self.remapping {
+                    let index =
+                        ((v.delta_set_outer_index as u32) << 16) | v.delta_set_inner_index as u32;
+                    return Ok(map.get(&index).copied().unwrap_or(u32::MAX) == u32::MAX);
+                }
                 self.axes.all_pinned()
                     || self.index_is_constant(
                         ((v.delta_set_outer_index as u32) << 16) | v.delta_set_inner_index as u32,
@@ -138,6 +160,14 @@ impl Context<'_> {
             }
             _ => false,
         })
+    }
+    fn remap_device(&self, device: &mut DeviceOrVariationIndex) {
+        if let (Some(map), DeviceOrVariationIndex::VariationIndex(v)) = (self.remapping, device) {
+            let index = ((v.delta_set_outer_index as u32) << 16) | v.delta_set_inner_index as u32;
+            let mapped = map.get(&index).copied().unwrap_or(u32::MAX);
+            v.delta_set_outer_index = (mapped >> 16) as u16;
+            v.delta_set_inner_index = mapped as u16;
+        }
     }
     fn apply(
         &self,
@@ -153,6 +183,8 @@ impl Context<'_> {
             *value = add(*value, delta);
             if self.device_is_constant(device.as_ref().unwrap())? {
                 *device = Default::default();
+            } else {
+                self.remap_device(device.as_mut().unwrap());
             }
         }
         Ok(())
@@ -431,6 +463,8 @@ impl Apply for ValueRecord {
                 *value = Some(add(value.unwrap_or(0), delta));
                 if c.device_is_constant(device.as_ref().unwrap())? {
                     *device = Default::default();
+                } else {
+                    c.remap_device(device.as_mut().unwrap());
                 }
             }
             if device.is_none() {
@@ -467,6 +501,8 @@ impl Apply for CaretValue {
                     *self = Self::Format1(CaretValueFormat1 {
                         coordinate: a.coordinate,
                     });
+                } else {
+                    c.remap_device(&mut a.device);
                 }
             }
         }
@@ -938,6 +974,47 @@ fn rebuild_store(
     Ok(Some(result))
 }
 
+fn remap_feature_conditions(
+    variations: &mut NullableOffsetMarker<FeatureVariations, 4>,
+    map: &optimize::IndexMap,
+) {
+    fn remap(condition: &mut Condition, map: &optimize::IndexMap) {
+        match condition {
+            Condition::Format2VariableValue(v) => {
+                v.var_index = map.get(&v.var_index).copied().unwrap_or(u32::MAX);
+            }
+            Condition::Format3And(v) => {
+                for condition in &mut v.conditions {
+                    remap(condition, map);
+                }
+            }
+            Condition::Format4Or(v) => {
+                for condition in &mut v.conditions {
+                    remap(condition, map);
+                }
+            }
+            Condition::Format5Negate(v) => remap(&mut v.condition, map),
+            _ => {}
+        }
+    }
+    if let Some(variations) = variations.as_mut() {
+        for variation in variations.lookup_variation_records.iter_mut().flatten() {
+            for record in &mut variation.feature_lookups.lookup_condition_records {
+                if let Some(condition) = record.condition.as_mut() {
+                    remap(condition, map);
+                }
+            }
+        }
+        for record in &mut variations.feature_variation_records {
+            if let Some(set) = record.condition_set.as_mut() {
+                for condition in &mut set.conditions {
+                    remap(condition, map);
+                }
+            }
+        }
+    }
+}
+
 // ComputedArray cannot infer the number of zero-byte value records from
 // their byte slice. Recover their counts from the borrowed table before
 // instancing, preserving the subtable's coverage and lookup matching behavior.
@@ -945,6 +1022,7 @@ fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError
     use read_fonts::tables::gpos as read;
     let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
     let mut table: Gpos = source.to_owned_table();
+    select_header_fields!(table);
     let mut remaining = 200_000;
     let lookups: Vec<&mut PositionLookup> = if let Some(list) = table.lookup_list2.as_mut() {
         table.lookup_list = Default::default();
@@ -1023,16 +1101,26 @@ fn own_empty_singles(
     target: &mut SinglePos,
     remaining: &mut usize,
 ) -> Result<(), SubsetError> {
-    if let (read_fonts::tables::gpos::SinglePos::Format2(source), SinglePos::Format2(target)) =
-        (source, target)
-    {
-        if source.value_format().is_empty() {
-            let count = source.value_count() as usize;
-            *remaining = remaining
-                .checked_sub(count)
-                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
-            target.value_records = vec![ValueRecord::new(); count];
+    match (source, target) {
+        (read_fonts::tables::gpos::SinglePos::Format2(source), SinglePos::Format2(target)) => {
+            if source.value_format().is_empty() {
+                let count = usize::from(source.value_count());
+                *remaining = remaining
+                    .checked_sub(count)
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+                target.value_records = vec![ValueRecord::new(); count];
+            }
         }
+        (read_fonts::tables::gpos::SinglePos::Format4(source), SinglePos::Format4(target)) => {
+            if source.value_format().is_empty() {
+                let count = usize::from(source.value_count());
+                *remaining = remaining
+                    .checked_sub(count)
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+                target.value_records = vec![ValueRecord::new(); count];
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -1042,26 +1130,46 @@ fn own_empty_pairs(
     target: &mut PairPos,
     remaining: &mut usize,
 ) -> Result<(), SubsetError> {
-    if let (read_fonts::tables::gpos::PairPos::Format2(source), PairPos::Format2(target)) =
-        (source, target)
-    {
-        if source.value_format1().is_empty() && source.value_format2().is_empty() {
-            let rows = source.class1_count() as usize;
-            let columns = source.class2_count() as usize;
-            *remaining = remaining
-                .checked_sub(rows.saturating_mul(columns))
-                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
-            target.class1_records = vec![
-                Class1Record::new(vec![
-                    Class2Record::new(
-                        ValueRecord::new(),
-                        ValueRecord::new()
-                    );
-                    columns
-                ]);
-                rows
-            ];
+    match (source, target) {
+        (read_fonts::tables::gpos::PairPos::Format2(source), PairPos::Format2(target)) => {
+            if source.value_format1().is_empty() && source.value_format2().is_empty() {
+                let rows = source.class1_count() as usize;
+                let columns = source.class2_count() as usize;
+                *remaining = remaining
+                    .checked_sub(rows.saturating_mul(columns))
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+                target.class1_records = vec![
+                    Class1Record::new(vec![
+                        Class2Record::new(
+                            ValueRecord::new(),
+                            ValueRecord::new()
+                        );
+                        columns
+                    ]);
+                    rows
+                ];
+            }
         }
+        (read_fonts::tables::gpos::PairPos::Format4(source), PairPos::Format4(target)) => {
+            if source.value_format1().is_empty() && source.value_format2().is_empty() {
+                let rows = source.class1_count() as usize;
+                let columns = source.class2_count() as usize;
+                *remaining = remaining
+                    .checked_sub(rows.saturating_mul(columns))
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+                target.class1_records = vec![
+                    Class1Record::new(vec![
+                        Class2Record::new(
+                            ValueRecord::new(),
+                            ValueRecord::new()
+                        );
+                        columns
+                    ]);
+                    rows
+                ];
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -1071,6 +1179,9 @@ pub(super) fn instance(
     axes: &AxisPlan,
     tables: &mut BTreeMap<Tag, Vec<u8>>,
 ) -> Result<(), SubsetError> {
+    let mut gpos_table = None;
+    let mut gsub_table = None;
+    let mut math_table = None;
     let gdef = font.gdef().ok();
     let context = Context {
         store: gdef
@@ -1084,6 +1195,7 @@ pub(super) fn instance(
         scalars: OnceCell::new(),
         store_plan: OnceCell::new(),
         constant_indices: RefCell::default(),
+        remapping: None,
     };
     if let Ok(gpos) = font.gpos() {
         let vars = own_feature_variations(
@@ -1108,7 +1220,7 @@ pub(super) fn instance(
             &mut table.feature_variations,
             &context,
         )?;
-        save(tables, b"GPOS", &table)?;
+        gpos_table = Some(table);
     }
     if let Ok(gsub) = font.gsub() {
         let vars = own_feature_variations(
@@ -1121,6 +1233,7 @@ pub(super) fn instance(
             Tag::new(b"GSUB"),
         )?;
         let mut table: write_fonts::tables::gsub::Gsub = gsub.to_owned_table();
+        select_header_fields!(table);
         table.feature_variations = vars.into();
         features(
             table
@@ -1131,25 +1244,62 @@ pub(super) fn instance(
             &mut table.feature_variations,
             &context,
         )?;
-        save(tables, b"GSUB", &table)?;
+        gsub_table = Some(table);
     }
     if let Ok(math) = font.math() {
         let mut table: Math = math.to_owned_table();
         table.apply(&context)?;
-        save(tables, b"MATH", &table)?;
+        math_table = Some(table);
     }
-    if let Some(gdef) = gdef {
-        let mut table: Gdef = gdef.to_owned_table();
+    let mut gdef_table: Option<Gdef> = gdef.map(|table| table.to_owned_table());
+    if let Some(table) = &mut gdef_table {
         if table.lig_caret_list2.is_some() {
             table.lig_caret_list = Default::default();
         }
         table.lig_caret_list.apply(&context)?;
         table.lig_caret_list2.apply(&context)?;
-        table.item_var_store = if axes.all_pinned() {
-            Default::default()
-        } else {
-            rebuild_store(&context)?.map(Into::into).unwrap_or_default()
-        };
+    }
+    let (store, map) = if axes.all_pinned() {
+        (None, optimize::IndexMap::new())
+    } else if let Some(store) = rebuild_store(&context)? {
+        let (store, map) = optimize::optimize(store)?;
+        (Some(store), map)
+    } else {
+        (None, optimize::IndexMap::new())
+    };
+    let remap_context = Context {
+        remapping: Some(&map),
+        ..context
+    };
+    if let Some(table) = &mut gpos_table {
+        if !axes.all_pinned() {
+            table.lookup_list.apply(&remap_context)?;
+            table.lookup_list2.apply(&remap_context)?;
+            remap_feature_conditions(&mut table.feature_variations, &map);
+        }
+        save(tables, b"GPOS", table)?;
+    }
+    if let Some(table) = &mut gsub_table {
+        if !axes.all_pinned() {
+            remap_feature_conditions(&mut table.feature_variations, &map);
+        }
+        save(tables, b"GSUB", table)?;
+    }
+    if let Some(table) = &mut math_table {
+        if !axes.all_pinned() {
+            table.apply(&remap_context)?;
+        }
+        save(tables, b"MATH", table)?;
+    }
+    if let Some(mut table) = gdef_table {
+        if !axes.all_pinned() {
+            table.lig_caret_list.apply(&remap_context)?;
+            table.lig_caret_list2.apply(&remap_context)?;
+        }
+        table.item_var_store = store
+            .filter(|store| !store.item_variation_data.is_empty())
+            .map(Into::into)
+            .unwrap_or_default();
         save(tables, b"GDEF", &table)?;
     }
     if let Ok(base) = font.base() {
@@ -1164,21 +1314,34 @@ pub(super) fn instance(
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         let mut table: Base = base.to_owned_table();
         table.horiz_axis.apply(&context)?;
         table.vert_axis.apply(&context)?;
-        table.item_var_store = if axes.all_pinned() {
-            Default::default()
+        let store = if axes.all_pinned() {
+            None
         } else {
             context
                 .store
                 .as_ref()
-                .map(|s| StorePlan::new(s, axes)?.rebuild(s))
+                .map(|s| context.store_plan()?.unwrap().rebuild(s))
                 .transpose()?
-                .map(Into::into)
-                .unwrap_or_default()
         };
+        if let Some(store) = store {
+            let (store, map) = optimize::optimize(store)?;
+            let context = Context {
+                remapping: Some(&map),
+                ..context
+            };
+            table.horiz_axis.apply(&context)?;
+            table.vert_axis.apply(&context)?;
+            table.item_var_store = Some(store)
+                .filter(|store| !store.item_variation_data.is_empty())
+                .into();
+        } else {
+            table.item_var_store = Default::default();
+        }
         save(tables, b"BASE", &VersionedBase(&table, base.version()))?;
     }
     Ok(())
@@ -1335,6 +1498,7 @@ mod tests {
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
+                remapping: None,
             };
             assert_eq!(c.wide_delta(0, 1).unwrap(), 0);
             assert_eq!(c.wide_delta(1, 0).unwrap(), 0);
@@ -1366,6 +1530,7 @@ mod tests {
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
+                remapping: None,
             };
             assert!(condition(&Condition::format_2_variable_value(0, 0), &c, 0).unwrap());
             assert_eq!(
@@ -1400,6 +1565,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         assert_eq!(c.wide_delta(0, 0).unwrap(), 0);
         for (default, index, expected) in [
@@ -1459,6 +1625,7 @@ mod tests {
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
+                remapping: None,
             };
             let mut value = ValueRecord::new().with_x_advance_device(VariationIndex::new(0, 0));
             value.apply(&c).unwrap();
@@ -1509,6 +1676,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         assert!(c
             .device_is_constant(&VariationIndex::new(0, 0).into())
@@ -1539,6 +1707,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         for mixed in [false, true] {
             let empty =
@@ -1764,6 +1933,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         for (inner, base, expected) in [(0, 100, i16::MAX), (1, -100, i16::MIN)] {
             let mut value = ValueRecord::new()
@@ -1800,6 +1970,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         let cond = Condition::Format2VariableValue(ConditionFormat2 {
             default_value: 100,
@@ -1841,6 +2012,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         let mut conditions = Vec::new();
         for default in [0, 1, 2, 0, 1, 2] {
@@ -2091,6 +2263,7 @@ mod tests {
             scalars: OnceCell::new(),
             store_plan: OnceCell::new(),
             constant_indices: RefCell::default(),
+            remapping: None,
         };
         let range = |axis| {
             Condition::Format1AxisRange(ConditionFormat1 {
@@ -2160,6 +2333,7 @@ mod tests {
                 scalars: OnceCell::new(),
                 store_plan: OnceCell::new(),
                 constant_indices: RefCell::default(),
+                remapping: None,
             };
             let mut list = list.clone();
             let mut vars = vars.clone();
