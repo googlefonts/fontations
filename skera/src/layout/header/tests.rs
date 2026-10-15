@@ -3,7 +3,7 @@ use crate::{Subset, SubsetError, SubsetState};
 use font_test_data::bebuffer::BeBuffer;
 use read_fonts::{
     collections::IntSet,
-    tables::{gpos::Gpos, gsub::Gsub, layout::LookupListTable},
+    tables::{gpos::Gpos, gsub::Gsub, layout::SelectedLookupList},
     types::{GlyphId, GlyphId24, MajorMinor, Tag, Uint24},
     FontData, FontRead, FontRef,
 };
@@ -164,7 +164,7 @@ macro_rules! check_header {
             .unwrap();
         assert_eq!(feature.lookup_list_indices()[0].get(), 0);
         let lookups = table.lookup_list().unwrap();
-        assert_eq!(matches!(lookups, LookupListTable::Offset32(_)), wide[2]);
+        assert_eq!(matches!(lookups, SelectedLookupList::Extended(_)), wide[2]);
         assert_eq!(lookups.lookup_count(), 1);
         assert_eq!(lookups.lookups().get(0).unwrap().lookup_type(), 1);
         assert!(table.feature_variations().is_none());

@@ -7,7 +7,7 @@ pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,
 };
-use super::layout::{ExtensionLookup, LookupFlag, LookupListTable, Subtables};
+use super::layout::{ExtensionLookup, LookupFlag, SelectedLookupList, Subtables};
 
 #[cfg(feature = "std")]
 mod closure;
@@ -69,8 +69,12 @@ impl<'a> Gsub<'a> {
     pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
         let data = self.offset_data();
         match self.selected_lookup_list_offset()? {
-            HeaderOffset::Original(offset) => offset.resolve(data).map(LookupListTable::Offset16),
-            HeaderOffset::Extended(offset) => offset.resolve(data).map(LookupListTable::Offset32),
+            HeaderOffset::Original(offset) => {
+                offset.resolve(data).map(SelectedLookupList::Original)
+            }
+            HeaderOffset::Extended(offset) => {
+                offset.resolve(data).map(SelectedLookupList::Extended)
+            }
         }
     }
 
@@ -83,7 +87,7 @@ impl<'a> Gsub<'a> {
 }
 
 /// A typed GSUB [LookupList] table
-pub type SubstitutionLookupList<'a> = super::layout::LookupListTable<'a, SubstitutionLookup<'a>>;
+pub type SubstitutionLookupList<'a> = super::layout::SelectedLookupList<'a, SubstitutionLookup<'a>>;
 
 /// A lookup list with the original 16-bit offsets.
 pub type OriginalSubstitutionLookupList<'a> = super::layout::LookupList<'a, SubstitutionLookup<'a>>;

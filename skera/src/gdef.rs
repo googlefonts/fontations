@@ -633,22 +633,22 @@ impl CollectUsedMarkSets for MarkGlyphSets<'_> {
     }
 }
 
-impl SubsetTable<'_> for read_fonts::tables::gdef::LigCaretListTable<'_> {
+impl SubsetTable<'_> for read_fonts::tables::gdef::SelectedLigCaretList<'_> {
     type ArgsForSubset = ();
     type Output = ();
     fn subset(&self, plan: &Plan, s: &mut Serializer, _: ()) -> Result<(), SerializeErrorFlags> {
         match self {
-            Self::Offset16(t) => t.subset(plan, s, ()),
-            Self::Offset24(t) => t.subset(plan, s, ()),
+            Self::Original(t) => t.subset(plan, s, ()),
+            Self::Extended(t) => t.subset(plan, s, ()),
         }
     }
 }
 
-impl CollectVariationIndices for read_fonts::tables::gdef::LigCaretListTable<'_> {
+impl CollectVariationIndices for read_fonts::tables::gdef::SelectedLigCaretList<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         match self {
-            Self::Offset16(t) => t.collect_variation_indices(plan, varidx_set),
-            Self::Offset24(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Original(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Extended(t) => t.collect_variation_indices(plan, varidx_set),
         }
     }
 }

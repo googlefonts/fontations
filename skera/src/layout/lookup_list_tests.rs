@@ -2,7 +2,7 @@ use super::*;
 use font_test_data::bebuffer::BeBuffer;
 use read_fonts::tables::{
     gpos::{PositionLookup, PositionSubtables},
-    layout::LookupListTable,
+    layout::SelectedLookupList,
 };
 
 fn lookup(gid: u32, advance: i16) -> Vec<u8> {
@@ -52,11 +52,13 @@ fn plan() -> Plan {
 fn subset(bytes: &[u8], wide: bool, plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
     let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
     let table = if wide {
-        LookupListTable::Offset32(
+        SelectedLookupList::Extended(
             LookupList2::<PositionLookup>::read(FontData::new(bytes)).unwrap(),
         )
     } else {
-        LookupListTable::Offset16(LookupList::<PositionLookup>::read(FontData::new(bytes)).unwrap())
+        SelectedLookupList::Original(
+            LookupList::<PositionLookup>::read(FontData::new(bytes)).unwrap(),
+        )
     };
     let mut s = Serializer::new(4 * 1024 * 1024);
     s.start_serialize().unwrap();
@@ -76,11 +78,11 @@ fn lookup_lists_preserve_width_order_and_prune_unselected_null_offsets() {
     for wide in [false, true] {
         let bytes = subset(&input(wide), wide, &plan).unwrap();
         let list = if wide {
-            LookupListTable::Offset32(
+            SelectedLookupList::Extended(
                 LookupList2::<PositionLookup>::read(FontData::new(&bytes)).unwrap(),
             )
         } else {
-            LookupListTable::Offset16(
+            SelectedLookupList::Original(
                 LookupList::<PositionLookup>::read(FontData::new(&bytes)).unwrap(),
             )
         };

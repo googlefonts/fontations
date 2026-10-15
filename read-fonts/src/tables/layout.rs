@@ -36,7 +36,7 @@ mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
-pub use extended::{LayoutOffsetArray, LookupListTable};
+pub use extended::{LayoutOffsetArray, SelectedLookupList};
 pub use feature_variations::LookupVariations;
 
 impl<'a, T: FontRead<'a, Args = ()>> Lookup<'a, T> {

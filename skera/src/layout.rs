@@ -1556,7 +1556,7 @@ impl<
                 'a,
                 ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>),
             >,
-    > SubsetTable<'a> for read_fonts::tables::layout::LookupListTable<'a, T>
+    > SubsetTable<'a> for read_fonts::tables::layout::SelectedLookupList<'a, T>
 {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
@@ -1568,8 +1568,8 @@ impl<
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         match self {
-            Self::Offset16(t) => t.subset(plan, s, args),
-            Self::Offset32(t) => t.subset(plan, s, args),
+            Self::Original(t) => t.subset(plan, s, args),
+            Self::Extended(t) => t.subset(plan, s, args),
         }
     }
 }

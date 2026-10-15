@@ -26,7 +26,7 @@ impl SelectedVhea<'_> {
         }
     }
 
-    extended_table_getters!(
+    selected_table_getters!(
         version -> Version16Dot16,
         ascender -> FWord,
         descender -> FWord,

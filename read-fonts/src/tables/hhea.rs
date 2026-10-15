@@ -18,7 +18,7 @@ impl SelectedHhea<'_> {
         }
     }
 
-    extended_table_getters!(
+    selected_table_getters!(
         version -> MajorMinor,
         ascender -> FWord,
         descender -> FWord,

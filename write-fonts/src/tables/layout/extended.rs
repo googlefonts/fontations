@@ -205,7 +205,7 @@ fn gsub_and_gpos_extended_headers_roundtrip_and_fall_back() {
             );
             assert!(matches!(
                 read.lookup_list().unwrap(),
-                read_fonts::tables::layout::LookupListTable::Offset32(_)
+                read_fonts::tables::layout::SelectedLookupList::Extended(_)
             ));
             let owned: owned::$header = read.to_owned_table();
             assert_eq!(dump_table(&owned).unwrap(), bytes);
@@ -217,7 +217,7 @@ fn gsub_and_gpos_extended_headers_roundtrip_and_fall_back() {
             assert_eq!(read.feature_list().unwrap().feature_count(), 0);
             assert!(matches!(
                 read.lookup_list().unwrap(),
-                read_fonts::tables::layout::LookupListTable::Offset16(_)
+                read_fonts::tables::layout::SelectedLookupList::Original(_)
             ));
             // A bad nonzero wide offset is authoritative: never fall back.
             bytes[14..18].copy_from_slice(&u32::MAX.to_be_bytes());

@@ -16,7 +16,7 @@ pub use super::layout::{
     ClassDef, CoverageTable, Device, DeviceOrVariationIndex, FeatureList, FeatureVariations,
     Lookup, ScriptList,
 };
-use super::layout::{ExtensionLookup, LookupFlag, LookupListTable, Subtables};
+use super::layout::{ExtensionLookup, LookupFlag, SelectedLookupList, Subtables};
 pub use value_record::ValueRecord;
 
 #[cfg(test)]
@@ -77,8 +77,12 @@ impl<'a> Gpos<'a> {
     pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
         let data = self.offset_data();
         match self.selected_lookup_list_offset()? {
-            HeaderOffset::Original(offset) => offset.resolve(data).map(LookupListTable::Offset16),
-            HeaderOffset::Extended(offset) => offset.resolve(data).map(LookupListTable::Offset32),
+            HeaderOffset::Original(offset) => {
+                offset.resolve(data).map(SelectedLookupList::Original)
+            }
+            HeaderOffset::Extended(offset) => {
+                offset.resolve(data).map(SelectedLookupList::Extended)
+            }
         }
     }
 
@@ -91,7 +95,7 @@ impl<'a> Gpos<'a> {
 }
 
 /// A typed GPOS [LookupList](super::layout::LookupList) table
-pub type PositionLookupList<'a> = super::layout::LookupListTable<'a, PositionLookup<'a>>;
+pub type PositionLookupList<'a> = super::layout::SelectedLookupList<'a, PositionLookup<'a>>;
 
 /// A lookup list with the original 16-bit offsets.
 pub type OriginalPositionLookupList<'a> = super::layout::LookupList<'a, PositionLookup<'a>>;

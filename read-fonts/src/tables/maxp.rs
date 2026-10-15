@@ -18,7 +18,7 @@ impl SelectedMaxp<'_> {
         }
     }
 
-    extended_table_getters!(
+    selected_table_getters!(
         version -> Version16Dot16,
         max_points -> Option<u16>,
         max_contours -> Option<u16>,

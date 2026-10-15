@@ -556,7 +556,8 @@ impl<'a> GlyphMetrics<'a> {
         // Without `VVAR`, the phantom points answer. The vertical pair runs
         // downward from the origin, so the height is the top less the
         // bottom, the reverse of the width.
-        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.selected_glyf_loca())
+        if let (Some(gvar), Some((glyf, loca))) =
+            (self.font.selected_gvar(), self.font.selected_glyf_loca())
         {
             let scalars = self.font.gvar_scalars();
             return raw.run_varied(
@@ -606,7 +607,8 @@ impl<'a> GlyphMetrics<'a> {
         // Without `HVAR`, the answer comes from the phantom points on the
         // outline: an advance spans the two horizontal ones, so a change in
         // it is a change in that span.
-        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.selected_glyf_loca())
+        if let (Some(gvar), Some((glyf, loca))) =
+            (self.font.selected_gvar(), self.font.selected_glyf_loca())
         {
             let scalars = self.font.gvar_scalars();
             return raw.run_varied(

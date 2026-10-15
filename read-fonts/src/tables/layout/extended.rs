@@ -51,44 +51,45 @@ impl<'a, T: FontRead<'a, Args = ()> + 'a> LayoutOffsetArray<'a, T> {
     }
 }
 
-/// LookupList or LookupList2, selected by the enclosing GSUB/GPOS header.
+/// The lookup list of a GSUB or GPOS table: the original LookupList, or
+/// the LookupList2 of a version 1.2 header.
 #[derive(Clone)]
-pub enum LookupListTable<'a, T: FontRead<'a, Args = ()>> {
-    Offset16(LookupList<'a, T>),
-    Offset32(LookupList2<'a, T>),
+pub enum SelectedLookupList<'a, T: FontRead<'a, Args = ()>> {
+    Original(LookupList<'a, T>),
+    Extended(LookupList2<'a, T>),
 }
 
-impl<'a, T: FontRead<'a, Args = ()>> From<LookupList<'a, T>> for LookupListTable<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()>> From<LookupList<'a, T>> for SelectedLookupList<'a, T> {
     fn from(list: LookupList<'a, T>) -> Self {
-        Self::Offset16(list)
+        Self::Original(list)
     }
 }
 
-impl<'a, T: FontRead<'a, Args = ()>> From<LookupList2<'a, T>> for LookupListTable<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()>> From<LookupList2<'a, T>> for SelectedLookupList<'a, T> {
     fn from(list: LookupList2<'a, T>) -> Self {
-        Self::Offset32(list)
+        Self::Extended(list)
     }
 }
 
-impl<'a, T: FontRead<'a, Args = ()> + 'a> LookupListTable<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + 'a> SelectedLookupList<'a, T> {
     pub fn lookup_count(&self) -> u16 {
         match self {
-            Self::Offset16(table) => table.lookup_count(),
-            Self::Offset32(table) => table.lookup_count(),
+            Self::Original(table) => table.lookup_count(),
+            Self::Extended(table) => table.lookup_count(),
         }
     }
 
     pub fn lookups(&self) -> LayoutOffsetArray<'a, T> {
         match self {
-            Self::Offset16(table) => LayoutOffsetArray::Offset16(table.lookups()),
-            Self::Offset32(table) => LayoutOffsetArray::Offset32(table.lookups()),
+            Self::Original(table) => LayoutOffsetArray::Offset16(table.lookups()),
+            Self::Extended(table) => LayoutOffsetArray::Offset32(table.lookups()),
         }
     }
 
     pub fn offset_data(&self) -> FontData<'a> {
         match self {
-            Self::Offset16(table) => table.offset_data(),
-            Self::Offset32(table) => table.offset_data(),
+            Self::Original(table) => table.offset_data(),
+            Self::Extended(table) => table.offset_data(),
         }
     }
 }

@@ -72,7 +72,7 @@ fn gdef_extended_header_precedence_fallback_and_roundtrip() {
         65535
     );
     let carets = read.lig_caret_list().unwrap().unwrap();
-    assert!(matches!(carets, raw::LigCaretListTable::Offset24(_)));
+    assert!(matches!(carets, raw::SelectedLigCaretList::Extended(_)));
     assert_eq!(carets.coverage().unwrap().get(GlyphId::new(65536)), Some(0));
     assert_eq!(
         read.mark_glyph_sets_def()
@@ -138,7 +138,7 @@ fn gdef_extended_header_precedence_fallback_and_roundtrip() {
     );
     assert!(matches!(
         read.lig_caret_list().unwrap().unwrap(),
-        raw::LigCaretListTable::Offset16(_)
+        raw::SelectedLigCaretList::Original(_)
     ));
     assert_eq!(
         read.mark_glyph_sets_def()

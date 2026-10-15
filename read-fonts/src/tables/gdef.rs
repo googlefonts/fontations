@@ -88,36 +88,36 @@ impl<'a> Gdef<'a> {
 
 /// LigCaretList or LigCaretList2, selected by the GDEF header.
 #[derive(Clone)]
-pub enum LigCaretListTable<'a> {
-    Offset16(LigCaretList<'a>),
-    Offset24(LigCaretList2<'a>),
+pub enum SelectedLigCaretList<'a> {
+    Original(LigCaretList<'a>),
+    Extended(LigCaretList2<'a>),
 }
 
-impl<'a> LigCaretListTable<'a> {
+impl<'a> SelectedLigCaretList<'a> {
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         match self {
-            Self::Offset16(t) => t.coverage(),
-            Self::Offset24(t) => t.coverage(),
+            Self::Original(t) => t.coverage(),
+            Self::Extended(t) => t.coverage(),
         }
     }
 
     pub fn lig_glyph_count(&self) -> u32 {
         match self {
-            Self::Offset16(t) => u32::from(t.lig_glyph_count()),
-            Self::Offset24(t) => t.lig_glyph_count().to_u32(),
+            Self::Original(t) => u32::from(t.lig_glyph_count()),
+            Self::Extended(t) => t.lig_glyph_count().to_u32(),
         }
     }
 
     pub fn lig_glyphs(&self) -> super::layout::LayoutOffsetArray<'a, LigGlyph<'a>> {
         match self {
-            Self::Offset16(t) => super::layout::LayoutOffsetArray::Offset16(t.lig_glyphs()),
-            Self::Offset24(t) => super::layout::LayoutOffsetArray::Offset24(t.lig_glyphs()),
+            Self::Original(t) => super::layout::LayoutOffsetArray::Offset16(t.lig_glyphs()),
+            Self::Extended(t) => super::layout::LayoutOffsetArray::Offset24(t.lig_glyphs()),
         }
     }
 }
 
 impl<'a> Gdef<'a> {
-    pub fn lig_caret_list(&self) -> Option<Result<LigCaretListTable<'a>, ReadError>> {
+    pub fn lig_caret_list(&self) -> Option<Result<SelectedLigCaretList<'a>, ReadError>> {
         let offset =
             match self.select_offset(self.lig_caret_list_offset(), self.lig_caret_list2_offset()) {
                 Ok(offset) => offset,
@@ -128,8 +128,12 @@ impl<'a> Gdef<'a> {
         }
         let data = self.offset_data();
         Some(match offset {
-            HeaderOffset::Original(offset) => offset.resolve(data).map(LigCaretListTable::Offset16),
-            HeaderOffset::Extended(offset) => offset.resolve(data).map(LigCaretListTable::Offset24),
+            HeaderOffset::Original(offset) => {
+                offset.resolve(data).map(SelectedLigCaretList::Original)
+            }
+            HeaderOffset::Extended(offset) => {
+                offset.resolve(data).map(SelectedLigCaretList::Extended)
+            }
         })
     }
 

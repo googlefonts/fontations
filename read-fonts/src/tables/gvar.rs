@@ -50,7 +50,7 @@ impl<'a> SelectedGvar<'a> {
         matches!(self, Self::Extended(_))
     }
 
-    extended_table_getters!(
+    selected_table_getters!(
         version -> MajorMinor,
         axis_count -> u16,
         shared_tuple_count -> u16,

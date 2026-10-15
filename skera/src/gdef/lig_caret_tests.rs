@@ -1,7 +1,7 @@
 use super::*;
 use font_test_data::bebuffer::BeBuffer;
 use read_fonts::{
-    tables::{gdef::LigCaretListTable, layout::DeviceOrVariationIndex},
+    tables::{gdef::SelectedLigCaretList, layout::DeviceOrVariationIndex},
     types::{GlyphId, GlyphId24},
     FontData, FontRead,
 };
@@ -63,11 +63,11 @@ fn plan() -> Plan {
     plan
 }
 
-fn read(bytes: &[u8], wide: bool) -> LigCaretListTable<'_> {
+fn read(bytes: &[u8], wide: bool) -> SelectedLigCaretList<'_> {
     if wide {
-        LigCaretListTable::Offset24(LigCaretList2::read(FontData::new(bytes)).unwrap())
+        SelectedLigCaretList::Extended(LigCaretList2::read(FontData::new(bytes)).unwrap())
     } else {
-        LigCaretListTable::Offset16(LigCaretList::read(FontData::new(bytes)).unwrap())
+        SelectedLigCaretList::Original(LigCaretList::read(FontData::new(bytes)).unwrap())
     }
 }
 

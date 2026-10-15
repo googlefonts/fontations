@@ -271,8 +271,8 @@ impl Font {
 
     /// Returns `gvar`.
     #[inline]
-    pub(crate) fn gvar(&self) -> Option<&SelectedGvar<'_>> {
-        self.shared().gvar()
+    pub(crate) fn selected_gvar(&self) -> Option<&SelectedGvar<'_>> {
+        self.shared().selected_gvar()
     }
 
     pub(crate) fn gvar_scalars(&self) -> &[Fixed] {
@@ -281,7 +281,7 @@ impl Font {
             Repr::Varied(varied) => varied
                 .gvar_scalars
                 .get_or_init(|| {
-                    let Some(gvar) = varied.font.gvar() else {
+                    let Some(gvar) = varied.font.selected_gvar() else {
                         return Box::new([]);
                     };
                     let count = (gvar.shared_tuple_count() as usize).min(MAX_PRECOMPUTED_SCALARS);
@@ -362,16 +362,16 @@ impl<'a> OutlineContext<'a> for &'a Font {
     }
 
     fn glyph_variation_data(&self, glyph: GlyphId) -> Option<GlyphVariationData<'a>> {
-        self.gvar()?.glyph_variation_data(glyph).ok()?
+        self.selected_gvar()?.glyph_variation_data(glyph).ok()?
     }
 
     fn has_gvar(&self) -> bool {
-        self.gvar().is_some()
+        self.selected_gvar().is_some()
     }
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
         let (glyf, loca) = self.selected_glyf_loca()?;
-        self.gvar()?.phantom_point_deltas_with_scalars(
+        self.selected_gvar()?.phantom_point_deltas_with_scalars(
             glyf,
             loca,
             self.normalized_coords(),
@@ -1045,7 +1045,7 @@ impl SharedFont {
     /// Typically about half a variable font, so nothing should ask for this
     /// that another table can answer.
     #[inline]
-    fn gvar(&self) -> Option<&SelectedGvar<'_>> {
+    fn selected_gvar(&self) -> Option<&SelectedGvar<'_>> {
         let tables = self.tables_arc()?;
         self.0
             .gvar
@@ -1174,7 +1174,7 @@ mod tests {
 
         let gvar_scalars = instance.gvar_scalars();
         assert!(!gvar_scalars.is_empty());
-        let gvar = instance.gvar().unwrap();
+        let gvar = instance.selected_gvar().unwrap();
         assert_eq!(
             gvar_scalars.len(),
             (gvar.shared_tuple_count() as usize).min(MAX_PRECOMPUTED_SCALARS)

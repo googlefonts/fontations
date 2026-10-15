@@ -15,10 +15,10 @@ pub trait TopLevelTable {
 pub(crate) fn prefer_extended<T>(
     extended: Result<T, ReadError>,
     tag: Tag,
-    standard: impl FnOnce() -> Result<T, ReadError>,
+    original: impl FnOnce() -> Result<T, ReadError>,
 ) -> Result<T, ReadError> {
     match extended {
-        Err(ReadError::TableIsMissing(missing)) if missing == tag => standard(),
+        Err(ReadError::TableIsMissing(missing)) if missing == tag => original(),
         result => result,
     }
 }

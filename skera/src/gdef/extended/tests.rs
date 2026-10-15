@@ -1,7 +1,7 @@
 use super::*;
 use font_test_data::bebuffer::BeBuffer;
 use read_fonts::{
-    tables::gdef::LigCaretListTable,
+    tables::gdef::SelectedLigCaretList,
     types::{GlyphId, GlyphId24},
     FontData, FontRead,
 };
@@ -159,7 +159,7 @@ fn check_header(bytes: &[u8], wide: [bool; 5]) {
         [3, 5]
     );
     let lig = table.lig_caret_list().unwrap().unwrap();
-    assert_eq!(matches!(lig, LigCaretListTable::Offset24(_)), wide[2]);
+    assert_eq!(matches!(lig, SelectedLigCaretList::Extended(_)), wide[2]);
     assert_eq!(lig.lig_glyph_count(), 1);
     assert_eq!(lig.coverage().unwrap().get(GlyphId::new(2)), Some(0));
     assert_eq!(lig.lig_glyphs().get(0).unwrap().caret_count(), 1);
