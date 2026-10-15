@@ -88,6 +88,7 @@ fn synthetic_font(index: u32, default: i16) -> Vec<u8> {
         ),
     );
     gsub.feature_variations = FeatureVariations {
+        lookup_variation_records: None,
         feature_variation_records: vec![FeatureVariationRecord {
             condition_set: ConditionSet {
                 conditions: vec![Condition::format_2_variable_value(default, index).into()],
@@ -164,15 +165,18 @@ fn selected_glyph(bytes: &[u8]) -> u16 {
     let font = FontRef::new(bytes).unwrap();
     let table: Gsub = font.gsub().unwrap().to_owned_table();
     assert!(table.feature_variations.is_none());
-    let index = table.feature_list.feature_records[0]
+    let index = table.feature_list.as_ref().unwrap().feature_records[0]
         .feature
         .lookup_list_indices[0] as usize;
-    let SubstitutionLookup::Single(lookup) = table.lookup_list.lookups[index].as_ref() else {
+    let SubstitutionLookup::Single(lookup) =
+        table.lookup_list.as_ref().unwrap().lookups[index].as_ref()
+    else {
         panic!()
     };
     match lookup.subtables[0].as_ref() {
         SingleSubst::Format1(sub) => 1u16.wrapping_add(sub.delta_glyph_id as u16),
         SingleSubst::Format2(sub) => sub.substitute_glyph_ids[0].to_u16(),
+        _ => panic!("fixture uses original single substitutions"),
     }
 }
 #[test]
@@ -230,7 +234,9 @@ fn full_instances_match_harfbuzz_for_small_and_cancelling_deltas() {
             // whose results have just been verified against HarfBuzz.
             let gpos: Gpos = font.gpos().unwrap().to_owned_table();
             let advance = |i: usize| {
-                let PositionLookup::Single(lookup) = gpos.lookup_list.lookups[i].as_ref() else {
+                let PositionLookup::Single(lookup) =
+                    gpos.lookup_list.as_ref().unwrap().lookups[i].as_ref()
+                else {
                     panic!()
                 };
                 let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
@@ -300,7 +306,14 @@ fn partial_instances_drop_devices_whose_residual_deltas_vanish() {
         .unwrap();
         let font = FontRef::new(&bytes).unwrap();
         let gpos: Gpos = font.gpos().unwrap().to_owned_table();
-        for (i, lookup) in gpos.lookup_list.lookups.iter().enumerate() {
+        for (i, lookup) in gpos
+            .lookup_list
+            .as_ref()
+            .unwrap()
+            .lookups
+            .iter()
+            .enumerate()
+        {
             let PositionLookup::Single(lookup) = lookup.as_ref() else {
                 panic!()
             };
