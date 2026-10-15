@@ -73,8 +73,8 @@ impl FreeTypeInstance {
         self.face.is_scalable()
     }
 
-    pub fn glyph_count(&self) -> u16 {
-        self.face.num_glyphs() as u16
+    pub fn glyph_count(&self) -> u32 {
+        self.face.num_glyphs() as u32
     }
 
     pub fn advance(&mut self, glyph_id: GlyphId) -> Option<f32> {
