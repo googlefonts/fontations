@@ -43,6 +43,12 @@ pub(crate) struct Field {
     /// computed during resolution: seeded from the extern records declared with
     /// a lifetime, then closed over containment. See `build_positioned_set`.
     pub(crate) positioned: bool,
+    /// `true` if this field is part of the fixed-size header at the start of
+    /// its table, and is read directly from that header.
+    ///
+    /// The header is the run of fields validated at parse that can be laid out
+    /// as plain bytes: scalars, offsets and borrowed fixed-size records.
+    pub(crate) in_header: bool,
     /// `true` if this field is a record of known, fixed size embedded directly
     /// in its parent, rather than reached through an array or an offset.
     ///
@@ -183,6 +189,7 @@ impl Parse for Field {
             // all computed later
             validated_at_parse: false,
             positioned: false,
+            in_header: false,
             fixed_size_record: false,
         })
     }
