@@ -180,7 +180,7 @@ impl<'a> Iterator for GlyphNames<'a> {
                     DEFAULT_GLYPH_NAMES.get(actual_idx).copied()?
                 } else {
                     actual_idx -= DEFAULT_GLYPH_NAMES.len();
-                    let string_data = post.data.slice(post.string_data_byte_range())?;
+                    let string_data = post.offset_data().slice(post.string_data_byte_range())?;
                     // Checkpoint 0 is implicit and always at offset 0; the
                     // array stores logical checkpoints 1..=NUM_CHECKPOINTS.
                     let target_slot = (actual_idx / stride).min(NUM_CHECKPOINTS);

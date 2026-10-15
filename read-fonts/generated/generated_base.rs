@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Base<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,30 @@ impl<'a> FontRead<'a> for Base<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub horiz_axis_offset: BigEndian<Nullable<Offset16>>,
+    pub vert_axis_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseFixedHeader>() <= Base::MIN_SIZE);
+
 /// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
 #[derive(Clone)]
 pub struct Base<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -48,31 +64,28 @@ impl<'a> Base<'a> {
 
     /// (major, minor) Version for the BASE table (1,0) or (1,1)
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Offset to horizontal Axis table, from beginning of BASE table (may be NULL)
     pub fn horiz_axis_offset(&self) -> Nullable<Offset16> {
-        let range = self.horiz_axis_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().horiz_axis_offset.get()
     }
 
     /// Attempt to resolve [`horiz_axis_offset`][Self::horiz_axis_offset].
     pub fn horiz_axis(&self) -> Option<Result<Axis<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.horiz_axis_offset().resolve(data)
     }
 
     /// Offset to vertical Axis table, from beginning of BASE table (may be NULL)
     pub fn vert_axis_offset(&self) -> Nullable<Offset16> {
-        let range = self.vert_axis_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().vert_axis_offset.get()
     }
 
     /// Attempt to resolve [`vert_axis_offset`][Self::vert_axis_offset].
     pub fn vert_axis(&self) -> Option<Result<Axis<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.vert_axis_offset().resolve(data)
     }
 
@@ -80,13 +93,13 @@ impl<'a> Base<'a> {
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.item_var_store_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_var_store_offset().map(|x| x.resolve(data))?
     }
 
@@ -124,7 +137,8 @@ const _: () = assert!(FontData::default_data_long_enough(Base::MIN_SIZE));
 impl Default for Base<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -135,7 +149,7 @@ impl<'a> MinByteRange<'a> for Axis<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -149,14 +163,29 @@ impl<'a> FontRead<'a> for Axis<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AxisFixedHeader {
+    pub base_tag_list_offset: BigEndian<Nullable<Offset16>>,
+    pub base_script_list_offset: BigEndian<Offset16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AxisFixedHeader>() <= Axis::MIN_SIZE);
+
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
 #[derive(Clone)]
 pub struct Axis<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AxisFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -167,28 +196,23 @@ impl<'a> Axis<'a> {
     /// Offset to BaseTagList table, from beginning of Axis table (may
     /// be NULL)
     pub fn base_tag_list_offset(&self) -> Nullable<Offset16> {
-        let range = self.base_tag_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_tag_list_offset.get()
     }
 
     /// Attempt to resolve [`base_tag_list_offset`][Self::base_tag_list_offset].
     pub fn base_tag_list(&self) -> Option<Result<BaseTagList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_tag_list_offset().resolve(data)
     }
 
     /// Offset to BaseScriptList table, from beginning of Axis table
     pub fn base_script_list_offset(&self) -> Offset16 {
-        let range = self.base_script_list_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().base_script_list_offset.get()
     }
 
     /// Attempt to resolve [`base_script_list_offset`][Self::base_script_list_offset].
     pub fn base_script_list(&self) -> Result<BaseScriptList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_script_list_offset().resolve(data)
     }
 
@@ -210,7 +234,8 @@ const _: () = assert!(FontData::default_data_long_enough(Axis::MIN_SIZE));
 impl Default for Axis<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -221,7 +246,7 @@ impl<'a> MinByteRange<'a> for BaseTagList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -235,14 +260,28 @@ impl<'a> FontRead<'a> for BaseTagList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseTagListFixedHeader {
+    pub base_tag_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseTagListFixedHeader>() <= BaseTagList::MIN_SIZE);
+
 /// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
 #[derive(Clone)]
 pub struct BaseTagList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseTagListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -253,15 +292,17 @@ impl<'a> BaseTagList<'a> {
     /// Number of baseline identification tags in this text direction
     /// — may be zero (0)
     pub fn base_tag_count(&self) -> u16 {
-        let range = self.base_tag_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_tag_count.get()
     }
 
     /// Array of 4-byte baseline identification tags — must be in
     /// alphabetical order
     pub fn baseline_tags(&self) -> &'a [BigEndian<Tag>] {
         let range = self.baseline_tags_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn base_tag_count_byte_range(&self) -> Range<usize> {
@@ -283,7 +324,8 @@ const _: () = assert!(FontData::default_data_long_enough(BaseTagList::MIN_SIZE))
 impl Default for BaseTagList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -294,7 +336,7 @@ impl<'a> MinByteRange<'a> for BaseScriptList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -308,14 +350,28 @@ impl<'a> FontRead<'a> for BaseScriptList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseScriptListFixedHeader {
+    pub base_script_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseScriptListFixedHeader>() <= BaseScriptList::MIN_SIZE);
+
 /// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
 #[derive(Clone)]
 pub struct BaseScriptList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseScriptListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -325,15 +381,17 @@ impl<'a> BaseScriptList<'a> {
 
     /// Number of BaseScriptRecords defined
     pub fn base_script_count(&self) -> u16 {
-        let range = self.base_script_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_script_count.get()
     }
 
     /// Array of BaseScriptRecords, in alphabetical order by
     /// baseScriptTag
     pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
         let range = self.base_script_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn base_script_count_byte_range(&self) -> Range<usize> {
@@ -357,7 +415,8 @@ const _: () = assert!(FontData::default_data_long_enough(BaseScriptList::MIN_SIZ
 impl Default for BaseScriptList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -403,7 +462,7 @@ impl<'a> MinByteRange<'a> for BaseScript<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -417,14 +476,30 @@ impl<'a> FontRead<'a> for BaseScript<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseScriptFixedHeader {
+    pub base_values_offset: BigEndian<Nullable<Offset16>>,
+    pub default_min_max_offset: BigEndian<Nullable<Offset16>>,
+    pub base_lang_sys_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseScriptFixedHeader>() <= BaseScript::MIN_SIZE);
+
 /// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
 #[derive(Clone)]
 pub struct BaseScript<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseScriptFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -435,39 +510,39 @@ impl<'a> BaseScript<'a> {
 
     /// Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
     pub fn base_values_offset(&self) -> Nullable<Offset16> {
-        let range = self.base_values_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_values_offset.get()
     }
 
     /// Attempt to resolve [`base_values_offset`][Self::base_values_offset].
     pub fn base_values(&self) -> Option<Result<BaseValues<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_values_offset().resolve(data)
     }
 
     /// Offset to MinMax table, from beginning of BaseScript table (may be NULL)
     pub fn default_min_max_offset(&self) -> Nullable<Offset16> {
-        let range = self.default_min_max_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().default_min_max_offset.get()
     }
 
     /// Attempt to resolve [`default_min_max_offset`][Self::default_min_max_offset].
     pub fn default_min_max(&self) -> Option<Result<MinMax<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.default_min_max_offset().resolve(data)
     }
 
     /// Number of BaseLangSysRecords defined — may be zero (0)
     pub fn base_lang_sys_count(&self) -> u16 {
-        let range = self.base_lang_sys_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_lang_sys_count.get()
     }
 
     /// Array of BaseLangSysRecords, in alphabetical order by
     /// BaseLangSysTag
     pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
         let range = self.base_lang_sys_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn base_values_offset_byte_range(&self) -> Range<usize> {
@@ -503,7 +578,8 @@ const _: () = assert!(FontData::default_data_long_enough(BaseScript::MIN_SIZE));
 impl Default for BaseScript<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -549,7 +625,7 @@ impl<'a> MinByteRange<'a> for BaseValues<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -563,14 +639,29 @@ impl<'a> FontRead<'a> for BaseValues<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseValuesFixedHeader {
+    pub default_baseline_index: BigEndian<u16>,
+    pub base_coord_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseValuesFixedHeader>() <= BaseValues::MIN_SIZE);
+
 /// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
 #[derive(Clone)]
 pub struct BaseValues<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseValuesFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -582,15 +673,13 @@ impl<'a> BaseValues<'a> {
     /// index position of baseline tag in baselineTags array of the
     /// BaseTagList
     pub fn default_baseline_index(&self) -> u16 {
-        let range = self.default_baseline_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().default_baseline_index.get()
     }
 
     /// Number of BaseCoord tables defined — should equal
     /// baseTagCount in the BaseTagList
     pub fn base_coord_count(&self) -> u16 {
-        let range = self.base_coord_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_coord_count.get()
     }
 
     /// Array of offsets to BaseCoord tables, from beginning of
@@ -598,12 +687,15 @@ impl<'a> BaseValues<'a> {
     /// BaseTagList
     pub fn base_coord_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.base_coord_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`base_coord_offsets`][Self::base_coord_offsets].
     pub fn base_coords(&self) -> ArrayOfOffsets<'a, BaseCoord<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.base_coord_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -634,7 +726,8 @@ const _: () = assert!(FontData::default_data_long_enough(BaseValues::MIN_SIZE));
 impl Default for BaseValues<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -645,7 +738,7 @@ impl<'a> MinByteRange<'a> for MinMax<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -659,14 +752,30 @@ impl<'a> FontRead<'a> for MinMax<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MinMaxFixedHeader {
+    pub min_coord_offset: BigEndian<Nullable<Offset16>>,
+    pub max_coord_offset: BigEndian<Nullable<Offset16>>,
+    pub feat_min_max_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MinMaxFixedHeader>() <= MinMax::MIN_SIZE);
+
 /// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
 #[derive(Clone)]
 pub struct MinMax<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MinMaxFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -678,40 +787,40 @@ impl<'a> MinMax<'a> {
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from the beginning of MinMax table (may be NULL)
     pub fn min_coord_offset(&self) -> Nullable<Offset16> {
-        let range = self.min_coord_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().min_coord_offset.get()
     }
 
     /// Attempt to resolve [`min_coord_offset`][Self::min_coord_offset].
     pub fn min_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.min_coord_offset().resolve(data)
     }
 
     /// Offset to BaseCoord table that defines maximum extent value,
     /// from the beginning of MinMax table (may be NULL)
     pub fn max_coord_offset(&self) -> Nullable<Offset16> {
-        let range = self.max_coord_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().max_coord_offset.get()
     }
 
     /// Attempt to resolve [`max_coord_offset`][Self::max_coord_offset].
     pub fn max_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.max_coord_offset().resolve(data)
     }
 
     /// Number of FeatMinMaxRecords — may be zero (0)
     pub fn feat_min_max_count(&self) -> u16 {
-        let range = self.feat_min_max_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().feat_min_max_count.get()
     }
 
     /// Array of FeatMinMaxRecords, in alphabetical order by
     /// featureTableTag
     pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
         let range = self.feat_min_max_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
@@ -747,7 +856,8 @@ const _: () = assert!(FontData::default_data_long_enough(MinMax::MIN_SIZE));
 impl Default for MinMax<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -895,7 +1005,7 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -909,14 +1019,30 @@ impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseCoordFormat1FixedHeader {
+    pub base_coord_format: BigEndian<u16>,
+    pub coordinate: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<BaseCoordFormat1FixedHeader>() <= BaseCoordFormat1::MIN_SIZE);
+
 /// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
 #[derive(Clone)]
 pub struct BaseCoordFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseCoordFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -926,14 +1052,12 @@ impl<'a> BaseCoordFormat1<'a> {
 
     /// Format identifier — format = 1
     pub fn base_coord_format(&self) -> u16 {
-        let range = self.base_coord_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_coord_format.get()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().coordinate.get()
     }
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
@@ -956,7 +1080,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for BaseCoordFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -971,7 +1096,7 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -985,14 +1110,32 @@ impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseCoordFormat2FixedHeader {
+    pub base_coord_format: BigEndian<u16>,
+    pub coordinate: BigEndian<i16>,
+    pub reference_glyph: BigEndian<u16>,
+    pub base_coord_point: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<BaseCoordFormat2FixedHeader>() <= BaseCoordFormat2::MIN_SIZE);
+
 /// [BaseCoordFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-2)
 #[derive(Clone)]
 pub struct BaseCoordFormat2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseCoordFormat2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1003,26 +1146,22 @@ impl<'a> BaseCoordFormat2<'a> {
 
     /// Format identifier — format = 2
     pub fn base_coord_format(&self) -> u16 {
-        let range = self.base_coord_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_coord_format.get()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().coordinate.get()
     }
 
     /// Glyph ID of control glyph
     pub fn reference_glyph(&self) -> u16 {
-        let range = self.reference_glyph_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().reference_glyph.get()
     }
 
     /// Index of contour point on the reference glyph
     pub fn base_coord_point(&self) -> u16 {
-        let range = self.base_coord_point_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_coord_point.get()
     }
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
@@ -1060,7 +1199,7 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat3<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1074,14 +1213,31 @@ impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseCoordFormat3FixedHeader {
+    pub base_coord_format: BigEndian<u16>,
+    pub coordinate: BigEndian<i16>,
+    pub device_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<BaseCoordFormat3FixedHeader>() <= BaseCoordFormat3::MIN_SIZE);
+
 /// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
 #[derive(Clone)]
 pub struct BaseCoordFormat3<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseCoordFormat3FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1091,27 +1247,24 @@ impl<'a> BaseCoordFormat3<'a> {
 
     /// Format identifier — format = 3
     pub fn base_coord_format(&self) -> u16 {
-        let range = self.base_coord_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_coord_format.get()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        let range = self.coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().coordinate.get()
     }
 
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value, from beginning of
     /// BaseCoord table (may be NULL).
     pub fn device_offset(&self) -> Nullable<Offset16> {
-        let range = self.device_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().device_offset.get()
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     pub fn device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.device_offset().resolve(data)
     }
 

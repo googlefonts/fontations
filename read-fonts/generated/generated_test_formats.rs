@@ -15,7 +15,7 @@ impl<'a> MinByteRange<'a> for Table1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -29,13 +29,29 @@ impl<'a> FontRead<'a> for Table1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Table1FixedHeader {
+    pub format: BigEndian<u16>,
+    pub heft: BigEndian<u32>,
+    pub flex: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Table1FixedHeader>() <= Table1::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct Table1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, Table1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -44,18 +60,15 @@ impl<'a> Table1<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> u16 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     pub fn heft(&self) -> u32 {
-        let range = self.heft_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().heft.get()
     }
 
     pub fn flex(&self) -> u16 {
-        let range = self.flex_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flex.get()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -82,7 +95,8 @@ const _: () = assert!(FontData::default_data_long_enough(Table1::MIN_SIZE));
 impl Default for Table1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -97,7 +111,7 @@ impl<'a> MinByteRange<'a> for Table2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -111,13 +125,28 @@ impl<'a> FontRead<'a> for Table2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Table2FixedHeader {
+    pub format: BigEndian<u16>,
+    pub value_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Table2FixedHeader>() <= Table2::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct Table2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, Table2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -126,18 +155,19 @@ impl<'a> Table2<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> u16 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     pub fn value_count(&self) -> u16 {
-        let range = self.value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_count.get()
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.values_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -170,7 +200,7 @@ impl<'a> MinByteRange<'a> for Table3<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -184,13 +214,28 @@ impl<'a> FontRead<'a> for Table3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Table3FixedHeader {
+    pub format: BigEndian<u16>,
+    pub something: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Table3FixedHeader>() <= Table3::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct Table3<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, Table3FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -199,13 +244,11 @@ impl<'a> Table3<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> u16 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     pub fn something(&self) -> u16 {
-        let range = self.something_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().something.get()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {

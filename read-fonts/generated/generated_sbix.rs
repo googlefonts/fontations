@@ -312,7 +312,7 @@ impl<'a> MinByteRange<'a> for Sbix<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -333,6 +333,9 @@ impl<'a> FontRead<'a> for Sbix<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data, num_glyphs })
     }
 }
@@ -348,10 +351,23 @@ impl<'a> Sbix<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SbixFixedHeader {
+    pub version: BigEndian<u16>,
+    pub flags: BigEndian<HeaderFlags>,
+    pub num_strikes: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<SbixFixedHeader>() <= Sbix::MIN_SIZE);
+
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 #[derive(Clone)]
 pub struct Sbix<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SbixFixedHeader>,
     num_glyphs: u16,
 }
 
@@ -362,33 +378,33 @@ impl<'a> Sbix<'a> {
 
     /// Table version number — set to 1.
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Bit 0: Set to 1.
     /// Bit 1: Draw outlines.
     /// Bits 2 to 15: reserved (set to 0).
     pub fn flags(&self) -> HeaderFlags {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flags.get()
     }
 
     /// Number of bitmap strikes.
     pub fn num_strikes(&self) -> u32 {
-        let range = self.num_strikes_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_strikes.get()
     }
 
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.strike_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`strike_offsets`][Self::strike_offsets].
     pub fn strikes(&self) -> ArrayOfOffsets<'a, Strike<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.strike_offsets();
         let args = self.num_glyphs();
         ArrayOfOffsets::new(offsets, data, args)
@@ -430,7 +446,8 @@ const _: () = assert!(FontData::default_data_long_enough(Sbix::MIN_SIZE));
 impl Default for Sbix<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             num_glyphs: Default::default(),
         }
     }
@@ -442,7 +459,7 @@ impl<'a> MinByteRange<'a> for Strike<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -458,6 +475,9 @@ impl<'a> FontRead<'a> for Strike<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data, num_glyphs })
     }
 }
@@ -473,10 +493,22 @@ impl<'a> Strike<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct StrikeFixedHeader {
+    pub ppem: BigEndian<u16>,
+    pub ppi: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<StrikeFixedHeader>() <= Strike::MIN_SIZE);
+
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
 #[derive(Clone)]
 pub struct Strike<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, StrikeFixedHeader>,
     num_glyphs: u16,
 }
 
@@ -487,20 +519,21 @@ impl<'a> Strike<'a> {
 
     /// The PPEM size for which this strike was designed.
     pub fn ppem(&self) -> u16 {
-        let range = self.ppem_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().ppem.get()
     }
 
     /// The device pixel density (in PPI) for which this strike was designed. (E.g., 96 PPI, 192 PPI.)
     pub fn ppi(&self) -> u16 {
-        let range = self.ppi_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().ppi.get()
     }
 
     /// Offset from the beginning of the strike data header to bitmap data for an individual glyph ID.
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.glyph_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
@@ -532,7 +565,8 @@ const _: () = assert!(FontData::default_data_long_enough(Strike::MIN_SIZE));
 impl Default for Strike<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             num_glyphs: Default::default(),
         }
     }
@@ -544,7 +578,7 @@ impl<'a> MinByteRange<'a> for GlyphData<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -558,14 +592,30 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphDataFixedHeader {
+    pub origin_offset_x: BigEndian<i16>,
+    pub origin_offset_y: BigEndian<i16>,
+    pub graphic_type: BigEndian<Tag>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GlyphDataFixedHeader>() <= GlyphData::MIN_SIZE);
+
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 #[derive(Clone)]
 pub struct GlyphData<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyphDataFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -575,26 +625,26 @@ impl<'a> GlyphData<'a> {
 
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_x(&self) -> i16 {
-        let range = self.origin_offset_x_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().origin_offset_x.get()
     }
 
     /// The vertical (y-axis) position of the bottom edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_y(&self) -> i16 {
-        let range = self.origin_offset_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().origin_offset_y.get()
     }
 
     /// Indicates the format of the embedded graphic data: one of 'jpg ', 'png ' or 'tiff', or the special format 'dupe'.
     pub fn graphic_type(&self) -> Tag {
-        let range = self.graphic_type_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().graphic_type.get()
     }
 
     /// The actual embedded graphic data. The total length is inferred from sequential entries in the glyphDataOffsets array and the fixed size (8 bytes) of the preceding fields.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
@@ -617,8 +667,8 @@ impl<'a> GlyphData<'a> {
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.graphic_type_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -628,7 +678,8 @@ const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
 impl Default for GlyphData<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
