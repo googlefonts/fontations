@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Math<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,31 @@ impl<'a> FontRead<'a> for Math<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub math_constants_offset: BigEndian<Offset16>,
+    pub math_glyph_info_offset: BigEndian<Offset16>,
+    pub math_variants_offset: BigEndian<Offset16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MathFixedHeader>() <= Math::MIN_SIZE);
+
 /// The [MATH](https://learn.microsoft.com/en-us/typography/opentype/spec/math) table
 #[derive(Clone)]
 pub struct Math<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -50,52 +67,39 @@ impl<'a> Math<'a> {
 
     /// (major, minor) Version for the MATH table (1,0)
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Offset to MathConstants table, from beginning of MATH table.
     pub fn math_constants_offset(&self) -> Offset16 {
-        let range = self.math_constants_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().math_constants_offset.get()
     }
 
     /// Attempt to resolve [`math_constants_offset`][Self::math_constants_offset].
     pub fn math_constants(&self) -> Result<MathConstants<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_constants_offset().resolve(data)
     }
 
     /// Offset to MathGlyphInfo table, from beginning of MATH table.
     pub fn math_glyph_info_offset(&self) -> Offset16 {
-        let range = self.math_glyph_info_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().math_glyph_info_offset.get()
     }
 
     /// Attempt to resolve [`math_glyph_info_offset`][Self::math_glyph_info_offset].
     pub fn math_glyph_info(&self) -> Result<MathGlyphInfo<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_glyph_info_offset().resolve(data)
     }
 
     /// Offset to MathVariants table, from beginning of MATH table.
     pub fn math_variants_offset(&self) -> Offset16 {
-        let range = self.math_variants_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().math_variants_offset.get()
     }
 
     /// Attempt to resolve [`math_variants_offset`][Self::math_variants_offset].
     pub fn math_variants(&self) -> Result<MathVariants<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_variants_offset().resolve(data)
     }
 
@@ -129,7 +133,8 @@ const _: () = assert!(FontData::default_data_long_enough(Math::MIN_SIZE));
 impl Default for Math<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -187,7 +192,7 @@ impl<'a> MinByteRange<'a> for MathConstants<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -201,14 +206,83 @@ impl<'a> FontRead<'a> for MathConstants<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathConstantsFixedHeader {
+    pub script_percent_scale_down: BigEndian<i16>,
+    pub script_script_percent_scale_down: BigEndian<i16>,
+    pub delimited_sub_formula_min_height: BigEndian<UfWord>,
+    pub display_operator_min_height: BigEndian<UfWord>,
+    pub math_leading: MathValueRecord,
+    pub axis_height: MathValueRecord,
+    pub accent_base_height: MathValueRecord,
+    pub flattened_accent_base_height: MathValueRecord,
+    pub subscript_shift_down: MathValueRecord,
+    pub subscript_top_max: MathValueRecord,
+    pub subscript_baseline_drop_min: MathValueRecord,
+    pub superscript_shift_up: MathValueRecord,
+    pub superscript_shift_up_cramped: MathValueRecord,
+    pub superscript_bottom_min: MathValueRecord,
+    pub superscript_baseline_drop_max: MathValueRecord,
+    pub sub_superscript_gap_min: MathValueRecord,
+    pub superscript_bottom_max_with_subscript: MathValueRecord,
+    pub space_after_script: MathValueRecord,
+    pub upper_limit_gap_min: MathValueRecord,
+    pub upper_limit_baseline_rise_min: MathValueRecord,
+    pub lower_limit_gap_min: MathValueRecord,
+    pub lower_limit_baseline_drop_min: MathValueRecord,
+    pub stack_top_shift_up: MathValueRecord,
+    pub stack_top_display_style_shift_up: MathValueRecord,
+    pub stack_bottom_shift_down: MathValueRecord,
+    pub stack_bottom_display_style_shift_down: MathValueRecord,
+    pub stack_gap_min: MathValueRecord,
+    pub stack_display_style_gap_min: MathValueRecord,
+    pub stretch_stack_top_shift_up: MathValueRecord,
+    pub stretch_stack_bottom_shift_down: MathValueRecord,
+    pub stretch_stack_gap_above_min: MathValueRecord,
+    pub stretch_stack_gap_below_min: MathValueRecord,
+    pub fraction_numerator_shift_up: MathValueRecord,
+    pub fraction_numerator_display_style_shift_up: MathValueRecord,
+    pub fraction_denominator_shift_down: MathValueRecord,
+    pub fraction_denominator_display_style_shift_down: MathValueRecord,
+    pub fraction_numerator_gap_min: MathValueRecord,
+    pub fraction_num_display_style_gap_min: MathValueRecord,
+    pub fraction_rule_thickness: MathValueRecord,
+    pub fraction_denominator_gap_min: MathValueRecord,
+    pub fraction_denom_display_style_gap_min: MathValueRecord,
+    pub skewed_fraction_horizontal_gap: MathValueRecord,
+    pub skewed_fraction_vertical_gap: MathValueRecord,
+    pub overbar_vertical_gap: MathValueRecord,
+    pub overbar_rule_thickness: MathValueRecord,
+    pub overbar_extra_ascender: MathValueRecord,
+    pub underbar_vertical_gap: MathValueRecord,
+    pub underbar_rule_thickness: MathValueRecord,
+    pub underbar_extra_descender: MathValueRecord,
+    pub radical_vertical_gap: MathValueRecord,
+    pub radical_display_style_vertical_gap: MathValueRecord,
+    pub radical_rule_thickness: MathValueRecord,
+    pub radical_extra_ascender: MathValueRecord,
+    pub radical_kern_before_degree: MathValueRecord,
+    pub radical_kern_after_degree: MathValueRecord,
+    pub radical_degree_bottom_raise_percent: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MathConstantsFixedHeader>() <= MathConstants::MIN_SIZE);
+
 /// [MathConstants](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathconstants-table)
 #[derive(Clone)]
 pub struct MathConstants<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathConstantsFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -273,370 +347,317 @@ impl<'a> MathConstants<'a> {
 
     /// Percentage of scaling down for level 1 superscripts and subscripts.
     pub fn script_percent_scale_down(&self) -> i16 {
-        let range = self.script_percent_scale_down_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().script_percent_scale_down.get()
     }
 
     /// Percentage of scaling down for level 2 (scriptScript) superscripts and
     /// subscripts.
     pub fn script_script_percent_scale_down(&self) -> i16 {
-        let range = self.script_script_percent_scale_down_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().script_script_percent_scale_down.get()
     }
 
     /// Minimum height required for a delimited expression (contained within
     /// parentheses, etc.) to be treated as a sub-formula.
     pub fn delimited_sub_formula_min_height(&self) -> UfWord {
-        let range = self.delimited_sub_formula_min_height_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().delimited_sub_formula_min_height.get()
     }
 
     /// Minimum height of n-ary operators (such as integral and summation) for
     /// formulas in display mode (that is, appearing as standalone page
     /// elements, not embedded inline within text).
     pub fn display_operator_min_height(&self) -> UfWord {
-        let range = self.display_operator_min_height_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().display_operator_min_height.get()
     }
 
     /// White space to be left between math formulas to ensure proper line
     /// spacing.
     pub fn math_leading(&self) -> &'a MathValueRecord {
-        let range = self.math_leading_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().math_leading
     }
 
     /// Axis height of the font.
     pub fn axis_height(&self) -> &'a MathValueRecord {
-        let range = self.axis_height_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().axis_height
     }
 
     /// Maximum (ink) height of accent base that does not require raising the
     /// accents.
     pub fn accent_base_height(&self) -> &'a MathValueRecord {
-        let range = self.accent_base_height_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().accent_base_height
     }
 
     /// Maximum (ink) height of accent base that does not require flattening the
     /// accents.
     pub fn flattened_accent_base_height(&self) -> &'a MathValueRecord {
-        let range = self.flattened_accent_base_height_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().flattened_accent_base_height
     }
 
     /// The standard shift down applied to subscript elements.
     pub fn subscript_shift_down(&self) -> &'a MathValueRecord {
-        let range = self.subscript_shift_down_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().subscript_shift_down
     }
 
     /// Maximum allowed height of the (ink) top of subscripts that does not
     /// require moving subscripts further down.
     pub fn subscript_top_max(&self) -> &'a MathValueRecord {
-        let range = self.subscript_top_max_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().subscript_top_max
     }
 
     /// Minimum allowed drop of the baseline of subscripts relative to the (ink)
     /// bottom of the base.
     pub fn subscript_baseline_drop_min(&self) -> &'a MathValueRecord {
-        let range = self.subscript_baseline_drop_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().subscript_baseline_drop_min
     }
 
     /// Standard shift up applied to superscript elements.
     pub fn superscript_shift_up(&self) -> &'a MathValueRecord {
-        let range = self.superscript_shift_up_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().superscript_shift_up
     }
 
     /// Standard shift of superscripts relative to the base, in cramped style.
     pub fn superscript_shift_up_cramped(&self) -> &'a MathValueRecord {
-        let range = self.superscript_shift_up_cramped_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().superscript_shift_up_cramped
     }
 
     /// Minimum allowed height of the (ink) bottom of superscripts that does not
     /// require moving subscripts further up.
     pub fn superscript_bottom_min(&self) -> &'a MathValueRecord {
-        let range = self.superscript_bottom_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().superscript_bottom_min
     }
 
     /// Maximum allowed drop of the baseline of superscripts relative to the
     /// (ink) top of the base.
     pub fn superscript_baseline_drop_max(&self) -> &'a MathValueRecord {
-        let range = self.superscript_baseline_drop_max_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().superscript_baseline_drop_max
     }
 
     /// Minimum gap between the superscript and subscript ink.
     pub fn sub_superscript_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.sub_superscript_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().sub_superscript_gap_min
     }
 
     /// The maximum level to which the (ink) bottom of superscript can be
     /// pushed to increase the gap between superscript and subscript, before
     /// subscript starts being moved down.
     pub fn superscript_bottom_max_with_subscript(&self) -> &'a MathValueRecord {
-        let range = self.superscript_bottom_max_with_subscript_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().superscript_bottom_max_with_subscript
     }
 
     /// Extra white space to be added after each subscript and superscript.
     pub fn space_after_script(&self) -> &'a MathValueRecord {
-        let range = self.space_after_script_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().space_after_script
     }
 
     /// Minimum gap between the (ink) bottom of the upper limit, and the (ink)
     /// top of the base operator.
     pub fn upper_limit_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.upper_limit_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().upper_limit_gap_min
     }
 
     /// Minimum distance between baseline of upper limit and (ink) top of the
     /// base operator.
     pub fn upper_limit_baseline_rise_min(&self) -> &'a MathValueRecord {
-        let range = self.upper_limit_baseline_rise_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().upper_limit_baseline_rise_min
     }
 
     /// Minimum gap between (ink) top of the lower limit, and (ink) bottom of
     /// the base operator.
     pub fn lower_limit_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.lower_limit_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().lower_limit_gap_min
     }
 
     /// Minimum distance between baseline of the lower limit and (ink) bottom of
     /// the base operator.
     pub fn lower_limit_baseline_drop_min(&self) -> &'a MathValueRecord {
-        let range = self.lower_limit_baseline_drop_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().lower_limit_baseline_drop_min
     }
 
     /// Standard shift up applied to the top element of a stack.
     pub fn stack_top_shift_up(&self) -> &'a MathValueRecord {
-        let range = self.stack_top_shift_up_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stack_top_shift_up
     }
 
     /// Standard shift up applied to the top element of a stack in display
     /// style.
     pub fn stack_top_display_style_shift_up(&self) -> &'a MathValueRecord {
-        let range = self.stack_top_display_style_shift_up_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stack_top_display_style_shift_up
     }
 
     /// Standard shift down applied to the bottom element of a stack.
     pub fn stack_bottom_shift_down(&self) -> &'a MathValueRecord {
-        let range = self.stack_bottom_shift_down_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stack_bottom_shift_down
     }
 
     /// Standard shift down applied to the bottom element of a stack in display
     /// style.
     pub fn stack_bottom_display_style_shift_down(&self) -> &'a MathValueRecord {
-        let range = self.stack_bottom_display_style_shift_down_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stack_bottom_display_style_shift_down
     }
 
     /// Minimum gap between (ink) bottom of the top element of a stack, and the
     /// (ink) top of the bottom element.
     pub fn stack_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.stack_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stack_gap_min
     }
 
     /// Minimum gap between (ink) bottom of the top element of a stack, and the
     /// (ink) top of the bottom element in display style.
     pub fn stack_display_style_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.stack_display_style_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stack_display_style_gap_min
     }
 
     /// Standard shift up applied to the top element of the stretch stack.
     pub fn stretch_stack_top_shift_up(&self) -> &'a MathValueRecord {
-        let range = self.stretch_stack_top_shift_up_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stretch_stack_top_shift_up
     }
 
     /// Standard shift down applied to the bottom element of the stretch stack.
     pub fn stretch_stack_bottom_shift_down(&self) -> &'a MathValueRecord {
-        let range = self.stretch_stack_bottom_shift_down_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stretch_stack_bottom_shift_down
     }
 
     /// Minimum gap between the ink of the stretched element, and the (ink)
     /// bottom of the element above.
     pub fn stretch_stack_gap_above_min(&self) -> &'a MathValueRecord {
-        let range = self.stretch_stack_gap_above_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stretch_stack_gap_above_min
     }
 
     /// Minimum gap between the ink of the stretched element, and the (ink) top
     /// of the element below.
     pub fn stretch_stack_gap_below_min(&self) -> &'a MathValueRecord {
-        let range = self.stretch_stack_gap_below_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().stretch_stack_gap_below_min
     }
 
     /// Standard shift up applied to the numerator.
     pub fn fraction_numerator_shift_up(&self) -> &'a MathValueRecord {
-        let range = self.fraction_numerator_shift_up_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_numerator_shift_up
     }
 
     /// Standard shift up applied to the numerator in display style.
     pub fn fraction_numerator_display_style_shift_up(&self) -> &'a MathValueRecord {
-        let range = self.fraction_numerator_display_style_shift_up_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_numerator_display_style_shift_up
     }
 
     /// Standard shift down applied to the denominator.
     pub fn fraction_denominator_shift_down(&self) -> &'a MathValueRecord {
-        let range = self.fraction_denominator_shift_down_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_denominator_shift_down
     }
 
     /// Standard shift down applied to the denominator in display style.
     pub fn fraction_denominator_display_style_shift_down(&self) -> &'a MathValueRecord {
-        let range = self.fraction_denominator_display_style_shift_down_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self
+            .data
+            .header()
+            .fraction_denominator_display_style_shift_down
     }
 
     /// Minimum tolerated gap between the (ink) bottom of the numerator and the
     /// ink of the fraction bar.
     pub fn fraction_numerator_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.fraction_numerator_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_numerator_gap_min
     }
 
     /// Minimum tolerated gap between the (ink) bottom of the numerator and the
     /// ink of the fraction bar in display style.
     pub fn fraction_num_display_style_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.fraction_num_display_style_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_num_display_style_gap_min
     }
 
     /// Thickness of the fraction bar.
     pub fn fraction_rule_thickness(&self) -> &'a MathValueRecord {
-        let range = self.fraction_rule_thickness_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_rule_thickness
     }
 
     /// Minimum tolerated gap between the ink of the fraction bar and the (ink)
     /// top of the denominator.
     pub fn fraction_denominator_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.fraction_denominator_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_denominator_gap_min
     }
 
     /// Minimum tolerated gap between the ink of the fraction bar and the (ink)
     /// top of the denominator in display style.
     pub fn fraction_denom_display_style_gap_min(&self) -> &'a MathValueRecord {
-        let range = self.fraction_denom_display_style_gap_min_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().fraction_denom_display_style_gap_min
     }
 
     /// Horizontal distance between the top and bottom elements of a skewed
     /// fraction.
     pub fn skewed_fraction_horizontal_gap(&self) -> &'a MathValueRecord {
-        let range = self.skewed_fraction_horizontal_gap_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().skewed_fraction_horizontal_gap
     }
 
     /// Vertical distance between the ink of the top and bottom elements of a
     /// skewed fraction.
     pub fn skewed_fraction_vertical_gap(&self) -> &'a MathValueRecord {
-        let range = self.skewed_fraction_vertical_gap_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().skewed_fraction_vertical_gap
     }
 
     /// Distance between the overbar and the (ink) top of he base.
     pub fn overbar_vertical_gap(&self) -> &'a MathValueRecord {
-        let range = self.overbar_vertical_gap_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().overbar_vertical_gap
     }
 
     /// Thickness of overbar.
     pub fn overbar_rule_thickness(&self) -> &'a MathValueRecord {
-        let range = self.overbar_rule_thickness_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().overbar_rule_thickness
     }
 
     /// Extra white space reserved above the overbar.
     pub fn overbar_extra_ascender(&self) -> &'a MathValueRecord {
-        let range = self.overbar_extra_ascender_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().overbar_extra_ascender
     }
 
     /// Distance between underbar and (ink) bottom of the base.
     pub fn underbar_vertical_gap(&self) -> &'a MathValueRecord {
-        let range = self.underbar_vertical_gap_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().underbar_vertical_gap
     }
 
     /// Thickness of underbar.
     pub fn underbar_rule_thickness(&self) -> &'a MathValueRecord {
-        let range = self.underbar_rule_thickness_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().underbar_rule_thickness
     }
 
     /// Extra white space reserved below the underbar.
     pub fn underbar_extra_descender(&self) -> &'a MathValueRecord {
-        let range = self.underbar_extra_descender_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().underbar_extra_descender
     }
 
     /// Space between the (ink) top of the expression and the bar over it.
     pub fn radical_vertical_gap(&self) -> &'a MathValueRecord {
-        let range = self.radical_vertical_gap_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().radical_vertical_gap
     }
 
     /// Space between the (ink) top of the expression and the bar over it in
     /// display style.
     pub fn radical_display_style_vertical_gap(&self) -> &'a MathValueRecord {
-        let range = self.radical_display_style_vertical_gap_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().radical_display_style_vertical_gap
     }
 
     /// Thickness of the radical rule.
     pub fn radical_rule_thickness(&self) -> &'a MathValueRecord {
-        let range = self.radical_rule_thickness_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().radical_rule_thickness
     }
 
     /// Extra white space reserved above the radical.
     pub fn radical_extra_ascender(&self) -> &'a MathValueRecord {
-        let range = self.radical_extra_ascender_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().radical_extra_ascender
     }
 
     /// Extra horizontal kern before the degree of a radical, if such is
     /// present.
     pub fn radical_kern_before_degree(&self) -> &'a MathValueRecord {
-        let range = self.radical_kern_before_degree_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().radical_kern_before_degree
     }
 
     /// Negative kern after the degree of a radical, if such is present.
     pub fn radical_kern_after_degree(&self) -> &'a MathValueRecord {
-        let range = self.radical_kern_after_degree_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().radical_kern_after_degree
     }
 
     /// Height of the bottom of the radical degree, if such is present, in
     /// proportion to the ascender of the radical sign.
     pub fn radical_degree_bottom_raise_percent(&self) -> i16 {
-        let range = self.radical_degree_bottom_raise_percent_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().radical_degree_bottom_raise_percent.get()
     }
 
     pub fn script_percent_scale_down_byte_range(&self) -> Range<usize> {
@@ -985,7 +1006,8 @@ const _: () = assert!(FontData::default_data_long_enough(MathConstants::MIN_SIZE
 impl Default for MathConstants<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -996,7 +1018,7 @@ impl<'a> MinByteRange<'a> for MathGlyphInfo<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1010,14 +1032,31 @@ impl<'a> FontRead<'a> for MathGlyphInfo<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathGlyphInfoFixedHeader {
+    pub math_italics_correction_info_offset: BigEndian<Nullable<Offset16>>,
+    pub math_top_accent_attachment_offset: BigEndian<Nullable<Offset16>>,
+    pub extended_shape_coverage_offset: BigEndian<Nullable<Offset16>>,
+    pub math_kern_info_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MathGlyphInfoFixedHeader>() <= MathGlyphInfo::MIN_SIZE);
+
 /// [MathGlyphInfo](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathglyphinfo-table)
 #[derive(Clone)]
 pub struct MathGlyphInfo<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathGlyphInfoFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1031,56 +1070,52 @@ impl<'a> MathGlyphInfo<'a> {
     /// Offset to MathItalicsCorrectionInfo table, from the beginning of the
     /// MathGlyphInfo table. May be NULL.
     pub fn math_italics_correction_info_offset(&self) -> Nullable<Offset16> {
-        let range = self.math_italics_correction_info_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().math_italics_correction_info_offset.get()
     }
 
     /// Attempt to resolve [`math_italics_correction_info_offset`][Self::math_italics_correction_info_offset].
     pub fn math_italics_correction_info(
         &self,
     ) -> Option<Result<MathItalicsCorrectionInfo<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_italics_correction_info_offset().resolve(data)
     }
 
     /// Offset to MathTopAccentAttachment table, from the beginning of the
     /// MathGlyphInfo table. May be NULL.
     pub fn math_top_accent_attachment_offset(&self) -> Nullable<Offset16> {
-        let range = self.math_top_accent_attachment_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().math_top_accent_attachment_offset.get()
     }
 
     /// Attempt to resolve [`math_top_accent_attachment_offset`][Self::math_top_accent_attachment_offset].
     pub fn math_top_accent_attachment(
         &self,
     ) -> Option<Result<MathTopAccentAttachment<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_top_accent_attachment_offset().resolve(data)
     }
 
     /// Offset to the Coverage table for glyphs with extended shapes, from the
     /// beginning of the MathGlyphInfo table. May be NULL.
     pub fn extended_shape_coverage_offset(&self) -> Nullable<Offset16> {
-        let range = self.extended_shape_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().extended_shape_coverage_offset.get()
     }
 
     /// Attempt to resolve [`extended_shape_coverage_offset`][Self::extended_shape_coverage_offset].
     pub fn extended_shape_coverage(&self) -> Option<Result<CoverageTable<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.extended_shape_coverage_offset().resolve(data)
     }
 
     /// Offset to the MathKernInfo table, from the beginning of the
     /// MathGlyphInfo table. May be NULL.
     pub fn math_kern_info_offset(&self) -> Nullable<Offset16> {
-        let range = self.math_kern_info_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().math_kern_info_offset.get()
     }
 
     /// Attempt to resolve [`math_kern_info_offset`][Self::math_kern_info_offset].
     pub fn math_kern_info(&self) -> Option<Result<MathKernInfo<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_kern_info_offset().resolve(data)
     }
 
@@ -1114,7 +1149,8 @@ const _: () = assert!(FontData::default_data_long_enough(MathGlyphInfo::MIN_SIZE
 impl Default for MathGlyphInfo<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1125,7 +1161,7 @@ impl<'a> MinByteRange<'a> for MathItalicsCorrectionInfo<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1139,14 +1175,32 @@ impl<'a> FontRead<'a> for MathItalicsCorrectionInfo<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathItalicsCorrectionInfoFixedHeader {
+    pub coverage_offset: BigEndian<Offset16>,
+    pub italics_correction_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<MathItalicsCorrectionInfoFixedHeader>()
+        <= MathItalicsCorrectionInfo::MIN_SIZE
+);
+
 /// [MathItalicsCorrectionInfo](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathitalicscorrectioninfo-table)
 #[derive(Clone)]
 pub struct MathItalicsCorrectionInfo<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathItalicsCorrectionInfoFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1157,31 +1211,29 @@ impl<'a> MathItalicsCorrectionInfo<'a> {
     /// Offset to the Coverage table, from the beginning of the
     /// MathItalicsCorrectionInfo table.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Number of italics correction values. Should coincide with the number of
     /// covered glyphs.
     pub fn italics_correction_count(&self) -> u16 {
-        let range = self.italics_correction_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().italics_correction_count.get()
     }
 
     /// Array of MathValueRecords defining italics correction values for each
     /// covered glyph.
     pub fn italics_correction(&self) -> &'a [MathValueRecord] {
         let range = self.italics_correction_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
@@ -1213,7 +1265,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MathItalicsCorrectionInfo<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1224,7 +1277,7 @@ impl<'a> MinByteRange<'a> for MathTopAccentAttachment<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1238,14 +1291,31 @@ impl<'a> FontRead<'a> for MathTopAccentAttachment<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathTopAccentAttachmentFixedHeader {
+    pub top_accent_coverage_offset: BigEndian<Offset16>,
+    pub top_accent_attachment_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<MathTopAccentAttachmentFixedHeader>() <= MathTopAccentAttachment::MIN_SIZE
+);
+
 /// [MathTopAccentAttachment](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathtopaccentattachment-table)
 #[derive(Clone)]
 pub struct MathTopAccentAttachment<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathTopAccentAttachmentFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1256,31 +1326,29 @@ impl<'a> MathTopAccentAttachment<'a> {
     /// Offset to the Coverage table, from the beginning of the
     /// MathTopAccentAttachment table.
     pub fn top_accent_coverage_offset(&self) -> Offset16 {
-        let range = self.top_accent_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().top_accent_coverage_offset.get()
     }
 
     /// Attempt to resolve [`top_accent_coverage_offset`][Self::top_accent_coverage_offset].
     pub fn top_accent_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.top_accent_coverage_offset().resolve(data)
     }
 
     /// Number of top accent attachment point values. Should coincide with the
     /// number of covered glyphs.
     pub fn top_accent_attachment_count(&self) -> u16 {
-        let range = self.top_accent_attachment_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().top_accent_attachment_count.get()
     }
 
     /// Array of MathValueRecords defining top accent attachment points for each
     /// covered glyph.
     pub fn top_accent_attachment(&self) -> &'a [MathValueRecord] {
         let range = self.top_accent_attachment_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn top_accent_coverage_offset_byte_range(&self) -> Range<usize> {
@@ -1312,7 +1380,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MathTopAccentAttachment<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1323,7 +1392,7 @@ impl<'a> MinByteRange<'a> for MathKernInfo<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1337,14 +1406,29 @@ impl<'a> FontRead<'a> for MathKernInfo<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathKernInfoFixedHeader {
+    pub math_kern_coverage_offset: BigEndian<Offset16>,
+    pub math_kern_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MathKernInfoFixedHeader>() <= MathKernInfo::MIN_SIZE);
+
 /// [MathKernInfo](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathkerninfo-table)
 #[derive(Clone)]
 pub struct MathKernInfo<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathKernInfoFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1355,30 +1439,28 @@ impl<'a> MathKernInfo<'a> {
     /// Offset to the Coverage table, from the beginning of the MathKernInfo
     /// table.
     pub fn math_kern_coverage_offset(&self) -> Offset16 {
-        let range = self.math_kern_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().math_kern_coverage_offset.get()
     }
 
     /// Attempt to resolve [`math_kern_coverage_offset`][Self::math_kern_coverage_offset].
     pub fn math_kern_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.math_kern_coverage_offset().resolve(data)
     }
 
     /// Number of MathKernInfoRecords. Should coincide with the number of
     /// covered glyphs.
     pub fn math_kern_count(&self) -> u16 {
-        let range = self.math_kern_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().math_kern_count.get()
     }
 
     /// Array of MathKernInfoRecords, one for each covered glyph.
     pub fn math_kern_info_records(&self) -> &'a [MathKernInfoRecord] {
         let range = self.math_kern_info_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn math_kern_coverage_offset_byte_range(&self) -> Range<usize> {
@@ -1408,7 +1490,8 @@ const _: () = assert!(FontData::default_data_long_enough(MathKernInfo::MIN_SIZE)
 impl Default for MathKernInfo<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1521,7 +1604,7 @@ impl<'a> MinByteRange<'a> for MathKern<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1535,14 +1618,28 @@ impl<'a> FontRead<'a> for MathKern<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathKernFixedHeader {
+    pub height_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MathKernFixedHeader>() <= MathKern::MIN_SIZE);
+
 /// [MathKern](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathkern-table)
 #[derive(Clone)]
 pub struct MathKern<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathKernFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1552,15 +1649,17 @@ impl<'a> MathKern<'a> {
 
     /// Number of heights at which the kern value changes.
     pub fn height_count(&self) -> u16 {
-        let range = self.height_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().height_count.get()
     }
 
     /// Array of correction heights, in design units, sorted from lowest to
     /// highest.
     pub fn correction_height(&self) -> &'a [MathValueRecord] {
         let range = self.correction_height_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Array of kerning values for different height ranges, in design units.
@@ -1569,7 +1668,10 @@ impl<'a> MathKern<'a> {
     /// applies below the first correction height, and the last above the last.
     pub fn kern_values(&self) -> &'a [MathValueRecord] {
         let range = self.kern_values_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn height_count_byte_range(&self) -> Range<usize> {
@@ -1601,7 +1703,8 @@ const _: () = assert!(FontData::default_data_long_enough(MathKern::MIN_SIZE));
 impl Default for MathKern<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1612,7 +1715,7 @@ impl<'a> MinByteRange<'a> for MathVariants<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1626,14 +1729,32 @@ impl<'a> FontRead<'a> for MathVariants<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathVariantsFixedHeader {
+    pub min_connector_overlap: BigEndian<UfWord>,
+    pub vert_glyph_coverage_offset: BigEndian<Nullable<Offset16>>,
+    pub horiz_glyph_coverage_offset: BigEndian<Nullable<Offset16>>,
+    pub vert_glyph_count: BigEndian<u16>,
+    pub horiz_glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MathVariantsFixedHeader>() <= MathVariants::MIN_SIZE);
+
 /// [MathVariants](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathvariants-table)
 #[derive(Clone)]
 pub struct MathVariants<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathVariantsFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1648,33 +1769,30 @@ impl<'a> MathVariants<'a> {
     /// Minimum overlap of connecting glyphs during glyph construction, in
     /// design units.
     pub fn min_connector_overlap(&self) -> UfWord {
-        let range = self.min_connector_overlap_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().min_connector_overlap.get()
     }
 
     /// Offset to the Coverage table for shapes growing in the vertical
     /// direction, from the beginning of the MathVariants table. May be NULL.
     pub fn vert_glyph_coverage_offset(&self) -> Nullable<Offset16> {
-        let range = self.vert_glyph_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().vert_glyph_coverage_offset.get()
     }
 
     /// Attempt to resolve [`vert_glyph_coverage_offset`][Self::vert_glyph_coverage_offset].
     pub fn vert_glyph_coverage(&self) -> Option<Result<CoverageTable<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.vert_glyph_coverage_offset().resolve(data)
     }
 
     /// Offset to the Coverage table for shapes growing in the horizontal
     /// direction, from the beginning of the MathVariants table. May be NULL.
     pub fn horiz_glyph_coverage_offset(&self) -> Nullable<Offset16> {
-        let range = self.horiz_glyph_coverage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().horiz_glyph_coverage_offset.get()
     }
 
     /// Attempt to resolve [`horiz_glyph_coverage_offset`][Self::horiz_glyph_coverage_offset].
     pub fn horiz_glyph_coverage(&self) -> Option<Result<CoverageTable<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.horiz_glyph_coverage_offset().resolve(data)
     }
 
@@ -1682,30 +1800,31 @@ impl<'a> MathVariants<'a> {
     /// growing variants. Must be the same as the number of glyph IDs referenced
     /// in the vertical Coverage table.
     pub fn vert_glyph_count(&self) -> u16 {
-        let range = self.vert_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().vert_glyph_count.get()
     }
 
     /// Number of glyphs for which information is provided for horizontally
     /// growing variants. Must be the same as the number of glyph IDs referenced
     /// in the horizontal Coverage table.
     pub fn horiz_glyph_count(&self) -> u16 {
-        let range = self.horiz_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().horiz_glyph_count.get()
     }
 
     /// Array of offsets to MathGlyphConstruction tables, from the beginning of
     /// the MathVariants table, for shapes growing in the vertical direction.
     pub fn vert_glyph_construction_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.vert_glyph_construction_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`vert_glyph_construction_offsets`][Self::vert_glyph_construction_offsets].
     pub fn vert_glyph_constructions(
         &self,
     ) -> ArrayOfOffsets<'a, MathGlyphConstruction<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.vert_glyph_construction_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1714,14 +1833,17 @@ impl<'a> MathVariants<'a> {
     /// the MathVariants table, for shapes growing in the horizontal direction.
     pub fn horiz_glyph_construction_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.horiz_glyph_construction_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`horiz_glyph_construction_offsets`][Self::horiz_glyph_construction_offsets].
     pub fn horiz_glyph_constructions(
         &self,
     ) -> ArrayOfOffsets<'a, MathGlyphConstruction<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.horiz_glyph_construction_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -1778,7 +1900,8 @@ const _: () = assert!(FontData::default_data_long_enough(MathVariants::MIN_SIZE)
 impl Default for MathVariants<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1789,7 +1912,7 @@ impl<'a> MinByteRange<'a> for MathGlyphConstruction<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1803,14 +1926,31 @@ impl<'a> FontRead<'a> for MathGlyphConstruction<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MathGlyphConstructionFixedHeader {
+    pub glyph_assembly_offset: BigEndian<Nullable<Offset16>>,
+    pub variant_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<MathGlyphConstructionFixedHeader>() <= MathGlyphConstruction::MIN_SIZE
+);
+
 /// [MathGlyphConstruction](https://learn.microsoft.com/en-us/typography/opentype/spec/math#mathglyphconstruction-table)
 #[derive(Clone)]
 pub struct MathGlyphConstruction<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MathGlyphConstructionFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1821,26 +1961,27 @@ impl<'a> MathGlyphConstruction<'a> {
     /// Offset to the GlyphAssembly table for this shape, from the beginning of
     /// the MathGlyphConstruction table. May be NULL.
     pub fn glyph_assembly_offset(&self) -> Nullable<Offset16> {
-        let range = self.glyph_assembly_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().glyph_assembly_offset.get()
     }
 
     /// Attempt to resolve [`glyph_assembly_offset`][Self::glyph_assembly_offset].
     pub fn glyph_assembly(&self) -> Option<Result<GlyphAssembly<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.glyph_assembly_offset().resolve(data)
     }
 
     /// Count of glyph growing variants for this glyph.
     pub fn variant_count(&self) -> u16 {
-        let range = self.variant_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().variant_count.get()
     }
 
     /// MathGlyphVariantRecords for alternative variants of the base glyph.
     pub fn math_glyph_variant_records(&self) -> &'a [MathGlyphVariantRecord] {
         let range = self.math_glyph_variant_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn glyph_assembly_offset_byte_range(&self) -> Range<usize> {
@@ -1872,7 +2013,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MathGlyphConstruction<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1912,7 +2054,7 @@ impl<'a> MinByteRange<'a> for GlyphAssembly<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1926,14 +2068,29 @@ impl<'a> FontRead<'a> for GlyphAssembly<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphAssemblyFixedHeader {
+    pub italics_correction: MathValueRecord,
+    pub part_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GlyphAssemblyFixedHeader>() <= GlyphAssembly::MIN_SIZE);
+
 /// [GlyphAssembly](https://learn.microsoft.com/en-us/typography/opentype/spec/math#glyphassembly-table)
 #[derive(Clone)]
 pub struct GlyphAssembly<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyphAssemblyFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1944,21 +2101,22 @@ impl<'a> GlyphAssembly<'a> {
     /// Italics correction of this GlyphAssembly. Should not depend on the
     /// assembly size.
     pub fn italics_correction(&self) -> &'a MathValueRecord {
-        let range = self.italics_correction_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().italics_correction
     }
 
     /// Number of parts in this assembly.
     pub fn part_count(&self) -> u16 {
-        let range = self.part_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().part_count.get()
     }
 
     /// Array of part records, from left to right (for assemblies that extend
     /// horizontally) or bottom to top (for assemblies that extend vertically).
     pub fn part_records(&self) -> &'a [GlyphPartRecord] {
         let range = self.part_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn italics_correction_byte_range(&self) -> Range<usize> {
@@ -1987,7 +2145,8 @@ const _: () = assert!(FontData::default_data_long_enough(GlyphAssembly::MIN_SIZE
 impl Default for GlyphAssembly<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
