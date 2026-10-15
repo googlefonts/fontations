@@ -439,7 +439,7 @@ fn get_points(
     };
     let mut points: Vec<Point> = Vec::new();
     for (component, offset) in composite.components().iter().zip(&g.points) {
-        let mut child = get_points(component.glyph.to_u16() as usize, glyphs, depth + 1, budget)?;
+        let mut child = get_points(component.glyph.to_u32() as usize, glyphs, depth + 1, budget)?;
         let t = component.transform;
         let scaled =
             component.flags.scaled_component_offset && !component.flags.unscaled_component_offset;
@@ -502,13 +502,30 @@ fn encode_composite(
     for (i, component) in glyph.components().iter().enumerate() {
         let mut flags: Flags = component.flags.into();
         flags |= component.anchor.compute_flags() | component.transform.compute_flags();
+        if component.glyph.to_u32() > u16::MAX as u32 {
+            flags.insert(Flags::GID_IS_24_BIT);
+        } else {
+            flags.remove(Flags::GID_IS_24_BIT);
+        }
         if i + 1 < glyph.components().len() {
             flags |= Flags::MORE_COMPONENTS;
         } else if !instructions.is_empty() {
             flags |= Flags::WE_HAVE_INSTRUCTIONS;
         }
         out.extend(flags.bits().to_be_bytes());
-        out.extend(component.glyph.to_u16().to_be_bytes());
+        if flags.contains(Flags::GID_IS_24_BIT) {
+            out.extend(
+                read_fonts::types::Uint24::checked_new(component.glyph.to_u32())
+                    .ok_or_else(|| error(b"glyf"))?
+                    .to_be_bytes(),
+            );
+        } else {
+            out.extend(
+                u16::try_from(component.glyph.to_u32())
+                    .map_err(|_| error(b"glyf"))?
+                    .to_be_bytes(),
+            );
+        }
         let wide = flags.contains(Flags::ARG_1_AND_2_ARE_WORDS);
         match component.anchor {
             Anchor::Offset { x, y } => {
@@ -723,7 +740,7 @@ mod tests {
         let glyph = InstanceGlyph {
             glyph: Glyph::Composite(CompositeGlyph::new(
                 Component::new(
-                    read_fonts::types::GlyphId16::new(0),
+                    read_fonts::types::GlyphId::new(0),
                     Anchor::Offset { x: 0, y: 0 },
                     Transform::default(),
                     ComponentFlags::default(),
@@ -744,8 +761,38 @@ mod tests {
     }
 
     #[test]
+    fn composite_glyph_ids_keep_their_width_and_reject_overflow() {
+        use write_fonts::tables::glyf::{Component, ComponentFlags, CompositeGlyph, Transform};
+        let glyph = |gid| {
+            CompositeGlyph::new(
+                Component::new(
+                    GlyphId::new(gid),
+                    Anchor::Offset { x: 0, y: 0 },
+                    Transform::default(),
+                    ComponentFlags::default(),
+                ),
+                Bbox::default(),
+            )
+        };
+        for gid in [0xffff, 0x10000, 0xffffff] {
+            let source = glyph(gid);
+            let mut actual = Vec::new();
+            encode_composite(&source, &mut actual).unwrap();
+            assert_eq!(actual, write_fonts::dump_table(&source).unwrap());
+            let borrowed =
+                read_fonts::tables::glyf::CompositeGlyph::read(read_fonts::FontData::new(&actual))
+                    .unwrap();
+            assert_eq!(
+                borrowed.components().next().unwrap().glyph,
+                GlyphId::new(gid)
+            );
+        }
+        assert!(encode_composite(&glyph(0x1000000), &mut Vec::new()).is_err());
+    }
+
+    #[test]
     fn direct_composite_bytes_match_writer_for_anchors_transforms_and_instructions() {
-        use read_fonts::types::{F2Dot14, GlyphId16};
+        use read_fonts::types::{F2Dot14, GlyphId};
         use write_fonts::tables::glyf::{Component, ComponentFlags, CompositeGlyph, Transform};
         for anchor in [
             Anchor::Offset { x: -128, y: 127 },
@@ -778,7 +825,7 @@ mod tests {
                 },
             ] {
                 let component = Component::new(
-                    GlyphId16::new(13),
+                    GlyphId::new(13),
                     anchor,
                     transform,
                     ComponentFlags {
