@@ -157,9 +157,6 @@ fn compound_conditions_and_null_children() {
 fn malformed_and_expensive_conditions_fail_closed() {
     assert_eq!(evaluate(&[0, 3, 1], &[]), None);
     assert_eq!(evaluate(&[0, 5, 0xFF, 0xFF, 0xFF], &[]), None);
-    let mut condition = vec![0, 5, 0, 0, 5];
-    condition.extend_from_slice(&[0, 99]);
-    assert_eq!(evaluate(&condition, &[]), None);
     let mut deep = Vec::new();
     for _ in 0..MAX_RECURSION_DEPTH {
         deep.extend_from_slice(&[0, 5, 0, 0, 5]);
@@ -188,4 +185,18 @@ fn feature_variations_select_the_first_matching_record_at_default_too() {
         variations.index_for_coords(&[F2Dot14::from_f32(0.5)]),
         Some(1)
     );
+}
+
+#[test]
+fn unknown_condition_formats_are_false() {
+    // OR of an unknown format and a range holding at the default location.
+    let bytes = [
+        0, 4, 2, 0, 0, 9, 0, 0, 11, // OR with two children
+        0, 99, // unknown format
+        0, 1, 0, 0, 0xC0, 0, 0x40, 0, // axis 0 in [-1, 1]
+    ];
+    assert_eq!(evaluate(&bytes, &[]), Some(true));
+    // NOT of an unknown format.
+    let bytes = [0, 5, 0, 0, 5, 0, 99];
+    assert_eq!(evaluate(&bytes, &[]), Some(true));
 }

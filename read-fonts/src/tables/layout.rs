@@ -377,7 +377,9 @@ impl<'a> CoverageTable<'a> {
             Self::Format1(t) => t.population(),
             Self::Format2(t) => t.population(),
             Self::Format3(t) => t.glyph_count().to_u32() as usize,
-            Self::Format4(t) => t.range_records().iter().map(RangeRecord2::population).sum(),
+            Self::Format4(t) => t.range_records().iter().fold(0, |acc: usize, record| {
+                acc.saturating_add(record.population())
+            }),
         }
     }
 
@@ -521,9 +523,9 @@ impl CoverageFormat2<'_> {
 
     /// Return the number of glyphs in this table
     pub fn population(&self) -> usize {
-        self.range_records()
-            .iter()
-            .fold(0, |acc, record| acc + record.population())
+        self.range_records().iter().fold(0, |acc: usize, record| {
+            acc.saturating_add(record.population())
+        })
     }
 
     /// Return the cost of looking up a glyph in this table
@@ -829,7 +831,9 @@ impl<'a> ClassDefFormat2<'a> {
     pub fn population(&self) -> usize {
         self.class_range_records()
             .iter()
-            .fold(0, |acc, record| acc + record.population())
+            .fold(0, |acc: usize, record| {
+                acc.saturating_add(record.population())
+            })
     }
 
     /// Return the cost of looking up a glyph in this table
@@ -1126,8 +1130,9 @@ impl ClassDef<'_> {
             Self::Format4(t) => t
                 .class_range_records()
                 .iter()
-                .map(ClassRangeRecord2::population)
-                .sum(),
+                .fold(0, |acc: usize, record| {
+                    acc.saturating_add(record.population())
+                }),
         }
     }
 

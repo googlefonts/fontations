@@ -11,6 +11,8 @@ use super::variations::ItemVariationStore;
 #[path = "../tests/test_gdef.rs"]
 mod tests;
 
+use crate::types::Compatible;
+
 include!("../../generated/generated_gdef.rs");
 
 impl<'a> Gdef<'a> {
@@ -19,7 +21,7 @@ impl<'a> Gdef<'a> {
         original: Nullable<Offset16>,
         extended: Option<Nullable<Offset32>>,
     ) -> Result<HeaderOffset, ReadError> {
-        HeaderOffset::select(original, extended, self.version() >= MajorMinor::new(1, 4))
+        HeaderOffset::select(original, extended, self.version().compatible((1, 4)))
     }
 
     fn resolve_selected<T: FontRead<'a, Args = ()>>(

@@ -40,8 +40,9 @@ impl Condition<'_> {
     /// indices using the caller's variation store; it is not called for
     /// [`NO_VARIATION_INDEX`]. The value is tested before rounding.
     ///
-    /// Malformed children and evaluation limits return errors, including
-    /// beneath a NOT condition. AND and OR conditions short-circuit.
+    /// A condition of an unknown format is false. Malformed children and
+    /// evaluation limits return errors, including beneath a NOT condition.
+    /// AND and OR conditions short-circuit.
     pub fn evaluate<E>(
         &self,
         coords: &[F2Dot14],
@@ -90,22 +91,19 @@ impl LookupConditionRecord {
         coords: &[F2Dot14],
         delta: impl FnMut(u32) -> Result<f64, E>,
     ) -> Result<bool, ConditionError<E>> {
-        Evaluator::new(coords, delta).evaluate_offset(
-            data,
-            self.condition_offset().offset().to_u32(),
-            MAX_RECURSION_DEPTH,
-        )
+        Evaluator::new(coords, delta).evaluate_record(data, self)
     }
 }
 
-struct Evaluator<'a, F> {
+/// Evaluates conditions under one total-work budget.
+pub(super) struct Evaluator<'a, F> {
     coords: &'a [F2Dot14],
     delta: F,
     remaining_ops: usize,
 }
 
 impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
-    fn new(coords: &'a [F2Dot14], delta: F) -> Self {
+    pub(super) fn new(coords: &'a [F2Dot14], delta: F) -> Self {
         Self {
             coords,
             delta,
@@ -113,6 +111,20 @@ impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
             // visits when several offsets refer to the same child.
             remaining_ops: usize::from(u16::MAX) + 1,
         }
+    }
+
+    /// Evaluates a lookup condition record, relative to its FeatureLookups
+    /// table.
+    pub(super) fn evaluate_record(
+        &mut self,
+        data: FontData<'_>,
+        record: &LookupConditionRecord,
+    ) -> Result<bool, ConditionError<E>> {
+        self.evaluate_offset(
+            data,
+            record.condition_offset().offset().to_u32(),
+            MAX_RECURSION_DEPTH,
+        )
     }
 
     fn evaluate_offset(
@@ -127,7 +139,12 @@ impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
         let data = data
             .split_off(offset as usize)
             .ok_or(ConditionError::Read(ReadError::OutOfBounds))?;
-        let condition = Condition::read(data).map_err(ConditionError::Read)?;
+        let condition = match Condition::read(data) {
+            Ok(condition) => condition,
+            // The spec treats a condition of an unknown format as false.
+            Err(ReadError::InvalidFormat(_)) => return Ok(false),
+            Err(error) => return Err(ConditionError::Read(error)),
+        };
         self.evaluate(&condition, depth)
     }
 

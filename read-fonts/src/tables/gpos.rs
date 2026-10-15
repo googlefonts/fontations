@@ -23,6 +23,8 @@ pub use value_record::ValueRecord;
 #[path = "../tests/test_gpos.rs"]
 mod spec_tests;
 
+use crate::types::Compatible;
+
 include!("../../generated/generated_gpos.rs");
 
 impl<'a> Gpos<'a> {
@@ -46,7 +48,7 @@ impl<'a> Gpos<'a> {
         original: Nullable<Offset16>,
         extended: Option<Nullable<Offset32>>,
     ) -> Result<HeaderOffset, ReadError> {
-        HeaderOffset::select(original, extended, self.version() >= MajorMinor::new(1, 2))
+        HeaderOffset::select(original, extended, self.version().compatible((1, 2)))
     }
 
     /// Resolves the table, preferring the 32-bit offset when present.

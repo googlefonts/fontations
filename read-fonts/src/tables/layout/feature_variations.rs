@@ -1,5 +1,6 @@
 //! Access to the lookup-oriented feature variations added in ISO OFF fifth edition.
 
+use super::condition::Evaluator;
 use super::{
     FeatureLookups, FeatureLookupsFlags, FeatureVariations, LookupConditionRecord,
     LookupVariationRecord,
@@ -8,7 +9,7 @@ use crate::{
     types::{Compatible, F2Dot14, FixedSize},
     FontData,
 };
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 
 impl<'a> FeatureVariations<'a> {
     /// Lookup variations, sorted by feature index; absent in version 1.0.
@@ -65,13 +66,16 @@ impl<'a> LookupVariations<'a> {
     /// conditions resolve their deltas through `delta`; see
     /// [`Condition::evaluate`](super::Condition::evaluate).
     ///
+    /// The added lookups may be unsorted and repeat ones already present.
+    /// All conditions of the feature share one evaluation budget.
+    ///
     /// Returns `false`, leaving `lookups` unchanged, if the feature has no
     /// lookup variations.
     pub fn apply<E>(
         &self,
         feature_index: u16,
         coords: &[F2Dot14],
-        mut delta: impl FnMut(u32) -> Result<f64, E>,
+        delta: impl FnMut(u32) -> Result<f64, E>,
         lookups: &mut Vec<u16>,
     ) -> bool {
         let Some(table) = self.feature_lookups(feature_index) else {
@@ -83,13 +87,11 @@ impl<'a> LookupVariations<'a> {
         {
             lookups.clear();
         }
+        let mut evaluator = Evaluator::new(coords, delta);
+        let mut lists = LookupLists::new(&table);
         for record in table.lookup_condition_records() {
-            if record
-                .evaluate(table.offset_data(), coords, &mut delta)
-                .ok()
-                == Some(true)
-            {
-                extend_lookups(&table, record, lookups);
+            if evaluator.evaluate_record(table.offset_data(), record).ok() == Some(true) {
+                lists.extend(record, lookups);
             }
         }
         true
@@ -104,8 +106,9 @@ impl<'a> LookupVariations<'a> {
         let Some(table) = self.feature_lookups(feature_index) else {
             return false;
         };
+        let mut lists = LookupLists::new(&table);
         for record in table.lookup_condition_records() {
-            extend_lookups(&table, record, lookups);
+            lists.extend(record, lookups);
         }
         true
     }
@@ -121,22 +124,45 @@ impl<'a> LookupVariations<'a> {
             return None;
         }
         let table = record.feature_lookups(self.data).ok()?;
-        let complete = table.lookup_condition_records().len()
-            == usize::try_from(table.lookup_condition_count()).ok()?;
-        (table.version().major == 1 && complete).then_some(table)
+        // Checked before the records are read, whose range the generated
+        // code computes without checking for overflow.
+        let records_end = usize::try_from(table.lookup_condition_count())
+            .ok()?
+            .checked_mul(LookupConditionRecord::RAW_BYTE_LEN)?
+            .checked_add(table.lookup_condition_count_byte_range().end)?;
+        (table.version().major == 1 && records_end <= table.offset_data().len()).then_some(table)
     }
 }
 
-/// Appends the lookups of a condition record, skipping a missing or
-/// truncated list.
-fn extend_lookups(table: &FeatureLookups, record: &LookupConditionRecord, lookups: &mut Vec<u16>) {
-    if record.lookup_index_list_offset().to_u32() == 0 {
-        return;
+/// The lookup index lists of a FeatureLookups table, each added at most once.
+///
+/// Condition records can share a list, so adding each one per record would
+/// let a small table produce an arbitrarily long result.
+struct LookupLists<'a> {
+    data: FontData<'a>,
+    added: BTreeSet<u32>,
+}
+
+impl<'a> LookupLists<'a> {
+    fn new(table: &FeatureLookups<'a>) -> Self {
+        Self {
+            data: table.offset_data(),
+            added: BTreeSet::new(),
+        }
     }
-    if let Ok(list) = record.lookup_index_list(table.offset_data()) {
-        let indices = list.lookup_indices();
-        if indices.len() == usize::from(list.lookup_index_count()) {
-            lookups.extend(indices.iter().map(|index| index.get()));
+
+    /// Appends the lookups of a condition record, skipping a missing,
+    /// truncated or already added list.
+    fn extend(&mut self, record: &LookupConditionRecord, lookups: &mut Vec<u16>) {
+        let offset = record.lookup_index_list_offset().to_u32();
+        if offset == 0 || !self.added.insert(offset) {
+            return;
+        }
+        if let Ok(list) = record.lookup_index_list(self.data) {
+            let indices = list.lookup_indices();
+            if indices.len() == usize::from(list.lookup_index_count()) {
+                lookups.extend(indices.iter().map(|index| index.get()));
+            }
         }
     }
 }
@@ -222,6 +248,29 @@ mod tests {
             &mut lookups
         ));
         assert_eq!(lookups, [1, 2, 7, 8, 9]);
+    }
+
+    #[test]
+    fn lookup_variations_add_a_shared_list_once() {
+        let mut bytes = alloc::vec::Vec::new();
+        // FeatureVariations 1.1 with one lookup variation record for
+        // feature 2, whose FeatureLookups table is at 18.
+        bytes.extend([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 18]);
+        // FeatureLookups 1.0: three unconditional records sharing the list
+        // at 34.
+        bytes.extend([0, 1, 0, 0, 0, 0, 0, 0, 0, 3]);
+        for _ in 0..3 {
+            bytes.extend([0, 0, 0, 0, 0, 0, 0, 34]);
+        }
+        bytes.extend([0, 2, 0, 7, 0, 8]);
+        let table = FeatureVariations::read(bytes.as_slice().into()).unwrap();
+        let variations = table.lookup_variations().unwrap();
+        let mut lookups = alloc::vec![];
+        assert!(variations.add_all(2, &mut lookups));
+        assert_eq!(lookups, [7, 8]);
+        let mut lookups = alloc::vec![];
+        assert!(variations.apply(2, &[], no_delta, &mut lookups));
+        assert_eq!(lookups, [7, 8]);
     }
 
     #[test]
