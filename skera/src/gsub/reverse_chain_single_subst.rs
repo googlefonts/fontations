@@ -1,4 +1,6 @@
 //! impl subset() for ReverseChainSingleSubst subtable
+mod extended;
+
 use crate::FastHashMap;
 use crate::{
     layout::map_gsub_glyph,
@@ -47,7 +49,7 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
             .iter()
             .zip(sub_glyphs)
             .filter_map(|(cov_g, sub_g)| {
-                let new_cov_g = map_gsub_glyph(glyph_map, GlyphId::from(cov_g))?;
+                let new_cov_g = map_gsub_glyph(glyph_map, cov_g)?;
                 let new_sub_g = map_gsub_glyph(glyph_map, GlyphId::from(sub_g.get()))?;
                 Some((new_cov_g, new_sub_g))
             })
@@ -63,6 +65,22 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
 
         s.copy_assign(glyph_count_pos, glyph_count);
         Offset16::serialize_serialize::<CoverageTable>(s, &retained_cov_glyphs, cov_offset_pos)
+    }
+}
+
+impl<'a> SubsetTable<'a> for read_fonts::tables::gsub::ReverseChainSingleSubst<'_> {
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<(), SerializeErrorFlags> {
+        match self {
+            Self::Format1(table) => table.subset(plan, s, args),
+            Self::Format2(table) => table.subset(plan, s, ()),
+        }
     }
 }
 
