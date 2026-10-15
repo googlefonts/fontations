@@ -144,7 +144,8 @@ fn instancing_a_base_store_keeps_a_null_version_1_1_store_field() {
                 panic!()
             };
             assert_eq!(coord.coordinate(), 200);
-            assert_eq!(coord.device().is_some(), store);
+            // Pinning weight makes this row constant even with width retained.
+            assert!(coord.device().is_none());
         }
         assert_eq!(
             FontRef::new(&subset(&bytes))
