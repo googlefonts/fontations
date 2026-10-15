@@ -612,10 +612,17 @@ impl Graph {
             }
             let obj = self.objects.get(&id).unwrap();
             for link in &obj.offsets {
-                if link.len != OffsetLen::Offset16 {
-                    // LookupList2 is itself reached through a wide header
-                    // offset. Its lookups, not the whole list, must become
-                    // separate spaces so narrow links can be packed locally.
+                // As in HarfBuzz, a 24-bit link's subgraph splits at its
+                // 32-bit links. LookupList2 is reached through a 32-bit
+                // header offset, but its lookups, not the whole list, must
+                // become spaces so narrow links can be packed locally. Any
+                // other 32-bit link is a root.
+                let nested = link.len == OffsetLen::Offset24
+                    || self.objects[&link.object].type_ == TableType::Named("LookupList2");
+                if link.len == OffsetLen::Offset32 && !nested {
+                    roots.insert(link.object);
+                    self.find_subgraph_hb(link.object, &mut visited);
+                } else if nested {
                     let mut pending = VecDeque::from([link.object]);
                     let mut seen = HashSet::new();
                     while let Some(root) = pending.pop_front() {
@@ -1603,6 +1610,21 @@ mod tests {
     }
 
     #[test]
+    fn wide_links_outside_lookup_lists_are_single_roots() {
+        // A 32-bit offset to a table with 32-bit children of its own, as for
+        // a variation store, makes one space, as before LookupList2.
+        let ids = make_ids::<4>();
+        let sizes = [8, 8, 8, 8];
+        let graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[3], OffsetLen::Offset32)
+            .build();
+        let (_, roots) = graph.find_space_roots_hb();
+        assert_eq!(roots.into_iter().collect::<Vec<_>>(), [ids[1]]);
+    }
+
+    #[test]
     fn pack_extended_header_with_nested_wide_lookup_offsets() {
         // GSUB/GPOS 1.2: the header and LookupList2 both use Offset32.
         // Two lookups share large coverage tables through narrow offsets.
@@ -1621,6 +1643,7 @@ mod tests {
             .add_link(ids[5], ids[6], OffsetLen::Offset16)
             .add_link(ids[5], ids[7], OffsetLen::Offset16)
             .build();
+        graph.objects.get_mut(&ids[1]).unwrap().type_ = TableType::Named("LookupList2");
         assert!(graph.pack_objects());
         assert!(!graph.has_overflows());
         assert_eq!(graph.nodes.len(), 10);
@@ -1645,6 +1668,7 @@ mod tests {
             .add_link(ids[6], ids[7], OffsetLen::Offset16)
             .add_link(ids[6], ids[8], OffsetLen::Offset16)
             .build();
+        graph.objects.get_mut(&ids[1]).unwrap().type_ = TableType::Named("LookupList2");
         graph.objects.get_mut(&ids[2]).unwrap().type_ = TableType::GsubLookup(7);
         assert!(graph.pack_objects());
         assert!(!graph.has_overflows());

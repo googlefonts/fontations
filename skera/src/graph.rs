@@ -546,6 +546,9 @@ pub(crate) struct Graph {
     ordering_scratch: Vec<usize>,
     num_roots_for_space: Vec<usize>,
     data: Vec<u8>,
+    /// The LookupList2 of a version 1.2 GSUB or GPOS table, whose lookups
+    /// rather than the whole list become packing spaces.
+    wide_lookup_list: Option<usize>,
 
     // graph state flags
     parents_invalid: bool,
@@ -568,6 +571,7 @@ impl Graph {
             data: s.data(),
             parents_invalid: true,
             positions_invalid: true,
+            wide_lookup_list: None,
             distance_invalid: true,
             ..Default::default()
         };
@@ -599,6 +603,11 @@ impl Graph {
 
     fn mut_vertex(&mut self, obj_idx: ObjIdx) -> Option<&mut Vertex> {
         self.vertices.get_mut(obj_idx)
+    }
+
+    /// Records the LookupList2 of a version 1.2 GSUB or GPOS table.
+    pub(crate) fn set_wide_lookup_list(&mut self, obj_idx: Option<ObjIdx>) {
+        self.wide_lookup_list = obj_idx;
     }
 
     pub(crate) fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
@@ -1072,13 +1081,19 @@ impl Graph {
                     continue;
                 }
 
+                // As in HarfBuzz, a 24-bit link's subgraph splits at its
+                // 32-bit links; so does a wide lookup list, whose lookups
+                // need their own spaces. Other 32-bit links are roots.
+                if l.link_width() == LinkWidth::Three && *i == root_idx {
+                    continue;
+                }
+                let nested = match l.link_width() {
+                    LinkWidth::Three => true,
+                    LinkWidth::Four => prefer_inner && self.wide_lookup_list == Some(l.obj_idx()),
+                    _ => false,
+                };
                 match l.link_width() {
-                    LinkWidth::Three | LinkWidth::Four
-                        if prefer_inner || l.link_width() == LinkWidth::Three =>
-                    {
-                        if *i == root_idx && l.link_width() == LinkWidth::Three {
-                            continue;
-                        }
+                    LinkWidth::Three | LinkWidth::Four if nested => {
                         let mut sub_roots = IntSet::empty();
                         let obj_idx = l.obj_idx();
                         self.find_32bit_roots(obj_idx, &mut sub_roots, &mut queue)?;
@@ -2604,6 +2619,8 @@ pub(crate) mod test {
             s.pop_pack(false).unwrap();
             s.end_serialize();
             let mut graph = Graph::from_serializer(&s).unwrap();
+            // The list stands in for a GSUB/GPOS LookupList2.
+            graph.set_wide_lookup_list(Some(list));
             let (roots, _) = graph.find_space_roots().unwrap();
             if count < MAX_SPACES {
                 assert_eq!(roots.len(), count as u64);

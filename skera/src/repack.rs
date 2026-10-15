@@ -50,6 +50,12 @@ pub(crate) fn resolve_graph_overflows(
     }
 
     if tag == Gsub::TAG || tag == Gpos::TAG {
+        graph.set_wide_lookup_list(
+            find_lookup_indices(graph)
+                .ok()
+                .filter(|(_, _, wide)| *wide)
+                .map(|(index, _, _)| index),
+        );
         if always_recalculate_extensions {
             let (lookup_list_idx, lookup_indices, wide) = find_lookup_indices(graph)?;
             let mut visited = FastHashMap::default();
