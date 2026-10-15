@@ -1,5 +1,5 @@
 //! Paint values use HarfBuzz's float accumulation and rounding.
-//! References were generated with HarfBuzz c82300aefb, all glyphs, retained
+//! References were generated with HarfBuzz dba8e384fd (#6351), all glyphs, retained
 //! IDs, and the full and partial requests in the test below.
 use skera::{instance_font, parse_axis_limits};
 use write_fonts::{
