@@ -35,7 +35,7 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
             continue;
         };
         for (gid, construction) in coverage.iter().zip(constructions.iter()) {
-            if !glyphs.contains(GlyphId::from(gid)) {
+            if !glyphs.contains(gid) {
                 continue;
             }
             let Ok(construction) = construction else {
@@ -106,7 +106,7 @@ fn copy_math_record_array(
     let count_pos = s.embed(0u16)?;
     let mut retained = Vec::new();
     for (gid, record) in coverage.iter().zip(records) {
-        if plan.glyphset_mathed.contains(GlyphId::from(gid)) {
+        if plan.glyphset_mathed.contains(gid) {
             let gid = map_glyph(plan, s, gid)?;
             copy_value(record, data, s)?;
             retained.push(GlyphId::new(gid as u32));
@@ -184,7 +184,7 @@ impl SubsetTable<'_> for MathKernInfo<'_> {
         let count_pos = s.embed(0u16)?;
         let mut retained = Vec::new();
         for (gid, record) in coverage.iter().zip(self.math_kern_info_records()) {
-            if !plan.glyphset_mathed.contains(GlyphId::from(gid)) {
+            if !plan.glyphset_mathed.contains(gid) {
                 continue;
             }
             retained.push(GlyphId::new(map_glyph(plan, s, gid)? as u32));
@@ -231,7 +231,7 @@ impl SubsetTable<'_> for MathGlyphInfo<'_> {
             let retained = coverage
                 .iter()
                 .take(plan.font_num_glyphs)
-                .filter(|g| plan.glyphset_mathed.contains(GlyphId::from(*g)))
+                .filter(|g| plan.glyphset_mathed.contains(*g))
                 .map(|g| map_glyph(plan, s, g).map(|g| GlyphId::new(g as u32)))
                 .collect::<Result<Vec<_>>>()?;
             if !retained.is_empty() {
@@ -300,7 +300,7 @@ fn collect_coverage_and_indices(
     if let Some(coverage) = coverage {
         let coverage = read(s, coverage)?;
         for (index, gid) in coverage.iter().take(count).enumerate() {
-            if plan.glyphset_cmaped.contains(GlyphId::from(gid)) {
+            if plan.glyphset_cmaped.contains(gid) {
                 retained.push(GlyphId::new(map_glyph(plan, s, gid)? as u32));
                 indices.push(index);
             }
