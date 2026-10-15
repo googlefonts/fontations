@@ -157,3 +157,140 @@ impl<'a> FontRead<'a> for Vhea {
         <read_fonts::tables::vhea::Vhea as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
+
+/// VHEA header table (ISO/IEC 14496-22:2026, 5.6.13).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VheaExtended {
+    pub version: Version16Dot16,
+    pub ascender: FWord,
+    pub descender: FWord,
+    pub line_gap: FWord,
+    pub advance_height_max: FWord,
+    pub min_top_side_bearing: FWord,
+    pub min_bottom_side_bearing: FWord,
+    pub y_max_extent: FWord,
+    pub caret_slope_rise: i16,
+    pub caret_slope_run: i16,
+    pub caret_offset: i16,
+    /// Number of long metric records in VMTX.
+    pub number_of_long_ver_metrics: u32,
+}
+
+impl Default for VheaExtended {
+    fn default() -> Self {
+        Self {
+            version: Version16Dot16::VERSION_1_1,
+            ascender: Default::default(),
+            descender: Default::default(),
+            line_gap: Default::default(),
+            advance_height_max: Default::default(),
+            min_top_side_bearing: Default::default(),
+            min_bottom_side_bearing: Default::default(),
+            y_max_extent: Default::default(),
+            caret_slope_rise: Default::default(),
+            caret_slope_run: Default::default(),
+            caret_offset: Default::default(),
+            number_of_long_ver_metrics: Default::default(),
+        }
+    }
+}
+
+impl VheaExtended {
+    /// Construct a new `VheaExtended`
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        ascender: FWord,
+        descender: FWord,
+        line_gap: FWord,
+        advance_height_max: FWord,
+        min_top_side_bearing: FWord,
+        min_bottom_side_bearing: FWord,
+        y_max_extent: FWord,
+        caret_slope_rise: i16,
+        caret_slope_run: i16,
+        caret_offset: i16,
+        number_of_long_ver_metrics: u32,
+    ) -> Self {
+        Self {
+            ascender,
+            descender,
+            line_gap,
+            advance_height_max,
+            min_top_side_bearing,
+            min_bottom_side_bearing,
+            y_max_extent,
+            caret_slope_rise,
+            caret_slope_run,
+            caret_offset,
+            number_of_long_ver_metrics,
+            ..Default::default()
+        }
+    }
+}
+
+impl FontWrite for VheaExtended {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.version.write_into(writer);
+        self.ascender.write_into(writer);
+        self.descender.write_into(writer);
+        self.line_gap.write_into(writer);
+        self.advance_height_max.write_into(writer);
+        self.min_top_side_bearing.write_into(writer);
+        self.min_bottom_side_bearing.write_into(writer);
+        self.y_max_extent.write_into(writer);
+        self.caret_slope_rise.write_into(writer);
+        self.caret_slope_run.write_into(writer);
+        self.caret_offset.write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        (0 as i16).write_into(writer);
+        self.number_of_long_ver_metrics.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(VheaExtended::TAG)
+    }
+}
+
+impl Validate for VheaExtended {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl TopLevelTable for VheaExtended {
+    const TAG: Tag = Tag::new(b"VHEA");
+}
+
+impl<'a> FromObjRef<read_fonts::tables::vhea::VheaExtended<'a>> for VheaExtended {
+    fn from_obj_ref(obj: &read_fonts::tables::vhea::VheaExtended<'a>, _: FontData) -> Self {
+        VheaExtended {
+            version: obj.version(),
+            ascender: obj.ascender(),
+            descender: obj.descender(),
+            line_gap: obj.line_gap(),
+            advance_height_max: obj.advance_height_max(),
+            min_top_side_bearing: obj.min_top_side_bearing(),
+            min_bottom_side_bearing: obj.min_bottom_side_bearing(),
+            y_max_extent: obj.y_max_extent(),
+            caret_slope_rise: obj.caret_slope_rise(),
+            caret_slope_run: obj.caret_slope_run(),
+            caret_offset: obj.caret_offset(),
+            number_of_long_ver_metrics: obj.number_of_long_ver_metrics(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::vhea::VheaExtended<'a>> for VheaExtended {}
+
+impl ReadArgs for VheaExtended {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for VheaExtended {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::tables::vhea::VheaExtended as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
