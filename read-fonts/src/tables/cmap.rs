@@ -18,6 +18,7 @@ const UNICODE_1_1_ENCODING: u16 = 1;
 const UNICODE_ISO_ENCODING: u16 = 2;
 const UNICODE_2_0_BMP_ENCODING: u16 = 3;
 const UNICODE_2_0_FULL_ENCODING: u16 = 4;
+const UNICODE_VARIATION_SEQUENCES_ENCODING: u16 = 5;
 const UNICODE_FULL_ENCODING: u16 = 6;
 
 /// Result of mapping a codepoint with a variation selector.
@@ -29,6 +30,15 @@ pub enum MapVariant {
     /// The variant glyph mapped by a codepoint and associated variation
     /// selector.
     Variant(GlyphId),
+}
+
+impl<'a> Dmap<'a> {
+    /// Returns a cmap view of this table, whose structure and subtables are identical.
+    pub fn as_cmap(&self) -> Cmap<'a> {
+        // The two tables share a layout, so data that parsed as one parses
+        // as the other.
+        Cmap::read(self.offset_data()).unwrap_or_default()
+    }
 }
 
 impl<'a> Cmap<'a> {
@@ -104,19 +114,30 @@ impl<'a> Cmap<'a> {
             .or_else(|| find(PlatformId::Macintosh, 0))
     }
 
-    /// Returns the index and subtable for the first mapping capable of
-    /// handling Unicode variation sequences.
+    /// Returns the index and subtable for Unicode variation sequences.
     ///
-    /// This is always a [format 14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
-    /// subtable.
-    pub fn uvs_subtable(&self) -> Option<(u16, Cmap14<'a>)> {
-        let offset_data = self.offset_data();
-        for (index, record) in self.encoding_records().iter().enumerate() {
-            if let Ok(CmapSubtable::Format14(cmap14)) = record.subtable(offset_data) {
-                return Some((index as u16, cmap14));
-            };
+    /// Only Unicode records with encoding 5 hold them. A format 15 subtable
+    /// is preferred over format 14, and among records of the same format the
+    /// last one wins, following FreeType's reverse search of the records.
+    pub fn uvs_subtable(&self) -> Option<(u16, UvsSubtable<'a>)> {
+        let mut format14 = None;
+        for (index, record) in self.encoding_records().iter().enumerate().rev() {
+            if record.platform_id() != PlatformId::Unicode
+                || record.encoding_id() != UNICODE_VARIATION_SEQUENCES_ENCODING
+            {
+                continue;
+            }
+            match record.subtable(self.offset_data()) {
+                Ok(CmapSubtable::Format15(subtable)) => {
+                    return Some((index as u16, subtable.into()))
+                }
+                Ok(CmapSubtable::Format14(subtable)) if format14.is_none() => {
+                    format14 = Some((index as u16, subtable.into()));
+                }
+                _ => {}
+            }
         }
-        None
+        format14
     }
 
     /// Returns the subtable at the given index.
@@ -129,18 +150,8 @@ impl<'a> Cmap<'a> {
 
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
-        for record in self.encoding_records() {
-            if let Ok(subtable) = record.subtable(self.offset_data()) {
-                match subtable {
-                    CmapSubtable::Format14(format14) => {
-                        format14.closure_glyphs(unicodes, glyph_set);
-                        return;
-                    }
-                    _ => {
-                        continue;
-                    }
-                }
-            }
+        if let Some((_, subtable)) = self.uvs_subtable() {
+            subtable.closure_glyphs(unicodes, glyph_set);
         }
     }
 }
@@ -576,9 +587,9 @@ impl CmapIterLimits {
     /// glyphs will be limited to `u16::MAX`.
     pub fn default_for_font(font: &FontRef) -> Self {
         let glyph_count = font
-            .maxp()
+            .selected_maxp()
             .map(|maxp| maxp.num_glyphs())
-            .unwrap_or(u16::MAX) as u32;
+            .unwrap_or(u16::MAX as u32);
         Self {
             // Limit to the valid range of Unicode characters
             // per https://github.com/googlefonts/fontations/issues/952#issuecomment-2161510184
@@ -621,13 +632,14 @@ fn cmap1213_iter_group<T: AnyMapGroup>(
     let end_code = if let Some(limits) = limits {
         // Set our end code to the minimum of our character and glyph
         // count limit
+        let char_limit = limits.max_char as u64 + 1;
         if T::IS_CONSTANT {
-            end_code.min(limits.max_char as u64)
+            end_code.min(char_limit)
         } else {
             (limits.glyph_count as u64)
                 .saturating_sub(start_glyph_id as u64)
                 .saturating_add(start_code as u64)
-                .min(end_code.min(limits.max_char as u64))
+                .min(end_code.min(char_limit))
         }
     } else {
         end_code
@@ -788,23 +800,130 @@ impl<'a> Cmap14<'a> {
         codepoint: impl Into<u32>,
         selector: impl Into<u32>,
     ) -> Option<MapVariant> {
+        UvsSubtable::from(self.clone()).map_variant(codepoint, selector)
+    }
+
+    /// Returns an iterator over all (codepoint, selector, mapping variant)
+    /// triples in the subtable.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// triples. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
+    pub fn iter(&self) -> Cmap14Iter<'a> {
+        UvsSubtable::from(self.clone()).iter()
+    }
+
+    /// Returns an iterator over all (codepoint, selector, mapping variant)
+    /// triples in the subtable within the given limits.
+    pub fn iter_with_limits(&self, limits: CmapIterLimits) -> Cmap14Iter<'a> {
+        UvsSubtable::from(self.clone()).iter_with_limits(limits)
+    }
+
+    /// Adds the glyphs that variation sequences of `unicodes` map to.
+    #[cfg(feature = "std")]
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        UvsSubtable::from(self.clone()).closure_glyphs(unicodes, glyph_set);
+    }
+}
+
+impl<'a> Cmap15<'a> {
+    /// Maps a codepoint and variation selector to a nominal glyph identifier.
+    pub fn map_variant(
+        &self,
+        codepoint: impl Into<u32>,
+        selector: impl Into<u32>,
+    ) -> Option<MapVariant> {
+        UvsSubtable::from(self.clone()).map_variant(codepoint, selector)
+    }
+
+    /// Returns an iterator over all (codepoint, selector, mapping variant)
+    /// triples in the subtable.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// triples. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
+    pub fn iter(&self) -> Cmap15Iter<'a> {
+        UvsSubtable::from(self.clone()).iter()
+    }
+
+    /// Returns an iterator over all (codepoint, selector, mapping variant)
+    /// triples in the subtable within the given limits.
+    pub fn iter_with_limits(&self, limits: CmapIterLimits) -> Cmap15Iter<'a> {
+        UvsSubtable::from(self.clone()).iter_with_limits(limits)
+    }
+
+    /// Adds the glyphs that variation sequences of `unicodes` map to.
+    #[cfg(feature = "std")]
+    pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
+        UvsSubtable::from(self.clone()).closure_glyphs(unicodes, glyph_set);
+    }
+}
+
+/// A Unicode variation sequences subtable: format 14, or format 15, whose
+/// non-default mappings carry 24-bit glyph IDs.
+#[derive(Clone)]
+pub struct UvsSubtable<'a> {
+    data: FontData<'a>,
+    selectors: &'a [VariationSelector],
+    format: u16,
+}
+
+impl<'a> From<Cmap14<'a>> for UvsSubtable<'a> {
+    fn from(table: Cmap14<'a>) -> Self {
+        Self {
+            data: table.offset_data(),
+            selectors: table.var_selector(),
+            format: 14,
+        }
+    }
+}
+
+impl<'a> From<Cmap15<'a>> for UvsSubtable<'a> {
+    fn from(table: Cmap15<'a>) -> Self {
+        // The selector records of both formats have the same layout; only
+        // the non-default tables they point to differ.
+        let data = table.offset_data();
+        Self {
+            selectors: data
+                .read_array(table.var_selector_byte_range())
+                .unwrap_or_default(),
+            data,
+            format: 15,
+        }
+    }
+}
+
+impl<'a> UvsSubtable<'a> {
+    /// The subtable format: 14, or 15 for 24-bit glyph IDs.
+    pub fn format(&self) -> u16 {
+        self.format
+    }
+
+    /// The variation selector records, sorted by selector.
+    pub fn var_selector(&self) -> &'a [VariationSelector] {
+        self.selectors
+    }
+
+    /// Maps a codepoint and variation selector to a nominal glyph identifier.
+    pub fn map_variant(
+        &self,
+        codepoint: impl Into<u32>,
+        selector: impl Into<u32>,
+    ) -> Option<MapVariant> {
         let codepoint = codepoint.into();
         let selector = selector.into();
-        let selector_records = self.var_selector();
         // Variation selector records are sorted in order of var_selector. Binary search to find
         // the appropriate record.
-        let selector_record = selector_records
-            .binary_search_by(|rec| {
-                let rec_selector: u32 = rec.var_selector().into();
-                rec_selector.cmp(&selector)
-            })
+        let selector_record = self
+            .selectors
+            .binary_search_by(|rec| rec.var_selector().to_u32().cmp(&selector))
             .ok()
-            .and_then(|idx| selector_records.get(idx))?;
+            .and_then(|idx| self.selectors.get(idx))?;
         // If a default UVS table is present in this selector record, binary search on the ranges
         // (start_unicode_value, start_unicode_value + additional_count) to find the requested codepoint.
         // If found, ignore the selector and return a value indicating that the default cmap mapping
         // should be used.
-        if let Some(Ok(default_uvs)) = selector_record.default_uvs(self.offset_data()) {
+        if let Some(Ok(default_uvs)) = selector_record.default_uvs(self.data) {
             use core::cmp::Ordering;
             let found_default_uvs = default_uvs
                 .ranges()
@@ -824,17 +943,9 @@ impl<'a> Cmap14<'a> {
             }
         }
         // Binary search the non-default UVS table if present. This maps codepoint+selector to a variant glyph.
-        let non_default_uvs = selector_record.non_default_uvs(self.offset_data())?.ok()?;
-        let mapping = non_default_uvs.uvs_mapping();
-        let ix = mapping
-            .binary_search_by(|map| {
-                let map_codepoint: u32 = map.unicode_value().into();
-                map_codepoint.cmp(&codepoint)
-            })
-            .ok()?;
-        Some(MapVariant::Variant(GlyphId::from(
-            mapping.get(ix)?.glyph_id(),
-        )))
+        self.non_default_uvs(selector_record)?
+            .find(codepoint)
+            .map(MapVariant::Variant)
     }
 
     /// Returns an iterator over all (codepoint, selector, mapping variant)
@@ -843,45 +954,55 @@ impl<'a> Cmap14<'a> {
     /// Malicious and malformed fonts can produce a large number of invalid
     /// triples. Use [`Self::iter_with_limits`] to generate a pruned sequence
     /// that is limited to reasonable values.
-    pub fn iter(&self) -> Cmap14Iter<'a> {
-        Cmap14Iter::new(self.clone(), None)
+    pub fn iter(&self) -> UvsSubtableIter<'a> {
+        UvsSubtableIter::new(self.clone(), None)
     }
 
     /// Returns an iterator over all (codepoint, selector, mapping variant)
     /// triples in the subtable within the given limits.
-    pub fn iter_with_limits(&self, limits: CmapIterLimits) -> Cmap14Iter<'a> {
-        Cmap14Iter::new(self.clone(), Some(limits))
+    pub fn iter_with_limits(&self, limits: CmapIterLimits) -> UvsSubtableIter<'a> {
+        UvsSubtableIter::new(self.clone(), Some(limits))
     }
 
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
-        for selector in self.var_selector() {
+        for selector in self.selectors {
             if !unicodes.contains(selector.var_selector().to_u32()) {
                 continue;
             }
-            if let Some(non_default_uvs) = selector
-                .non_default_uvs(self.offset_data())
-                .transpose()
-                .ok()
-                .flatten()
-            {
+            if let Some(mappings) = self.non_default_uvs(selector) {
                 glyph_set.extend(
-                    non_default_uvs
-                        .uvs_mapping()
-                        .iter()
-                        .filter(|m| unicodes.contains(m.unicode_value().to_u32()))
-                        .map(|m| m.glyph_id().into()),
+                    mappings
+                        .filter(|(codepoint, _)| unicodes.contains(*codepoint))
+                        .map(|(_, glyph)| glyph),
                 );
             }
         }
     }
+
+    /// The non-default mappings of a selector record, if present and readable.
+    fn non_default_uvs(&self, record: &VariationSelector) -> Option<NonDefaultUvsIter<'a>> {
+        let offset = record.non_default_uvs_offset().offset().to_u32() as usize;
+        if offset == 0 {
+            return None;
+        }
+        NonDefaultUvsIter::new(self.data.split_off(offset)?, self.format == 15)
+    }
 }
 
-/// Iterator over all (codepoint, selector, mapping variant) triples
-/// in the subtable.
+/// Iterator over all (codepoint, selector, mapping variant) triples in a
+/// format 14 subtable.
+pub type Cmap14Iter<'a> = UvsSubtableIter<'a>;
+
+/// Iterator over all (codepoint, selector, mapping variant) triples in a
+/// format 15 subtable.
+pub type Cmap15Iter<'a> = UvsSubtableIter<'a>;
+
+/// Iterator over all (codepoint, selector, mapping variant) triples in a
+/// Unicode variation sequences subtable.
 #[derive(Clone)]
-pub struct Cmap14Iter<'a> {
-    offset_data: FontData<'a>,
+pub struct UvsSubtableIter<'a> {
+    subtable: UvsSubtable<'a>,
     records: core::slice::Iter<'a, VariationSelector>,
     cur_selector: Option<u32>,
     default_uvs: Option<DefaultUvsIter<'a>>,
@@ -890,16 +1011,16 @@ pub struct Cmap14Iter<'a> {
     non_default_uv_left: u32,
 }
 
-impl<'a> Cmap14Iter<'a> {
-    fn new(subtable: Cmap14<'a>, limits: Option<CmapIterLimits>) -> Self {
+impl<'a> UvsSubtableIter<'a> {
+    fn new(subtable: UvsSubtable<'a>, limits: Option<CmapIterLimits>) -> Self {
         let (default_uv_left, non_default_uv_left) = if let Some(limits) = limits {
             (limits.max_char.saturating_add(1), limits.glyph_count)
         } else {
             (u32::MAX, u32::MAX)
         };
         Self {
-            offset_data: subtable.offset_data(),
-            records: subtable.var_selector().iter(),
+            records: subtable.selectors.iter(),
+            subtable,
             cur_selector: None,
             default_uvs: None,
             non_default_uvs: None,
@@ -925,23 +1046,18 @@ impl<'a> Cmap14Iter<'a> {
             }
             self.cur_selector = Some(selector);
             self.default_uvs = record
-                .default_uvs(self.offset_data)
+                .default_uvs(self.subtable.data)
                 .transpose()
                 .ok()
                 .flatten()
                 .map(DefaultUvsIter::new);
-            self.non_default_uvs = record
-                .non_default_uvs(self.offset_data)
-                .transpose()
-                .ok()
-                .flatten()
-                .map(NonDefaultUvsIter::new);
+            self.non_default_uvs = self.subtable.non_default_uvs(record);
             return Some(selector);
         }
     }
 }
 
-impl Iterator for Cmap14Iter<'_> {
+impl Iterator for UvsSubtableIter<'_> {
     type Item = (u32, u32, MapVariant);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -960,11 +1076,75 @@ impl Iterator for Cmap14Iter<'_> {
             if let Some(non_default_uvs) = self.non_default_uvs.as_mut() {
                 if let Some((codepoint, variant)) = non_default_uvs.next() {
                     self.non_default_uv_left = self.non_default_uv_left.checked_sub(1)?;
-                    return Some((codepoint, selector, MapVariant::Variant(variant.into())));
+                    return Some((codepoint, selector, MapVariant::Variant(variant)));
                 }
             }
             self.advance_selector()?;
         }
+    }
+}
+
+/// The (codepoint, glyph) mappings of a non-default UVS table, whose glyph
+/// IDs are 16-bit in format 14 and 24-bit in format 15.
+#[derive(Clone)]
+struct NonDefaultUvsIter<'a> {
+    mappings: FontData<'a>,
+    record_len: usize,
+    wide: bool,
+    range: Range<usize>,
+}
+
+impl<'a> NonDefaultUvsIter<'a> {
+    fn new(data: FontData<'a>, wide: bool) -> Option<Self> {
+        let count = usize::try_from(data.read_at::<u32>(0).ok()?).ok()?;
+        let record_len = if wide {
+            UvsMapping24::RAW_BYTE_LEN
+        } else {
+            UvsMapping::RAW_BYTE_LEN
+        };
+        let end = count.checked_mul(record_len)?.checked_add(4)?;
+        Some(Self {
+            mappings: data.slice(4..end)?,
+            record_len,
+            wide,
+            range: 0..count,
+        })
+    }
+
+    fn get(&self, index: usize) -> Option<(u32, GlyphId)> {
+        let pos = index * self.record_len;
+        let codepoint = self.mappings.read_at::<Uint24>(pos).ok()?.to_u32();
+        let glyph = if self.wide {
+            self.mappings.read_at::<Uint24>(pos + 3).ok()?.to_u32()
+        } else {
+            self.mappings.read_at::<u16>(pos + 3).ok()?.into()
+        };
+        Some((codepoint, GlyphId::new(glyph)))
+    }
+
+    /// Returns the glyph that `codepoint` maps to. Mappings are sorted by
+    /// codepoint.
+    fn find(&self, codepoint: u32) -> Option<GlyphId> {
+        let (mut lo, mut hi) = (self.range.start, self.range.end);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (mid_codepoint, glyph) = self.get(mid)?;
+            match mid_codepoint.cmp(&codepoint) {
+                core::cmp::Ordering::Less => lo = mid + 1,
+                core::cmp::Ordering::Greater => hi = mid,
+                core::cmp::Ordering::Equal => return Some(glyph),
+            }
+        }
+        None
+    }
+}
+
+impl Iterator for NonDefaultUvsIter<'_> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = self.range.next()?;
+        self.get(index)
     }
 }
 
@@ -1004,35 +1184,102 @@ impl Iterator for DefaultUvsIter<'_> {
     }
 }
 
-#[derive(Clone)]
-struct NonDefaultUvsIter<'a> {
-    iter: std::slice::Iter<'a, UvsMapping>,
-}
-
-impl<'a> NonDefaultUvsIter<'a> {
-    fn new(uvs: NonDefaultUvs<'a>) -> Self {
-        Self {
-            iter: uvs.uvs_mapping().iter(),
-        }
-    }
-}
-
-impl Iterator for NonDefaultUvsIter<'_> {
-    type Item = (u32, GlyphId16);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mapping = self.iter.next()?;
-        let codepoint: u32 = mapping.unicode_value().into();
-        let glyph_id = GlyphId16::new(mapping.glyph_id());
-        Some((codepoint, glyph_id))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{types::Uint24, FontRef, GlyphId, TableProvider};
     use font_test_data::{be_buffer, bebuffer::BeBuffer};
+
+    #[test]
+    fn cmap15_variants_and_iteration() {
+        use font_test_data::cmap::format15;
+        let data = format15(0xe0100, &[65], &[(66, 65536), (67, 70000), (68, 0xffffff)]);
+        let table = Cmap15::read(FontData::new(&data)).unwrap();
+        assert_eq!(table.length() as usize, data.len());
+        let subtable = UvsSubtable::from(table.clone());
+        assert_eq!(subtable.format(), 15);
+        let expected = [
+            (65, 0xe0100, MapVariant::UseDefault),
+            (66, 0xe0100, MapVariant::Variant(GlyphId::new(65536))),
+            (67, 0xe0100, MapVariant::Variant(GlyphId::new(70000))),
+            (68, 0xe0100, MapVariant::Variant(GlyphId::new(0xffffff))),
+        ];
+        assert_eq!(subtable.iter().collect::<Vec<_>>(), expected);
+        for (codepoint, selector, mapping) in expected {
+            assert_eq!(subtable.map_variant(codepoint, selector), Some(mapping));
+        }
+        assert_eq!(subtable.map_variant(69u32, 0xe0100u32), None);
+        assert_eq!(subtable.map_variant(66u32, 0xe0101u32), None);
+        let mappings = table.var_selector()[0]
+            .non_default_uvs(table.offset_data())
+            .unwrap()
+            .unwrap();
+        assert_eq!(mappings.uvs_mapping().len(), 3);
+        assert_eq!(UvsMapping24::RAW_BYTE_LEN, 6);
+        let limits = CmapIterLimits {
+            max_char: 0,
+            glyph_count: 1,
+        };
+        assert_eq!(
+            subtable.iter_with_limits(limits).collect::<Vec<_>>(),
+            expected[..2]
+        );
+        let empty = format15(0xe0100, &[], &[]);
+        let empty = UvsSubtable::from(Cmap15::read(FontData::new(&empty)).unwrap());
+        assert_eq!(empty.iter().count(), 0);
+        assert_eq!(empty.map_variant(65u32, 0xe0100u32), None);
+    }
+
+    #[test]
+    fn cmap15_malformed_arrays_and_offsets() {
+        use font_test_data::cmap::format15;
+        let mut data = format15(0xe0100, &[65], &[(66, 70000)]);
+        assert!(Cmap15::read(FontData::new(&data[..9])).is_err());
+        // An incomplete non-default mapping must not hide a valid default UVS.
+        data.pop();
+        let subtable = UvsSubtable::from(Cmap15::read(FontData::new(&data)).unwrap());
+        assert_eq!(
+            subtable.map_variant(65u32, 0xe0100u32),
+            Some(MapVariant::UseDefault)
+        );
+        assert_eq!(subtable.map_variant(66u32, 0xe0100u32), None);
+        assert_eq!(subtable.iter().count(), 1);
+        data[17..21].copy_from_slice(&u32::MAX.to_be_bytes());
+        let subtable = UvsSubtable::from(Cmap15::read(FontData::new(&data)).unwrap());
+        assert_eq!(subtable.map_variant(66u32, 0xe0100u32), None);
+        assert_eq!(subtable.iter().count(), 1);
+        data[6..10].copy_from_slice(&u32::MAX.to_be_bytes());
+        let subtable = UvsSubtable::from(Cmap15::read(FontData::new(&data)).unwrap());
+        assert_eq!(subtable.iter().count(), 0);
+        assert_eq!(subtable.map_variant(65u32, 0xe0100u32), None);
+    }
+
+    #[test]
+    fn prefer_cmap15_over_cmap14() {
+        use font_test_data::cmap::{format14, format15, table};
+        let old = format14(0xe0100, &[], &[(65, 1)]);
+        let new = format15(0xe0100, &[], &[(65, 70000)]);
+        for records in [
+            vec![(0, 5, old.as_slice()), (0, 5, new.as_slice())],
+            vec![(0, 5, new.as_slice()), (0, 5, old.as_slice())],
+        ] {
+            let data = table(&records);
+            let cmap = Cmap::read(FontData::new(&data)).unwrap();
+            let (_, selected) = cmap.uvs_subtable().unwrap();
+            assert_eq!(selected.format(), 15);
+            assert_eq!(
+                selected.map_variant(65u32, 0xe0100u32),
+                Some(MapVariant::Variant(GlyphId::new(70000)))
+            );
+            #[cfg(feature = "std")]
+            {
+                let unicodes = [65, 0xe0100].into_iter().collect();
+                let mut glyphs = IntSet::empty();
+                cmap.closure_glyphs(&unicodes, &mut glyphs);
+                assert_eq!(glyphs.iter().collect::<Vec<_>>(), vec![GlyphId::new(70000)]);
+            }
+        }
+    }
 
     #[test]
     fn map_codepoints() {
@@ -1465,6 +1712,30 @@ mod tests {
                 // We always return one less than glyph count limit because
                 // notdef is not mapped
                 (glyph_count as usize).saturating_sub(1)
+            );
+        }
+    }
+
+    #[test]
+    fn cmap12_and_13_iter_include_the_maximum_character() {
+        for max_char in [0, 1, char::MAX as u32, u32::MAX] {
+            let mut bytes = font_test_data::cmap::format12(&[(max_char, 1)]);
+            let limits = CmapIterLimits {
+                max_char,
+                glyph_count: 2,
+            };
+            let table = Cmap12::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(table.map_codepoint(max_char), Some(GlyphId::new(1)));
+            assert_eq!(
+                table.iter_with_limits(limits).collect::<Vec<_>>(),
+                [(max_char, GlyphId::new(1))]
+            );
+            bytes[..2].copy_from_slice(&13u16.to_be_bytes());
+            let table = Cmap13::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(table.map_codepoint(max_char), Some(GlyphId::new(1)));
+            assert_eq!(
+                table.iter_with_limits(limits).collect::<Vec<_>>(),
+                [(max_char, GlyphId::new(1))]
             );
         }
     }

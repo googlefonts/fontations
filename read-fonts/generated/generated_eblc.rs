@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Eblc<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,30 @@ impl<'a> FontRead<'a> for Eblc<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct EblcFixedHeader {
+    pub major_version: BigEndian<u16>,
+    pub minor_version: BigEndian<u16>,
+    pub num_sizes: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<EblcFixedHeader>() <= Eblc::MIN_SIZE);
+
 /// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
 #[derive(Clone)]
 pub struct Eblc<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, EblcFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,26 +63,26 @@ impl<'a> Eblc<'a> {
 
     /// Major version of the EBLC table, = 2.
     pub fn major_version(&self) -> u16 {
-        let range = self.major_version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().major_version.get()
     }
 
     /// Minor version of EBLC table, = 0.
     pub fn minor_version(&self) -> u16 {
-        let range = self.minor_version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().minor_version.get()
     }
 
     /// Number of BitmapSize records.
     pub fn num_sizes(&self) -> u32 {
-        let range = self.num_sizes_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_sizes.get()
     }
 
     /// BitmapSize records array.
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
         let range = self.bitmap_sizes_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
@@ -101,7 +117,8 @@ const _: () = assert!(FontData::default_data_long_enough(Eblc::MIN_SIZE));
 impl Default for Eblc<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

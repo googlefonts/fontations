@@ -17,7 +17,7 @@ pub use tables::{TableFunction, Tables};
 pub mod interop;
 
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
-use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, RawGlyphMetrics, StyleMetrics};
+use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, StyleMetrics};
 use super::name::{self, GlyphName, Names};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
@@ -25,7 +25,8 @@ use crate::tables::{
     avar::Avar,
     fvar::Fvar,
     glyf::{outline::OutlineContext, Glyf, PHANTOM_POINT_COUNT},
-    gvar::{GlyphVariationData, Gvar},
+    gvar::{GlyphVariationData, SelectedGvar},
+    hmtx::GlyphMetricRecords,
     hvar::Hvar,
     layout::SelectedFeatureVariations,
     loca::Loca,
@@ -37,11 +38,13 @@ use crate::{
     TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use cache::{CffFont, GlyfLoca, GvarTable, HvarTable, TableCache, VorgTable, VvarTable};
+use cache::{
+    CffFont, GlyfLoca, GvarTable, HvarTable, MetricsTable, TableCache, VorgTable, VvarTable,
+};
 use core::{
     any::Any,
     str::FromStr,
-    sync::atomic::{self, AtomicU32},
+    sync::atomic::{self, AtomicBool, AtomicU32},
 };
 use types::{F2Dot14, Fixed, GlyphId, Point, Tag};
 
@@ -156,7 +159,7 @@ impl Font {
     /// Returns the layout feature variations this instance selects.
     pub fn feature_variations(&self) -> SelectedFeatureVariations {
         match &self.0 {
-            Repr::Default(_) => SelectedFeatureVariations::default(),
+            Repr::Default(font) => font.0.feature_vars.load(font, &[]),
             Repr::Varied(varied) => varied
                 .feature_vars
                 .load(&varied.font, varied.coords.as_slice()),
@@ -239,22 +242,22 @@ impl Font {
         }
     }
 
-    /// Returns what `hmtx` states.
+    /// Returns the horizontal glyph metrics, from `HMTX` or `hmtx`.
     #[inline]
-    pub(crate) fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
+    pub(crate) fn h_metrics(&self) -> &GlyphMetricRecords<'_> {
         self.shared().h_metrics()
     }
 
-    /// Returns what `vmtx` states.
+    /// Returns the vertical glyph metrics, from `VMTX` or `vmtx`.
     #[inline]
-    pub(crate) fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
+    pub(crate) fn v_metrics(&self) -> &GlyphMetricRecords<'_> {
         self.shared().v_metrics()
     }
 
     /// Returns the outline tables.
     #[inline]
-    pub(crate) fn glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
-        self.shared().glyf_loca()
+    pub(crate) fn selected_glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
+        self.shared().selected_glyf_loca()
     }
 
     /// Returns `HVAR`.
@@ -269,10 +272,10 @@ impl Font {
         self.shared().vvar()
     }
 
-    /// Returns `gvar`.
+    /// Returns `GVAR`, or `gvar` without it.
     #[inline]
-    pub(crate) fn gvar(&self) -> Option<&Gvar<'_>> {
-        self.shared().gvar()
+    pub(crate) fn selected_gvar(&self) -> Option<&SelectedGvar<'_>> {
+        self.shared().selected_gvar()
     }
 
     pub(crate) fn gvar_scalars(&self) -> &[Fixed] {
@@ -281,7 +284,7 @@ impl Font {
             Repr::Varied(varied) => varied
                 .gvar_scalars
                 .get_or_init(|| {
-                    let Some(gvar) = varied.font.gvar() else {
+                    let Some(gvar) = varied.font.selected_gvar() else {
                         return Box::new([]);
                     };
                     let count = (gvar.shared_tuple_count() as usize).min(MAX_PRECOMPUTED_SCALARS);
@@ -357,21 +360,21 @@ impl Font {
 
 impl<'a> OutlineContext<'a> for &'a Font {
     fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>> {
-        let (glyf, loca) = self.glyf_loca()?;
+        let (glyf, loca) = self.selected_glyf_loca()?;
         loca.get(glyph, glyf)
     }
 
     fn glyph_variation_data(&self, glyph: GlyphId) -> Option<GlyphVariationData<'a>> {
-        self.gvar()?.glyph_variation_data(glyph).ok()?
+        self.selected_gvar()?.glyph_variation_data(glyph).ok()?
     }
 
     fn has_gvar(&self) -> bool {
-        self.gvar().is_some()
+        self.selected_gvar().is_some()
     }
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
-        let (glyf, loca) = self.glyf_loca()?;
-        self.gvar()?.phantom_point_deltas_with_scalars(
+        let (glyf, loca) = self.selected_glyf_loca()?;
+        self.selected_gvar()?.phantom_point_deltas_with_scalars(
             glyf,
             loca,
             self.normalized_coords(),
@@ -769,6 +772,8 @@ impl CoordStorage {
 struct FeatureVarsStorage {
     gsub: AtomicU32,
     gpos: AtomicU32,
+    /// Written before the indices, so it is current once they are.
+    has_lookup_variations: AtomicBool,
 }
 
 impl Default for FeatureVarsStorage {
@@ -790,6 +795,7 @@ impl FeatureVarsStorage {
         Self {
             gsub: AtomicU32::new(Self::UNCHECKED),
             gpos: AtomicU32::new(Self::UNCHECKED),
+            has_lookup_variations: AtomicBool::new(false),
         }
     }
 
@@ -802,11 +808,14 @@ impl FeatureVarsStorage {
             return SelectedFeatureVariations {
                 gsub: Self::decode(gsub),
                 gpos: Self::decode(gpos),
+                has_lookup_variations: self.has_lookup_variations.load(atomic::Ordering::Relaxed),
             };
         }
         // Two threads that race here select the same indices, so the second
         // store writes what the first did.
         let selected = SelectedFeatureVariations::new(&font.tables(), coords);
+        self.has_lookup_variations
+            .store(selected.has_lookup_variations, atomic::Ordering::Relaxed);
         self.gsub
             .store(Self::encode(selected.gsub), atomic::Ordering::Release);
         self.gpos
@@ -859,6 +868,7 @@ impl SharedFont {
             source,
             kind,
             shaping_data: Once::new(),
+            feature_vars: FeatureVarsStorage::new(),
             metrics: Once::new(),
             style_metrics: Once::new(),
             h_metrics: Once::new(),
@@ -963,35 +973,43 @@ impl SharedFont {
         )
     }
 
-    /// Returns what `hmtx` states, parsed once for the font.
+    /// Returns the horizontal glyph metrics, parsed once for the font.
     #[inline]
-    fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
+    fn h_metrics(&self) -> &GlyphMetricRecords<'_> {
         let Some(tables) = self.tables_arc() else {
             return empty_glyph_metrics();
         };
-        self.0
+        &self
+            .0
             .h_metrics
             .get_or_init(|| {
-                TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_hmtx(&tables))
+                TableCache::read(tables.clone(), |tables| {
+                    MetricsTable(tables.h_glyph_metric_records().unwrap_or_default())
+                })
             })
             .get()
+            .0
     }
 
-    /// Returns what `vmtx` states, parsed once for the font.
+    /// Returns the vertical glyph metrics, parsed once for the font.
     ///
-    /// Read on demand, unlike `hmtx`: most text is horizontal and never
-    /// asks.
+    /// Read on demand, unlike the horizontal metrics: most text is
+    /// horizontal and never asks.
     #[inline]
-    fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
+    fn v_metrics(&self) -> &GlyphMetricRecords<'_> {
         let Some(tables) = self.tables_arc() else {
             return empty_glyph_metrics();
         };
-        self.0
+        &self
+            .0
             .v_metrics
             .get_or_init(|| {
-                TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_vmtx(&tables))
+                TableCache::read(tables.clone(), |tables| {
+                    MetricsTable(tables.v_glyph_metric_records().unwrap_or_default())
+                })
             })
             .get()
+            .0
     }
 
     /// Returns the outline tables, parsed once for the font.
@@ -999,7 +1017,7 @@ impl SharedFont {
     /// Outlines and metrics in both directions read these, so they are
     /// shared rather than parsed by each.
     #[inline]
-    fn glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
+    fn selected_glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
         let tables = self.tables_arc()?;
         self.0
             .glyf_loca
@@ -1033,12 +1051,12 @@ impl SharedFont {
             .as_ref()
     }
 
-    /// Returns `gvar`, parsed once for the font.
+    /// Returns `GVAR`, or `gvar` without it, parsed once for the font.
     ///
     /// Typically about half a variable font, so nothing should ask for this
     /// that another table can answer.
     #[inline]
-    fn gvar(&self) -> Option<&Gvar<'_>> {
+    fn selected_gvar(&self) -> Option<&SelectedGvar<'_>> {
         let tables = self.tables_arc()?;
         self.0
             .gvar
@@ -1092,16 +1110,20 @@ struct SharedFontRepr {
     kind: KindRepr,
     // Storage cell for lazily loaded HarfRust shaping data.
     shaping_data: Once<Box<dyn Any + Send + Sync>>,
+    // Feature variation selection at the default location, shared by every
+    // default instance. Zero coordinates can still satisfy conditions.
+    feature_vars: FeatureVarsStorage,
     // Metrics that describe the font as a whole, at the default location,
     // read once rather than per query. Kept apart from `shaping_data`, which
     // holds one thing for one owner.
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
-    // What `hmtx` states, parsed once for the font. Held beside the tables
-    // it borrows, which is what lets it live here at all.
-    h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
-    /// `vmtx`, read only when something measures vertically.
-    v_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
+    // The horizontal glyph metrics, parsed once for the font. Held beside
+    // the tables they borrow, which is what lets them live here at all.
+    h_metrics: Once<TableCache<MetricsTable<'static>>>,
+    // The vertical glyph metrics, read only when something measures
+    // vertically.
+    v_metrics: Once<TableCache<MetricsTable<'static>>>,
     // `HVAR` states the deltas a location makes to a metric outright, and
     // `gvar` states them as phantom points on an outline, which `glyf` and
     // `loca` are read to reach and which outlines will read for their own
@@ -1164,7 +1186,7 @@ mod tests {
 
         let gvar_scalars = instance.gvar_scalars();
         assert!(!gvar_scalars.is_empty());
-        let gvar = instance.gvar().unwrap();
+        let gvar = instance.selected_gvar().unwrap();
         assert_eq!(
             gvar_scalars.len(),
             (gvar.shared_tuple_count() as usize).min(MAX_PRECOMPUTED_SCALARS)
@@ -1376,6 +1398,55 @@ mod tests {
     }
 
     #[test]
+    fn default_instance_evaluates_and_caches_feature_variations() {
+        let source = crate::FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
+        let tables = super::super::TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"GSUB") {
+                // GSUB 1.1 followed by one feature-variation record whose
+                // axis-zero range matches exactly the default location.
+                return Some(super::super::Blob::from(vec![
+                    0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 16,
+                    0, 0, 0, 0, 0, 1, 0, 0, 0, 6, 0, 1, 0, 0, 0, 0, 0, 0,
+                ]));
+            }
+            if tag == Tag::new(b"GPOS") {
+                return None;
+            }
+            source
+                .data_for_tag(tag)
+                .map(|data| super::super::Blob::from(data.as_bytes().to_vec()))
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        assert_eq!(
+            font.shared().0.feature_vars.gsub.load(Ordering::Acquire),
+            FeatureVarsStorage::UNCHECKED
+        );
+        let expected = SelectedFeatureVariations {
+            gsub: Some(0),
+            gpos: None,
+            has_lookup_variations: false,
+        };
+        assert_eq!(font.feature_variations(), expected);
+        assert_eq!(font.shared().0.feature_vars.gsub.load(Ordering::Acquire), 0);
+        assert_eq!(font.default_instance().feature_variations(), expected);
+        let default = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::ZERO; 4])
+            .build();
+        assert!(default.normalized_coords().is_empty());
+        assert_eq!(default.feature_variations(), expected);
+        let varied = font
+            .instance_builder()
+            .normalized_coords([NormalizedCoord::from_f32(0.5); 4])
+            .build();
+        assert_eq!(
+            varied.feature_variations(),
+            SelectedFeatureVariations::default()
+        );
+        assert_eq!(font.feature_variations(), expected);
+    }
+
+    #[test]
     fn feature_variation_cache_marks_both_absent() {
         let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
         let instance = font.instance_builder().variations([("FILL", 0.5)]).build();
@@ -1415,7 +1486,8 @@ mod tests {
                             vars,
                             SelectedFeatureVariations {
                                 gsub: Some(0),
-                                gpos: None
+                                gpos: None,
+                                has_lookup_variations: false,
                             }
                         );
                     }

@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for PositionedTable<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -25,14 +25,29 @@ impl<'a> FontRead<'a> for PositionedTable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PositionedTableFixedHeader {
+    pub positioned_size: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<PositionedTableFixedHeader>() <= PositionedTable::MIN_SIZE);
+
 /// Holds a positioned record directly, and an array of records that hold them.
 #[derive(Clone)]
 pub struct PositionedTable<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, PositionedTableFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -42,25 +57,28 @@ impl<'a> PositionedTable<'a> {
 
     /// The size of each [Positioned] record in this table, in bytes.
     pub fn positioned_size(&self) -> u16 {
-        let range = self.positioned_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().positioned_size.get()
     }
 
     /// A positioned record read straight from a table field.
     pub fn solo(&self) -> Positioned<'a> {
         let range = self.solo_byte_range();
-        Positioned::read_at(self.data, range.start, self.positioned_size()).unwrap_or_default()
+        Positioned::read_at(self.offset_data(), range.start, self.positioned_size())
+            .unwrap_or_default()
     }
 
     pub fn pair_count(&self) -> u16 {
         let range = self.pair_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// An array of records that are positioned by containment.
     pub fn pairs(&self) -> ComputedArray<'a, PositionedPair<'a>> {
         let range = self.pairs_byte_range();
-        ComputedArray::new(self.data, range, self.positioned_size()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.positioned_size()).unwrap_or_default()
     }
 
     pub fn positioned_size_byte_range(&self) -> Range<usize> {
@@ -100,7 +118,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for PositionedTable<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -188,7 +207,7 @@ impl<'a> MinByteRange<'a> for NestedPositionedTable<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -202,15 +221,33 @@ impl<'a> FontRead<'a> for NestedPositionedTable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct NestedPositionedTableFixedHeader {
+    pub positioned_size: BigEndian<u16>,
+    pub pairs_per_group: BigEndian<u16>,
+    pub group_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<NestedPositionedTableFixedHeader>() <= NestedPositionedTable::MIN_SIZE
+);
 
 /// Exercises the nesting case: a table of groups, each holding an array of
 /// records that are themselves positioned.
 #[derive(Clone)]
 pub struct NestedPositionedTable<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, NestedPositionedTableFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -220,25 +257,22 @@ impl<'a> NestedPositionedTable<'a> {
 
     /// The size of each [Positioned] record in this table, in bytes.
     pub fn positioned_size(&self) -> u16 {
-        let range = self.positioned_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().positioned_size.get()
     }
 
     /// The number of pairs in every group.
     pub fn pairs_per_group(&self) -> u16 {
-        let range = self.pairs_per_group_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pairs_per_group.get()
     }
 
     pub fn group_count(&self) -> u16 {
-        let range = self.group_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().group_count.get()
     }
 
     pub fn groups(&self) -> ComputedArray<'a, PositionedGroup<'a>> {
         let range = self.groups_byte_range();
         ComputedArray::new(
-            self.data,
+            self.offset_data(),
             range,
             (self.pairs_per_group(), self.positioned_size()),
         )
@@ -285,7 +319,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for NestedPositionedTable<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
