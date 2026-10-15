@@ -186,29 +186,47 @@ impl PairPosFormat2 {
             .unwrap_or(ValueFormat::empty())
     }
 
-    fn compute_class1_count(&self) -> u16 {
-        self.class_def1.class_count().try_into().unwrap_or(0)
+    fn compute_class1_count(&self) -> usize {
+        if self.class1_records.is_empty() {
+            self.class_def1.max_class() as usize + 1
+        } else {
+            self.class1_records.len()
+        }
     }
 
-    fn compute_class2_count(&self) -> u16 {
-        self.class_def2.class_count().try_into().unwrap_or(0)
+    fn compute_class2_count(&self) -> usize {
+        self.class1_records
+            .first()
+            .filter(|record| !record.class2_records.is_empty())
+            .map_or_else(
+                || self.class_def2.max_class() as usize + 1,
+                |record| record.class2_records.len(),
+            )
     }
 
     fn check_length_and_format_conformance(&self, ctx: &mut ValidationCtx) {
-        let n_class_1s = self.class_def1.class_count();
-        let n_class_2s = self.class_def2.class_count();
-        if n_class_1s > u16::MAX as u32 || n_class_2s > u16::MAX as u32 {
-            ctx.report("pair positioning class counts must fit in 16 bits");
+        let n_class_1s = self.compute_class1_count();
+        let n_class_2s = self.compute_class2_count();
+        if n_class_1s > u16::MAX as usize || n_class_2s > u16::MAX as usize {
+            ctx.report("class counts must fit in u16");
+        }
+        if self.class_def1.max_class() as usize >= n_class_1s
+            || self.class_def2.max_class() as usize >= n_class_2s
+        {
+            ctx.report("class definitions must fit within the class record matrix");
         }
         let format_1 = self.compute_value_format1();
         let format_2 = self.compute_value_format2();
-        if self.class1_records.len() != n_class_1s as usize {
-            ctx.report("class1_records length must match number of class1 classes");
-        }
+        // Readers need not materialize records whose two value formats are
+        // empty. In that case infer the minimum dimensions from ClassDefs.
+        let empty_records = self
+            .class1_records
+            .iter()
+            .all(|record| record.class2_records.is_empty());
         ctx.in_field("class1_records", |ctx| {
             ctx.with_array_items(self.class1_records.iter(), |ctx, c1rec| {
-                if c1rec.class2_records.len() != n_class_2s as usize {
-                    ctx.report("class2_records length must match number of class2 classes ");
+                if !empty_records && c1rec.class2_records.len() != n_class_2s {
+                    ctx.report("class2_records lengths must match the matrix width");
                 }
                 if c1rec.class2_records.iter().any(|rec| {
                     rec.value_record1.format() != format_1 || rec.value_record2.format() != format_2
@@ -1060,6 +1078,64 @@ mod tests {
         let mut owned: PairPosFormat2 = read.to_owned_table();
         owned.class_def2 = invalid.into();
         assert!(crate::dump_table(&owned).is_err());
+    }
+
+    #[test]
+    fn pairpos_roundtrip_preserves_unused_trailing_slots() {
+        let table = PairPos::format_2(
+            [GlyphId16::new(5)].into_iter().collect(),
+            ClassDef::format_1(GlyphId16::new(5), vec![1]),
+            ClassDef::format_1(GlyphId16::new(8), vec![1]),
+            (0..2)
+                .map(|row| {
+                    Class1Record::new(
+                        (0..2)
+                            .map(|col| {
+                                Class2Record::new(
+                                    ValueRecord::new().with_x_advance(row * 10 + col),
+                                    ValueRecord::new(),
+                                )
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+        );
+        let mut bytes = crate::dump_table(&table).unwrap();
+        for field in [8, 10] {
+            let offset = u16::from_be_bytes(bytes[field..field + 2].try_into().unwrap()) as usize;
+            bytes[offset + 6..offset + 8].copy_from_slice(&0u16.to_be_bytes());
+        }
+        let read = read_gpos::PairPosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert_eq!((read.class1_count(), read.class2_count()), (2, 2));
+        assert_eq!(
+            read.value_record_refs(1, 1).unwrap()[0].x_advance(),
+            Some(11)
+        );
+        let owned: PairPosFormat2 = read.to_owned_table();
+        let output = crate::dump_table(&owned).unwrap();
+        let output = read_gpos::PairPosFormat2::read(FontData::new(&output)).unwrap();
+        assert_eq!((output.class1_count(), output.class2_count()), (2, 2));
+        assert_eq!(
+            output.value_record_refs(1, 1).unwrap()[0].x_advance(),
+            Some(11)
+        );
+        let mut invalid = owned.clone();
+        invalid.class1_records[1].class2_records.pop();
+        assert!(crate::dump_table(&invalid).is_err());
+        let mut invalid = owned.clone();
+        invalid.class_def1 = ClassDef::format_1(GlyphId16::new(5), vec![2]).into();
+        assert!(crate::dump_table(&invalid).is_err());
+        let empty = PairPosFormat2::new(
+            [GlyphId16::new(5)].into_iter().collect(),
+            ClassDef::format_1(GlyphId16::new(5), vec![2]),
+            ClassDef::format_1(GlyphId16::new(8), vec![4]),
+            vec![],
+        );
+        let bytes = crate::dump_table(&empty).unwrap();
+        let read = read_gpos::PairPosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert_eq!((read.class1_count(), read.class2_count()), (3, 5));
+        assert_eq!(read.value_format1(), ValueFormat::empty());
     }
 
     #[test]
