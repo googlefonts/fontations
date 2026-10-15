@@ -168,7 +168,7 @@ impl LinkWidth {
 
 pub(crate) type ObjIdx = usize;
 
-#[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
+#[derive(Default, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct Link {
     width: LinkWidth,
     is_signed: bool,
@@ -176,6 +176,19 @@ pub(crate) struct Link {
     bias: u32,
     position: u32,
     objidx: ObjIdx,
+}
+
+// Hashes every field compared by `Eq`, but packed into three writes instead of one
+// write per field: objects are hashed together with all their links when packed,
+// which is hot for fonts with many small subtables.
+impl Hash for Link {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.objidx as u64);
+        state.write_u64(((self.bias as u64) << 32) | self.position as u64);
+        state.write_u32(
+            self.width as u32 | (self.is_signed as u32) << 8 | (self.whence as u32) << 16,
+        );
+    }
 }
 
 impl Link {
@@ -787,19 +800,23 @@ impl Serializer {
             return;
         }
 
-        let mut offset_links = Vec::new();
-        for parent_obj_idx in self.packed.iter() {
-            let Some(parent_obj) = self.object_pool.get_obj(*parent_obj_idx) else {
+        // Write each offset as it's computed. The packed objects are only read and the
+        // data buffer is only written, so borrow them separately.
+        let (packed, object_pool, data) = (&self.packed, &self.object_pool, &mut self.data);
+        let absolute_base = self.head - self.start;
+        let tail = self.tail;
+        let mut errors = SerializeErrorFlags::SERIALIZE_ERROR_NONE;
+        for parent_obj_idx in packed.iter() {
+            let Some(parent_obj) = object_pool.get_obj(*parent_obj_idx) else {
                 self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
                 return;
             };
 
             for link in parent_obj.real_links.iter() {
-                let Some(child_pool_idx) = self.packed.get(link.objidx) else {
-                    self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-                    return;
-                };
-                let Some(child_obj) = self.object_pool.get_obj(*child_pool_idx) else {
+                let Some(child_obj) = packed
+                    .get(link.objidx)
+                    .and_then(|child_pool_idx| object_pool.get_obj(*child_pool_idx))
+                else {
                     self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
                     return;
                 };
@@ -807,7 +824,7 @@ impl Serializer {
                 let offset = match link.whence {
                     OffsetWhence::Head => child_obj.head - parent_obj.head,
                     OffsetWhence::Tail => child_obj.head - parent_obj.tail,
-                    OffsetWhence::Absolute => self.head - self.start + child_obj.head - self.tail,
+                    OffsetWhence::Absolute => absolute_base + child_obj.head - tail,
                 };
 
                 if offset < link.bias as usize {
@@ -817,43 +834,13 @@ impl Serializer {
 
                 let offset = offset - link.bias as usize;
                 let offset_start_pos = parent_obj.head + link.position as usize;
-                offset_links.push((offset_start_pos, link.width, offset));
+                if let Err(e) = assign_offset(data, offset_start_pos, link.width, offset) {
+                    errors |= e;
+                }
             }
         }
-
-        for (offset_start_pos, offset_width, offset) in offset_links.iter() {
-            self.assign_offset(*offset_start_pos, *offset_width, *offset);
-        }
-    }
-
-    //TODO: take care of signed offset
-    fn assign_offset(&mut self, offset_start_pos: usize, link_width: LinkWidth, offset: usize) {
-        let (offset_width, max_offset) = match link_width {
-            LinkWidth::Two => (2, u16::MAX as usize),
-            LinkWidth::Three => (3, (Uint24::MAX).to_u32() as usize),
-            LinkWidth::Four => (4, u32::MAX as usize),
-            _ => return,
-        };
-
-        if offset > max_offset {
-            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW);
-            return;
-        }
-
-        let Some(offset_data_bytes) = self
-            .data
-            .get_mut(offset_start_pos..offset_start_pos + offset_width)
-        else {
-            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-            return;
-        };
-
-        let be_bytes = (offset as u32).to_be_bytes();
-        match link_width {
-            LinkWidth::Two => offset_data_bytes.copy_from_slice(&be_bytes[2..=3]),
-            LinkWidth::Three => offset_data_bytes.copy_from_slice(&be_bytes[1..=3]),
-            LinkWidth::Four => offset_data_bytes.copy_from_slice(&be_bytes),
-            _ => (),
+        if errors != SerializeErrorFlags::SERIALIZE_ERROR_NONE {
+            self.set_err(errors);
         }
     }
 
@@ -939,6 +926,34 @@ impl Serializer {
     pub(crate) fn data(&self) -> Vec<u8> {
         self.data.clone()
     }
+}
+
+//TODO: take care of signed offset
+fn assign_offset(
+    data: &mut [u8],
+    offset_start_pos: usize,
+    link_width: LinkWidth,
+    offset: usize,
+) -> Result<(), SerializeErrorFlags> {
+    let (offset_width, max_offset) = match link_width {
+        LinkWidth::Two => (2, u16::MAX as usize),
+        LinkWidth::Three => (3, (Uint24::MAX).to_u32() as usize),
+        LinkWidth::Four => (4, u32::MAX as usize),
+        _ => return Ok(()),
+    };
+
+    if offset > max_offset {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_OFFSET_OVERFLOW);
+    }
+
+    let Some(offset_data_bytes) = data.get_mut(offset_start_pos..offset_start_pos + offset_width)
+    else {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+    };
+
+    let be_bytes = (offset as u32).to_be_bytes();
+    offset_data_bytes.copy_from_slice(&be_bytes[4 - offset_width..]);
+    Ok(())
 }
 
 #[derive(Default)]
