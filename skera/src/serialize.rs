@@ -772,17 +772,10 @@ impl Serializer {
         }
         let mut from_vec = mem::take(&mut from_obj.virtual_links);
 
-        // hash value will change after merge, so delete existing old entry in the hash table
-        let hash_old = hash_one_pool_idx(to.0, &self.data, &self.object_pool);
-        self.packed_map
-            .del(to.0, hash_old, &self.data, &self.object_pool);
-
+        // Virtual links aren't part of an object's hash (see hash_one_pool_idx), so the
+        // hash table entry for `to` stays valid.
         let to_obj = self.object_pool.get_obj_mut(to.0).unwrap();
         to_obj.virtual_links.append(&mut from_vec);
-
-        let hash = hash_one_pool_idx(to.0, &self.data, &self.object_pool);
-        self.packed_map
-            .set_with_hash(to.0, hash, to.1, &self.data, &self.object_pool);
     }
 
     fn resolve_links(&mut self) {
@@ -1049,9 +1042,17 @@ fn cmp_pool_idx(idx_a: PoolIdx, idx_b: PoolIdx, data: &[u8], obj_pool: &ObjectPo
     }
 }
 
+/// An entry of [`PoolIdxHashTable`], with its hash stored so that growing the table
+/// doesn't have to rehash every object's bytes and links again (same as
+/// harfbuzz's hb_hashmap_t, which stores the hash of each item).
+struct PoolIdxEntry {
+    idx: (PoolIdx, ObjIdx),
+    hash: u64,
+}
+
 #[derive(Default)]
 struct PoolIdxHashTable {
-    hash_table: HashTable<(PoolIdx, ObjIdx)>,
+    hash_table: HashTable<PoolIdxEntry>,
 }
 
 impl PoolIdxHashTable {
@@ -1062,9 +1063,11 @@ impl PoolIdxHashTable {
         data: &[u8],
         obj_pool: &ObjectPool,
     ) -> Option<&(PoolIdx, ObjIdx)> {
-        self.hash_table.find(hash, |val: &(PoolIdx, ObjIdx)| {
-            cmp_pool_idx(pool_idx, val.0, data, obj_pool)
-        })
+        self.hash_table
+            .find(hash, |entry: &PoolIdxEntry| {
+                entry.hash == hash && cmp_pool_idx(pool_idx, entry.idx.0, data, obj_pool)
+            })
+            .map(|entry| &entry.idx)
     }
 
     fn set_with_hash(
@@ -1072,18 +1075,22 @@ impl PoolIdxHashTable {
         pool_idx: PoolIdx,
         hash: u64,
         obj_idx: ObjIdx,
-        data: &[u8],
-        obj_pool: &ObjectPool,
+        _data: &[u8],
+        _obj_pool: &ObjectPool,
     ) {
-        let hasher = |val: &(PoolIdx, ObjIdx)| hash_one_pool_idx(val.0, data, obj_pool);
-
-        self.hash_table
-            .insert_unique(hash, (pool_idx, obj_idx), hasher);
+        self.hash_table.insert_unique(
+            hash,
+            PoolIdxEntry {
+                idx: (pool_idx, obj_idx),
+                hash,
+            },
+            |entry: &PoolIdxEntry| entry.hash,
+        );
     }
 
     fn del(&mut self, pool_idx: PoolIdx, hash: u64, data: &[u8], obj_pool: &ObjectPool) {
-        let Ok(entry) = self.hash_table.find_entry(hash, |val: &(PoolIdx, ObjIdx)| {
-            cmp_pool_idx(pool_idx, val.0, data, obj_pool)
+        let Ok(entry) = self.hash_table.find_entry(hash, |entry: &PoolIdxEntry| {
+            entry.hash == hash && cmp_pool_idx(pool_idx, entry.idx.0, data, obj_pool)
         }) else {
             return;
         };
