@@ -191,7 +191,10 @@ impl IndexMapSubsetPlan {
 
         if index_map.is_none() {
             outer_map.add(0);
-            inner_sets[0].extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
+            let first_set = inner_sets.first_mut().ok_or(ReadError::MalformedData(
+                "implicit metric variation index has no data",
+            ))?;
+            first_set.extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
             this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
         } else {
             for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
@@ -315,9 +318,14 @@ impl HvarVvarSubsetPlan {
     ) -> Result<Self, ReadError> {
         let mut this = HvarVvarSubsetPlan::default();
         let vardata_count = var_store.item_variation_data_count() as usize;
-        if vardata_count == 0 || index_maps.is_empty() {
+        if index_maps.is_empty() {
             return Err(ReadError::MalformedData(
-                "metric variation store has no data or index maps",
+                "metric variation table has no index maps",
+            ));
+        }
+        if vardata_count == 0 && index_maps[0].is_none() {
+            return Err(ReadError::MalformedData(
+                "implicit metric variation index has no data",
             ));
         }
 
@@ -378,11 +386,11 @@ impl HvarVvarSubsetPlan {
                 .map(|(_, old_gid)| old_gid.to_u32())
                 .collect();
             this.inner_maps.push(inner_map);
-        } else {
+        } else if let Some(first_set) = inner_sets.first_mut() {
             let mut inner_map = adv_set.iter().map(|g| g as u32).collect::<IncBiMap>();
-            inner_sets[0].subtract(&adv_set);
+            first_set.subtract(&adv_set);
 
-            for i in inner_sets[0].iter() {
+            for i in first_set.iter() {
                 inner_map.add(i as u32);
             }
 
@@ -442,6 +450,8 @@ mod test {
         };
         for (empty, mapping, valid) in [
             (true, None, false),
+            (true, Some(vec![u32::MAX]), true),
+            (true, Some(vec![u32::MAX, 0]), false),
             (false, None, false),
             (false, Some(vec![1 << 16, 0]), false),
             (false, Some(vec![0, u32::MAX]), true),
@@ -466,7 +476,11 @@ mod test {
                 let mapping = result.advance_width_mapping().unwrap().unwrap();
                 assert_eq!(
                     mapping.get(0).unwrap(),
-                    DeltaSetIndex { outer: 0, inner: 0 }
+                    if empty {
+                        DeltaSetIndex::NO_VARIATION_INDEX
+                    } else {
+                        DeltaSetIndex { outer: 0, inner: 0 }
+                    }
                 );
                 assert_eq!(mapping.get(1).unwrap(), DeltaSetIndex::NO_VARIATION_INDEX);
             }
