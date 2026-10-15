@@ -332,8 +332,11 @@ positioning formats, empty record counts, conditional lookup lists, store-index
 remapping, and composite glyph ID widths and overflow.
 
 Cubic outlines use the upstream reader support; `spec_next` is retained as a
-compatibility feature. Instancing the extended GLYF/GVAR table family is not
-implemented by this stack. Changes to axes referenced by retained VARC remain
+compatibility feature. Instancing the extended GLYF/GVAR and uppercase metrics families is not
+implemented by this stack. Requests that change axes reject fonts containing
+these tables, including mixed fonts with original tables, so authoritative
+extended data cannot remain stale. A request with no axis limits still copies
+them unchanged. Changes to axes referenced by retained VARC remain
 restricted. Unknown tables pass through; private or
 future variation formats need their own handlers. Owned rebuilding performance
 remains an operation-specific review question.

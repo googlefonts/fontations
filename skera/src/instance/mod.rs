@@ -67,6 +67,18 @@ pub fn instance_font_with_flags(
     if axes.values.is_empty() {
         return Ok(copy_font(font));
     }
+    // These families select their uppercase tables independently. Updating only
+    // a shadowed original would leave authoritative outlines or metrics stale.
+    for tag in [
+        b"GLYF", b"LOCA", b"GVAR", b"MAXP", b"HHEA", b"HMTX", b"VHEA", b"VMTX",
+    ] {
+        let tag = Tag::new(tag);
+        if font.data_for_tag(tag).is_some() {
+            return Err(SubsetError::InvalidAxis(format!(
+                "instancing the {tag} table is not supported"
+            )));
+        }
+    }
     let mut tables = FontOutput::default();
     let mut source = FontContext {
         font,
@@ -353,5 +365,36 @@ mod tests {
             instance_font(&font,&parse_axis_limits("wght=400").unwrap()),
             Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"VARC")
         ));
+    }
+    #[test]
+    fn unsupported_extended_families_cannot_leave_authoritative_tables_stale() {
+        for fixture in ["Roboto-Variable.ABC.ttf", "AdobeVFPrototype.otf"] {
+            let bytes = std::fs::read(format!("test-data/fonts/{fixture}")).unwrap();
+            let source = FontRef::new(&bytes).unwrap();
+            for tag in [
+                b"GLYF", b"LOCA", b"GVAR", b"MAXP", b"HHEA", b"HMTX", b"VHEA", b"VMTX",
+            ] {
+                let tag = Tag::new(tag);
+                let mut builder = FontBuilder::new();
+                for record in source.table_directory().table_records() {
+                    builder.add_raw(record.tag(), source.data_for_tag(record.tag()).unwrap());
+                }
+                // An opaque extended table must never be ignored in favor of
+                // the valid original tables already present in these fixtures.
+                builder.add_raw(tag, vec![0xff]);
+                let bytes = builder.build();
+                let font = FontRef::new(&bytes).unwrap();
+                assert!(
+                    matches!(
+                        instance_font(&font, &parse_axis_limits("wght=700").unwrap()),
+                        Err(SubsetError::InvalidAxis(message)) if message.contains("not supported")
+                    ),
+                    "{fixture}: {tag}"
+                );
+                let copied = instance_font(&font, &[]).unwrap();
+                let copied = FontRef::new(&copied).unwrap();
+                assert_eq!(copied.data_for_tag(tag).unwrap().as_bytes(), &[0xff]);
+            }
+        }
     }
 }
