@@ -234,3 +234,89 @@ fn layout_and_color_records_match_harfbuzz_with_gaps() {
         compare!(colr, write_fonts::tables::colr::Colr);
     }
 }
+
+#[test]
+fn retaining_the_source_glyph_count_adds_empty_trailing_glyphs() {
+    for filename in [
+        "RobotoFlex-Variable.ABC.ttf",
+        "Muli-ABC.ttf",
+        "Cantarell-VF-ABC.otf",
+        "SourceHanSans-Regular_subset.otf",
+        "SourceSansPro-Regular.otf",
+    ] {
+        let bytes = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let make_plan = |flags| {
+            Plan::new(
+                &skera::populate_gids("0,1").unwrap(),
+                &IntSet::empty(),
+                &font,
+                flags,
+                &IntSet::empty(),
+                &IntSet::all(),
+                &IntSet::all(),
+                &IntSet::all(),
+                &IntSet::all(),
+            )
+        };
+        let flags =
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE;
+        let reduced = make_plan(flags);
+        let mut retained = make_plan(flags | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS);
+        // Resetting an empty mapping must also retain the source count.
+        retained.set_glyph_mapping(&[]).unwrap();
+        let expected = subset_font(&font, &reduced).unwrap();
+        let expected = FontRef::new(&expected).unwrap();
+        let actual = subset_font(&font, &retained).unwrap();
+        let actual = FontRef::new(&actual).unwrap();
+        let count = font.maxp().unwrap().num_glyphs();
+        assert_eq!(actual.maxp().unwrap().num_glyphs(), count, "{filename}");
+        assert!(expected.maxp().unwrap().num_glyphs() < count);
+        let used: IntSet<_> = retained
+            .old_to_new_glyph_mapping()
+            .map(|(_, gid)| gid)
+            .collect();
+        let mut empty = Path::default();
+        for gid in 0..count {
+            let gid = GlyphId::new(gid as u32);
+            let mut path = Path::default();
+            actual
+                .outline_glyphs()
+                .get(gid)
+                .unwrap()
+                .draw(DrawSettings::unhinted(Size::unscaled(), &[][..]), &mut path)
+                .unwrap();
+            if used.contains(gid) {
+                empty.0.clear();
+                expected
+                    .outline_glyphs()
+                    .get(gid)
+                    .unwrap()
+                    .draw(
+                        DrawSettings::unhinted(Size::unscaled(), &[][..]),
+                        &mut empty,
+                    )
+                    .unwrap();
+                assert_eq!(path, empty, "{filename}: {gid:?}");
+                assert_eq!(
+                    actual.hmtx().unwrap().advance(gid),
+                    expected.hmtx().unwrap().advance(gid)
+                );
+            } else {
+                assert!(path.0.is_empty(), "{filename}: {gid:?}");
+                assert_eq!(actual.hmtx().unwrap().advance(gid), Some(0));
+                if let Ok(gvar) = actual.gvar() {
+                    assert!(gvar.data_for_gid(gid).unwrap().is_none());
+                }
+            }
+        }
+        let dense = make_plan(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE);
+        let ignored = make_plan(
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        );
+        assert_eq!(
+            subset_font(&font, &dense).unwrap(),
+            subset_font(&font, &ignored).unwrap()
+        );
+    }
+}
