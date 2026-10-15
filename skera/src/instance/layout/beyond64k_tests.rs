@@ -294,3 +294,70 @@ fn lookup_variations_survive_partial_instancing_and_replace_after_feature_variat
         }
     }
 }
+
+#[test]
+fn empty_pair_matrices_charge_rows_even_without_columns() {
+    let rows = vec![
+        Class1Record::new(vec![
+            Class2Record::new(
+                ValueRecord::new(),
+                ValueRecord::new()
+            );
+            2
+        ]);
+        2
+    ];
+    let coverage: CoverageTable = [GlyphId::new(1)].into_iter().collect();
+    for (pair, count_offset) in [
+        (
+            PairPos::from(PairPosFormat2::new(
+                coverage.clone(),
+                ClassDef::default(),
+                ClassDef::default(),
+                rows.clone(),
+            )),
+            12,
+        ),
+        (
+            PairPos::from(PairPosFormat4::new(
+                coverage.clone(),
+                ClassDef::default(),
+                ClassDef::default(),
+                rows.clone(),
+            )),
+            18,
+        ),
+    ] {
+        let mut bytes = write_fonts::dump_table(&pair).unwrap();
+        bytes[count_offset + 2..count_offset + 4].copy_from_slice(&0u16.to_be_bytes());
+        let source = read_fonts::tables::gpos::PairPos::read(FontData::new(&bytes)).unwrap();
+        let mut target = pair.clone();
+        let mut remaining = 1;
+        assert!(
+            super::owned::own_empty_pairs(source.clone(), &mut target, &mut remaining).is_err()
+        );
+        assert_eq!(remaining, 1);
+        let mut remaining = 2;
+        super::owned::own_empty_pairs(source, &mut target, &mut remaining).unwrap();
+        assert_eq!(remaining, 0);
+        let records = match &target {
+            PairPos::Format2(table) => &table.class1_records,
+            PairPos::Format4(table) => &table.class1_records,
+            _ => unreachable!(),
+        };
+        assert_eq!(records.len(), 2);
+        assert!(records.iter().all(|row| row.class2_records.is_empty()));
+        bytes[count_offset..count_offset + 2].copy_from_slice(&0u16.to_be_bytes());
+        bytes[count_offset + 2..count_offset + 4].copy_from_slice(&u16::MAX.to_be_bytes());
+        let source = read_fonts::tables::gpos::PairPos::read(FontData::new(&bytes)).unwrap();
+        let mut remaining = 1;
+        super::owned::own_empty_pairs(source, &mut target, &mut remaining).unwrap();
+        assert_eq!(remaining, 1);
+        let records = match &target {
+            PairPos::Format2(table) => &table.class1_records,
+            PairPos::Format4(table) => &table.class1_records,
+            _ => unreachable!(),
+        };
+        assert!(records.is_empty());
+    }
+}

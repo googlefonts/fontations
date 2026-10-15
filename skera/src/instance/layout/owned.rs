@@ -234,41 +234,40 @@ pub(super) fn own_empty_pairs(
             if source.value_format1().is_empty() && source.value_format2().is_empty() {
                 let rows = source.class1_count() as usize;
                 let columns = source.class2_count() as usize;
-                *remaining = remaining
-                    .checked_sub(rows.saturating_mul(columns))
-                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
-                target.class1_records = vec![
-                    Class1Record::new(vec![
-                        Class2Record::new(
-                            ValueRecord::new(),
-                            ValueRecord::new()
-                        );
-                        columns
-                    ]);
-                    rows
-                ];
+                target.class1_records = empty_class_records(rows, columns, remaining)?;
             }
         }
         (read_fonts::tables::gpos::PairPos::Format4(source), PairPos::Format4(target)) => {
             if source.value_format1().is_empty() && source.value_format2().is_empty() {
                 let rows = source.class1_count() as usize;
                 let columns = source.class2_count() as usize;
-                *remaining = remaining
-                    .checked_sub(rows.saturating_mul(columns))
-                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
-                target.class1_records = vec![
-                    Class1Record::new(vec![
-                        Class2Record::new(
-                            ValueRecord::new(),
-                            ValueRecord::new()
-                        );
-                        columns
-                    ]);
-                    rows
-                ];
+                target.class1_records = empty_class_records(rows, columns, remaining)?;
             }
         }
         _ => {}
     }
     Ok(())
+}
+
+fn empty_class_records(
+    rows: usize,
+    columns: usize,
+    remaining: &mut usize,
+) -> Result<Vec<Class1Record>, SubsetError> {
+    // Empty rows still allocate. With no rows, do not allocate a temporary
+    // column vector that would immediately be discarded.
+    *remaining = remaining
+        .checked_sub(rows.saturating_mul(columns).max(rows))
+        .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+    Ok((0..rows)
+        .map(|_| {
+            Class1Record::new(vec![
+                Class2Record::new(
+                    ValueRecord::new(),
+                    ValueRecord::new()
+                );
+                columns
+            ])
+        })
+        .collect())
 }
