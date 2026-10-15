@@ -408,9 +408,17 @@ impl ClassDef {
     pub(crate) fn max_class(&self) -> u32 {
         match self {
             Self::Format1(table) => table.class_value_array.iter().copied().map(u32::from).max(),
-            Self::Format2(table) => table.class_range_records.iter().map(|r| u32::from(r.class)).max(),
+            Self::Format2(table) => table
+                .class_range_records
+                .iter()
+                .map(|r| u32::from(r.class))
+                .max(),
             Self::Format3(table) => table.class_value_array.iter().map(|c| c.to_u32()).max(),
-            Self::Format4(table) => table.class_range_records.iter().map(|r| u32::from(r.class)).max(),
+            Self::Format4(table) => table
+                .class_range_records
+                .iter()
+                .map(|r| u32::from(r.class))
+                .max(),
         }
         .unwrap_or(0)
     }
@@ -418,8 +426,6 @@ impl ClassDef {
     /// Number of slots needed by a class-indexed array, including unused classes.
     pub fn class_count(&self) -> u32 {
         self.max_class().saturating_add(1)
-    }
-
     }
 
     /// Returns whether the table explicitly assigns no glyphs.
