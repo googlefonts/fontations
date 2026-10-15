@@ -390,8 +390,8 @@ fn partial_positioning_values_match_harfbuzz_float_precision() {
         // Residual store optimization can remap other rows' device indices.
         for i in 0..4 {
             assert_eq!(
-                actual.lookup_list.lookups[i],
-                expected.lookup_list.lookups[i]
+                actual.lookup_list.as_ref().unwrap().lookups[i],
+                expected.lookup_list.as_ref().unwrap().lookups[i]
             );
         }
         for width in [100., 87.5, 75.] {
@@ -402,8 +402,8 @@ fn partial_positioning_values_match_harfbuzz_float_precision() {
             let second: Gpos = second.gpos().unwrap().to_owned_table();
             for i in 0..4 {
                 assert_eq!(
-                    second.lookup_list.lookups[i],
-                    expected.lookup_list.lookups[i]
+                    second.lookup_list.as_ref().unwrap().lookups[i],
+                    expected.lookup_list.as_ref().unwrap().lookups[i]
                 );
             }
         }
