@@ -737,18 +737,28 @@ impl Serializer {
             .current
             .ok_or_else(|| self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
 
-        let Some(cur_obj) = self.object_pool.get_obj(cur_pool_idx) else {
+        let Some(num_links) = self
+            .object_pool
+            .get_obj(cur_pool_idx)
+            .map(|cur_obj| cur_obj.real_links.len())
+        else {
             return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         };
 
-        let other_child_idxes: Vec<ObjIdx> = cur_obj
-            .real_links
-            .iter()
-            .map(|l| l.obj_idx())
-            .filter(|&idx| idx != obj_idx)
-            .collect();
-
-        for other_idx in other_child_idxes {
+        // Children live in the same object pool as the current object, so read each
+        // link by index rather than collecting the child indices first. Adding a
+        // virtual link to a child doesn't change the current object's links.
+        for i in 0..num_links {
+            let Some(other_idx) = self
+                .object_pool
+                .get_obj(cur_pool_idx)
+                .map(|cur_obj| cur_obj.real_links[i].objidx)
+            else {
+                return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+            };
+            if other_idx == obj_idx {
+                continue;
+            }
             let Some(pool_idx) = self.packed.get(other_idx) else {
                 return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
