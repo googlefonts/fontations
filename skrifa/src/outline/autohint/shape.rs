@@ -21,6 +21,10 @@ use raw::{
 // <https://github.com/harfbuzz/harfbuzz/blob/c7ef6a2ed58ae8ec108ee0962bef46f42c73a60c/src/hb-limits.hh#L53>
 const MAX_NESTING_DEPTH: usize = 64;
 
+// Bounds the substitution records scanned and lookups gathered across all
+// feature variation records, which can share one substitution table.
+const MAX_FEATURE_VARIATION_WORK: usize = 1 << 16;
+
 /// Determines the fidelity with which we apply shaping in the
 /// autohinter.
 ///
@@ -127,14 +131,9 @@ impl<'a> Shaper<'a> {
         let selected = (!all_locations)
             .then(|| variations.index_for_coords_with_delta(self.coords, delta))
             .flatten();
-        // Records can share a substitution table; visiting each once bounds
-        // the work by the size of the font.
-        let mut visited = alloc::collections::BTreeSet::new();
+        let mut budget = MAX_FEATURE_VARIATION_WORK;
         for (index, record) in variations.feature_variation_records().iter().enumerate() {
             if !all_locations && selected != Some(index as u32) {
-                continue;
-            }
-            if !visited.insert(record.feature_table_substitution_offset().offset().to_u32()) {
                 continue;
             }
             let Some(Ok(substitution)) =
@@ -142,17 +141,26 @@ impl<'a> Shaper<'a> {
             else {
                 continue;
             };
-            if let Some(alternate) = substitution
-                .substitutions()
+            let substitutions = substitution.substitutions();
+            let Some(left) = budget.checked_sub(substitutions.len()) else {
+                break;
+            };
+            budget = left;
+            if let Some(alternate) = substitutions
                 .iter()
                 .find(|rec| rec.feature_index() == feature_ix)
                 .filter(|rec| !rec.alternate_feature_offset().is_null())
                 .and_then(|rec| rec.alternate_feature(substitution.offset_data()).ok())
             {
+                let indices = alternate.lookup_list_indices();
+                let Some(left) = budget.checked_sub(indices.len()) else {
+                    break;
+                };
+                budget = left;
                 if !all_locations {
                     lookups.clear();
                 }
-                lookups.extend(alternate.lookup_list_indices().iter().map(|ix| ix.get()));
+                lookups.extend(indices.iter().map(|ix| ix.get()));
             }
         }
         // Without lookup variations, a single location uses one list as is.
@@ -1108,6 +1116,47 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn feature_variation_work_is_bounded() {
+        fn words(values: &[u16]) -> Vec<u8> {
+            values
+                .iter()
+                .flat_map(|value| value.to_be_bytes())
+                .collect()
+        }
+        const RECORDS: u16 = 100;
+        const LOOKUPS: u16 = 1000;
+        // Header, then a feature list with one empty feature.
+        let mut bytes = words(&[1, 1, 0, 14, 0, 0, 30]);
+        bytes.extend(words(&[1, 0x6332, 0x7363, 8, 0, 0]));
+        assert_eq!(bytes.len(), 26);
+        bytes.extend(words(&[0, 0]));
+        // Feature variations: each record has its own substitution table,
+        // whose alternate feature repeats the record's index.
+        let fv = bytes.len();
+        bytes.extend(words(&[1, 0, 0, RECORDS]));
+        let tables = 8 + RECORDS as usize * 8;
+        let table_len = 16 + LOOKUPS as usize * 2;
+        for i in 0..RECORDS as usize {
+            let offset = (tables + i * table_len) as u32;
+            bytes.extend([0; 4]);
+            bytes.extend(offset.to_be_bytes());
+        }
+        for i in 0..RECORDS {
+            bytes.extend(words(&[1, 0, 1, 0, 0, 12, 0, LOOKUPS]));
+            bytes.extend(words(&vec![i; LOOKUPS as usize]));
+        }
+        assert_eq!(bytes.len(), fv + tables + RECORDS as usize * table_len);
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let mut shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
+        let lookups = shaper.lookup_indices(0, true).unwrap();
+        let per_record = 1 + LOOKUPS as usize;
+        let expected = MAX_FEATURE_VARIATION_WORK / per_record;
+        assert!(expected < RECORDS as usize);
+        assert_eq!(lookups, (0..expected as u16).collect::<Vec<_>>());
     }
 
     #[test]
