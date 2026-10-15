@@ -505,34 +505,53 @@ fn partial_condition(
     })
 }
 
-fn validate_condition(
-    cond: read_fonts::tables::layout::Condition,
-    depth: usize,
-    remaining: &mut usize,
-) -> Result<(), SubsetError> {
-    crate::layout::walk_conditions(&cond, depth, remaining, &mut |_| {})
-        .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))
-}
-
-fn validate_features(
+fn own_feature_variations(
     vars: Option<read_fonts::tables::layout::FeatureVariations>,
-) -> Result<(), SubsetError> {
-    let err = || SubsetError::SubsetTableError(Tag::new(b"GSUB"));
+    tag: Tag,
+) -> Result<Option<FeatureVariations>, SubsetError> {
+    let err = || SubsetError::SubsetTableError(tag);
     let mut remaining = 200_000;
     if let Some(vars) = vars {
+        if vars.feature_variation_records().len() != vars.feature_variation_record_count() as usize
+        {
+            return Err(err());
+        }
+        let mut sets = Vec::new();
         for record in vars.feature_variation_records() {
             if let Some(set) = record
                 .condition_set(vars.offset_data())
                 .transpose()
                 .map_err(|_| err())?
             {
-                for condition in set.conditions().iter() {
-                    validate_condition(condition.map_err(|_| err())?, 0, &mut remaining)?;
+                if set.condition_offsets().len() != set.condition_count() as usize {
+                    return Err(err());
                 }
+                let conditions = set
+                    .condition_offsets()
+                    .iter()
+                    .map(|offset| {
+                        crate::conditions::at_offset(
+                            set.offset_data(),
+                            offset.get().to_u32(),
+                            33,
+                            &mut remaining,
+                        )
+                        .map(Into::into)
+                        .map_err(|_| err())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                sets.push(Some(ConditionSet { conditions }));
+            } else {
+                sets.push(None);
             }
         }
+        let mut table: FeatureVariations = vars.to_owned_table();
+        for (record, set) in table.feature_variation_records.iter_mut().zip(sets) {
+            record.condition_set = set.into();
+        }
+        return Ok(Some(table));
     }
-    Ok(())
+    Ok(None)
 }
 
 fn rebuild_store(
@@ -689,12 +708,14 @@ pub(super) fn instance(
         condition_biases: RefCell::default(),
     };
     if let Ok(gpos) = font.gpos() {
-        validate_features(
+        let vars = own_feature_variations(
             gpos.feature_variations()
                 .transpose()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
+            Tag::new(b"GPOS"),
         )?;
         let mut table = own_gpos(&gpos)?;
+        table.feature_variations = vars.into();
         table.lookup_list.apply(&context)?;
         table.lookup_list2.apply(&context)?;
         features(
@@ -709,12 +730,14 @@ pub(super) fn instance(
         save(tables, b"GPOS", &table)?;
     }
     if let Ok(gsub) = font.gsub() {
-        validate_features(
+        let vars = own_feature_variations(
             gsub.feature_variations()
                 .transpose()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
+            Tag::new(b"GSUB"),
         )?;
         let mut table: write_fonts::tables::gsub::Gsub = gsub.to_owned_table();
+        table.feature_variations = vars.into();
         features(
             table
                 .feature_list2
@@ -1112,8 +1135,7 @@ mod tests {
     fn deep_conditions_are_rejected_before_owned_conversion() {
         let mut bytes = [0, 5, 0, 0, 5].repeat(4096);
         bytes.extend([0, 1, 0, 0, 0, 0, 0x40, 0]);
-        let cond = read_fonts::tables::layout::Condition::read(FontData::new(&bytes)).unwrap();
-        assert!(validate_condition(cond, 0, &mut 200_000).is_err());
+        assert!(crate::conditions::own(FontData::new(&bytes), 33, &mut 200_000).is_err());
     }
 
     #[test]
