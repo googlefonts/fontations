@@ -109,7 +109,15 @@ fn subset_glyf_inner(
     }
 
     //TODO: support force_long_loca in the plan
-    let loca_format: u8 = if max_offset < 0x1FFFF && !plan.subset_flags.contains(SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS) { 0 } else { 1 };
+    let loca_format: u8 = if max_offset < 0x1FFFF
+        && !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS)
+    {
+        0
+    } else {
+        1
+    };
     let loca_out = write_glyf_loca(plan, s, loca_format, &subset_glyphs)?;
 
     let head_out = subset_head(&head, loca_format);
