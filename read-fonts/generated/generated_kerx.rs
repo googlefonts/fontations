@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Kerx<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,30 @@ impl<'a> FontRead<'a> for Kerx<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct KerxFixedHeader {
+    pub version: BigEndian<u16>,
+    pub padding: BigEndian<u16>,
+    pub n_tables: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<KerxFixedHeader>() <= Kerx::MIN_SIZE);
+
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 #[derive(Clone)]
 pub struct Kerx<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, KerxFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,19 +63,17 @@ impl<'a> Kerx<'a> {
 
     /// The version number of the extended kerning table (currently 2, 3, or 4)
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// The number of subtables included in the extended kerning table.
     pub fn n_tables(&self) -> u32 {
-        let range = self.n_tables_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().n_tables.get()
     }
 
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.subtables_byte_range();
-        self.data
+        self.offset_data()
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
             .unwrap_or_default()
@@ -87,7 +101,7 @@ impl<'a> Kerx<'a> {
         let n_tables = self.n_tables();
         let start = self.n_tables_byte_range().end;
         let end = start + {
-            let data = self.data.split_off(start).unwrap_or_default();
+            let data = self.offset_data().split_off(start).unwrap_or_default();
             <Subtable as VarSize>::total_len_for_count(data, transforms::to_usize(n_tables))
                 .unwrap_or(0)
         };
@@ -100,7 +114,8 @@ const _: () = assert!(FontData::default_data_long_enough(Kerx::MIN_SIZE));
 impl Default for Kerx<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -111,7 +126,7 @@ impl<'a> MinByteRange<'a> for Subtable<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -125,14 +140,30 @@ impl<'a> FontRead<'a> for Subtable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SubtableFixedHeader {
+    pub length: BigEndian<u32>,
+    pub coverage: BigEndian<u32>,
+    pub tuple_count: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<SubtableFixedHeader>() <= Subtable::MIN_SIZE);
+
 /// A subtable in a `kerx` table.
 #[derive(Clone)]
 pub struct Subtable<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SubtableFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -142,26 +173,26 @@ impl<'a> Subtable<'a> {
 
     /// The length of this subtable in bytes, including this header.
     pub fn length(&self) -> u32 {
-        let range = self.length_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().length.get()
     }
 
     /// Circumstances under which this table is used.
     pub fn coverage(&self) -> u32 {
-        let range = self.coverage_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().coverage.get()
     }
 
     /// The tuple count. This value is only used with variation fonts and should be 0 for all other fonts. The subtable's tupleCount will be ignored if the 'kerx' table version is less than 4.
     pub fn tuple_count(&self) -> u32 {
-        let range = self.tuple_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().tuple_count.get()
     }
 
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
@@ -184,8 +215,8 @@ impl<'a> Subtable<'a> {
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.tuple_count_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -195,7 +226,8 @@ const _: () = assert!(FontData::default_data_long_enough(Subtable::MIN_SIZE));
 impl Default for Subtable<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -206,7 +238,7 @@ impl<'a> MinByteRange<'a> for Subtable0<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -220,14 +252,31 @@ impl<'a> FontRead<'a> for Subtable0<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Subtable0FixedHeader {
+    pub n_pairs: BigEndian<u32>,
+    pub search_range: BigEndian<u32>,
+    pub entry_selector: BigEndian<u32>,
+    pub range_shift: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Subtable0FixedHeader>() <= Subtable0::MIN_SIZE);
+
 /// The type 0 `kerx` subtable.
 #[derive(Clone)]
 pub struct Subtable0<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, Subtable0FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -238,32 +287,31 @@ impl<'a> Subtable0<'a> {
 
     /// The number of kerning pairs in this subtable.
     pub fn n_pairs(&self) -> u32 {
-        let range = self.n_pairs_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().n_pairs.get()
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
     pub fn search_range(&self) -> u32 {
-        let range = self.search_range_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().search_range.get()
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
     pub fn entry_selector(&self) -> u32 {
-        let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().entry_selector.get()
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
     pub fn range_shift(&self) -> u32 {
-        let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().range_shift.get()
     }
 
     /// Kerning records.
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.pairs_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn n_pairs_byte_range(&self) -> Range<usize> {
@@ -304,7 +352,8 @@ const _: () = assert!(FontData::default_data_long_enough(Subtable0::MIN_SIZE));
 impl Default for Subtable0<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

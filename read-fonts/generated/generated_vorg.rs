@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Vorg<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,30 @@ impl<'a> FontRead<'a> for Vorg<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct VorgFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub default_vert_origin_y: BigEndian<i16>,
+    pub num_vert_origin_y_metrics: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<VorgFixedHeader>() <= Vorg::MIN_SIZE);
+
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 #[derive(Clone)]
 pub struct Vorg<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, VorgFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,28 +63,28 @@ impl<'a> Vorg<'a> {
 
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// The y coordinate of a glyph’s vertical origin, in the font’s design
     /// coordinate system, to be used if no entry is present for the glyph
     /// in the vertOriginYMetrics array.
     pub fn default_vert_origin_y(&self) -> i16 {
-        let range = self.default_vert_origin_y_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().default_vert_origin_y.get()
     }
 
     /// Number of elements in the vertOriginYMetrics array.
     pub fn num_vert_origin_y_metrics(&self) -> u16 {
-        let range = self.num_vert_origin_y_metrics_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_vert_origin_y_metrics.get()
     }
 
     /// Array of VertOriginYMetrics records, sorted by glyph ID.
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
         let range = self.vert_origin_y_metrics_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -104,7 +120,8 @@ const _: () = assert!(FontData::default_data_long_enough(Vorg::MIN_SIZE));
 impl Default for Vorg<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
