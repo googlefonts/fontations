@@ -8,7 +8,7 @@ use crate::{
 use read_fonts::{
     collections::IntSet,
     tables::{layout::CoverageTable, math::*},
-    types::{GlyphId, GlyphId16, Offset16, Tag},
+    types::{GlyphId, Offset16, Tag},
     ArrayOfOffsets, FontData, FontRef, MinByteRange, ReadError, TableProvider,
 };
 
@@ -35,7 +35,7 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
             continue;
         };
         for (gid, construction) in coverage.iter().zip(constructions.iter()) {
-            if !glyphs.contains(GlyphId::from(gid)) {
+            if !glyphs.contains(gid) {
                 continue;
             }
             let Ok(construction) = construction else {
@@ -70,7 +70,7 @@ fn collect_values(
     indices: &mut IntSet<u32>,
 ) {
     for (glyph, record) in coverage.iter().zip(records) {
-        if plan.glyphset_mathed.contains(GlyphId::from(glyph)) {
+        if plan.glyphset_mathed.contains(glyph) {
             collect_value(record, data, plan, indices);
         }
     }
@@ -114,7 +114,7 @@ pub(crate) fn collect_variation_indices(font: &FontRef, plan: &Plan, indices: &m
         if let Some(Ok(kerns)) = info.math_kern_info() {
             if let Ok(coverage) = kerns.math_kern_coverage() {
                 for (glyph, record) in coverage.iter().zip(kerns.math_kern_info_records()) {
-                    if !plan.glyphset_mathed.contains(GlyphId::from(glyph)) {
+                    if !plan.glyphset_mathed.contains(glyph) {
                         continue;
                     }
                     for kern in [
@@ -149,7 +149,7 @@ pub(crate) fn collect_variation_indices(font: &FontRef, plan: &Plan, indices: &m
                 continue;
             };
             for (glyph, construction) in coverage.iter().zip(constructions.iter()) {
-                if !plan.glyphset_cmaped.contains(GlyphId::from(glyph)) {
+                if !plan.glyphset_cmaped.contains(glyph) {
                     continue;
                 }
                 if let Ok(construction) = construction {
@@ -171,9 +171,9 @@ fn read<T>(s: &mut Serializer, result: std::result::Result<T, ReadError>) -> Res
     result.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
 }
 
-fn map_glyph(plan: &Plan, s: &mut Serializer, gid: GlyphId16) -> Result<u16> {
+fn map_glyph(plan: &Plan, s: &mut Serializer, gid: impl Into<GlyphId>) -> Result<u16> {
     plan.glyph_map
-        .get(&GlyphId::from(gid))
+        .get(&gid.into())
         .and_then(|g| u16::try_from(g.to_u32()).ok())
         .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))
 }
@@ -226,7 +226,7 @@ fn copy_math_record_array(
     let count_pos = s.embed(0u16)?;
     let mut retained = Vec::new();
     for (gid, record) in coverage.iter().zip(records) {
-        if plan.glyphset_mathed.contains(GlyphId::from(gid)) {
+        if plan.glyphset_mathed.contains(gid) {
             let gid = map_glyph(plan, s, gid)?;
             copy_value(record, data, plan, s)?;
             retained.push(GlyphId::new(gid as u32));
@@ -304,7 +304,7 @@ impl SubsetTable<'_> for MathKernInfo<'_> {
         let count_pos = s.embed(0u16)?;
         let mut retained = Vec::new();
         for (gid, record) in coverage.iter().zip(self.math_kern_info_records()) {
-            if !plan.glyphset_mathed.contains(GlyphId::from(gid)) {
+            if !plan.glyphset_mathed.contains(gid) {
                 continue;
             }
             retained.push(GlyphId::new(map_glyph(plan, s, gid)? as u32));
@@ -351,7 +351,7 @@ impl SubsetTable<'_> for MathGlyphInfo<'_> {
             let retained = coverage
                 .iter()
                 .take(plan.font_num_glyphs)
-                .filter(|g| plan.glyphset_mathed.contains(GlyphId::from(*g)))
+                .filter(|g| plan.glyphset_mathed.contains(*g))
                 .map(|g| map_glyph(plan, s, g).map(|g| GlyphId::new(g as u32)))
                 .collect::<Result<Vec<_>>>()?;
             if !retained.is_empty() {
@@ -420,7 +420,7 @@ fn collect_coverage_and_indices(
     if let Some(coverage) = coverage {
         let coverage = read(s, coverage)?;
         for (index, gid) in coverage.iter().take(count).enumerate() {
-            if plan.glyphset_cmaped.contains(GlyphId::from(gid)) {
+            if plan.glyphset_cmaped.contains(gid) {
                 retained.push(GlyphId::new(map_glyph(plan, s, gid)? as u32));
                 indices.push(index);
             }

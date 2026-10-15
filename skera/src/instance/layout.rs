@@ -1,4 +1,6 @@
 //! Apply variation deltas while walking owned layout tables.
+#[cfg(test)]
+mod beyond64k_tests;
 mod features;
 mod owned;
 #[cfg(test)]
@@ -8,7 +10,7 @@ mod values;
 use super::{optimize, scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
 use features::{instance_features, own_feature_variations, remap_feature_conditions};
-use owned::{own_gpos, own_jstf};
+use owned::{own_gpos, own_gsub, own_jstf};
 use read_fonts::{
     tables::variations::{DeltaSetIndex, ItemVariationStore},
     types::{Compatible, F2Dot14, Tag},
@@ -211,8 +213,13 @@ impl super::Instance<LayoutContext<'_>> for read_fonts::tables::gpos::Gpos<'_> {
         let mut table = own_gpos(gpos)?;
         table.feature_variations = vars.into();
         table.lookup_list.apply(&ValuePass::Instance(context))?;
+        table.lookup_list2.apply(&ValuePass::Instance(context))?;
         instance_features(
-            &mut table.feature_list,
+            table
+                .feature_list2
+                .as_mut()
+                .or(table.feature_list.as_mut())
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             &mut table.feature_variations,
             context,
         )?;
@@ -234,10 +241,14 @@ impl super::Instance<LayoutContext<'_>> for read_fonts::tables::gsub::Gsub<'_> {
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             Tag::new(b"GSUB"),
         )?;
-        let mut table: write_fonts::tables::gsub::Gsub = gsub.to_owned_table();
+        let mut table = own_gsub(gsub);
         table.feature_variations = vars.into();
         instance_features(
-            &mut table.feature_list,
+            table
+                .feature_list2
+                .as_mut()
+                .or(table.feature_list.as_mut())
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             &mut table.feature_variations,
             context,
         )?;
@@ -273,7 +284,11 @@ impl super::Instance<LayoutContext<'_>> for read_fonts::tables::gdef::Gdef<'_> {
     type Output = Gdef;
     fn instance(&self, context: &mut LayoutContext<'_>) -> Result<Self::Output, SubsetError> {
         let mut table: Gdef = self.to_owned_table();
+        if table.lig_caret_list2.is_some() {
+            table.lig_caret_list = Default::default();
+        }
         table.lig_caret_list.apply(&ValuePass::Instance(context))?;
+        table.lig_caret_list2.apply(&ValuePass::Instance(context))?;
         Ok(table)
     }
 }
@@ -376,6 +391,7 @@ pub(super) fn instance_layout(
     if let Some(table) = &mut gpos_table {
         if !axes.all_pinned() {
             table.lookup_list.apply(&remap_context)?;
+            table.lookup_list2.apply(&remap_context)?;
             remap_feature_conditions(&mut table.feature_variations, &map);
         }
         output.gpos = Some(serialize(b"GPOS", table)?);
@@ -403,6 +419,7 @@ pub(super) fn instance_layout(
     if let Some(mut table) = gdef_table {
         if !axes.all_pinned() {
             table.lig_caret_list.apply(&remap_context)?;
+            table.lig_caret_list2.apply(&remap_context)?;
         }
         table.item_var_store = store
             .filter(|store| !store.item_variation_data.is_empty())

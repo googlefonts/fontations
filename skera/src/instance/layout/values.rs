@@ -121,6 +121,11 @@ impl<T: ApplyValues> ApplyValues for LookupList<T> {
         self.lookups.apply(c)
     }
 }
+impl<T: ApplyValues> ApplyValues for LookupList2<T> {
+    fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
+        self.lookups.apply(c)
+    }
+}
 impl<T: ApplyValues> ApplyValues for ExtensionPosFormat1<T> {
     fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
         self.extension.apply(c)
@@ -140,9 +145,14 @@ macro_rules! variants {
 }
 variants!(PositionLookup;Single,Pair,Cursive,MarkToBase,MarkToLig,MarkToMark,Extension;Contextual,ChainContextual);
 variants!(ExtensionSubtable;Single,Pair,Cursive,MarkToBase,MarkToLig,MarkToMark;Contextual,ChainContextual);
-variants!(SinglePos;Format1,Format2;);
-variants!(PairPos;Format1,Format2;);
+variants!(SinglePos;Format1,Format2,Format3,Format4;);
+variants!(CursivePos;Format1,Format2;);
+variants!(MarkBasePos;Format1,Format2;);
+variants!(MarkLigPos;Format1,Format2;);
+variants!(MarkMarkPos;Format1,Format2;);
+variants!(PairPos;Format1,Format2,Format3,Format4;);
 fields!(SinglePosFormat1;value_record);
+fields!(SinglePosFormat3;value_record);
 fn uniform_value_format<'a>(records: impl Iterator<Item = &'a mut ValueRecord>) {
     let records = records.collect::<Vec<_>>();
     let format = records.iter().fold(ValueFormat::empty(), |format, record| {
@@ -153,6 +163,13 @@ fn uniform_value_format<'a>(records: impl Iterator<Item = &'a mut ValueRecord>) 
     }
 }
 impl ApplyValues for SinglePosFormat2 {
+    fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
+        self.value_records.apply(c)?;
+        uniform_value_format(self.value_records.iter_mut());
+        Ok(())
+    }
+}
+impl ApplyValues for SinglePosFormat4 {
     fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
         self.value_records.apply(c)?;
         uniform_value_format(self.value_records.iter_mut());
@@ -177,9 +194,47 @@ impl ApplyValues for PairPosFormat1 {
         Ok(())
     }
 }
+impl ApplyValues for PairPosFormat3 {
+    fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
+        self.pair_sets.apply(c)?;
+        uniform_value_format(
+            self.pair_sets
+                .iter_mut()
+                .flat_map(|set| set.pair_value_records.iter_mut())
+                .map(|record| &mut record.value_record1),
+        );
+        uniform_value_format(
+            self.pair_sets
+                .iter_mut()
+                .flat_map(|set| set.pair_value_records.iter_mut())
+                .map(|record| &mut record.value_record2),
+        );
+        Ok(())
+    }
+}
 fields!(PairSet;pair_value_records);
+fields!(PairSet2;pair_value_records);
 fields!(PairValueRecord;value_record1,value_record2);
+fields!(PairValueRecord2;value_record1,value_record2);
 impl ApplyValues for PairPosFormat2 {
+    fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
+        self.class1_records.apply(c)?;
+        uniform_value_format(
+            self.class1_records
+                .iter_mut()
+                .flat_map(|class| class.class2_records.iter_mut())
+                .map(|record| &mut record.value_record1),
+        );
+        uniform_value_format(
+            self.class1_records
+                .iter_mut()
+                .flat_map(|class| class.class2_records.iter_mut())
+                .map(|record| &mut record.value_record2),
+        );
+        Ok(())
+    }
+}
+impl ApplyValues for PairPosFormat4 {
     fn apply(&mut self, c: &ValuePass) -> Result<(), SubsetError> {
         self.class1_records.apply(c)?;
         uniform_value_format(
@@ -200,20 +255,35 @@ impl ApplyValues for PairPosFormat2 {
 fields!(Class1Record;class2_records);
 fields!(Class2Record;value_record1,value_record2);
 fields!(CursivePosFormat1;entry_exit_record);
+fields!(CursivePosFormat2;entry_exit_record);
 fields!(EntryExitRecord;entry_anchor,exit_anchor);
+fields!(EntryExitRecord2;entry_anchor,exit_anchor);
 fields!(MarkBasePosFormat1;mark_array,base_array);
+fields!(MarkBasePosFormat2;mark_array,base_array);
 fields!(MarkArray;mark_records);
+fields!(MarkArray2;mark_records);
 fields!(MarkRecord;mark_anchor);
+fields!(MarkRecord2;mark_anchor);
 fields!(BaseArray;base_records);
+fields!(BaseArray2;base_records);
 fields!(BaseRecord;base_anchors);
+fields!(BaseRecord2;base_anchors);
 fields!(MarkLigPosFormat1;mark_array,ligature_array);
+fields!(MarkLigPosFormat2;mark_array,ligature_array);
 fields!(LigatureArray;ligature_attaches);
+fields!(LigatureArray2;ligature_attaches);
 fields!(LigatureAttach;component_records);
+fields!(LigatureAttach2;component_records);
 fields!(ComponentRecord;ligature_anchors);
+fields!(ComponentRecord2;ligature_anchors);
 fields!(MarkMarkPosFormat1;mark1_array,mark2_array);
+fields!(MarkMarkPosFormat2;mark1_array,mark2_array);
 fields!(Mark2Array;mark2_records);
+fields!(Mark2Array2;mark2_records);
 fields!(Mark2Record;mark2_anchors);
+fields!(Mark2Record2;mark2_anchors);
 fields!(LigCaretList;lig_glyphs);
+fields!(LigCaretList2;lig_glyphs);
 fields!(LigGlyph;caret_values);
 fields!(Axis;base_script_list);
 fields!(BaseScriptList;base_script_records);

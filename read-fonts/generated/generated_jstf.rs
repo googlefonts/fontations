@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Jstf<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,29 @@ impl<'a> FontRead<'a> for Jstf<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct JstfFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub jstf_script_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<JstfFixedHeader>() <= Jstf::MIN_SIZE);
+
 /// The [JSTF](https://learn.microsoft.com/en-us/typography/opentype/spec/jstf) table.
 #[derive(Clone)]
 pub struct Jstf<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, JstfFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,20 +62,21 @@ impl<'a> Jstf<'a> {
 
     /// Table version, 1.0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Number of script records.
     pub fn jstf_script_count(&self) -> u16 {
-        let range = self.jstf_script_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().jstf_script_count.get()
     }
 
     /// Script records, in alphabetical order by tag.
     pub fn jstf_script_records(&self) -> &'a [JstfScriptRecord] {
         let range = self.jstf_script_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -90,7 +106,8 @@ const _: () = assert!(FontData::default_data_long_enough(Jstf::MIN_SIZE));
 impl Default for Jstf<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -134,7 +151,7 @@ impl<'a> MinByteRange<'a> for JstfScript<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -148,14 +165,30 @@ impl<'a> FontRead<'a> for JstfScript<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct JstfScriptFixedHeader {
+    pub extender_glyph_offset: BigEndian<Nullable<Offset16>>,
+    pub def_jstf_lang_sys_offset: BigEndian<Nullable<Offset16>>,
+    pub jstf_lang_sys_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<JstfScriptFixedHeader>() <= JstfScript::MIN_SIZE);
+
 /// Justification data for a script.
 #[derive(Clone)]
 pub struct JstfScript<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, JstfScriptFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -165,35 +198,35 @@ impl<'a> JstfScript<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn extender_glyph_offset(&self) -> Nullable<Offset16> {
-        let range = self.extender_glyph_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().extender_glyph_offset.get()
     }
 
     /// Attempt to resolve [`extender_glyph_offset`][Self::extender_glyph_offset].
     pub fn extender_glyph(&self) -> Option<Result<ExtenderGlyph<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.extender_glyph_offset().resolve(data)
     }
 
     pub fn def_jstf_lang_sys_offset(&self) -> Nullable<Offset16> {
-        let range = self.def_jstf_lang_sys_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().def_jstf_lang_sys_offset.get()
     }
 
     /// Attempt to resolve [`def_jstf_lang_sys_offset`][Self::def_jstf_lang_sys_offset].
     pub fn def_jstf_lang_sys(&self) -> Option<Result<JstfLangSys<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.def_jstf_lang_sys_offset().resolve(data)
     }
 
     pub fn jstf_lang_sys_count(&self) -> u16 {
-        let range = self.jstf_lang_sys_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().jstf_lang_sys_count.get()
     }
 
     pub fn jstf_lang_sys_records(&self) -> &'a [JstfLangSysRecord] {
         let range = self.jstf_lang_sys_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn extender_glyph_offset_byte_range(&self) -> Range<usize> {
@@ -229,7 +262,8 @@ const _: () = assert!(FontData::default_data_long_enough(JstfScript::MIN_SIZE));
 impl Default for JstfScript<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -240,7 +274,7 @@ impl<'a> MinByteRange<'a> for ExtenderGlyph<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -254,14 +288,28 @@ impl<'a> FontRead<'a> for ExtenderGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct ExtenderGlyphFixedHeader {
+    pub glyph_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<ExtenderGlyphFixedHeader>() <= ExtenderGlyph::MIN_SIZE);
+
 /// Glyphs available for extending lines of text.
 #[derive(Clone)]
 pub struct ExtenderGlyph<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, ExtenderGlyphFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -270,13 +318,15 @@ impl<'a> ExtenderGlyph<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn glyph_count(&self) -> u16 {
-        let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().glyph_count.get()
     }
 
     pub fn extender_glyphs(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.extender_glyphs_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
@@ -299,7 +349,8 @@ const _: () = assert!(FontData::default_data_long_enough(ExtenderGlyph::MIN_SIZE
 impl Default for ExtenderGlyph<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -343,7 +394,7 @@ impl<'a> MinByteRange<'a> for JstfLangSys<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -357,14 +408,28 @@ impl<'a> FontRead<'a> for JstfLangSys<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct JstfLangSysFixedHeader {
+    pub jstf_priority_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<JstfLangSysFixedHeader>() <= JstfLangSys::MIN_SIZE);
+
 /// Justification priorities for a language system.
 #[derive(Clone)]
 pub struct JstfLangSys<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, JstfLangSysFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -373,13 +438,15 @@ impl<'a> JstfLangSys<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn jstf_priority_count(&self) -> u16 {
-        let range = self.jstf_priority_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().jstf_priority_count.get()
     }
 
     pub fn jstf_priority_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.jstf_priority_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn jstf_priority_count_byte_range(&self) -> Range<usize> {
@@ -402,7 +469,8 @@ const _: () = assert!(FontData::default_data_long_enough(JstfLangSys::MIN_SIZE))
 impl Default for JstfLangSys<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -413,7 +481,7 @@ impl<'a> MinByteRange<'a> for JstfPriority<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -427,14 +495,37 @@ impl<'a> FontRead<'a> for JstfPriority<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct JstfPriorityFixedHeader {
+    pub gsub_shrinkage_enable_offset: BigEndian<Nullable<Offset16>>,
+    pub gsub_shrinkage_disable_offset: BigEndian<Nullable<Offset16>>,
+    pub gpos_shrinkage_enable_offset: BigEndian<Nullable<Offset16>>,
+    pub gpos_shrinkage_disable_offset: BigEndian<Nullable<Offset16>>,
+    pub shrinkage_jstf_max_offset: BigEndian<Nullable<Offset16>>,
+    pub gsub_extension_enable_offset: BigEndian<Nullable<Offset16>>,
+    pub gsub_extension_disable_offset: BigEndian<Nullable<Offset16>>,
+    pub gpos_extension_enable_offset: BigEndian<Nullable<Offset16>>,
+    pub gpos_extension_disable_offset: BigEndian<Nullable<Offset16>>,
+    pub extension_jstf_max_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<JstfPriorityFixedHeader>() <= JstfPriority::MIN_SIZE);
+
 /// Suggestions for shrinking and extending a line at one priority level.
 #[derive(Clone)]
 pub struct JstfPriority<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, JstfPriorityFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -452,112 +543,102 @@ impl<'a> JstfPriority<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn gsub_shrinkage_enable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gsub_shrinkage_enable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gsub_shrinkage_enable_offset.get()
     }
 
     /// Attempt to resolve [`gsub_shrinkage_enable_offset`][Self::gsub_shrinkage_enable_offset].
     pub fn gsub_shrinkage_enable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gsub_shrinkage_enable_offset().resolve(data)
     }
 
     pub fn gsub_shrinkage_disable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gsub_shrinkage_disable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gsub_shrinkage_disable_offset.get()
     }
 
     /// Attempt to resolve [`gsub_shrinkage_disable_offset`][Self::gsub_shrinkage_disable_offset].
     pub fn gsub_shrinkage_disable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gsub_shrinkage_disable_offset().resolve(data)
     }
 
     pub fn gpos_shrinkage_enable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gpos_shrinkage_enable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gpos_shrinkage_enable_offset.get()
     }
 
     /// Attempt to resolve [`gpos_shrinkage_enable_offset`][Self::gpos_shrinkage_enable_offset].
     pub fn gpos_shrinkage_enable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gpos_shrinkage_enable_offset().resolve(data)
     }
 
     pub fn gpos_shrinkage_disable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gpos_shrinkage_disable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gpos_shrinkage_disable_offset.get()
     }
 
     /// Attempt to resolve [`gpos_shrinkage_disable_offset`][Self::gpos_shrinkage_disable_offset].
     pub fn gpos_shrinkage_disable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gpos_shrinkage_disable_offset().resolve(data)
     }
 
     pub fn shrinkage_jstf_max_offset(&self) -> Nullable<Offset16> {
-        let range = self.shrinkage_jstf_max_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().shrinkage_jstf_max_offset.get()
     }
 
     /// Attempt to resolve [`shrinkage_jstf_max_offset`][Self::shrinkage_jstf_max_offset].
-    pub fn shrinkage_jstf_max(&self) -> Option<Result<PositionLookupList<'a>, ReadError>> {
-        let data = self.data;
+    pub fn shrinkage_jstf_max(&self) -> Option<Result<JstfMax<'a>, ReadError>> {
+        let data = self.offset_data();
         self.shrinkage_jstf_max_offset().resolve(data)
     }
 
     pub fn gsub_extension_enable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gsub_extension_enable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gsub_extension_enable_offset.get()
     }
 
     /// Attempt to resolve [`gsub_extension_enable_offset`][Self::gsub_extension_enable_offset].
     pub fn gsub_extension_enable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gsub_extension_enable_offset().resolve(data)
     }
 
     pub fn gsub_extension_disable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gsub_extension_disable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gsub_extension_disable_offset.get()
     }
 
     /// Attempt to resolve [`gsub_extension_disable_offset`][Self::gsub_extension_disable_offset].
     pub fn gsub_extension_disable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gsub_extension_disable_offset().resolve(data)
     }
 
     pub fn gpos_extension_enable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gpos_extension_enable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gpos_extension_enable_offset.get()
     }
 
     /// Attempt to resolve [`gpos_extension_enable_offset`][Self::gpos_extension_enable_offset].
     pub fn gpos_extension_enable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gpos_extension_enable_offset().resolve(data)
     }
 
     pub fn gpos_extension_disable_offset(&self) -> Nullable<Offset16> {
-        let range = self.gpos_extension_disable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().gpos_extension_disable_offset.get()
     }
 
     /// Attempt to resolve [`gpos_extension_disable_offset`][Self::gpos_extension_disable_offset].
     pub fn gpos_extension_disable(&self) -> Option<Result<JstfModList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.gpos_extension_disable_offset().resolve(data)
     }
 
     pub fn extension_jstf_max_offset(&self) -> Nullable<Offset16> {
-        let range = self.extension_jstf_max_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().extension_jstf_max_offset.get()
     }
 
     /// Attempt to resolve [`extension_jstf_max_offset`][Self::extension_jstf_max_offset].
-    pub fn extension_jstf_max(&self) -> Option<Result<PositionLookupList<'a>, ReadError>> {
-        let data = self.data;
+    pub fn extension_jstf_max(&self) -> Option<Result<JstfMax<'a>, ReadError>> {
+        let data = self.offset_data();
         self.extension_jstf_max_offset().resolve(data)
     }
 
@@ -627,7 +708,8 @@ const _: () = assert!(FontData::default_data_long_enough(JstfPriority::MIN_SIZE)
 impl Default for JstfPriority<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -638,7 +720,7 @@ impl<'a> MinByteRange<'a> for JstfModList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -652,14 +734,28 @@ impl<'a> FontRead<'a> for JstfModList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct JstfModListFixedHeader {
+    pub lookup_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<JstfModListFixedHeader>() <= JstfModList::MIN_SIZE);
+
 /// Indices of GSUB or GPOS lookups to enable or disable.
 #[derive(Clone)]
 pub struct JstfModList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, JstfModListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -668,13 +764,15 @@ impl<'a> JstfModList<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn lookup_count(&self) -> u16 {
-        let range = self.lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().lookup_count.get()
     }
 
     pub fn lookup_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.lookup_indices_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn lookup_count_byte_range(&self) -> Range<usize> {
@@ -696,7 +794,8 @@ const _: () = assert!(FontData::default_data_long_enough(JstfModList::MIN_SIZE))
 impl Default for JstfModList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

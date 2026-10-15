@@ -265,6 +265,28 @@ The audit follow-ups [#2337](https://github.com/googlefonts/fontations/pull/2337
 reproductions for empty metric stores, width boundaries, trailing PairPos
 classes, and COLR sentinel maps without stores.
 
+## Integration with beyond64k tables
+
+Layout instancing follows the source header's selected script, feature, and
+lookup lists. A non-null extended offset takes precedence; the ignored original
+owned list is cleared before rebuilding the shared variation store. Both
+positioning widths use the same value and anchor passes. Empty value records
+need explicit source counts, including wide SinglePos records and PairPos class
+matrices, because their serialized records occupy zero bytes.
+
+Feature variations retain both classic alternate features and conditional lookup
+lists. Full instancing applies the first matching alternate feature, then unions
+the matching lookup lists with the defaults when requested. Partial instancing
+simplifies each condition and remaps its surviving store indices along with the
+classic conditions. Parsing uses the existing condition-depth and expansion
+budgets. See [the integration regressions](../src/instance/layout/beyond64k_tests.rs).
+
+JSTF's `JstfMax` uses the original Offset16 positioning lookup list independently
+of GPOS header selection. This alias is generated through the shared codegen
+plan; Skera has no separate generated tables. Widened COLR glyph paints recurse
+through the same paint traversal, and composite serialization checks the glyph
+ID width before writing it.
+
 ## Validation and remaining limits
 
 ```sh
@@ -300,7 +322,18 @@ and all 15 rejected cases produced identical errors. Every PR boundary builds
 with Rust 1.85; the retained class-context regressions also pass before the
 later feature branches are applied.
 
-Experimental cubic outlines require `spec_next`. Changes to axes referenced
-by retained VARC remain restricted. Unknown tables pass through; private or
+Integration with landed beyond64k commit `e1342bff` passed 2,549 tests across
+Skera, read-fonts, write-fonts, Skrifa, font-types, and codegen. The same 148 CLI
+cases produced 70 byte-identical outputs, 63 outputs with equivalent table
+contents after packing changes, and 15 identical rejections. Equivalence checks
+compare decoded changed tables, ignoring only the head checksum adjustment;
+unchanged tables retain their exact bytes. New regressions cover all eight wide
+positioning formats, empty record counts, conditional lookup lists, store-index
+remapping, and composite glyph ID widths and overflow.
+
+Cubic outlines use the upstream reader support; `spec_next` is retained as a
+compatibility feature. Instancing the extended GLYF/GVAR table family is not
+implemented by this stack. Changes to axes referenced by retained VARC remain
+restricted. Unknown tables pass through; private or
 future variation formats need their own handlers. Owned rebuilding performance
 remains an operation-specific review question.

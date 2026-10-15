@@ -7,7 +7,7 @@ use write_fonts::{
     NullableOffsetMarker,
 };
 
-fn store_bytes(rows: &[[i32; 2]]) -> Vec<u8> {
+pub(super) fn store_bytes(rows: &[[i32; 2]]) -> Vec<u8> {
     use write_fonts::tables::variations::*;
     let zero = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
     let pos = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE);
@@ -349,7 +349,9 @@ fn value_record_formats_merge_devices_and_new_base_fields_across_all_rows() {
         table.lookup_list.apply(&ValuePass::Instance(&c)).unwrap();
         let bytes = write_fonts::dump_table(&table).unwrap();
         let table = own_gpos(&ReadGpos::read(FontData::new(&bytes)).unwrap()).unwrap();
-        let PositionLookup::Single(single) = table.lookup_list.lookups[0].as_ref() else {
+        let PositionLookup::Single(single) =
+            table.lookup_list.as_ref().unwrap().lookups[0].as_ref()
+        else {
             panic!()
         };
         let SinglePos::Format2(single) = single.subtables[0].as_ref() else {
@@ -372,7 +374,8 @@ fn value_record_formats_merge_devices_and_new_base_fields_across_all_rows() {
                 Some(DeviceOrVariationIndex::Device(_))
             ));
         }
-        let PositionLookup::Pair(pair) = table.lookup_list.lookups[1].as_ref() else {
+        let PositionLookup::Pair(pair) = table.lookup_list.as_ref().unwrap().lookups[1].as_ref()
+        else {
             panic!()
         };
         let PairPos::Format1(pair1) = pair.subtables[0].as_ref() else {
@@ -390,7 +393,9 @@ fn value_record_formats_merge_devices_and_new_base_fields_across_all_rows() {
             }
         }
         // Extension wrappers must also retain zero-byte record counts.
-        let PositionLookup::Extension(ext) = table.lookup_list.lookups[2].as_ref() else {
+        let PositionLookup::Extension(ext) =
+            table.lookup_list.as_ref().unwrap().lookups[2].as_ref()
+        else {
             panic!()
         };
         let ExtensionSubtable::Single(ext) = ext.subtables[0].as_ref() else {
@@ -400,7 +405,9 @@ fn value_record_formats_merge_devices_and_new_base_fields_across_all_rows() {
             panic!()
         };
         assert_eq!(single.value_records.len(), 3);
-        let PositionLookup::Extension(ext) = table.lookup_list.lookups[3].as_ref() else {
+        let PositionLookup::Extension(ext) =
+            table.lookup_list.as_ref().unwrap().lookups[3].as_ref()
+        else {
             panic!()
         };
         let ExtensionSubtable::Pair(ext) = ext.subtables[1].as_ref() else {
@@ -674,6 +681,7 @@ fn subsetting_partial_instances_preserves_variable_feature_conditions() {
         ),
     );
     gpos.feature_variations = FeatureVariations {
+        lookup_variation_records: None,
         feature_variation_records: vec![FeatureVariationRecord {
             condition_set: ConditionSet {
                 conditions: vec![tree.into()],
@@ -733,10 +741,12 @@ fn subsetting_partial_instances_preserves_variable_feature_conditions() {
         .unwrap();
         let full = FontRef::new(&bytes).unwrap();
         let table: Gpos = full.gpos().unwrap().to_owned_table();
-        let index = table.feature_list.feature_records[0]
+        let index = table.feature_list.as_ref().unwrap().feature_records[0]
             .feature
             .lookup_list_indices[0] as usize;
-        let PositionLookup::Single(lookup) = table.lookup_list.lookups[index].as_ref() else {
+        let PositionLookup::Single(lookup) =
+            table.lookup_list.as_ref().unwrap().lookups[index].as_ref()
+        else {
             panic!()
         };
         let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
@@ -843,6 +853,7 @@ fn partial_feature_conditions_keep_priority_and_remap_axes() {
         .into(),
     };
     let mut vars: NullableOffsetMarker<FeatureVariations, 4> = FeatureVariations {
+        lookup_variation_records: None,
         feature_variation_records: vec![
             record(vec![range(0), range(1)], 1),
             record(vec![range(0)], 2),

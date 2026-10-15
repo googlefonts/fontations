@@ -385,12 +385,12 @@ pub struct JstfPriority {
     pub gsub_shrinkage_disable: NullableOffsetMarker<JstfModList>,
     pub gpos_shrinkage_enable: NullableOffsetMarker<JstfModList>,
     pub gpos_shrinkage_disable: NullableOffsetMarker<JstfModList>,
-    pub shrinkage_jstf_max: NullableOffsetMarker<PositionLookupList>,
+    pub shrinkage_jstf_max: NullableOffsetMarker<JstfMax>,
     pub gsub_extension_enable: NullableOffsetMarker<JstfModList>,
     pub gsub_extension_disable: NullableOffsetMarker<JstfModList>,
     pub gpos_extension_enable: NullableOffsetMarker<JstfModList>,
     pub gpos_extension_disable: NullableOffsetMarker<JstfModList>,
-    pub extension_jstf_max: NullableOffsetMarker<PositionLookupList>,
+    pub extension_jstf_max: NullableOffsetMarker<JstfMax>,
 }
 
 impl JstfPriority {
@@ -401,12 +401,12 @@ impl JstfPriority {
         gsub_shrinkage_disable: Option<JstfModList>,
         gpos_shrinkage_enable: Option<JstfModList>,
         gpos_shrinkage_disable: Option<JstfModList>,
-        shrinkage_jstf_max: Option<PositionLookupList>,
+        shrinkage_jstf_max: Option<JstfMax>,
         gsub_extension_enable: Option<JstfModList>,
         gsub_extension_disable: Option<JstfModList>,
         gpos_extension_enable: Option<JstfModList>,
         gpos_extension_disable: Option<JstfModList>,
-        extension_jstf_max: Option<PositionLookupList>,
+        extension_jstf_max: Option<JstfMax>,
     ) -> Self {
         Self {
             gsub_shrinkage_enable: gsub_shrinkage_enable.into(),
