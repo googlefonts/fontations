@@ -565,8 +565,7 @@ impl Serializer {
         let obj_idx = self.packed.len() - 1;
 
         if share {
-            self.packed_map
-                .set_with_hash(pool_idx, hash, obj_idx, &self.data, &self.object_pool);
+            self.packed_map.set_with_hash(pool_idx, hash, obj_idx);
         }
         Some(obj_idx)
     }
@@ -1070,14 +1069,7 @@ impl PoolIdxHashTable {
             .map(|entry| &entry.idx)
     }
 
-    fn set_with_hash(
-        &mut self,
-        pool_idx: PoolIdx,
-        hash: u64,
-        obj_idx: ObjIdx,
-        _data: &[u8],
-        _obj_pool: &ObjectPool,
-    ) {
+    fn set_with_hash(&mut self, pool_idx: PoolIdx, hash: u64, obj_idx: ObjIdx) {
         self.hash_table.insert_unique(
             hash,
             PoolIdxEntry {
@@ -1290,7 +1282,7 @@ mod test {
         assert_ne!(hash_0, hash_3);
         assert_ne!(hash_2, hash_3);
 
-        hash_table.set_with_hash(0, hash_0, 0, &data, &obj_pool);
+        hash_table.set_with_hash(0, hash_0, 0);
         assert_eq!(
             hash_table.get_with_hash(1, hash_1, &data, &obj_pool),
             Some(&(0, 0))
@@ -1298,13 +1290,13 @@ mod test {
         assert_eq!(hash_table.get_with_hash(2, hash_2, &data, &obj_pool), None);
         assert_eq!(hash_table.get_with_hash(3, hash_3, &data, &obj_pool), None);
 
-        hash_table.set_with_hash(2, hash_2, 2, &data, &obj_pool);
+        hash_table.set_with_hash(2, hash_2, 2);
         assert_eq!(
             hash_table.get_with_hash(2, hash_2, &data, &obj_pool),
             Some(&(2, 2))
         );
 
-        hash_table.set_with_hash(3, hash_3, 3, &data, &obj_pool);
+        hash_table.set_with_hash(3, hash_3, 3);
         assert_eq!(
             hash_table.get_with_hash(3, hash_3, &data, &obj_pool),
             Some(&(3, 3))
