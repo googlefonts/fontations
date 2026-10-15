@@ -272,7 +272,9 @@ lookup lists. A non-null extended offset takes precedence; the ignored original
 owned list is cleared before rebuilding the shared variation store. Both
 positioning widths use the same value and anchor passes. Empty value records
 need explicit source counts, including wide SinglePos records and PairPos class
-matrices, because their serialized records occupy zero bytes.
+matrices, because their serialized records occupy zero bytes. Reconstruction
+charges row allocations even when there are no columns; a zero-row matrix
+does not allocate a temporary column vector.
 
 Feature variations retain both classic alternate features and conditional lookup
 lists. Full instancing applies the first matching alternate feature, then unions
@@ -322,8 +324,10 @@ and all 15 rejected cases produced identical errors. Every PR boundary builds
 with Rust 1.85; the retained class-context regressions also pass before the
 later feature branches are applied.
 
-Integration with landed beyond64k commit `e1342bff` passed 2,549 tests across
-Skera, read-fonts, write-fonts, Skrifa, font-types, and codegen. The same 148 CLI
+Integration with landed beyond64k commit `e1342bff` passed 2,551 tests across
+Skera, read-fonts, write-fonts, Skrifa, font-types, and codegen. All 67 PR
+boundaries build with Rust 1.85 and pass Skera unit tests; the Clippy checks use
+Rust 1.89 with all targets/features and warnings denied. The same 148 CLI
 cases produced 70 byte-identical outputs, 63 outputs with equivalent table
 contents after packing changes, and 15 identical rejections. Equivalence checks
 compare decoded changed tables, ignoring only the head checksum adjustment;
