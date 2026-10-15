@@ -15,3 +15,8 @@ Describes the provenance, usage and generation procedures for font data used for
     ```
 
 [OFL]: https://scripts.sil.org/cms/scripts/page.php?site_id=nrsi&id=OFL
+
+The `tt-instance-*.ttf` references are full instances of the existing fixtures,
+generated with the local HarfBuzz subsetter using `--gids=* --notdef-outline
+--name-IDs=*`. Requests and source fonts are listed in
+`tests/truetype_instance_test.rs`; these references retain the source licenses.
