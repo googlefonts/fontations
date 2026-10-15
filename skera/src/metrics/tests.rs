@@ -161,3 +161,50 @@ fn metric_subsets_reject_missing_source_side_bearings() {
         }
     }
 }
+
+#[test]
+fn dropped_extended_metrics_leave_the_original_tables_to_subset() {
+    for vertical in [false, true] {
+        let narrow_bytes = source(vertical, false, false, false);
+        let wide_bytes = source(vertical, true, true, false);
+        let narrow = FontRef::new(&narrow_bytes).unwrap();
+        let wide = FontRef::new(&wide_bytes).unwrap();
+        let (metric_tag, header_tag) = tags(vertical, false);
+        let (wide_metric_tag, wide_header_tag) = tags(vertical, true);
+        let mut builder = FontBuilder::new();
+        for (font, tag) in [
+            (&narrow, metric_tag),
+            (&narrow, header_tag),
+            (&narrow, Tag::new(b"MAXP")),
+            (&wide, wide_metric_tag),
+            (&wide, wide_header_tag),
+        ] {
+            let mut data = font.table_data(tag).unwrap().as_bytes().to_vec();
+            // The dropped metrics are too short to read.
+            if tag == wide_metric_tag {
+                data.truncate(4);
+            }
+            builder.add_raw(tag, data);
+        }
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let gids: IntSet<GlyphId> = (0..25u32).map(GlyphId::new).collect();
+        let dropped: IntSet<Tag> = [wide_metric_tag, wide_header_tag].into_iter().collect();
+        let plan = Plan::new(
+            &gids,
+            &Default::default(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_DEFAULT,
+            &dropped,
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+        );
+        let bytes = subset_font(&font, &plan).unwrap();
+        let subset = FontRef::new(&bytes).unwrap();
+        assert!(subset.table_data(wide_metric_tag).is_none());
+        let records = records(&subset, vertical);
+        assert_eq!(records.advance(GlyphId::new(3)), Some(advance(3, 25)));
+    }
+}

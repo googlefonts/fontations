@@ -8,11 +8,5 @@ use read_fonts::{
     TableProvider, TopLevelTable,
 };
 
-crate::metrics::subset_metrics_table!(Vmtx, Vhea, v_glyph_metric_records, vhea, false);
-crate::metrics::subset_metrics_table!(
-    VmtxExtended,
-    VheaExtended,
-    v_glyph_metric_records,
-    vhea_extended,
-    true
-);
+crate::metrics::subset_metrics_table!(Vmtx, Vhea, vhea, false);
+crate::metrics::subset_metrics_table!(VmtxExtended, VheaExtended, vhea_extended, true);

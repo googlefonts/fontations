@@ -122,22 +122,37 @@ pub struct GlyphMetricRecords<'a> {
     pub(crate) bearings: &'a [BigEndian<i16>],
 }
 
+/// The records of one table, whichever the font would select.
+macro_rules! glyph_metric_records_from {
+    ($($table:ty => $metrics:ident, $bearings:ident;)*) => {
+        $(
+            impl<'a> From<$table> for GlyphMetricRecords<'a> {
+                fn from(table: $table) -> Self {
+                    Self {
+                        metrics: table.$metrics(),
+                        bearings: table.$bearings(),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+glyph_metric_records_from! {
+    Hmtx<'a> => h_metrics, left_side_bearings;
+    HmtxExtended<'a> => h_metrics, left_side_bearings;
+    super::vmtx::Vmtx<'a> => v_metrics, top_side_bearings;
+    super::vmtx::VmtxExtended<'a> => v_metrics, top_side_bearings;
+}
+
 impl<'a> GlyphMetricRecords<'a> {
     pub(crate) fn read_horizontal(
         tables: &(impl TableProvider<'a> + ?Sized),
     ) -> Result<Self, ReadError> {
         prefer_extended(
-            tables.hmtx_extended().map(|table| Self {
-                metrics: table.h_metrics(),
-                bearings: table.left_side_bearings(),
-            }),
+            tables.hmtx_extended().map(Self::from),
             Tag::new(b"HMTX"),
-            || {
-                tables.hmtx().map(|table| Self {
-                    metrics: table.h_metrics(),
-                    bearings: table.left_side_bearings(),
-                })
-            },
+            || tables.hmtx().map(Self::from),
         )
     }
 
@@ -145,17 +160,9 @@ impl<'a> GlyphMetricRecords<'a> {
         tables: &(impl TableProvider<'a> + ?Sized),
     ) -> Result<Self, ReadError> {
         prefer_extended(
-            tables.vmtx_extended().map(|table| Self {
-                metrics: table.v_metrics(),
-                bearings: table.top_side_bearings(),
-            }),
+            tables.vmtx_extended().map(Self::from),
             Tag::new(b"VMTX"),
-            || {
-                tables.vmtx().map(|table| Self {
-                    metrics: table.v_metrics(),
-                    bearings: table.top_side_bearings(),
-                })
-            },
+            || tables.vmtx().map(Self::from),
         )
     }
 
