@@ -216,7 +216,7 @@ impl<'a> OutlinePlan<'a> {
                 for (component, flags) in composite.component_glyphs_and_flags() {
                     self.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
                     let Some(component_glyph) = context
-                        .glyph(component.into())
+                        .glyph(component)
                         .ok_or(OutlineError::MissingGlyph)?
                         .into_glyph()
                     else {

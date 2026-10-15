@@ -20,14 +20,26 @@ impl<'a> FontRead<'a> for Glyf<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyfFixedHeader {}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GlyfFixedHeader>() <= Glyf::MIN_SIZE);
+
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 #[derive(Clone)]
 pub struct Glyf<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyfFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -42,7 +54,8 @@ const _: () = assert!(FontData::default_data_long_enough(Glyf::MIN_SIZE));
 impl Default for Glyf<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -53,7 +66,7 @@ impl<'a> MinByteRange<'a> for SimpleGlyph<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -67,14 +80,32 @@ impl<'a> FontRead<'a> for SimpleGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SimpleGlyphFixedHeader {
+    pub number_of_contours: BigEndian<i16>,
+    pub x_min: BigEndian<i16>,
+    pub y_min: BigEndian<i16>,
+    pub x_max: BigEndian<i16>,
+    pub y_max: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<SimpleGlyphFixedHeader>() <= SimpleGlyph::MIN_SIZE);
+
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 #[derive(Clone)]
 pub struct SimpleGlyph<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SimpleGlyphFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -91,39 +122,37 @@ impl<'a> SimpleGlyph<'a> {
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
-        let range = self.number_of_contours_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().number_of_contours.get()
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
-        let range = self.x_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_min.get()
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
-        let range = self.y_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_min.get()
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
-        let range = self.x_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_max.get()
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
-        let range = self.y_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_max.get()
     }
 
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
     pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
         let range = self.end_pts_of_contours_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Total number of bytes for instructions. If instructionLength is
@@ -131,19 +160,28 @@ impl<'a> SimpleGlyph<'a> {
     /// field is followed directly by the flags field.
     pub fn instruction_length(&self) -> u16 {
         let range = self.instruction_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Array of instruction byte code for the glyph.
     pub fn instructions(&self) -> &'a [u8] {
         let range = self.instructions_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// the raw data for flags & x/y coordinates
     pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.glyph_data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
@@ -200,8 +238,8 @@ impl<'a> SimpleGlyph<'a> {
 
     pub fn glyph_data_byte_range(&self) -> Range<usize> {
         let start = self.instructions_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -211,7 +249,8 @@ const _: () = assert!(FontData::default_data_long_enough(SimpleGlyph::MIN_SIZE))
 impl Default for SimpleGlyph<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -296,10 +335,8 @@ impl SimpleGlyphFlags {
     /// for the glyph. See additional details below.
     pub const OVERLAP_SIMPLE: Self = Self { bits: 0x40 };
 
-    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment
-    ///
-    /// * [Spec](https://github.com/harfbuzz/boring-expansion-spec/blob/main/glyf1-cubicOutlines.md)
-    /// * [harfbuzz](https://github.com/harfbuzz/harfbuzz/blob/c1ca46e4ebb6457dfe00a5441d52a4a66134ac58/src/OT/glyf/SimpleGlyph.hh#L23)
+    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment in GLYF
+    /// (ISO/IEC 14496-22:2026, 5.2.8).
     pub const CUBIC: Self = Self { bits: 0x80 };
 }
 
@@ -613,7 +650,7 @@ impl<'a> MinByteRange<'a> for CompositeGlyph<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -627,14 +664,32 @@ impl<'a> FontRead<'a> for CompositeGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CompositeGlyphFixedHeader {
+    pub number_of_contours: BigEndian<i16>,
+    pub x_min: BigEndian<i16>,
+    pub y_min: BigEndian<i16>,
+    pub x_max: BigEndian<i16>,
+    pub y_max: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<CompositeGlyphFixedHeader>() <= CompositeGlyph::MIN_SIZE);
+
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 #[derive(Clone)]
 pub struct CompositeGlyph<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, CompositeGlyphFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -650,39 +705,37 @@ impl<'a> CompositeGlyph<'a> {
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
-        let range = self.number_of_contours_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().number_of_contours.get()
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
-        let range = self.x_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_min.get()
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
-        let range = self.y_min_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_min.get()
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
-        let range = self.x_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_max.get()
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
-        let range = self.y_max_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_max.get()
     }
 
     /// component flag
     /// glyph index of component
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.component_data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
@@ -717,8 +770,8 @@ impl<'a> CompositeGlyph<'a> {
 
     pub fn component_data_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -728,7 +781,8 @@ const _: () = assert!(FontData::default_data_long_enough(CompositeGlyph::MIN_SIZ
 impl Default for CompositeGlyph<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -796,6 +850,10 @@ impl CompositeGlyphFlags {
     /// Bit 12: The composite is designed not to have the component
     /// offset scaled. Ignored if ARGS_ARE_XY_VALUES is not set.
     pub const UNSCALED_COMPONENT_OFFSET: Self = Self { bits: 0x1000 };
+
+    /// Bit 13: The component glyph identifier uses 24-bit encoding in GLYF
+    /// (ISO/IEC 14496-22:2026, 5.2.8).
+    pub const GID_IS_24_BIT: Self = Self { bits: 0x2000 };
 }
 
 impl CompositeGlyphFlags {
@@ -820,7 +878,8 @@ impl CompositeGlyphFlags {
                 | Self::USE_MY_METRICS.bits
                 | Self::OVERLAP_COMPOUND.bits
                 | Self::SCALED_COMPONENT_OFFSET.bits
-                | Self::UNSCALED_COMPONENT_OFFSET.bits,
+                | Self::UNSCALED_COMPONENT_OFFSET.bits
+                | Self::GID_IS_24_BIT.bits,
         }
     }
 
@@ -1051,6 +1110,7 @@ impl std::fmt::Debug for CompositeGlyphFlags {
             ("OVERLAP_COMPOUND", Self::OVERLAP_COMPOUND),
             ("SCALED_COMPONENT_OFFSET", Self::SCALED_COMPONENT_OFFSET),
             ("UNSCALED_COMPONENT_OFFSET", Self::UNSCALED_COMPONENT_OFFSET),
+            ("GID_IS_24_BIT", Self::GID_IS_24_BIT),
         ];
         let mut first = true;
         for (name, value) in members {
@@ -1174,6 +1234,7 @@ impl ReadArgs for Glyph<'_> {
 }
 
 impl<'a> FontRead<'a> for Glyph<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: i16 = data.read_at(0usize)?;
 
