@@ -22,6 +22,8 @@ scaler_test = []
 # experimental support for incremental font transfer (https://www.w3.org/TR/IFT/)
 # code behind this feature does not honor semver and may break at any time.
 ift = []
+# Does nothing. The cubic outlines it once enabled are now always read.
+spec_next = []
 # Enables support for a new font API, as proposed at
 # https://github.com/googlefonts/oxidize/pull/77
 experimental_font_api = []

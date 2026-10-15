@@ -22,6 +22,8 @@ std = ["read-fonts/std"]
 # This exists as a feature because shaping support is "best effort" and
 # we want the ability to disable it for testing against FreeType.
 autohint_shaping = []
+# Does nothing. The cubic outlines it once enabled are now always read.
+spec_next = ["read-fonts/spec_next"]
 libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dependencies]
