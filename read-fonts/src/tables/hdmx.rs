@@ -56,11 +56,11 @@ impl<'a> DeviceRecord<'a> {
 crate::impl_font_read_at!(DeviceRecord<'a>);
 
 impl ReadArgs for DeviceRecord<'_> {
-    type Args = (u16, u32);
+    type Args = (u32, u32);
 }
 
 impl ComputeSize for DeviceRecord<'_> {
-    fn compute_size(args: (u16, u32)) -> Result<usize, ReadError> {
+    fn compute_size(args: (u32, u32)) -> Result<usize, ReadError> {
         let (_num_glyphs, size_device_record) = args;
         // Record size is explicitly defined in the parent hdmx table
         Ok(size_device_record as usize)
@@ -68,7 +68,7 @@ impl ComputeSize for DeviceRecord<'_> {
 }
 
 impl<'a> FontRead<'a> for DeviceRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: (u16, u32)) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: (u32, u32)) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let (num_glyphs, _size_device_record) = args;
         Ok(Self {
@@ -87,7 +87,7 @@ impl<'a> DeviceRecord<'a> {
     /// parsed.
     pub fn read(
         data: FontData<'a>,
-        num_glyphs: u16,
+        num_glyphs: u32,
         size_device_record: u32,
     ) -> Result<Self, ReadError> {
         let args = (num_glyphs, size_device_record);
