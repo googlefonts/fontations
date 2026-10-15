@@ -124,23 +124,6 @@ impl Object {
 
         self.virtual_links.push(link);
     }
-
-    pub(crate) fn head(&self) -> usize {
-        self.head
-    }
-
-    pub(crate) fn tail(&self) -> usize {
-        self.tail
-    }
-
-    // used by repacker only
-    pub(crate) fn real_links(&self) -> Vec<Link> {
-        self.real_links.clone()
-    }
-
-    pub(crate) fn virtual_links(&self) -> Vec<Link> {
-        self.virtual_links.clone()
-    }
 }
 
 // LinkWidth: 0->virtual_link, 2->offset16, 3->offset24 and 4->offset32
@@ -918,13 +901,28 @@ impl Serializer {
         &self.packed
     }
 
-    // used by graph only
-    pub(crate) fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
-        self.object_pool.get_obj(pool_idx)
+    /// Moves the serialization buffer out, leaving the serializer's buffer empty.
+    ///
+    /// Used by the repacker, which takes over the object graph instead of copying it.
+    pub(crate) fn take_data(&mut self) -> Vec<u8> {
+        mem::take(&mut self.data)
     }
 
-    pub(crate) fn data(&self) -> Vec<u8> {
-        self.data.clone()
+    /// Returns a packed object's head and tail, and moves its real and virtual links
+    /// out, leaving the object without links.
+    ///
+    /// Used by the repacker, which takes over the object graph instead of copying it.
+    pub(crate) fn take_object(
+        &mut self,
+        pool_idx: PoolIdx,
+    ) -> Option<(usize, usize, Vec<Link>, Vec<Link>)> {
+        let obj = self.object_pool.get_obj_mut(pool_idx)?;
+        Some((
+            obj.head,
+            obj.tail,
+            mem::take(&mut obj.real_links),
+            mem::take(&mut obj.virtual_links),
+        ))
     }
 }
 

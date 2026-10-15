@@ -4,7 +4,7 @@
 use crate::FastHashMap;
 use crate::{
     priority_queue::PriorityQueue,
-    serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
+    serialize::{Link, LinkWidth, ObjIdx, OffsetWhence, SerializeErrorFlags, Serializer},
 };
 use write_fonts::{read::collections::IntSet, types::Uint24};
 
@@ -236,12 +236,17 @@ pub(crate) struct Vertex {
 }
 
 impl Vertex {
-    fn from_object(obj: &Object) -> Self {
+    fn from_object(
+        head: usize,
+        tail: usize,
+        real_links: Vec<Link>,
+        virtual_links: Vec<Link>,
+    ) -> Self {
         Self {
-            head: obj.head(),
-            tail: obj.tail(),
-            real_links: RealLinks::Unsorted(obj.real_links()),
-            virtual_links: obj.virtual_links(),
+            head,
+            tail,
+            real_links: RealLinks::Unsorted(real_links),
+            virtual_links,
             ..Default::default()
         }
     }
@@ -554,9 +559,10 @@ pub(crate) struct Graph {
 }
 
 impl Graph {
-    pub(crate) fn from_serializer(s: &Serializer) -> Result<Self, RepackError> {
-        let packed_obj_idxs = s.packed_idxs();
-        let count = packed_obj_idxs.len();
+    /// Builds a graph from a serializer, taking over its buffer and links
+    /// instead of copying them.
+    pub(crate) fn from_serializer(mut s: Serializer) -> Result<Self, RepackError> {
+        let count = s.packed_idxs().len();
         if count > MAX_VERTICES {
             return Err(RepackError::ErrorMaxOperationsExceeded);
         }
@@ -565,7 +571,7 @@ impl Graph {
             vertices: Vec::with_capacity(count),
             ordering: Vec::with_capacity(count),
             ordering_scratch: Vec::with_capacity(count),
-            data: s.data(),
+            data: s.take_data(),
             parents_invalid: true,
             positions_invalid: true,
             distance_invalid: true,
@@ -573,12 +579,12 @@ impl Graph {
         };
 
         this.num_roots_for_space.push(1);
-        for idx in packed_obj_idxs.iter() {
-            let obj = s
-                .get_obj(*idx)
+        for i in 0..count {
+            let pool_idx = s.packed_idxs()[i];
+            let (head, tail, real_links, virtual_links) = s
+                .take_object(pool_idx)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-
-            let v = Vertex::from_object(obj);
+            let v = Vertex::from_object(head, tail, real_links, virtual_links);
             if !v.link_positions_valid(count) {
                 return Err(RepackError::GraphErrorInvalidLinkPosition);
             }
@@ -2170,9 +2176,11 @@ pub(crate) mod test {
         let buf_size = 100;
         let mut s1 = Serializer::new(buf_size);
         populate_serializer_simple(&mut s1);
-        let graph = Graph::from_serializer(&s1).unwrap();
+        let graph = Graph::from_serializer(s1).unwrap();
 
-        let expected_bytes = s1.copy_bytes();
+        let mut s2 = Serializer::new(buf_size);
+        populate_serializer_simple(&mut s2);
+        let expected_bytes = s2.copy_bytes();
         let out = graph.serialize().unwrap();
         assert_eq!(out, expected_bytes);
     }
@@ -2184,7 +2192,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_complex_2(&mut a);
 
-        let mut graph = Graph::from_serializer(&a).unwrap();
+        let mut graph = Graph::from_serializer(a).unwrap();
         assert!(graph.sort_shortest_distance().is_ok());
         graph.normalize();
 
@@ -2209,7 +2217,7 @@ pub(crate) mod test {
         e.pop_pack(false);
         e.end_serialize();
 
-        let mut expected_graph = Graph::from_serializer(&e).unwrap();
+        let mut expected_graph = Graph::from_serializer(e).unwrap();
         expected_graph.normalize();
 
         assert_eq!(graph, expected_graph);
@@ -2220,7 +2228,7 @@ pub(crate) mod test {
         let buf_size = 100;
         let mut s = Serializer::new(buf_size);
         populate_serializer_complex_2(&mut s);
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
 
         assert!(!graph.has_overflows());
     }
@@ -2230,7 +2238,7 @@ pub(crate) mod test {
         let buf_size = 160000;
         let mut s = Serializer::new(buf_size);
         populate_serializer_with_overflow(&mut s);
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
 
         assert!(graph.has_overflows());
     }
@@ -2240,7 +2248,7 @@ pub(crate) mod test {
         let buf_size = 160000;
         let mut s = Serializer::new(buf_size);
         populate_serializer_with_dedup_overflow(&mut s);
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
 
         assert!(graph.has_overflows());
     }
@@ -2250,7 +2258,7 @@ pub(crate) mod test {
         let buf_size = 100;
         let mut a = Serializer::new(buf_size);
         populate_serializer_complex_2(&mut a);
-        let mut graph = Graph::from_serializer(&a).unwrap();
+        let mut graph = Graph::from_serializer(a).unwrap();
         graph.normalize();
 
         let mut e = Serializer::new(buf_size);
@@ -2276,7 +2284,7 @@ pub(crate) mod test {
 
         e.pop_pack(false).unwrap();
 
-        let mut expected = Graph::from_serializer(&e).unwrap();
+        let mut expected = Graph::from_serializer(e).unwrap();
         expected.normalize();
         assert_eq!(graph, expected);
     }
@@ -2286,7 +2294,7 @@ pub(crate) mod test {
         let buf_size = 100;
         let mut c = Serializer::new(buf_size);
         populate_serializer_complex_3(&mut c);
-        let mut graph = Graph::from_serializer(&c).unwrap();
+        let mut graph = Graph::from_serializer(c).unwrap();
         graph.remap_child(3, 2, 3).unwrap();
 
         let data_bytes = &graph.data;
@@ -2361,7 +2369,7 @@ pub(crate) mod test {
         c.pop_pack(true).unwrap();
         c.end_serialize();
 
-        let graph = Graph::from_serializer(&c).unwrap();
+        let graph = Graph::from_serializer(c).unwrap();
         let d_1 = &graph.vertices[obj_d_1];
         assert_eq!(d_1.virtual_links.len(), 2);
         assert_eq!(d_1.virtual_links[0].obj_idx(), obj_b);
@@ -2381,7 +2389,7 @@ pub(crate) mod test {
         }
         s.end_serialize();
 
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
 
         // Test find_subgraph_nodes (set)
         let mut visited_set = IntSet::empty();
@@ -2437,7 +2445,7 @@ pub(crate) mod test {
         s.pop_pack(false).unwrap();
         s.end_serialize();
 
-        let graph = Graph::from_serializer(&s).unwrap();
+        let graph = Graph::from_serializer(s).unwrap();
 
         let mut roots = IntSet::empty();
         let mut queue = Vec::new();
@@ -2472,7 +2480,7 @@ pub(crate) mod test {
         s2.pop_pack(false).unwrap();
         s2.end_serialize();
 
-        let graph2 = Graph::from_serializer(&s2).unwrap();
+        let graph2 = Graph::from_serializer(s2).unwrap();
 
         let mut roots2 = IntSet::empty();
         let mut queue = Vec::new();
