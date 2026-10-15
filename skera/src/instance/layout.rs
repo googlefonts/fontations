@@ -595,14 +595,27 @@ fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError
     use read_fonts::tables::gpos as read;
     let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
     let mut table: Gpos = source.to_owned_table();
+    let lookups: Vec<&mut PositionLookup> = if let Some(list) = table.lookup_list2.as_mut() {
+        table.lookup_list = Default::default();
+        list.lookups.iter_mut().map(|v| v.as_mut()).collect()
+    } else {
+        table
+            .lookup_list
+            .as_mut()
+            .ok_or_else(error)?
+            .lookups
+            .iter_mut()
+            .map(|v| v.as_mut())
+            .collect()
+    };
     for (source, target) in source
         .lookup_list()
         .map_err(|_| error())?
         .lookups()
         .iter()
-        .zip(&mut table.lookup_list.lookups)
+        .zip(lookups)
     {
-        match (source.map_err(|_| error())?, target.as_mut()) {
+        match (source.map_err(|_| error())?, target) {
             (read::PositionLookup::Pair(source), PositionLookup::Pair(target)) => {
                 for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
                     own_empty_pairs(source.map_err(|_| error())?, target.as_mut())?;
@@ -998,6 +1011,7 @@ mod tests {
             ),
         );
         gpos.feature_variations = FeatureVariations {
+            lookup_variation_records: None,
             feature_variation_records: vec![FeatureVariationRecord {
                 condition_set: ConditionSet {
                     conditions: vec![tree.into()],
@@ -1057,10 +1071,12 @@ mod tests {
             .unwrap();
             let full = FontRef::new(&bytes).unwrap();
             let table: Gpos = full.gpos().unwrap().to_owned_table();
-            let index = table.feature_list.feature_records[0]
+            let index = table.feature_list.as_ref().unwrap().feature_records[0]
                 .feature
                 .lookup_list_indices[0] as usize;
-            let PositionLookup::Single(lookup) = table.lookup_list.lookups[index].as_ref() else {
+            let PositionLookup::Single(lookup) =
+                table.lookup_list.as_ref().unwrap().lookups[index].as_ref()
+            else {
                 panic!()
             };
             let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
