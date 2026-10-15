@@ -335,7 +335,7 @@ impl Encoding {
 
     /// Returns the index of this encoding's record in the `cmap` table, or
     /// `None` for an encoding from DMAP or a Type 1 font.
-    pub fn sfnt_index(self) -> Option<u32> {
+    pub fn cmap_index(self) -> Option<u32> {
         self.record_index().filter(|_| self.index & Self::DMAP == 0)
     }
 
@@ -864,7 +864,7 @@ mod tests {
         let encoding = font.charmap().encodings().next().unwrap();
         assert_eq!(encoding.sfnt_tag(), Some(Tag::new(b"DMAP")));
         // The index is into DMAP, so it is not an index into cmap.
-        assert_eq!(encoding.sfnt_index(), None);
+        assert_eq!(encoding.cmap_index(), None);
         assert_eq!(encoding.dmap_index(), Some(0));
         assert_eq!(font.charmap().map_code(encoding, 65), Some(GlyphId::new(3)));
     }
@@ -903,7 +903,7 @@ mod tests {
         let cmap = direct.cmap().unwrap();
         let encodings: Vec<_> = font.charmap().encodings().collect();
         for encoding in &encodings {
-            let index = encoding.sfnt_index().unwrap() as usize;
+            let index = encoding.cmap_index().unwrap() as usize;
             let record = &cmap.encoding_records()[index];
             assert_eq!(
                 encoding.sfnt_ids(),
@@ -937,7 +937,7 @@ mod tests {
             .iter()
             .find(|encoding| encoding.kind() == EncodingKind::Unicode)
             .unwrap();
-        assert_eq!(unicode.sfnt_index(), None);
+        assert_eq!(unicode.cmap_index(), None);
         assert_eq!(
             font.charmap().map_code(*unicode, 'H' as u32),
             font.charmap().map_unicode('H')
@@ -946,7 +946,7 @@ mod tests {
             .iter()
             .find(|encoding| encoding.kind() != EncodingKind::Unicode)
             .unwrap();
-        assert_eq!(native.sfnt_index(), None);
+        assert_eq!(native.cmap_index(), None);
         assert_eq!(
             font.charmap().map_code(*native, b'H' as u32),
             Some(GlyphId::new(1))
