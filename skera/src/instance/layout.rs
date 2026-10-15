@@ -1104,8 +1104,7 @@ fn own_empty_singles(
     match (source, target) {
         (read_fonts::tables::gpos::SinglePos::Format2(source), SinglePos::Format2(target)) => {
             if source.value_format().is_empty() {
-                let count = usize::try_from(source.value_count())
-                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+                let count = usize::from(source.value_count());
                 *remaining = remaining
                     .checked_sub(count)
                     .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
@@ -1114,8 +1113,7 @@ fn own_empty_singles(
         }
         (read_fonts::tables::gpos::SinglePos::Format4(source), SinglePos::Format4(target)) => {
             if source.value_format().is_empty() {
-                let count = usize::try_from(source.value_count())
-                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
+                let count = usize::from(source.value_count());
                 *remaining = remaining
                     .checked_sub(count)
                     .ok_or(SubsetError::SubsetTableError(Tag::new(b"GPOS")))?;
