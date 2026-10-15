@@ -144,8 +144,14 @@ impl<'a> Shaper<'a> {
         let selected = (!all_locations)
             .then(|| variations.index_for_coords_with_delta(self.coords, delta))
             .flatten();
+        // Records can share a substitution table; visiting each once bounds
+        // the work by the size of the font.
+        let mut visited = alloc::collections::BTreeSet::new();
         for (index, record) in variations.feature_variation_records().iter().enumerate() {
             if !all_locations && selected != Some(index as u32) {
+                continue;
+            }
+            if !visited.insert(record.feature_table_substitution_offset().offset().to_u32()) {
                 continue;
             }
             let Some(Ok(substitution)) =
@@ -424,7 +430,7 @@ impl ClusterShaper<'_> {
                                 continue;
                             };
                             let delta = table.delta_glyph_id() as i32;
-                            glyph.id = GlyphId::from((glyph.id.to_u32() as i32 + delta) as u16);
+                            glyph.id = GlyphId::new(single_subst1(glyph.id.to_u32(), delta));
                             return true;
                         }
                         SingleSubst::Format3(table) => {
@@ -580,7 +586,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                             };
                             let delta = table.delta_glyph_id() as i32;
                             for gid in coverage.iter() {
-                                self.capture_glyph((gid.to_u32() as i32 + delta) as u16 as u32);
+                                self.capture_glyph(single_subst1(gid.to_u32(), delta));
                             }
                             // Check input coverage for blue strings if
                             // required and if we're not under a contextual
@@ -948,6 +954,12 @@ enum ProcessLookupError {
     ExceededMaxDepth,
 }
 
+/// Applies a format 1 single substitution delta, which changes only the low
+/// 16 bits of the glyph ID.
+fn single_subst1(gid: u32, delta: i32) -> u32 {
+    (gid & !0xFFFF) | ((gid as i32).wrapping_add(delta) as u32 & 0xFFFF)
+}
+
 /// Sorts lookup indices and removes duplicates, in time linear in the list
 /// and the largest index.
 ///
@@ -977,6 +989,13 @@ mod tests {
     use super::{super::style, *};
     use font_test_data::bebuffer::BeBuffer;
     use raw::{tables::gsub::OriginalSubstitutionLookupList, FontData, FontRead};
+
+    #[test]
+    fn single_subst1_keeps_high_bits() {
+        assert_eq!(single_subst1(0x10005, 1), 0x10006);
+        assert_eq!(single_subst1(0x1FFFF, 1), 0x10000);
+        assert_eq!(single_subst1(5, -6), 0xFFFF);
+    }
 
     #[test]
     fn sort_and_dedup_lookups() {

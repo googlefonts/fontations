@@ -144,6 +144,12 @@ impl<'a> Outlines<'a> {
         self.glyph_count as usize
     }
 
+    /// The glyph count, limited to the glyphs that have locations.
+    pub(crate) fn stored_glyph_count(&self) -> u32 {
+        let located = u32::try_from(self.loca.len()).unwrap_or(u32::MAX);
+        self.glyph_count.min(located)
+    }
+
     pub(crate) fn variation_axis_count(&self) -> usize {
         self.gvar
             .as_ref()

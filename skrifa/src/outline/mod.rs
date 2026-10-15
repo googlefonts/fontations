@@ -751,6 +751,17 @@ impl<'a> OutlineGlyphCollection<'a> {
         }
     }
 
+    /// The number of glyphs the outline data can describe, which may be
+    /// fewer than the count in MAXP or maxp.
+    pub(crate) fn stored_glyph_count(&self) -> u32 {
+        match &self.kind {
+            OutlineCollectionKind::Glyf(glyf) => glyf.stored_glyph_count(),
+            OutlineCollectionKind::Cff(cff) => cff.glyph_count() as u32,
+            OutlineCollectionKind::Varc(varc) => varc.glyph_count(),
+            OutlineCollectionKind::None => 0,
+        }
+    }
+
     pub(crate) fn font(&self) -> Option<&FontRef<'a>> {
         match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => Some(&glyf.font),
