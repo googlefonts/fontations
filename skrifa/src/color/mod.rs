@@ -632,6 +632,84 @@ mod tests {
     }
 
     #[test]
+    fn paint_glyph2_public_painter_preserves_boundary_glyph_ids() {
+        use font_test_data::bebuffer::BeBuffer;
+
+        #[derive(Default)]
+        struct Painter {
+            glyphs: Vec<GlyphId>,
+            fills: Vec<(u16, f32)>,
+            clip_depth: usize,
+        }
+        impl ColorPainter for Painter {
+            fn push_transform(&mut self, _: Transform) {
+                panic!("unexpected transform");
+            }
+            fn pop_transform(&mut self) {
+                panic!("unexpected transform");
+            }
+            fn push_clip_glyph(&mut self, glyph: GlyphId) {
+                self.glyphs.push(glyph);
+                self.clip_depth += 1;
+            }
+            fn push_clip_box(&mut self, _: BoundingBox<f32>) {
+                panic!("unexpected clip box");
+            }
+            fn pop_clip(&mut self) {
+                self.clip_depth = self.clip_depth.checked_sub(1).unwrap();
+            }
+            fn fill(&mut self, brush: Brush) {
+                assert_eq!(self.clip_depth, 1);
+                match brush {
+                    Brush::Solid {
+                        palette_index,
+                        alpha,
+                    } => self.fills.push((palette_index, alpha)),
+                    _ => panic!("unexpected brush"),
+                }
+            }
+            fn push_layer(&mut self, _: CompositeMode) {
+                panic!("unexpected layer");
+            }
+            fn pop_layer(&mut self) {
+                panic!("unexpected layer");
+            }
+        }
+
+        for gid in [65535u32, 65536, 0xffffff] {
+            let mut colr = font_test_data::colr::paint_glyph2_colr().to_vec();
+            let paint_offset = 34 + 10;
+            colr[paint_offset + 4..paint_offset + 7].copy_from_slice(&gid.to_be_bytes()[1..]);
+            let bytes = BeBuffer::new()
+                .push(0x00010000u32)
+                .push(1u16)
+                .push(16u16)
+                .push(0u16)
+                .push(0u16)
+                .extend(*b"COLR")
+                .push(0u32)
+                .push(28u32)
+                .push(colr.len() as u32)
+                .extend(colr.iter().copied());
+            let font = FontRef::new(&bytes).unwrap();
+            let colors = font.color_glyphs();
+            let glyph = colors
+                .get_with_format(GlyphId::new(42), ColorGlyphFormat::ColrV1)
+                .unwrap();
+            assert!(colors
+                .get_with_format(GlyphId::new(43), ColorGlyphFormat::ColrV1)
+                .is_none());
+            let mut painter = Painter::default();
+            for _ in 0..2 {
+                glyph.paint(LocationRef::default(), &mut painter).unwrap();
+                assert_eq!(painter.clip_depth, 0);
+            }
+            assert_eq!(painter.glyphs, [GlyphId::new(gid); 2]);
+            assert_eq!(painter.fills, [(7, 1.0); 2]);
+        }
+    }
+
+    #[test]
     fn no_cliplist_test() {
         let colr_font = font_test_data::COLRV1_NO_CLIPLIST;
         let font = FontRef::new(colr_font).unwrap();
