@@ -108,6 +108,11 @@ impl<T: Apply> Apply for LookupList<T> {
         self.lookups.apply(c)
     }
 }
+impl<T: Apply> Apply for LookupList2<T> {
+    fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
+        self.lookups.apply(c)
+    }
+}
 impl<T: Apply> Apply for ExtensionPosFormat1<T> {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         self.extension.apply(c)
@@ -116,31 +121,56 @@ impl<T: Apply> Apply for ExtensionPosFormat1<T> {
 macro_rules! variants {($t:ty;$($variant:ident),+; $($ignore:ident),*)=>{impl Apply for $t{fn apply(&mut self,c:&Context)->Result<(),SubsetError>{match self {$ (Self::$variant(v)=>v.apply(c),)+ $(Self::$ignore(_)=>Ok(()),)*}}}};}
 variants!(PositionLookup;Single,Pair,Cursive,MarkToBase,MarkToLig,MarkToMark,Extension;Contextual,ChainContextual);
 variants!(ExtensionSubtable;Single,Pair,Cursive,MarkToBase,MarkToLig,MarkToMark;Contextual,ChainContextual);
-variants!(SinglePos;Format1,Format2;);
-variants!(PairPos;Format1,Format2;);
+variants!(SinglePos;Format1,Format2,Format3,Format4;);
+variants!(CursivePos;Format1,Format2;);
+variants!(MarkBasePos;Format1,Format2;);
+variants!(MarkLigPos;Format1,Format2;);
+variants!(MarkMarkPos;Format1,Format2;);
+variants!(PairPos;Format1,Format2,Format3,Format4;);
 fields!(SinglePosFormat1;value_record);
+fields!(SinglePosFormat3;value_record);
 fields!(SinglePosFormat2;value_records);
+fields!(SinglePosFormat4;value_records);
 fields!(PairPosFormat1;pair_sets);
+fields!(PairPosFormat3;pair_sets);
 fields!(PairSet;pair_value_records);
+fields!(PairSet2;pair_value_records);
 fields!(PairValueRecord;value_record1,value_record2);
+fields!(PairValueRecord2;value_record1,value_record2);
 fields!(PairPosFormat2;class1_records);
+fields!(PairPosFormat4;class1_records);
 fields!(Class1Record;class2_records);
 fields!(Class2Record;value_record1,value_record2);
 fields!(CursivePosFormat1;entry_exit_record);
+fields!(CursivePosFormat2;entry_exit_record);
 fields!(EntryExitRecord;entry_anchor,exit_anchor);
+fields!(EntryExitRecord2;entry_anchor,exit_anchor);
 fields!(MarkBasePosFormat1;mark_array,base_array);
+fields!(MarkBasePosFormat2;mark_array,base_array);
 fields!(MarkArray;mark_records);
+fields!(MarkArray2;mark_records);
 fields!(MarkRecord;mark_anchor);
+fields!(MarkRecord2;mark_anchor);
 fields!(BaseArray;base_records);
+fields!(BaseArray2;base_records);
 fields!(BaseRecord;base_anchors);
+fields!(BaseRecord2;base_anchors);
 fields!(MarkLigPosFormat1;mark_array,ligature_array);
+fields!(MarkLigPosFormat2;mark_array,ligature_array);
 fields!(LigatureArray;ligature_attaches);
+fields!(LigatureArray2;ligature_attaches);
 fields!(LigatureAttach;component_records);
+fields!(LigatureAttach2;component_records);
 fields!(ComponentRecord;ligature_anchors);
+fields!(ComponentRecord2;ligature_anchors);
 fields!(MarkMarkPosFormat1;mark1_array,mark2_array);
+fields!(MarkMarkPosFormat2;mark1_array,mark2_array);
 fields!(Mark2Array;mark2_records);
+fields!(Mark2Array2;mark2_records);
 fields!(Mark2Record;mark2_anchors);
+fields!(Mark2Record2;mark2_anchors);
 fields!(LigCaretList;lig_glyphs);
+fields!(LigCaretList2;lig_glyphs);
 fields!(LigGlyph;caret_values);
 fields!(Axis;base_script_list);
 fields!(BaseScriptList;base_script_records);
@@ -568,14 +598,27 @@ fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError
     use read_fonts::tables::gpos as read;
     let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
     let mut table: Gpos = source.to_owned_table();
+    let lookups: Vec<&mut PositionLookup> = if let Some(list) = table.lookup_list2.as_mut() {
+        table.lookup_list = Default::default();
+        list.lookups.iter_mut().map(|v| v.as_mut()).collect()
+    } else {
+        table
+            .lookup_list
+            .as_mut()
+            .ok_or_else(error)?
+            .lookups
+            .iter_mut()
+            .map(|v| v.as_mut())
+            .collect()
+    };
     for (source, target) in source
         .lookup_list()
         .map_err(|_| error())?
         .lookups()
         .iter()
-        .zip(&mut table.lookup_list.lookups)
+        .zip(lookups)
     {
-        match (source.map_err(|_| error())?, target.as_mut()) {
+        match (source.map_err(|_| error())?, target) {
             (read::PositionLookup::Pair(source), PositionLookup::Pair(target)) => {
                 for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
                     own_empty_pairs(source.map_err(|_| error())?, target.as_mut())?;
@@ -653,8 +696,13 @@ pub(super) fn instance(
         )?;
         let mut table = own_gpos(&gpos)?;
         table.lookup_list.apply(&context)?;
+        table.lookup_list2.apply(&context)?;
         features(
-            &mut table.feature_list,
+            table
+                .feature_list2
+                .as_mut()
+                .or(table.feature_list.as_mut())
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             &mut table.feature_variations,
             &context,
         )?;
@@ -668,7 +716,11 @@ pub(super) fn instance(
         )?;
         let mut table: write_fonts::tables::gsub::Gsub = gsub.to_owned_table();
         features(
-            &mut table.feature_list,
+            table
+                .feature_list2
+                .as_mut()
+                .or(table.feature_list.as_mut())
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             &mut table.feature_variations,
             &context,
         )?;
@@ -681,7 +733,11 @@ pub(super) fn instance(
     }
     if let Some(gdef) = gdef {
         let mut table: Gdef = gdef.to_owned_table();
+        if table.lig_caret_list2.is_some() {
+            table.lig_caret_list = Default::default();
+        }
         table.lig_caret_list.apply(&context)?;
+        table.lig_caret_list2.apply(&context)?;
         table.item_var_store = if axes.all_pinned() {
             Default::default()
         } else {
@@ -977,6 +1033,7 @@ mod tests {
             ),
         );
         gpos.feature_variations = FeatureVariations {
+            lookup_variation_records: None,
             feature_variation_records: vec![FeatureVariationRecord {
                 condition_set: ConditionSet {
                     conditions: vec![tree.into()],
@@ -1036,10 +1093,12 @@ mod tests {
             .unwrap();
             let full = FontRef::new(&bytes).unwrap();
             let table: Gpos = full.gpos().unwrap().to_owned_table();
-            let index = table.feature_list.feature_records[0]
+            let index = table.feature_list.as_ref().unwrap().feature_records[0]
                 .feature
                 .lookup_list_indices[0] as usize;
-            let PositionLookup::Single(lookup) = table.lookup_list.lookups[index].as_ref() else {
+            let PositionLookup::Single(lookup) =
+                table.lookup_list.as_ref().unwrap().lookups[index].as_ref()
+            else {
                 panic!()
             };
             let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
@@ -1145,6 +1204,7 @@ mod tests {
             .into(),
         };
         let mut vars: NullableOffsetMarker<FeatureVariations, 4> = FeatureVariations {
+            lookup_variation_records: None,
             feature_variation_records: vec![
                 record(vec![range(0), range(1)], 1),
                 record(vec![range(0)], 2),
