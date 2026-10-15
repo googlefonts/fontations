@@ -62,7 +62,7 @@ impl<'a> Cvar<'a> {
 
     fn raw_tuple_header_data(&self) -> FontData<'a> {
         let range = self.tuple_variation_headers_byte_range();
-        self.data.split_off(range.start).unwrap()
+        self.offset_data().split_off(range.start).unwrap()
     }
 }
 
