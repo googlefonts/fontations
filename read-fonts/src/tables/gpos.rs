@@ -332,6 +332,17 @@ impl<'a> PairPosFormat2<'a> {
             format2,
         }
     }
+
+    /// Returns the pair of value records for the given classes, located but
+    /// not read.
+    ///
+    /// Returns `None` if either class is out of range. When reading more than
+    /// one class pair, prefer [`class_value_records`][Self::class_value_records],
+    /// which reads the table's counts and formats only once.
+    #[inline]
+    pub fn value_record_refs(&self, class1: u16, class2: u16) -> Option<[ValueRecord<'a>; 2]> {
+        self.class_value_records().get(class1, class2)
+    }
 }
 
 impl<'a> PairPosFormat4<'a> {
@@ -351,17 +362,6 @@ impl<'a> PairPosFormat4<'a> {
             format1,
             format2,
         }
-    }
-
-    /// Returns the pair of value records for the given classes, located but
-    /// not read.
-    ///
-    /// Returns `None` if either class is out of range. When reading more than
-    /// one class pair, prefer [`class_value_records`][Self::class_value_records],
-    /// which reads the table's counts and formats only once.
-    #[inline]
-    pub fn value_record_refs(&self, class1: u16, class2: u16) -> Option<[ValueRecord<'a>; 2]> {
-        self.class_value_records().get(class1, class2)
     }
 }
 
