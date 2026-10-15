@@ -124,7 +124,7 @@ mod tests {
 
         let mut glyph3 = CompositeGlyph::new(
             Component::new(
-                gid1.try_into().unwrap(),
+                gid1,
                 Anchor::Offset { x: 0, y: 0 },
                 Transform::default(),
                 ComponentFlags::default(),
@@ -133,7 +133,7 @@ mod tests {
         );
         glyph3.add_component(
             Component::new(
-                gid2.try_into().unwrap(),
+                gid2,
                 Anchor::Offset { x: 0, y: 0 },
                 Transform::default(),
                 ComponentFlags::default(),
