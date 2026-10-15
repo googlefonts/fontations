@@ -1,7 +1,7 @@
 //! Where outline loading gets its data.
 
 use crate::{
-    model::metrics::GlyphMetricRecords,
+    tables::hmtx::GlyphMetricRecords,
     tables::{
         glyf::{Glyf, PHANTOM_POINT_COUNT},
         gvar::{GlyphVariationData, SelectedGvar},
@@ -148,7 +148,7 @@ impl<'a> OutlineTables<'a> {
             glyf,
             loca,
             gvar: font.selected_gvar().ok(),
-            hmtx: font.glyph_metric_records().ok(),
+            hmtx: font.h_glyph_metric_records().ok(),
             os2: font.os2().ok(),
             hvar: font.hvar().ok(),
             units_per_em: font.head()?.units_per_em(),

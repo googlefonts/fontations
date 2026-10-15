@@ -102,10 +102,10 @@ pub trait TableProvider<'a> {
 
     /// Returns horizontal metrics records, selecting HMTX before hmtx
     /// independently of the outline tables. No allocation is required.
-    fn glyph_metric_records(
+    fn h_glyph_metric_records(
         &self,
-    ) -> Result<crate::model::metrics::GlyphMetricRecords<'a>, ReadError> {
-        crate::model::metrics::GlyphMetricRecords::read_horizontal(self)
+    ) -> Result<crate::tables::hmtx::GlyphMetricRecords<'a>, ReadError> {
+        crate::tables::hmtx::GlyphMetricRecords::read_horizontal(self)
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
@@ -130,10 +130,10 @@ pub trait TableProvider<'a> {
 
     /// Returns vertical metrics records, selecting VMTX before vmtx
     /// independently of the outline tables. No allocation is required.
-    fn vertical_glyph_metric_records(
+    fn v_glyph_metric_records(
         &self,
-    ) -> Result<crate::model::metrics::GlyphMetricRecords<'a>, ReadError> {
-        crate::model::metrics::GlyphMetricRecords::read_vertical(self)
+    ) -> Result<crate::tables::hmtx::GlyphMetricRecords<'a>, ReadError> {
+        crate::tables::hmtx::GlyphMetricRecords::read_vertical(self)
     }
 
     fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
@@ -435,8 +435,8 @@ mod tests {
                     font.selected_vhea().unwrap().number_of_long_ver_metrics(),
                     long_count
                 );
-                let horizontal = font.glyph_metric_records().unwrap();
-                let vertical = font.vertical_glyph_metric_records().unwrap();
+                let horizontal = font.h_glyph_metric_records().unwrap();
+                let vertical = font.v_glyph_metric_records().unwrap();
                 assert_eq!(horizontal.long_metrics().len() as u32, long_count);
                 assert_eq!(vertical.long_metrics().len() as u32, long_count);
                 assert_eq!(
@@ -490,7 +490,7 @@ mod tests {
         ]);
         let font = FontRef::new(&data).unwrap();
         assert_eq!(font.selected_maxp().unwrap().num_glyphs(), 70002);
-        let metrics = font.glyph_metric_records().unwrap();
+        let metrics = font.h_glyph_metric_records().unwrap();
         assert_eq!(metrics.long_metrics().len(), 2);
         assert_eq!(metrics.advance(GlyphId::new(2)), Some(501));
         assert_eq!(metrics.side_bearing(GlyphId::new(2)), Some(-10));
@@ -517,7 +517,7 @@ mod tests {
         // when there is no HMTX table to use it.
         assert_eq!(
             font_ref
-                .glyph_metric_records()
+                .h_glyph_metric_records()
                 .unwrap()
                 .advance(GlyphId::new(0)),
             Some(500)
@@ -528,7 +528,7 @@ mod tests {
             (*b"hmtx", &records),
         ]);
         let font_ref = FontRef::new(&data).unwrap();
-        assert!(font_ref.glyph_metric_records().is_err());
+        assert!(font_ref.h_glyph_metric_records().is_err());
     }
 
     #[test]
@@ -549,8 +549,8 @@ mod tests {
             // Like the legacy readers, truncated long-metric arrays read as
             // empty rather than exposing a partial record array.
             for metrics in [
-                font.glyph_metric_records().unwrap(),
-                font.vertical_glyph_metric_records().unwrap(),
+                font.h_glyph_metric_records().unwrap(),
+                font.v_glyph_metric_records().unwrap(),
             ] {
                 assert!(metrics.long_metrics().is_empty());
                 assert_eq!(metrics.advance(GlyphId::new(0)), None);

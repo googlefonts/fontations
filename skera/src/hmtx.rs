@@ -8,11 +8,11 @@ use read_fonts::{
     TableProvider, TopLevelTable,
 };
 
-crate::metrics::subset_metrics_table!(Hmtx, Hhea, glyph_metric_records, hhea, false);
+crate::metrics::subset_metrics_table!(Hmtx, Hhea, h_glyph_metric_records, hhea, false);
 crate::metrics::subset_metrics_table!(
     HmtxExtended,
     HheaExtended,
-    glyph_metric_records,
+    h_glyph_metric_records,
     hhea_extended,
     true
 );

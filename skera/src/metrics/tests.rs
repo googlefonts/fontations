@@ -79,9 +79,9 @@ fn plan(font: &FontRef, gids: &IntSet<GlyphId>, retain: bool) -> Plan {
 
 fn records<'a>(font: &FontRef<'a>, vertical: bool) -> GlyphMetricRecords<'a> {
     if vertical {
-        font.vertical_glyph_metric_records().unwrap()
+        font.v_glyph_metric_records().unwrap()
     } else {
-        font.glyph_metric_records().unwrap()
+        font.h_glyph_metric_records().unwrap()
     }
 }
 

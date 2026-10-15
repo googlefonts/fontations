@@ -5,7 +5,7 @@ use crate::{
     Plan, SubsetError,
 };
 use read_fonts::{
-    model::metrics::GlyphMetricRecords,
+    tables::hmtx::GlyphMetricRecords,
     types::{GlyphId, Tag},
 };
 use write_fonts::FontBuilder;

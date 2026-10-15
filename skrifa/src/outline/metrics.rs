@@ -1,7 +1,7 @@
 //! Helper for loading (possibly variable) horizontal glyph metrics.
 
 use raw::{
-    model::metrics::GlyphMetricRecords,
+    tables::hmtx::GlyphMetricRecords,
     tables::hvar::Hvar,
     types::{F2Dot14, GlyphId},
     FontRef, TableProvider,
@@ -17,7 +17,7 @@ pub(crate) struct GlyphHMetrics<'a> {
 impl<'a> GlyphHMetrics<'a> {
     pub fn new(font: &FontRef<'a>) -> Option<Self> {
         // Note: hmtx is required and HVAR is optional
-        let hmtx = font.glyph_metric_records().ok()?;
+        let hmtx = font.h_glyph_metric_records().ok()?;
         let hvar = font.hvar().ok();
         Some(Self { hmtx, hvar })
     }

@@ -247,7 +247,7 @@ impl<'a> GlyphMetrics<'a> {
         let fixed_scale = FixedScaleFactor(size.fixed_linear_scale(upem));
         let coords = location.into().effective_coords();
         let (h_metrics, default_advance_width, lsbs) = font
-            .glyph_metric_records()
+            .h_glyph_metric_records()
             .map(|hmtx| {
                 let h_metrics = hmtx.long_metrics();
                 let default_advance_width = h_metrics.last().map(|m| m.advance.get()).unwrap_or(0);
