@@ -37,6 +37,7 @@ mod spec_tests;
 include!("../../generated/generated_layout.rs");
 
 pub use extended::{LayoutOffsetArray, LookupListTable};
+pub use feature_variations::LookupVariations;
 
 impl<'a, T: FontRead<'a, Args = ()>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
@@ -174,8 +175,8 @@ impl FeatureVariations<'_> {
 
 /// Which features variation indices were selected for a given location.
 ///
-/// This selects feature variation records only. Lookup variation records are
-/// queried per feature with [`FeatureVariations::feature_lookups`].
+/// This selects feature variation records only. Lookup variations are applied
+/// per feature with [`FeatureVariations::lookup_variations`].
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct SelectedFeatureVariations {
     /// Feature variation index for the GSUB table.
@@ -216,11 +217,9 @@ impl SelectedFeatureVariations {
             .flatten();
         let has_lookup_variations = feature_var_tables.iter().any(|table| {
             table.as_ref().is_some_and(|table| {
-                table.as_ref().is_ok_and(|table| {
-                    table
-                        .lookup_variation_records()
-                        .is_some_and(|records| !records.is_empty())
-                })
+                table
+                    .as_ref()
+                    .is_ok_and(|table| table.lookup_variations().is_some())
             })
         });
         let [gsub, gpos] = feature_var_tables.map(|feature_vars| {

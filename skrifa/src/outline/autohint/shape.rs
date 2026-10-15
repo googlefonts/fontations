@@ -10,7 +10,7 @@ use raw::{
             ChainedSequenceContext, Gsub, SequenceContext, SingleSubst, SubstitutionLookupList,
             SubstitutionSubtables,
         },
-        layout::{FeatureLookupsFlags, ScriptTags},
+        layout::ScriptTags,
         varc::CoverageTable,
         variations::DeltaSetIndex,
     },
@@ -166,50 +166,11 @@ impl<'a> Shaper<'a> {
                 lookups.extend(alternate.lookup_list_indices().iter().map(|ix| ix.get()));
             }
         }
-        if let Some(records) = variations.lookup_variation_records().filter(|records| {
-            variations.version().major == 1
-                && !records
-                    .windows(2)
-                    .any(|pair| pair[0].feature_index() >= pair[1].feature_index())
-        }) {
-            if let Some(conditional) = records
-                .iter()
-                .find(|rec| rec.feature_index() == feature_ix)
-                .filter(|rec| rec.feature_lookups_offset().to_u32() != 0)
-                .and_then(|rec| rec.feature_lookups(variations.offset_data()).ok())
-                .filter(|table| {
-                    table.version().major == 1
-                        && table.lookup_condition_records().len()
-                            == table.lookup_condition_count() as usize
-                })
-            {
-                if !all_locations
-                    && !conditional
-                        .flags()
-                        .contains(FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS)
-                {
-                    lookups.clear();
-                }
-                for condition in conditional.lookup_condition_records() {
-                    if !all_locations
-                        && condition
-                            .evaluate(conditional.offset_data(), self.coords, delta)
-                            .ok()
-                            != Some(true)
-                    {
-                        continue;
-                    }
-                    if condition.lookup_index_list_offset().to_u32() == 0 {
-                        continue;
-                    }
-                    if let Ok(indices) = condition.lookup_index_list(conditional.offset_data()) {
-                        if indices.lookup_indices().len()
-                            == usize::from(indices.lookup_index_count())
-                        {
-                            lookups.extend(indices.lookup_indices().iter().map(|ix| ix.get()));
-                        }
-                    }
-                }
+        if let Some(lookup_variations) = variations.lookup_variations() {
+            if all_locations {
+                lookup_variations.add_all(feature_ix, &mut lookups);
+            } else {
+                lookup_variations.apply(feature_ix, self.coords, delta, &mut lookups);
             }
         }
         lookups.sort_unstable();

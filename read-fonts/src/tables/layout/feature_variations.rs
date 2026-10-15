@@ -1,10 +1,14 @@
 //! Access to the lookup-oriented feature variations added in ISO OFF fifth edition.
 
-use super::{FeatureLookups, FeatureVariations, LookupVariationRecord};
-use crate::{
-    types::{Compatible, FixedSize},
-    ReadError,
+use super::{
+    FeatureLookups, FeatureLookupsFlags, FeatureVariations, LookupConditionRecord,
+    LookupVariationRecord,
 };
+use crate::{
+    types::{Compatible, F2Dot14, FixedSize},
+    FontData, ReadError,
+};
+use alloc::vec::Vec;
 
 impl<'a> FeatureVariations<'a> {
     /// Lookup variations, sorted by feature index; absent in version 1.0.
@@ -43,10 +47,205 @@ impl<'a> FeatureVariations<'a> {
     }
 }
 
+impl<'a> FeatureVariations<'a> {
+    /// Returns the table's lookup variations, or `None` if it has none.
+    ///
+    /// Only version 1.1 and later tables carry lookup variations, so for
+    /// other tables this is a version check. Records that are not strictly
+    /// sorted by feature index are ignored as a whole.
+    pub fn lookup_variations(&self) -> Option<LookupVariations<'a>> {
+        let records = self.lookup_variation_records()?;
+        let sorted = records
+            .windows(2)
+            .all(|pair| pair[0].feature_index() < pair[1].feature_index());
+        (!records.is_empty() && sorted).then(|| LookupVariations {
+            data: self.offset_data(),
+            records,
+        })
+    }
+}
+
+/// The lookup variations of a [`FeatureVariations`] table, which change the
+/// lookups of a feature depending on the location in design space.
+#[derive(Clone)]
+pub struct LookupVariations<'a> {
+    data: FontData<'a>,
+    records: &'a [LookupVariationRecord],
+}
+
+impl<'a> LookupVariations<'a> {
+    /// Applies the lookup variations of a feature at a location.
+    ///
+    /// `lookups` holds the feature's lookup indices. They are replaced,
+    /// unless the variations only add to them, by the lookups of each
+    /// condition record whose condition holds at `coords`. Format 2
+    /// conditions resolve their deltas through `delta`; see
+    /// [`Condition::evaluate`](super::Condition::evaluate).
+    ///
+    /// Returns `false`, leaving `lookups` unchanged, if the feature has no
+    /// lookup variations.
+    pub fn apply<E>(
+        &self,
+        feature_index: u16,
+        coords: &[F2Dot14],
+        mut delta: impl FnMut(u32) -> Result<f64, E>,
+        lookups: &mut Vec<u16>,
+    ) -> bool {
+        let Some(table) = self.feature_lookups(feature_index) else {
+            return false;
+        };
+        if !table
+            .flags()
+            .contains(FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS)
+        {
+            lookups.clear();
+        }
+        for record in table.lookup_condition_records() {
+            if record
+                .evaluate(table.offset_data(), coords, &mut delta)
+                .ok()
+                == Some(true)
+            {
+                extend_lookups(&table, record, lookups);
+            }
+        }
+        true
+    }
+
+    /// Adds the lookups of every condition record of a feature, as if each
+    /// condition held: the lookups the feature can use anywhere in design
+    /// space.
+    ///
+    /// Returns `false` if the feature has no lookup variations.
+    pub fn add_all(&self, feature_index: u16, lookups: &mut Vec<u16>) -> bool {
+        let Some(table) = self.feature_lookups(feature_index) else {
+            return false;
+        };
+        for record in table.lookup_condition_records() {
+            extend_lookups(&table, record, lookups);
+        }
+        true
+    }
+
+    /// The conditional lookups of a feature, if it has readable ones.
+    fn feature_lookups(&self, feature_index: u16) -> Option<FeatureLookups<'a>> {
+        let index = self
+            .records
+            .binary_search_by_key(&feature_index, LookupVariationRecord::feature_index)
+            .ok()?;
+        let record = &self.records[index];
+        if record.feature_lookups_offset().to_u32() == 0 {
+            return None;
+        }
+        let table = record.feature_lookups(self.data).ok()?;
+        let complete = table.lookup_condition_records().len()
+            == usize::try_from(table.lookup_condition_count()).ok()?;
+        (table.version().major == 1 && complete).then_some(table)
+    }
+}
+
+/// Appends the lookups of a condition record, skipping a missing or
+/// truncated list.
+fn extend_lookups(table: &FeatureLookups, record: &LookupConditionRecord, lookups: &mut Vec<u16>) {
+    if record.lookup_index_list_offset().to_u32() == 0 {
+        return;
+    }
+    if let Ok(list) = record.lookup_index_list(table.offset_data()) {
+        let indices = list.lookup_indices();
+        if indices.len() == usize::from(list.lookup_index_count()) {
+            lookups.extend(indices.iter().map(|index| index.get()));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{types::MajorMinor, FontRead};
+
+    /// A version 1.1 FeatureVariations table whose feature 2 has two
+    /// condition records: lookups 7 and 8 when axis 0 is at least 0.5, and
+    /// lookup 9 always (a null condition).
+    fn lookup_variation_table(flags: u16) -> alloc::vec::Vec<u8> {
+        let mut bytes = alloc::vec::Vec::new();
+        // FeatureVariations 1.1: no feature variation records, one lookup
+        // variation record.
+        bytes.extend([0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
+        // LookupVariationRecord: feature 2, FeatureLookups at offset 18.
+        bytes.extend([0, 2, 0, 0, 0, 18]);
+        assert_eq!(bytes.len(), 18);
+        // FeatureLookups 1.0: flags, two condition records.
+        bytes.extend([0, 1, 0, 0]);
+        bytes.extend(flags.to_be_bytes());
+        bytes.extend([0, 0, 0, 2]);
+        // Record 1: condition at 26, lookup list at 34 (relative to
+        // FeatureLookups). Record 2: null condition, lookup list at 40.
+        bytes.extend([0, 0, 0, 26, 0, 0, 0, 34]);
+        bytes.extend([0, 0, 0, 0, 0, 0, 0, 40]);
+        assert_eq!(bytes.len() - 18, 26);
+        // ConditionFormat1: axis 0, min 0.5, max 1.0.
+        bytes.extend([0, 1, 0, 0, 0x20, 0, 0x40, 0]);
+        assert_eq!(bytes.len() - 18, 34);
+        // LookupIndexList [7, 8], then [9].
+        bytes.extend([0, 2, 0, 7, 0, 8]);
+        bytes.extend([0, 1, 0, 9]);
+        bytes
+    }
+
+    fn no_delta(_: u32) -> Result<f64, core::convert::Infallible> {
+        Ok(0.0)
+    }
+
+    #[test]
+    fn lookup_variations_replace_feature_lookups_by_location() {
+        let bytes = lookup_variation_table(0);
+        let table = FeatureVariations::read(bytes.as_slice().into()).unwrap();
+        let variations = table.lookup_variations().unwrap();
+        let mut lookups = alloc::vec![1, 2];
+        assert!(variations.apply(2, &[F2Dot14::from_f32(0.75)], no_delta, &mut lookups));
+        assert_eq!(lookups, [7, 8, 9]);
+        let mut lookups = alloc::vec![1, 2];
+        assert!(variations.apply(2, &[F2Dot14::from_f32(0.25)], no_delta, &mut lookups));
+        assert_eq!(lookups, [9]);
+        let mut lookups = alloc::vec![1, 2];
+        assert!(!variations.apply(3, &[F2Dot14::from_f32(0.75)], no_delta, &mut lookups));
+        assert_eq!(lookups, [1, 2]);
+        let mut lookups = alloc::vec![1];
+        assert!(variations.add_all(2, &mut lookups));
+        assert_eq!(lookups, [1, 7, 8, 9]);
+    }
+
+    #[test]
+    fn lookup_variations_can_add_to_default_lookups() {
+        let bytes = lookup_variation_table(FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS.bits());
+        let table = FeatureVariations::read(bytes.as_slice().into()).unwrap();
+        let mut lookups = alloc::vec![1, 2];
+        assert!(table.lookup_variations().unwrap().apply(
+            2,
+            &[F2Dot14::from_f32(0.75)],
+            no_delta,
+            &mut lookups
+        ));
+        assert_eq!(lookups, [1, 2, 7, 8, 9]);
+    }
+
+    #[test]
+    fn lookup_variations_absent_or_unsorted() {
+        // Version 1.0 has none.
+        let v1_0 = [0, 1, 0, 0, 0, 0, 0, 0];
+        let table = FeatureVariations::read(v1_0.as_slice().into()).unwrap();
+        assert!(table.lookup_variations().is_none());
+        // Version 1.1 without records has none.
+        let v1_1 = [0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+        let table = FeatureVariations::read(v1_1.as_slice().into()).unwrap();
+        assert!(table.lookup_variations().is_none());
+        // Records out of order are ignored.
+        let unsorted = [
+            0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0,
+        ];
+        let table = FeatureVariations::read(unsorted.as_slice().into()).unwrap();
+        assert!(table.lookup_variations().is_none());
+    }
 
     #[test]
     fn lookup_variations_versioned_empty_arrays() {
