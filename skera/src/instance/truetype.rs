@@ -4,7 +4,6 @@
 use super::{
     metrics,
     tuple::{compile_gvar, TupleVariations},
-    AxisPlan,
 };
 use crate::SubsetError;
 use read_fonts::{
@@ -23,7 +22,28 @@ use write_fonts::{
 };
 
 type Point = [f32; 2];
-type Tables = BTreeMap<Tag, Vec<u8>>;
+pub(super) struct TrueTypeContext<'a, 'b> {
+    pub input: &'a super::FontContext<'b>,
+    pub metrics: &'a mut metrics::MetricTables,
+}
+pub(super) struct TrueTypeTables {
+    pub glyf: Vec<u8>,
+    pub loca: Vec<u8>,
+    pub gvar: super::TableChange,
+    pub cvar: super::TableChange,
+    pub cvt: Option<Vec<u8>>,
+}
+struct GvarGlyphContext<'a, 'b> {
+    input: &'a super::FontContext<'b>,
+    gid: GlyphId,
+    points: &'a mut Vec<Point>,
+    original_points: &'a [Point],
+    contours: &'a [usize],
+}
+struct CvarContext<'a, 'b> {
+    input: &'a super::FontContext<'b>,
+    cvt: &'a mut Vec<u8>,
+}
 fn error(tag: &[u8; 4]) -> SubsetError {
     SubsetError::SubsetTableError(Tag::new(tag))
 }
@@ -193,227 +213,276 @@ fn add_deltas(points: &mut [Point], deltas: &[Point]) {
     }
 }
 
-pub(super) fn instance(
-    font: &FontRef,
-    axes: &AxisPlan,
-    tables: &mut Tables,
-    optimize_iup: bool,
-) -> Result<(), SubsetError> {
-    let glyf = font.glyf().map_err(|_| error(b"glyf"))?;
-    let loca = font.loca(None).map_err(|_| error(b"loca"))?;
-    let count = font.maxp().map_err(|_| error(b"maxp"))?.num_glyphs() as usize;
-    let hmtx = font.hmtx().map_err(|_| error(b"hmtx"))?;
-    let vmtx = font.vmtx().ok();
-    let gvar = font
-        .data_for_tag(Tag::new(b"gvar"))
-        .map(|_| font.gvar().map_err(|_| error(b"gvar")))
-        .transpose()?;
-    if gvar
-        .as_ref()
-        .is_some_and(|g| g.axis_count() as usize != axes.pinned.len())
-    {
-        return Err(error(b"gvar"));
-    }
-    let mut glyphs = Vec::with_capacity(count);
-    let mut variations = Vec::with_capacity(count);
-    for i in 0..count {
-        let gid = GlyphId::new(i as u32);
-        let source = loca
-            .get(gid, &glyf)
-            .ok_or_else(|| error(b"glyf"))?
-            .into_glyph();
-        let mut points = Vec::new();
-        let mut contours = Vec::new();
-        let mut curve_flags = Vec::new();
-        let glyph = match source {
-            None => Glyph::Empty,
-            Some(ReadGlyph::Simple(g)) => {
-                let mut raw_points =
-                    vec![read_fonts::types::Point::<i32>::default(); g.num_points()];
-                curve_flags.resize(g.num_points(), PointFlags::default());
-                g.read_points_fast(&mut raw_points, &mut curve_flags)
-                    .map_err(|_| error(b"glyf"))?;
-                points.extend(raw_points.iter().map(|p| [p.x as f32, p.y as f32]));
-                contours.extend(g.end_pts_of_contours().iter().map(|n| n.get() as usize));
-                Glyph::Simple(g.to_owned_table())
-            }
-            Some(ReadGlyph::Composite(g)) => {
-                let owned: write_fonts::tables::glyf::CompositeGlyph = g.to_owned_table();
-                points.extend(owned.components().iter().map(|c| match c.anchor {
-                    Anchor::Offset { x, y } => [x as f32, y as f32],
-                    Anchor::Point { .. } => [0.; 2],
-                }));
-                Glyph::Composite(owned)
-            }
-        };
-        let bbox = glyph.bbox().unwrap_or_default();
-        let left = bbox.x_min as f32 - hmtx.side_bearing(gid).unwrap_or(0) as f32;
-        let top =
-            bbox.y_max as f32 + vmtx.as_ref().and_then(|v| v.side_bearing(gid)).unwrap_or(0) as f32;
-        points.extend([
-            [left, 0.],
-            [left + hmtx.advance(gid).unwrap_or(0) as f32, 0.],
-            [0., top],
-            [
-                0.,
-                top - vmtx.as_ref().and_then(|v| v.advance(gid)).unwrap_or(0) as f32,
-            ],
-        ]);
-        let orig_points = points.clone();
+impl super::Instance<GvarGlyphContext<'_, '_>> for read_fonts::tables::gvar::Gvar<'_> {
+    type Output = TupleVariations;
+    fn instance(
+        &self,
+        context: &mut GvarGlyphContext<'_, '_>,
+    ) -> Result<Self::Output, SubsetError> {
+        let gvar = self;
+        let axes = context.input.axes;
+        let gid = context.gid;
+        let points = &mut *context.points;
+        let orig_points = context.original_points;
+        let contours = context.contours;
         let mut residual = TupleVariations::new();
-        if let Some(gvar) = &gvar {
-            if let Some(data) = gvar.glyph_variation_data(gid).map_err(|_| error(b"gvar"))? {
-                let private = any_private_points(
-                    gvar.data_for_gid(gid)
-                        .map_err(|_| error(b"gvar"))?
-                        .ok_or_else(|| error(b"gvar"))?
-                        .as_bytes(),
-                    axes.pinned.len(),
-                )?;
-                let mut pending = vec![[0.; 2]; points.len()];
-                let mut flush = false;
-                for tuple in data.tuples() {
-                    if !axes.all_pinned() {
-                        let mut deltas = vec![[0.; 2]; orig_points.len()];
-                        let mut referenced = vec![false; orig_points.len()];
-                        for d in tuple.deltas() {
-                            let i = d.position as usize;
-                            *deltas.get_mut(i).ok_or_else(|| error(b"gvar"))? =
-                                [d.x_delta as f32, d.y_delta as f32];
-                            referenced[i] = true;
-                        }
-                        residual.add(&tuple, axes.pinned.len(), deltas, referenced)?;
-                    }
-                    let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
-                        continue;
-                    };
-                    let deltas = calc_inferred_deltas(&tuple, &orig_points, &contours, scalar)?;
-                    if tuple.has_deltas_for_all_points() && !private {
-                        add_deltas(&mut points, &deltas);
-                        continue;
-                    }
-                    if !tuple.has_deltas_for_all_points() {
-                        if flush {
-                            add_deltas(&mut points, &pending);
-                        }
-                        pending.fill([0.; 2]);
-                    }
-                    add_deltas(&mut pending, &deltas);
-                    flush = true;
-                }
-                if flush {
-                    add_deltas(&mut points, &pending);
-                }
-            }
-        }
-        if !axes.all_pinned() {
-            let mut iup_points = optimize_iup.then(|| orig_points.clone());
-            residual.instantiate(
-                font,
-                axes,
-                Some((&orig_points, &contours)),
-                iup_points.as_deref_mut(),
+
+        if let Some(data) = gvar.glyph_variation_data(gid).map_err(|_| error(b"gvar"))? {
+            let private = any_private_points(
+                gvar.data_for_gid(gid)
+                    .map_err(|_| error(b"gvar"))?
+                    .ok_or_else(|| error(b"gvar"))?
+                    .as_bytes(),
+                axes.pinned.len(),
             )?;
-            if let Some(points) = iup_points {
-                residual.optimize(&points, &contours, matches!(glyph, Glyph::Composite(_)))?;
-            }
-        }
-        variations.push(residual);
-        let phantoms = points.split_off(points.len() - 4).try_into().unwrap();
-        glyphs.push(InstanceGlyph {
-            glyph,
-            points,
-            curve_flags,
-            phantoms,
-        });
-    }
-    let mut bounds = Vec::with_capacity(count);
-    for gid in 0..count {
-        let mut budget = 1_000_000usize;
-        let points = get_points(gid, &glyphs, 0, &mut budget)?;
-        bounds.push(point_bounds(&points));
-    }
-    let mut glyf_out = Vec::new();
-    let mut offsets = Vec::with_capacity(count + 1);
-    for (g, bbox) in glyphs.iter_mut().zip(&bounds) {
-        offsets.push(u32::try_from(glyf_out.len()).map_err(|_| error(b"glyf"))?);
-        match &mut g.glyph {
-            Glyph::Empty => {}
-            Glyph::Simple(simple) => {
-                simple.bbox = bbox.unwrap_or_default();
-                // Encode coordinate differences with wrapping arithmetic: the
-                // format stores signed 16-bit deltas even across the full range.
-                encode_simple(simple, &g.points, &g.curve_flags, &mut glyf_out)?;
-            }
-            Glyph::Composite(composite) => {
-                composite.bbox = bbox.unwrap_or_default();
-                for (component, point) in composite.components_mut().iter_mut().zip(&g.points) {
-                    if matches!(component.anchor, Anchor::Offset { .. }) {
-                        component.anchor = Anchor::Offset {
-                            x: coord(point[0]),
-                            y: coord(point[1]),
-                        };
+            let mut pending = vec![[0.; 2]; points.len()];
+            let mut flush = false;
+            for tuple in data.tuples() {
+                if !axes.all_pinned() {
+                    let mut deltas = vec![[0.; 2]; orig_points.len()];
+                    let mut referenced = vec![false; orig_points.len()];
+                    for d in tuple.deltas() {
+                        let i = d.position as usize;
+                        *deltas.get_mut(i).ok_or_else(|| error(b"gvar"))? =
+                            [d.x_delta as f32, d.y_delta as f32];
+                        referenced[i] = true;
                     }
+                    residual.add(&tuple, axes.pinned.len(), deltas, referenced)?;
                 }
-                encode_composite(composite, &mut glyf_out)?;
+                let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
+                    continue;
+                };
+                let deltas = calc_inferred_deltas(&tuple, orig_points, contours, scalar)?;
+                if tuple.has_deltas_for_all_points() && !private {
+                    add_deltas(points, &deltas);
+                    continue;
+                }
+                if !tuple.has_deltas_for_all_points() {
+                    if flush {
+                        add_deltas(points, &pending);
+                    }
+                    pending.fill([0.; 2]);
+                }
+                add_deltas(&mut pending, &deltas);
+                flush = true;
+            }
+            if flush {
+                add_deltas(points, &pending);
             }
         }
-        if glyf_out.len() % 2 != 0 {
-            glyf_out.push(0);
-        }
+
+        Ok(residual)
     }
-    offsets.push(u32::try_from(glyf_out.len()).map_err(|_| error(b"glyf"))?);
-    let short = glyf_out.len() <= 0x1fffe;
-    let mut loca_out = Vec::new();
-    for offset in offsets {
-        if short {
-            loca_out.extend(((offset / 2) as u16).to_be_bytes());
-        } else {
-            loca_out.extend(offset.to_be_bytes());
+}
+
+impl super::Instance<TrueTypeContext<'_, '_>> for read_fonts::tables::glyf::Glyf<'_> {
+    type Output = TrueTypeTables;
+    fn instance(&self, context: &mut TrueTypeContext<'_, '_>) -> Result<Self::Output, SubsetError> {
+        use super::TableChange;
+        let font = context.input.font;
+        let axes = context.input.axes;
+        let tables = &mut *context.metrics;
+        let optimize_iup = context
+            .input
+            .flags
+            .contains(crate::SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS);
+        let glyf = self;
+        let loca = font.loca(None).map_err(|_| error(b"loca"))?;
+        let count = font.maxp().map_err(|_| error(b"maxp"))?.num_glyphs() as usize;
+        let hmtx = font.hmtx().map_err(|_| error(b"hmtx"))?;
+        let vmtx = font.vmtx().ok();
+        let gvar = font
+            .data_for_tag(Tag::new(b"gvar"))
+            .map(|_| font.gvar().map_err(|_| error(b"gvar")))
+            .transpose()?;
+        if gvar
+            .as_ref()
+            .is_some_and(|g| g.axis_count() as usize != axes.pinned.len())
+        {
+            return Err(error(b"gvar"));
         }
-    }
-    tables.insert(Tag::new(b"glyf"), glyf_out);
-    tables.insert(Tag::new(b"loca"), loca_out);
-    if axes.all_pinned() {
-        tables.remove(&Tag::new(b"gvar"));
-    } else if gvar.is_some() {
-        tables.insert(
-            Tag::new(b"gvar"),
-            compile_gvar(
+        let mut glyphs = Vec::with_capacity(count);
+        let mut variations = Vec::with_capacity(count);
+        for i in 0..count {
+            let gid = GlyphId::new(i as u32);
+            let source = loca
+                .get(gid, glyf)
+                .ok_or_else(|| error(b"glyf"))?
+                .into_glyph();
+            let mut points = Vec::new();
+            let mut contours = Vec::new();
+            let mut curve_flags = Vec::new();
+            let glyph = match source {
+                None => Glyph::Empty,
+                Some(ReadGlyph::Simple(g)) => {
+                    let mut raw_points =
+                        vec![read_fonts::types::Point::<i32>::default(); g.num_points()];
+                    curve_flags.resize(g.num_points(), PointFlags::default());
+                    g.read_points_fast(&mut raw_points, &mut curve_flags)
+                        .map_err(|_| error(b"glyf"))?;
+                    points.extend(raw_points.iter().map(|p| [p.x as f32, p.y as f32]));
+                    contours.extend(g.end_pts_of_contours().iter().map(|n| n.get() as usize));
+                    Glyph::Simple(g.to_owned_table())
+                }
+                Some(ReadGlyph::Composite(g)) => {
+                    let owned: write_fonts::tables::glyf::CompositeGlyph = g.to_owned_table();
+                    points.extend(owned.components().iter().map(|c| match c.anchor {
+                        Anchor::Offset { x, y } => [x as f32, y as f32],
+                        Anchor::Point { .. } => [0.; 2],
+                    }));
+                    Glyph::Composite(owned)
+                }
+            };
+            let bbox = glyph.bbox().unwrap_or_default();
+            let left = bbox.x_min as f32 - hmtx.side_bearing(gid).unwrap_or(0) as f32;
+            let top = bbox.y_max as f32
+                + vmtx.as_ref().and_then(|v| v.side_bearing(gid)).unwrap_or(0) as f32;
+            points.extend([
+                [left, 0.],
+                [left + hmtx.advance(gid).unwrap_or(0) as f32, 0.],
+                [0., top],
+                [
+                    0.,
+                    top - vmtx.as_ref().and_then(|v| v.advance(gid)).unwrap_or(0) as f32,
+                ],
+            ]);
+            let orig_points = points.clone();
+            let mut residual = TupleVariations::new();
+            if let Some(gvar) = &gvar {
+                let mut input = GvarGlyphContext {
+                    input: context.input,
+                    gid,
+                    points: &mut points,
+                    original_points: &orig_points,
+                    contours: &contours,
+                };
+                residual = gvar.instance(&mut input)?;
+            }
+            if !axes.all_pinned() {
+                let mut iup_points = optimize_iup.then(|| orig_points.clone());
+                residual.instantiate(
+                    font,
+                    axes,
+                    Some((&orig_points, &contours)),
+                    iup_points.as_deref_mut(),
+                )?;
+                if let Some(points) = iup_points {
+                    residual.optimize(&points, &contours, matches!(glyph, Glyph::Composite(_)))?;
+                }
+            }
+            variations.push(residual);
+            let phantoms = points.split_off(points.len() - 4).try_into().unwrap();
+            glyphs.push(InstanceGlyph {
+                glyph,
+                points,
+                curve_flags,
+                phantoms,
+            });
+        }
+        let mut bounds = Vec::with_capacity(count);
+        for gid in 0..count {
+            let mut budget = 1_000_000usize;
+            let points = get_points(gid, &glyphs, 0, &mut budget)?;
+            bounds.push(point_bounds(&points));
+        }
+        let mut glyf_out = Vec::new();
+        let mut offsets = Vec::with_capacity(count + 1);
+        for (g, bbox) in glyphs.iter_mut().zip(&bounds) {
+            offsets.push(u32::try_from(glyf_out.len()).map_err(|_| error(b"glyf"))?);
+            match &mut g.glyph {
+                Glyph::Empty => {}
+                Glyph::Simple(simple) => {
+                    simple.bbox = bbox.unwrap_or_default();
+                    // Encode coordinate differences with wrapping arithmetic: the
+                    // format stores signed 16-bit deltas even across the full range.
+                    encode_simple(simple, &g.points, &g.curve_flags, &mut glyf_out)?;
+                }
+                Glyph::Composite(composite) => {
+                    composite.bbox = bbox.unwrap_or_default();
+                    for (component, point) in composite.components_mut().iter_mut().zip(&g.points) {
+                        if matches!(component.anchor, Anchor::Offset { .. }) {
+                            component.anchor = Anchor::Offset {
+                                x: coord(point[0]),
+                                y: coord(point[1]),
+                            };
+                        }
+                    }
+                    encode_composite(composite, &mut glyf_out)?;
+                }
+            }
+            if glyf_out.len() % 2 != 0 {
+                glyf_out.push(0);
+            }
+        }
+        offsets.push(u32::try_from(glyf_out.len()).map_err(|_| error(b"glyf"))?);
+        let short = glyf_out.len() <= 0x1fffe;
+        let mut loca_out = Vec::new();
+        for offset in offsets {
+            if short {
+                loca_out.extend(((offset / 2) as u16).to_be_bytes());
+            } else {
+                loca_out.extend(offset.to_be_bytes());
+            }
+        }
+        let gvar = if axes.all_pinned() {
+            TableChange::Remove
+        } else if gvar.is_some() {
+            TableChange::Replace(compile_gvar(
                 &variations,
                 axes.pinned.iter().filter(|&&p| !p).count() as u16,
-            )?,
-        );
+            )?)
+        } else {
+            TableChange::Keep
+        };
+        let head = tables.head.as_mut().ok_or_else(|| error(b"head"))?;
+        put(head, 50, i16::from(!short))?;
+        let union = bounds
+            .iter()
+            .flatten()
+            .copied()
+            .reduce(Bbox::union)
+            .unwrap_or_default();
+        for (i, v) in [union.x_min, union.y_min, union.x_max, union.y_max]
+            .into_iter()
+            .enumerate()
+        {
+            put(head, 36 + i * 2, v)?;
+        }
+        let all_lsb = glyphs
+            .iter()
+            .zip(&bounds)
+            .all(|(g, b)| b.is_none() || round(g.phantoms[0][0]) == 0);
+        let flags = font.head().map_err(|_| error(b"head"))?.flags().bits();
+        put(
+            head,
+            16,
+            ((flags & !2) | if all_lsb { 2 } else { 0 }) as i16,
+        )?;
+        write_metrics(font, &glyphs, &bounds, tables)?;
+        let (cvar, cvt) = if let Some(data) = font.data_for_tag(Tag::new(b"cvar")) {
+            let cvar = read_fonts::tables::cvar::Cvar::read(data).map_err(|_| error(b"cvar"))?;
+            let mut cvt = font
+                .data_for_tag(Tag::new(b"cvt "))
+                .ok_or_else(|| error(b"cvt "))?
+                .as_bytes()
+                .to_vec();
+            let mut input = CvarContext {
+                input: context.input,
+                cvt: &mut cvt,
+            };
+            (cvar.instance(&mut input)?, Some(cvt))
+        } else {
+            (TableChange::Keep, None)
+        };
+        metrics::finish(font, axes, tables)?;
+        Ok(TrueTypeTables {
+            glyf: glyf_out,
+            loca: loca_out,
+            gvar,
+            cvar,
+            cvt,
+        })
     }
-    let head = tables
-        .get_mut(&Tag::new(b"head"))
-        .ok_or_else(|| error(b"head"))?;
-    put(head, 50, i16::from(!short))?;
-    let union = bounds
-        .iter()
-        .flatten()
-        .copied()
-        .reduce(Bbox::union)
-        .unwrap_or_default();
-    for (i, v) in [union.x_min, union.y_min, union.x_max, union.y_max]
-        .into_iter()
-        .enumerate()
-    {
-        put(head, 36 + i * 2, v)?;
-    }
-    let all_lsb = glyphs
-        .iter()
-        .zip(&bounds)
-        .all(|(g, b)| b.is_none() || round(g.phantoms[0][0]) == 0);
-    let flags = font.head().map_err(|_| error(b"head"))?.flags().bits();
-    put(
-        head,
-        16,
-        ((flags & !2) | if all_lsb { 2 } else { 0 }) as i16,
-    )?;
-    write_metrics(font, &glyphs, &bounds, tables)?;
-    instance_cvar(font, axes, tables)?;
-    metrics::finish(font, axes, tables)
 }
 
 fn point_bounds(points: &[Point]) -> Option<Bbox> {
@@ -640,7 +709,7 @@ fn write_metrics(
     font: &FontRef,
     glyphs: &[InstanceGlyph],
     bounds: &[Option<Bbox>],
-    tables: &mut Tables,
+    tables: &mut metrics::MetricTables,
 ) -> Result<(), SubsetError> {
     for vertical in [false, true] {
         let (tag, header) = if vertical {
@@ -682,9 +751,12 @@ fn write_metrics(
                 max_extent = max_extent.max(leading + extent);
             }
         }
-        let h = tables
-            .get_mut(&Tag::new(header))
-            .ok_or_else(|| error(header))?;
+        let h = if vertical {
+            tables.vhea.as_mut()
+        } else {
+            tables.hhea.as_mut()
+        }
+        .ok_or_else(|| error(header))?;
         put(h, 10, max_advance as u16 as i16)?;
         if min_leading != i32::MAX {
             for (offset, value) in [(12, min_leading), (14, min_trailing), (16, max_extent)] {
@@ -692,65 +764,68 @@ fn write_metrics(
             }
         }
         put(h, 34, glyphs.len() as u16 as i16)?;
-        tables.insert(Tag::new(tag), out);
+        if vertical {
+            tables.vmtx = Some(out);
+        } else {
+            tables.hmtx = Some(out);
+        }
     }
     Ok(())
 }
 
-fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<(), SubsetError> {
-    let Some(bytes) = font.data_for_tag(Tag::new(b"cvar")) else {
-        return Ok(());
-    };
-    let cvar = read_fonts::tables::cvar::Cvar::read(bytes).map_err(|_| error(b"cvar"))?;
-    let cvt = tables
-        .get_mut(&Tag::new(b"cvt "))
-        .ok_or_else(|| error(b"cvt "))?;
-    if cvt.len() % 2 != 0 {
-        return Err(error(b"cvt "));
-    }
-    let mut deltas = vec![0f32; cvt.len() / 2];
-    let mut residual = TupleVariations::new();
-    let data = cvar
-        .variation_data(axes.pinned.len() as u16)
-        .ok_or_else(|| error(b"cvar"))?;
-    for tuple in data.tuples() {
-        if !axes.all_pinned() {
-            let mut values = vec![[0.; 2]; deltas.len()];
-            let mut referenced = vec![false; deltas.len()];
-            for d in tuple.deltas() {
-                let i = d.position as usize;
-                values.get_mut(i).ok_or_else(|| error(b"cvar"))?[0] = d.value as f32;
-                referenced[i] = true;
+impl super::Instance<CvarContext<'_, '_>> for read_fonts::tables::cvar::Cvar<'_> {
+    type Output = super::TableChange;
+    fn instance(&self, context: &mut CvarContext<'_, '_>) -> Result<Self::Output, SubsetError> {
+        let cvar = self;
+        let font = context.input.font;
+        let axes = context.input.axes;
+        let cvt = &mut *context.cvt;
+        if cvt.len() % 2 != 0 {
+            return Err(error(b"cvt "));
+        }
+        let mut deltas = vec![0f32; cvt.len() / 2];
+        let mut residual = TupleVariations::new();
+        let data = cvar
+            .variation_data(axes.pinned.len() as u16)
+            .ok_or_else(|| error(b"cvar"))?;
+        for tuple in data.tuples() {
+            if !axes.all_pinned() {
+                let mut values = vec![[0.; 2]; deltas.len()];
+                let mut referenced = vec![false; deltas.len()];
+                for d in tuple.deltas() {
+                    let i = d.position as usize;
+                    values.get_mut(i).ok_or_else(|| error(b"cvar"))?[0] = d.value as f32;
+                    referenced[i] = true;
+                }
+                residual.add(&tuple, axes.pinned.len(), values, referenced)?;
             }
-            residual.add(&tuple, axes.pinned.len(), values, referenced)?;
+            let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
+                continue;
+            };
+            for d in tuple.deltas() {
+                *deltas
+                    .get_mut(d.position as usize)
+                    .ok_or_else(|| error(b"cvar"))? += scalar * d.value as f32;
+            }
         }
-        let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
-            continue;
-        };
-        for d in tuple.deltas() {
-            *deltas
-                .get_mut(d.position as usize)
-                .ok_or_else(|| error(b"cvar"))? += scalar * d.value as f32;
+        for (bytes, delta) in cvt.chunks_exact_mut(2).zip(deltas) {
+            let value = i16::from_be_bytes(bytes.try_into().unwrap()) as f32;
+            bytes.copy_from_slice(&coord(value + delta).to_be_bytes());
         }
-    }
-    for (bytes, delta) in cvt.chunks_exact_mut(2).zip(deltas) {
-        let value = i16::from_be_bytes(bytes.try_into().unwrap()) as f32;
-        bytes.copy_from_slice(&coord(value + delta).to_be_bytes());
-    }
-    if axes.all_pinned() {
-        tables.remove(&Tag::new(b"cvar"));
-    } else {
-        residual.instantiate(font, axes, None, None)?;
-        let data = residual.compile_bytes(&BTreeMap::new(), false)?;
-        if data.is_empty() {
-            tables.remove(&Tag::new(b"cvar"));
+        if axes.all_pinned() {
+            Ok(super::TableChange::Remove)
         } else {
-            let mut bytes = vec![0, 1, 0, 0];
-            bytes.extend(data);
-            tables.insert(Tag::new(b"cvar"), bytes);
+            residual.instantiate(font, axes, None, None)?;
+            let data = residual.compile_bytes(&BTreeMap::new(), false)?;
+            if data.is_empty() {
+                Ok(super::TableChange::Remove)
+            } else {
+                let mut bytes = vec![0, 1, 0, 0];
+                bytes.extend(data);
+                Ok(super::TableChange::Replace(bytes))
+            }
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]

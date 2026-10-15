@@ -73,11 +73,17 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
     }
 }
 
-pub(crate) fn instance(
-    font: &FontRef,
-    axes: &crate::instance::AxisPlan,
-) -> std::result::Result<Vec<u8>, SubsetError> {
-    instance::instance(font, axes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+impl crate::instance::Instance<crate::instance::FontContext<'_>>
+    for read_fonts::tables::cff2::Cff2<'_>
+{
+    type Output = Vec<u8>;
+    fn instance(
+        &self,
+        context: &mut crate::instance::FontContext<'_>,
+    ) -> std::result::Result<Self::Output, SubsetError> {
+        instance::instance(context.font, context.axes, self)
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+    }
 }
 
 pub(crate) fn instance_bounds(

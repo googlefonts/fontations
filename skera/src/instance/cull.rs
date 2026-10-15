@@ -1,8 +1,8 @@
 //! HarfBuzz's avar2 culling path: drop unreachable regions without rebasing
 //! live tuples or changing variation indices.
+use super::{Instance, TableChange};
 use crate::SubsetError;
 use read_fonts::{types::Tag, FontRef, TableProvider};
-use std::collections::BTreeMap;
 use write_fonts::{
     from_obj::ToOwnedTable,
     tables::{
@@ -122,55 +122,73 @@ fn prune_store(
     Ok(true)
 }
 
-pub(super) fn tables(
+pub(super) struct CullContext<'a> {
+    pub ranges: &'a Ranges,
+}
+
+macro_rules! cull_store {
+    ($module:ident, $source:ident, $owned:ty, $field:ident, $kind:ident, $tag:literal) => {
+        impl Instance<CullContext<'_>> for read_fonts::tables::$module::$source<'_> {
+            type Output = TableChange;
+            fn instance(&self, context: &mut CullContext<'_>) -> Result<Self::Output, SubsetError> {
+                let tag = Tag::new($tag);
+                let mut table: $owned = self.to_owned_table();
+                if let Some(store) = cull_store!(@store table, $field, $kind) {
+                    if prune_store(store, context.ranges, tag)? {
+                        return Ok(TableChange::Replace(write_fonts::dump_table(&table).map_err(|_| error(tag))?));
+                    }
+                }
+                Ok(TableChange::Keep)
+            }
+        }
+    };
+    (@store $table:ident, $field:ident, required) => { Some($table.$field.as_mut()) };
+    (@store $table:ident, $field:ident, optional) => { $table.$field.as_mut() };
+}
+cull_store!(hvar, Hvar, Hvar, item_variation_store, required, b"HVAR");
+cull_store!(vvar, Vvar, Vvar, item_variation_store, required, b"VVAR");
+cull_store!(mvar, Mvar, Mvar, item_variation_store, optional, b"MVAR");
+cull_store!(gdef, Gdef, Gdef, item_var_store, optional, b"GDEF");
+cull_store!(base, Base, Base, item_var_store, optional, b"BASE");
+cull_store!(colr, Colr, Colr, item_variation_store, optional, b"COLR");
+
+impl Instance<CullContext<'_>> for read_fonts::tables::gvar::Gvar<'_> {
+    type Output = TableChange;
+    fn instance(&self, context: &mut CullContext<'_>) -> Result<Self::Output, SubsetError> {
+        Ok(prune_gvar(self.offset_data().as_bytes(), context.ranges)?
+            .map(TableChange::Replace)
+            .unwrap_or_default())
+    }
+}
+
+pub(super) fn collect(
     font: &FontRef,
     ranges: &Ranges,
-    tables: &mut BTreeMap<Tag, Vec<u8>>,
-) -> Result<bool, SubsetError> {
+) -> Result<Vec<(Tag, TableChange)>, SubsetError> {
     if ranges.iter().all(Option::is_none) {
-        return Ok(false);
+        return Ok(Vec::new());
     }
-    let mut changed = false;
-    macro_rules! store {
-        ($table:ident, $field:ident, required) => {
-            Some($table.$field.as_mut())
-        };
-        ($table:ident, $field:ident, optional) => {
-            $table.$field.as_mut()
-        };
-    }
-    macro_rules! prune {
-        ($access:ident, $owned:ty, $field:ident, $kind:ident, $tag:literal) => {
-            let tag = Tag::new($tag);
-            if font.data_for_tag(tag).is_some() {
-                let source = font.$access().map_err(|_| error(tag))?;
-                let mut table: $owned = source.to_owned_table();
-                if let Some(store) = store!(table, $field, $kind) {
-                    if prune_store(store, ranges, tag)? {
-                        tables.insert(
-                            tag,
-                            write_fonts::dump_table(&table).map_err(|_| error(tag))?,
-                        );
-                        changed = true;
-                    }
+    let mut output = Vec::new();
+    let mut context = CullContext { ranges };
+    macro_rules! collect {
+        ($access:ident, $tag:literal) => {
+            if font.data_for_tag(Tag::new($tag)).is_some() {
+                let source = font.$access().map_err(|_| error(Tag::new($tag)))?;
+                let change = source.instance(&mut context)?;
+                if !matches!(change, TableChange::Keep) {
+                    output.push((Tag::new($tag), change));
                 }
             }
         };
     }
-    prune!(hvar, Hvar, item_variation_store, required, b"HVAR");
-    prune!(vvar, Vvar, item_variation_store, required, b"VVAR");
-    prune!(mvar, Mvar, item_variation_store, optional, b"MVAR");
-    prune!(gdef, Gdef, item_var_store, optional, b"GDEF");
-    prune!(base, Base, item_var_store, optional, b"BASE");
-    prune!(colr, Colr, item_variation_store, optional, b"COLR");
-    let tag = Tag::new(b"gvar");
-    if let Some(bytes) = tables.get(&tag) {
-        if let Some(pruned) = prune_gvar(bytes, ranges)? {
-            tables.insert(tag, pruned);
-            changed = true;
-        }
-    }
-    Ok(changed)
+    collect!(hvar, b"HVAR");
+    collect!(vvar, b"VVAR");
+    collect!(mvar, b"MVAR");
+    collect!(gdef, b"GDEF");
+    collect!(base, b"BASE");
+    collect!(colr, b"COLR");
+    collect!(gvar, b"gvar");
+    Ok(output)
 }
 
 fn read16(bytes: &[u8], offset: usize) -> Option<u16> {

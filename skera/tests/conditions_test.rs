@@ -233,7 +233,7 @@ fn null_conditions_preserve_feature_selection_through_subsetting_and_instancing(
                                 GlyphId16::new(1u16.wrapping_add(sub.delta_glyph_id as u16))
                             }
                             SingleSubst::Format2(sub) => sub.substitute_glyph_ids[0],
-                            _ => panic!("fixture uses original single substitutions"),
+                            _ => panic!("fixture uses an original single substitution"),
                         };
                         assert_eq!(substitute, GlyphId16::new(if alternate { 3 } else { 2 }));
                     } else {
