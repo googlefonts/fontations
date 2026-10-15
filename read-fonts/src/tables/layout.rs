@@ -307,14 +307,25 @@ impl<'a> CoverageTable<'a> {
     }
 
     /// If this glyph is covered, returns its index without narrowing it.
-    #[inline]
+    // Always inlined: left to the heuristics, the common formats' searches
+    // are folded in first and the result is then too large to inline.
+    #[inline(always)]
     pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid = gid.into();
         match self {
             Self::Format1(t) => t.get(gid).map(u32::from),
             Self::Format2(t) => t.get(gid).map(u32::from),
+            _ => self.get_wide(gid),
+        }
+    }
+
+    // Out of line so that the common formats stay small enough to inline.
+    #[inline(never)]
+    fn get_wide(&self, gid: GlyphId) -> Option<u32> {
+        match self {
             Self::Format3(t) => t.get(gid),
             Self::Format4(t) => t.get(gid),
+            _ => None,
         }
     }
 
@@ -984,14 +995,24 @@ impl ClassRangeRecord {
 
 impl ClassDef<'_> {
     /// Gets the class without narrowing 24-bit class values.
-    #[inline]
+    // Always inlined, for the reason given on CoverageTable::get.
+    #[inline(always)]
     pub fn get(&self, gid: impl Into<GlyphId>) -> u32 {
         let gid = gid.into();
         match self {
             Self::Format1(t) => u32::from(t.get(gid)),
             Self::Format2(t) => u32::from(t.get(gid)),
+            _ => self.get_wide(gid),
+        }
+    }
+
+    // Out of line so that the common formats stay small enough to inline.
+    #[inline(never)]
+    fn get_wide(&self, gid: GlyphId) -> u32 {
+        match self {
             Self::Format3(t) => t.get(gid),
             Self::Format4(t) => t.get(gid),
+            _ => 0,
         }
     }
 

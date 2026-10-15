@@ -304,6 +304,7 @@ impl ReadArgs for FdSelect<'_> {
 }
 
 impl<'a> FontRead<'a> for FdSelect<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
@@ -740,6 +741,7 @@ impl ReadArgs for CustomCharset<'_> {
 }
 
 impl<'a> FontRead<'a> for CustomCharset<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {

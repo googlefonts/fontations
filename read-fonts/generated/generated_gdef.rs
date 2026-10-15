@@ -800,6 +800,7 @@ impl ReadArgs for CaretValue<'_> {
 }
 
 impl<'a> FontRead<'a> for CaretValue<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {

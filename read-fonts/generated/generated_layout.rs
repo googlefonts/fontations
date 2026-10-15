@@ -1203,6 +1203,7 @@ impl ReadArgs for CoverageTable<'_> {
 }
 
 impl<'a> FontRead<'a> for CoverageTable<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -1526,6 +1527,7 @@ impl ReadArgs for ClassDef<'_> {
 }
 
 impl<'a> FontRead<'a> for ClassDef<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -2490,6 +2492,7 @@ impl ReadArgs for SequenceContext<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceContext<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -3709,6 +3712,7 @@ impl ReadArgs for ChainedSequenceContext<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -4032,6 +4036,7 @@ impl ReadArgs for DeviceOrVariationIndex<'_> {
 }
 
 impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: DeltaFormat = data.read_at(4usize)?;
 
@@ -4974,6 +4979,7 @@ impl ReadArgs for Condition<'_> {
 }
 
 impl<'a> FontRead<'a> for Condition<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {

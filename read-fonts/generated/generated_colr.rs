@@ -759,6 +759,7 @@ impl ReadArgs for ClipBox<'_> {
 }
 
 impl<'a> FontRead<'a> for ClipBox<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
@@ -1548,6 +1549,7 @@ impl ReadArgs for Paint<'_> {
 }
 
 impl<'a> FontRead<'a> for Paint<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {

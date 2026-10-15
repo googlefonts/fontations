@@ -672,6 +672,7 @@ impl ReadArgs for AnchorTable<'_> {
 }
 
 impl<'a> FontRead<'a> for AnchorTable<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -1212,6 +1213,7 @@ impl ReadArgs for SinglePos<'_> {
 }
 
 impl<'a> FontRead<'a> for SinglePos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -1560,6 +1562,7 @@ impl ReadArgs for PairPos<'_> {
 }
 
 impl<'a> FontRead<'a> for PairPos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -6160,6 +6163,7 @@ impl ReadArgs for CursivePos<'_> {
 }
 
 impl<'a> FontRead<'a> for CursivePos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -6229,6 +6233,7 @@ impl ReadArgs for MarkBasePos<'_> {
 }
 
 impl<'a> FontRead<'a> for MarkBasePos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -6298,6 +6303,7 @@ impl ReadArgs for MarkLigPos<'_> {
 }
 
 impl<'a> FontRead<'a> for MarkLigPos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -6367,6 +6373,7 @@ impl ReadArgs for MarkMarkPos<'_> {
 }
 
 impl<'a> FontRead<'a> for MarkMarkPos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {

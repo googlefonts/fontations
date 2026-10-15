@@ -1234,6 +1234,7 @@ impl ReadArgs for Glyph<'_> {
 }
 
 impl<'a> FontRead<'a> for Glyph<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: i16 = data.read_at(0usize)?;
 
