@@ -63,7 +63,7 @@ impl types::Scalar for MatchModeAndCount {
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Ord, PartialOrd, Hash)]
 pub struct CompatibilityId([u8; 16]);
 
 impl CompatibilityId {
@@ -171,7 +171,10 @@ impl U16Or24 {
 impl<'a> EntryData<'a> {
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.trailing_data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 }
 
@@ -257,7 +260,7 @@ where
 
         let data: Result<GlyphData<'a>, ReadError> = self.patches.resolve_offset(start);
         let data = match data {
-            Ok(data) => data.data,
+            Ok(data) => data.offset_data(),
             Err(err) => {
                 self.failed = true;
                 return Some(Err(err));

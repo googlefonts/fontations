@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for MajorMinorVersion<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -25,13 +25,29 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MajorMinorVersionFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub always_present: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MajorMinorVersionFixedHeader>() <= MajorMinorVersion::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct MajorMinorVersion<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MajorMinorVersionFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -40,26 +56,24 @@ impl<'a> MajorMinorVersion<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     pub fn always_present(&self) -> u16 {
-        let range = self.always_present_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().always_present.get()
     }
 
     pub fn if_11(&self) -> Option<u16> {
         let range = self.if_11_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     pub fn if_20(&self) -> Option<u32> {
         let range = self.if_20_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -103,7 +117,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MajorMinorVersion<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -412,7 +427,7 @@ impl<'a> MinByteRange<'a> for FlagDay<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -426,13 +441,28 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct FlagDayFixedHeader {
+    pub volume: BigEndian<u16>,
+    pub flags: BigEndian<GotFlags>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<FlagDayFixedHeader>() <= FlagDay::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct FlagDay<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, FlagDayFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -441,26 +471,24 @@ impl<'a> FlagDay<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn volume(&self) -> u16 {
-        let range = self.volume_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().volume.get()
     }
 
     pub fn flags(&self) -> GotFlags {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flags.get()
     }
 
     pub fn foo(&self) -> Option<u16> {
         let range = self.foo_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     pub fn bar(&self) -> Option<u16> {
         let range = self.bar_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -502,7 +530,8 @@ const _: () = assert!(FontData::default_data_long_enough(FlagDay::MIN_SIZE));
 impl Default for FlagDay<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

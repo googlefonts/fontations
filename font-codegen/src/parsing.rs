@@ -546,6 +546,20 @@ impl Items {
             }
         }
 
+        for item in self.iter_mut() {
+            let Item::Table(item) = item else {
+                continue;
+            };
+            for field in item
+                .fields
+                .fields
+                .iter_mut()
+                .take_while(|fld| fld.validated_at_parse && fld.can_be_in_header())
+            {
+                field.in_header = true;
+            }
+        }
+
         // now that field types are resolved we can work out which of them are
         // read at an offset within their enclosing table
         let positioned = self.build_positioned_set();
