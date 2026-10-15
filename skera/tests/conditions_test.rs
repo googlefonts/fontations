@@ -38,6 +38,7 @@ fn synthetic_font(tag: Tag, kind: u8) -> Vec<u8> {
         Feature::new(None, vec![0]),
     )]);
     let vars = FeatureVariations {
+        lookup_variation_records: None,
         feature_variation_records: vec![
             FeatureVariationRecord {
                 condition_set: ConditionSet {
@@ -171,7 +172,7 @@ fn assert_selected(bytes: &[u8], tag: Tag, alternate: bool) {
         let table: Gsub = font.gsub().unwrap().to_owned_table();
         assert!(table.feature_variations.is_none());
         assert_eq!(
-            table.feature_list.feature_records[0]
+            table.feature_list.as_ref().unwrap().feature_records[0]
                 .feature
                 .lookup_list_indices,
             [expected_index]
@@ -180,7 +181,7 @@ fn assert_selected(bytes: &[u8], tag: Tag, alternate: bool) {
         let table: Gpos = font.gpos().unwrap().to_owned_table();
         assert!(table.feature_variations.is_none());
         assert_eq!(
-            table.feature_list.feature_records[0]
+            table.feature_list.as_ref().unwrap().feature_records[0]
                 .feature
                 .lookup_list_indices,
             [expected_index]
@@ -219,11 +220,11 @@ fn null_conditions_preserve_feature_selection_through_subsetting_and_instancing(
                     let full = FontRef::new(&full).unwrap();
                     if tag == Tag::new(b"GSUB") {
                         let table: Gsub = full.gsub().unwrap().to_owned_table();
-                        let i = table.feature_list.feature_records[0]
+                        let i = table.feature_list.as_ref().unwrap().feature_records[0]
                             .feature
                             .lookup_list_indices[0] as usize;
                         let SubstitutionLookup::Single(lookup) =
-                            table.lookup_list.lookups[i].as_ref()
+                            table.lookup_list.as_ref().unwrap().lookups[i].as_ref()
                         else {
                             panic!()
                         };
@@ -232,14 +233,16 @@ fn null_conditions_preserve_feature_selection_through_subsetting_and_instancing(
                                 GlyphId16::new(1u16.wrapping_add(sub.delta_glyph_id as u16))
                             }
                             SingleSubst::Format2(sub) => sub.substitute_glyph_ids[0],
+                            _ => panic!("fixture uses original single substitutions"),
                         };
                         assert_eq!(substitute, GlyphId16::new(if alternate { 3 } else { 2 }));
                     } else {
                         let table: Gpos = full.gpos().unwrap().to_owned_table();
-                        let i = table.feature_list.feature_records[0]
+                        let i = table.feature_list.as_ref().unwrap().feature_records[0]
                             .feature
                             .lookup_list_indices[0] as usize;
-                        let PositionLookup::Single(lookup) = table.lookup_list.lookups[i].as_ref()
+                        let PositionLookup::Single(lookup) =
+                            table.lookup_list.as_ref().unwrap().lookups[i].as_ref()
                         else {
                             panic!()
                         };
