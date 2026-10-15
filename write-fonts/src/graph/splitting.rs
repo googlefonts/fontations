@@ -121,6 +121,17 @@ fn split_coverage(coverage: &rlayout::CoverageTable, start: u16, end: u16) -> Ta
     assert!(start <= end);
     let len = end - start;
     let mut data = TableData::default();
+    if matches!(
+        coverage,
+        rlayout::CoverageTable::Format3(_) | rlayout::CoverageTable::Format4(_)
+    ) {
+        data.write(3u16);
+        data.write(font_types::Uint24::new(len as u32));
+        for glyph in coverage.iter().skip(start as usize).take(len as usize) {
+            data.write(font_types::GlyphId24::new(glyph.to_u32()));
+        }
+        return data;
+    }
     match coverage {
         rlayout::CoverageTable::Format1(table) => {
             data.write(1u16);
@@ -144,6 +155,7 @@ fn split_coverage(coverage: &rlayout::CoverageTable, start: u16, end: u16) -> Ta
                 data.write(record.start_coverage_index);
             }
         }
+        rlayout::CoverageTable::Format3(_) | rlayout::CoverageTable::Format4(_) => unreachable!(),
     }
     data
 }
