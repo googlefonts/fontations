@@ -10,22 +10,100 @@ mod closure;
 
 use crate::array::ComputedArray;
 
+use super::layout::header::HeaderOffset;
 /// reexport stuff from layout that we use
 pub use super::layout::{
     ClassDef, CoverageTable, Device, DeviceOrVariationIndex, FeatureList, FeatureVariations,
     Lookup, ScriptList,
 };
-use super::layout::{ExtensionLookup, LookupFlag, Subtables};
+use super::layout::{ExtensionLookup, LookupFlag, SelectedLookupList, Subtables};
 pub use value_record::ValueRecord;
 
 #[cfg(test)]
 #[path = "../tests/test_gpos.rs"]
 mod spec_tests;
 
+use crate::types::Compatible;
+
 include!("../../generated/generated_gpos.rs");
 
-/// A typed GPOS [LookupList](super::layout::LookupList) table
-pub type PositionLookupList<'a> = super::layout::LookupList<'a, PositionLookup<'a>>;
+impl<'a> Gpos<'a> {
+    /// The offset to the script list, original or extended.
+    pub(crate) fn selected_script_list_offset(&self) -> Result<HeaderOffset, ReadError> {
+        self.select_offset(self.script_list_offset(), self.script_list2_offset())
+    }
+
+    /// The offset to the feature list, original or extended.
+    pub(crate) fn selected_feature_list_offset(&self) -> Result<HeaderOffset, ReadError> {
+        self.select_offset(self.feature_list_offset(), self.feature_list2_offset())
+    }
+
+    /// The offset to the lookup list, original or extended.
+    pub(crate) fn selected_lookup_list_offset(&self) -> Result<HeaderOffset, ReadError> {
+        self.select_offset(self.lookup_list_offset(), self.lookup_list2_offset())
+    }
+
+    fn select_offset(
+        &self,
+        original: Nullable<Offset16>,
+        extended: Option<Nullable<Offset32>>,
+    ) -> Result<HeaderOffset, ReadError> {
+        HeaderOffset::select(original, extended, self.version().compatible((1, 2)))
+    }
+
+    /// Resolves the table, preferring the 32-bit offset when it is nonzero.
+    pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
+        self.selected_script_list_offset()?
+            .offset()
+            .resolve(self.offset_data())
+    }
+
+    /// Resolves the original 16-bit offset without applying precedence.
+    pub fn original_script_list(&self) -> Option<Result<ScriptList<'a>, ReadError>> {
+        self.script_list_offset().resolve(self.offset_data())
+    }
+
+    /// Resolves the table, preferring the 32-bit offset when it is nonzero.
+    pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
+        self.selected_feature_list_offset()?
+            .offset()
+            .resolve(self.offset_data())
+    }
+
+    /// Resolves the original 16-bit offset without applying precedence.
+    pub fn original_feature_list(&self) -> Option<Result<FeatureList<'a>, ReadError>> {
+        self.feature_list_offset().resolve(self.offset_data())
+    }
+
+    /// Resolves the lookup list, preferring LookupList2 when its offset is nonzero.
+    pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
+        let data = self.offset_data();
+        match self.selected_lookup_list_offset()? {
+            HeaderOffset::Original(offset) => {
+                offset.resolve(data).map(SelectedLookupList::Original)
+            }
+            HeaderOffset::Extended(offset) => {
+                offset.resolve(data).map(SelectedLookupList::Extended)
+            }
+        }
+    }
+
+    /// Resolves the original 16-bit lookup-list offset.
+    pub fn original_lookup_list(
+        &self,
+    ) -> Option<Result<OriginalPositionLookupList<'a>, ReadError>> {
+        self.lookup_list_offset().resolve(self.offset_data())
+    }
+}
+
+/// The GPOS lookup list selected by the header.
+pub type PositionLookupList<'a> = super::layout::SelectedLookupList<'a, PositionLookup<'a>>;
+
+/// A lookup list with the original 16-bit offsets.
+pub type OriginalPositionLookupList<'a> = super::layout::LookupList<'a, PositionLookup<'a>>;
+
+/// A lookup list with 32-bit offsets.
+pub type PositionLookupList2<'a> = super::layout::LookupList2<'a, PositionLookup<'a>>;
 
 /// A GPOS [SequenceContext](super::layout::SequenceContext)
 pub type PositionSequenceContext<'a> = super::layout::SequenceContext<'a>;
@@ -69,10 +147,10 @@ type PosSubtables<'a, T> = Subtables<'a, T, ExtensionPosFormat1<'a, T>>;
 pub enum PositionSubtables<'a> {
     Single(PosSubtables<'a, SinglePos<'a>>),
     Pair(PosSubtables<'a, PairPos<'a>>),
-    Cursive(PosSubtables<'a, CursivePosFormat1<'a>>),
-    MarkToBase(PosSubtables<'a, MarkBasePosFormat1<'a>>),
-    MarkToLig(PosSubtables<'a, MarkLigPosFormat1<'a>>),
-    MarkToMark(PosSubtables<'a, MarkMarkPosFormat1<'a>>),
+    Cursive(PosSubtables<'a, CursivePos<'a>>),
+    MarkToBase(PosSubtables<'a, MarkBasePos<'a>>),
+    MarkToLig(PosSubtables<'a, MarkLigPos<'a>>),
+    MarkToMark(PosSubtables<'a, MarkMarkPos<'a>>),
     Contextual(PosSubtables<'a, PositionSequenceContext<'a>>),
     ChainContextual(PosSubtables<'a, PositionChainContext<'a>>),
     /// An extension lookup did not have any subtables
@@ -237,6 +315,37 @@ impl<'a> ClassValueRecords<'a> {
 }
 
 impl<'a> PairPosFormat2<'a> {
+    /// Returns the two-dimensional array of class value records, located but
+    /// not read.
+    pub fn class_value_records(&self) -> ClassValueRecords<'a> {
+        let format1 = self.value_format1();
+        let format2 = self.value_format2();
+        let format1_len = format1.record_byte_len();
+        ClassValueRecords {
+            data: self.offset_data(),
+            start: self.class1_records_byte_range().start as u32,
+            record_size: (format1_len + format2.record_byte_len()) as u32,
+            format1_len: format1_len as u32,
+            class1_count: self.class1_count(),
+            class2_count: self.class2_count(),
+            format1,
+            format2,
+        }
+    }
+
+    /// Returns the pair of value records for the given classes, located but
+    /// not read.
+    ///
+    /// Returns `None` if either class is out of range. When reading more than
+    /// one class pair, prefer [`class_value_records`][Self::class_value_records],
+    /// which reads the table's counts and formats only once.
+    #[inline]
+    pub fn value_record_refs(&self, class1: u16, class2: u16) -> Option<[ValueRecord<'a>; 2]> {
+        self.class_value_records().get(class1, class2)
+    }
+}
+
+impl<'a> PairPosFormat4<'a> {
     /// Returns the two-dimensional array of class value records, located but
     /// not read.
     pub fn class_value_records(&self) -> ClassValueRecords<'a> {

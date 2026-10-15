@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Cpal<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,32 @@ impl<'a> FontRead<'a> for Cpal<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CpalFixedHeader {
+    pub version: BigEndian<u16>,
+    pub num_palette_entries: BigEndian<u16>,
+    pub num_palettes: BigEndian<u16>,
+    pub num_color_records: BigEndian<u16>,
+    pub color_records_array_offset: BigEndian<Nullable<Offset32>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<CpalFixedHeader>() <= Cpal::MIN_SIZE);
+
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 #[derive(Clone)]
 pub struct Cpal<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, CpalFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -51,38 +69,33 @@ impl<'a> Cpal<'a> {
 
     /// Table version number (=0).
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Number of palette entries in each palette.
     pub fn num_palette_entries(&self) -> u16 {
-        let range = self.num_palette_entries_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_palette_entries.get()
     }
 
     /// Number of palettes in the table.
     pub fn num_palettes(&self) -> u16 {
-        let range = self.num_palettes_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_palettes.get()
     }
 
     /// Total number of color records, combined for all palettes.
     pub fn num_color_records(&self) -> u16 {
-        let range = self.num_color_records_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_color_records.get()
     }
 
     /// Offset from the beginning of CPAL table to the first
     /// ColorRecord.
     pub fn color_records_array_offset(&self) -> Nullable<Offset32> {
-        let range = self.color_records_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().color_records_array_offset.get()
     }
 
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
     pub fn color_records_array(&self) -> Option<Result<&'a [ColorRecord], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_color_records();
         self.color_records_array_offset()
             .resolve_with_args(data, args)
@@ -92,7 +105,10 @@ impl<'a> Cpal<'a> {
     /// color record array.
     pub fn color_record_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.color_record_indices_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Types Array][].
@@ -103,13 +119,13 @@ impl<'a> Cpal<'a> {
     pub fn palette_types_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.palette_types_array_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`palette_types_array_offset`][Self::palette_types_array_offset].
     pub fn palette_types_array(&self) -> Option<Result<&'a [BigEndian<PaletteType>], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_palettes();
         self.palette_types_array_offset()
             .map(|x| x.resolve_with_args(data, args))?
@@ -125,13 +141,13 @@ impl<'a> Cpal<'a> {
     pub fn palette_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.palette_labels_array_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
     pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<NameId>], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_palettes();
         self.palette_labels_array_offset()
             .map(|x| x.resolve_with_args(data, args))?
@@ -149,13 +165,13 @@ impl<'a> Cpal<'a> {
     pub fn palette_entry_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.palette_entry_labels_array_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
     pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<NameId>], ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.num_palette_entries();
         self.palette_entry_labels_array_offset()
             .map(|x| x.resolve_with_args(data, args))?
@@ -234,7 +250,8 @@ const _: () = assert!(FontData::default_data_long_enough(Cpal::MIN_SIZE));
 impl Default for Cpal<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

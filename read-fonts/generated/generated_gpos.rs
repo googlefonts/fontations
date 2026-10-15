@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Gpos<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,15 +30,32 @@ impl<'a> FontRead<'a> for Gpos<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GposFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub script_list_offset: BigEndian<Nullable<Offset16>>,
+    pub feature_list_offset: BigEndian<Nullable<Offset16>>,
+    pub lookup_list_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GposFixedHeader>() <= Gpos::MIN_SIZE);
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Clone)]
 pub struct Gpos<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GposFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -51,66 +68,77 @@ impl<'a> Gpos<'a> {
 
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Offset to ScriptList table, from beginning of GPOS table
-    pub fn script_list_offset(&self) -> Offset16 {
-        let range = self.script_list_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
-    }
-
-    /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
-    pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        let data = self.data;
-        self.script_list_offset().resolve(data)
+    pub fn script_list_offset(&self) -> Nullable<Offset16> {
+        self.data.header().script_list_offset.get()
     }
 
     /// Offset to FeatureList table, from beginning of GPOS table
-    pub fn feature_list_offset(&self) -> Offset16 {
-        let range = self.feature_list_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
-    }
-
-    /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
-    pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        let data = self.data;
-        self.feature_list_offset().resolve(data)
+    pub fn feature_list_offset(&self) -> Nullable<Offset16> {
+        self.data.header().feature_list_offset.get()
     }
 
     /// Offset to LookupList table, from beginning of GPOS table
-    pub fn lookup_list_offset(&self) -> Offset16 {
-        let range = self.lookup_list_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
-    }
-
-    /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
-    pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
-        let data = self.data;
-        self.lookup_list_offset().resolve(data)
+    pub fn lookup_list_offset(&self) -> Nullable<Offset16> {
+        self.data.header().lookup_list_offset.get()
     }
 
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.feature_variations_offset_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.feature_variations_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to ScriptList, taking precedence when nonzero.
+    pub fn script_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.script_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.offset_data().read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`script_list2_offset`][Self::script_list2_offset].
+    pub fn script_list2(&self) -> Option<Result<ScriptList<'a>, ReadError>> {
+        let data = self.offset_data();
+        self.script_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to FeatureList, taking precedence when nonzero.
+    pub fn feature_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.feature_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.offset_data().read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`feature_list2_offset`][Self::feature_list2_offset].
+    pub fn feature_list2(&self) -> Option<Result<FeatureList<'a>, ReadError>> {
+        let data = self.offset_data();
+        self.feature_list2_offset().map(|x| x.resolve(data))?
+    }
+
+    /// 32-bit offset to LookupList2, taking precedence when nonzero.
+    pub fn lookup_list2_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.lookup_list2_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.offset_data().read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`lookup_list2_offset`][Self::lookup_list2_offset].
+    pub fn lookup_list2(&self) -> Option<Result<PositionLookupList2<'a>, ReadError>> {
+        let data = self.offset_data();
+        self.lookup_list2_offset().map(|x| x.resolve(data))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -146,6 +174,36 @@ impl<'a> Gpos<'a> {
         };
         start..end
     }
+
+    pub fn script_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.feature_variations_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn feature_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.script_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+
+    pub fn lookup_list2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.feature_list2_offset_byte_range().end;
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
 }
 
 const _: () = assert!(FontData::default_data_long_enough(Gpos::MIN_SIZE));
@@ -153,7 +211,8 @@ const _: () = assert!(FontData::default_data_long_enough(Gpos::MIN_SIZE));
 impl Default for Gpos<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -162,10 +221,10 @@ impl Default for Gpos<'_> {
 pub enum PositionLookup<'a> {
     Single(Lookup<'a, SinglePos<'a>>),
     Pair(Lookup<'a, PairPos<'a>>),
-    Cursive(Lookup<'a, CursivePosFormat1<'a>>),
-    MarkToBase(Lookup<'a, MarkBasePosFormat1<'a>>),
-    MarkToLig(Lookup<'a, MarkLigPosFormat1<'a>>),
-    MarkToMark(Lookup<'a, MarkMarkPosFormat1<'a>>),
+    Cursive(Lookup<'a, CursivePos<'a>>),
+    MarkToBase(Lookup<'a, MarkBasePos<'a>>),
+    MarkToLig(Lookup<'a, MarkLigPos<'a>>),
+    MarkToMark(Lookup<'a, MarkMarkPos<'a>>),
     Contextual(Lookup<'a, PositionSequenceContext<'a>>),
     ChainContextual(Lookup<'a, PositionChainContext<'a>>),
     Extension(Lookup<'a, ExtensionSubtable<'a>>),
@@ -613,6 +672,7 @@ impl ReadArgs for AnchorTable<'_> {
 }
 
 impl<'a> FontRead<'a> for AnchorTable<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
@@ -651,7 +711,7 @@ impl<'a> MinByteRange<'a> for AnchorFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -665,14 +725,30 @@ impl<'a> FontRead<'a> for AnchorFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AnchorFormat1FixedHeader {
+    pub anchor_format: BigEndian<u16>,
+    pub x_coordinate: BigEndian<i16>,
+    pub y_coordinate: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AnchorFormat1FixedHeader>() <= AnchorFormat1::MIN_SIZE);
+
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Clone)]
 pub struct AnchorFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AnchorFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -682,20 +758,17 @@ impl<'a> AnchorFormat1<'a> {
 
     /// Format identifier, = 1
     pub fn anchor_format(&self) -> u16 {
-        let range = self.anchor_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().anchor_format.get()
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
-        let range = self.x_coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_coordinate.get()
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
-        let range = self.y_coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_coordinate.get()
     }
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
@@ -722,7 +795,8 @@ const _: () = assert!(FontData::default_data_long_enough(AnchorFormat1::MIN_SIZE
 impl Default for AnchorFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -737,7 +811,7 @@ impl<'a> MinByteRange<'a> for AnchorFormat2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -751,14 +825,31 @@ impl<'a> FontRead<'a> for AnchorFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AnchorFormat2FixedHeader {
+    pub anchor_format: BigEndian<u16>,
+    pub x_coordinate: BigEndian<i16>,
+    pub y_coordinate: BigEndian<i16>,
+    pub anchor_point: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AnchorFormat2FixedHeader>() <= AnchorFormat2::MIN_SIZE);
+
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Clone)]
 pub struct AnchorFormat2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AnchorFormat2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -769,26 +860,22 @@ impl<'a> AnchorFormat2<'a> {
 
     /// Format identifier, = 2
     pub fn anchor_format(&self) -> u16 {
-        let range = self.anchor_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().anchor_format.get()
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
-        let range = self.x_coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_coordinate.get()
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
-        let range = self.y_coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_coordinate.get()
     }
 
     /// Index to glyph contour point
     pub fn anchor_point(&self) -> u16 {
-        let range = self.anchor_point_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().anchor_point.get()
     }
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
@@ -826,7 +913,7 @@ impl<'a> MinByteRange<'a> for AnchorFormat3<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -840,14 +927,32 @@ impl<'a> FontRead<'a> for AnchorFormat3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AnchorFormat3FixedHeader {
+    pub anchor_format: BigEndian<u16>,
+    pub x_coordinate: BigEndian<i16>,
+    pub y_coordinate: BigEndian<i16>,
+    pub x_device_offset: BigEndian<Nullable<Offset16>>,
+    pub y_device_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AnchorFormat3FixedHeader>() <= AnchorFormat3::MIN_SIZE);
+
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 #[derive(Clone)]
 pub struct AnchorFormat3<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AnchorFormat3FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -861,33 +966,29 @@ impl<'a> AnchorFormat3<'a> {
 
     /// Format identifier, = 3
     pub fn anchor_format(&self) -> u16 {
-        let range = self.anchor_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().anchor_format.get()
     }
 
     /// Horizontal value, in design units
     pub fn x_coordinate(&self) -> i16 {
-        let range = self.x_coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_coordinate.get()
     }
 
     /// Vertical value, in design units
     pub fn y_coordinate(&self) -> i16 {
-        let range = self.y_coordinate_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_coordinate.get()
     }
 
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub fn x_device_offset(&self) -> Nullable<Offset16> {
-        let range = self.x_device_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_device_offset.get()
     }
 
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
     pub fn x_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.x_device_offset().resolve(data)
     }
 
@@ -895,13 +996,12 @@ impl<'a> AnchorFormat3<'a> {
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub fn y_device_offset(&self) -> Nullable<Offset16> {
-        let range = self.y_device_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_device_offset.get()
     }
 
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
     pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.y_device_offset().resolve(data)
     }
 
@@ -942,7 +1042,7 @@ impl<'a> MinByteRange<'a> for MarkArray<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -956,14 +1056,28 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkArrayFixedHeader {
+    pub mark_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MarkArrayFixedHeader>() <= MarkArray::MIN_SIZE);
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Clone)]
 pub struct MarkArray<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MarkArrayFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -973,15 +1087,17 @@ impl<'a> MarkArray<'a> {
 
     /// Number of MarkRecords
     pub fn mark_count(&self) -> u16 {
-        let range = self.mark_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark_count.get()
     }
 
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
     pub fn mark_records(&self) -> &'a [MarkRecord] {
         let range = self.mark_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn mark_count_byte_range(&self) -> Range<usize> {
@@ -1004,7 +1120,8 @@ const _: () = assert!(FontData::default_data_long_enough(MarkArray::MIN_SIZE));
 impl Default for MarkArray<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1049,6 +1166,8 @@ impl FixedSize for MarkRecord {
 pub enum SinglePos<'a> {
     Format1(SinglePosFormat1<'a>),
     Format2(SinglePosFormat2<'a>),
+    Format3(SinglePosFormat3<'a>),
+    Format4(SinglePosFormat4<'a>),
 }
 
 impl Default for SinglePos<'_> {
@@ -1063,6 +1182,8 @@ impl<'a> SinglePos<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
             Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
         }
     }
 
@@ -1071,14 +1192,8 @@ impl<'a> SinglePos<'a> {
         match self {
             Self::Format1(item) => item.pos_format(),
             Self::Format2(item) => item.pos_format(),
-        }
-    }
-
-    /// Offset to Coverage table, from beginning of SinglePos subtable.
-    pub fn coverage_offset(&self) -> Offset16 {
-        match self {
-            Self::Format1(item) => item.coverage_offset(),
-            Self::Format2(item) => item.coverage_offset(),
+            Self::Format3(item) => item.pos_format(),
+            Self::Format4(item) => item.pos_format(),
         }
     }
 
@@ -1087,6 +1202,8 @@ impl<'a> SinglePos<'a> {
         match self {
             Self::Format1(item) => item.value_format(),
             Self::Format2(item) => item.value_format(),
+            Self::Format3(item) => item.value_format(),
+            Self::Format4(item) => item.value_format(),
         }
     }
 }
@@ -1096,11 +1213,14 @@ impl ReadArgs for SinglePos<'_> {
 }
 
 impl<'a> FontRead<'a> for SinglePos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             SinglePosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SinglePosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SinglePosFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            SinglePosFormat4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1111,12 +1231,16 @@ impl<'a> MinByteRange<'a> for SinglePos<'a> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         match self {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1131,7 +1255,7 @@ impl<'a> MinByteRange<'a> for SinglePosFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1145,14 +1269,31 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SinglePosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub value_format: BigEndian<ValueFormat>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SinglePosFormat1FixedHeader>() <= SinglePosFormat1::MIN_SIZE);
+
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Clone)]
 pub struct SinglePosFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SinglePosFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1163,36 +1304,31 @@ impl<'a> SinglePosFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Defines the types of data in the ValueRecord.
     pub fn value_format(&self) -> ValueFormat {
-        let range = self.value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_format.get()
     }
 
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     pub fn value_record(&self) -> ValueRecord<'a> {
         let range = self.value_record_byte_range();
-        ValueRecord::read_at(self.data, range.start, self.value_format()).unwrap_or_default()
+        ValueRecord::read_at(self.offset_data(), range.start, self.value_format())
+            .unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -1228,7 +1364,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for SinglePosFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1243,7 +1380,7 @@ impl<'a> MinByteRange<'a> for SinglePosFormat2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1257,14 +1394,32 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SinglePosFormat2FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub value_format: BigEndian<ValueFormat>,
+    pub value_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SinglePosFormat2FixedHeader>() <= SinglePosFormat2::MIN_SIZE);
+
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Clone)]
 pub struct SinglePosFormat2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SinglePosFormat2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1277,42 +1432,35 @@ impl<'a> SinglePosFormat2<'a> {
 
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Defines the types of data in the ValueRecords.
     pub fn value_format(&self) -> ValueFormat {
-        let range = self.value_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_format.get()
     }
 
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
     pub fn value_count(&self) -> u16 {
-        let range = self.value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_count.get()
     }
 
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord<'a>> {
         let range = self.value_records_byte_range();
-        ComputedArray::new(self.data, range, self.value_format()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.value_format()).unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -1355,6 +1503,8 @@ impl<'a> SinglePosFormat2<'a> {
 pub enum PairPos<'a> {
     Format1(PairPosFormat1<'a>),
     Format2(PairPosFormat2<'a>),
+    Format3(PairPosFormat3<'a>),
+    Format4(PairPosFormat4<'a>),
 }
 
 impl Default for PairPos<'_> {
@@ -1369,6 +1519,8 @@ impl<'a> PairPos<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
             Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
         }
     }
 
@@ -1377,14 +1529,8 @@ impl<'a> PairPos<'a> {
         match self {
             Self::Format1(item) => item.pos_format(),
             Self::Format2(item) => item.pos_format(),
-        }
-    }
-
-    /// Offset to Coverage table, from beginning of PairPos subtable.
-    pub fn coverage_offset(&self) -> Offset16 {
-        match self {
-            Self::Format1(item) => item.coverage_offset(),
-            Self::Format2(item) => item.coverage_offset(),
+            Self::Format3(item) => item.pos_format(),
+            Self::Format4(item) => item.pos_format(),
         }
     }
 
@@ -1394,6 +1540,8 @@ impl<'a> PairPos<'a> {
         match self {
             Self::Format1(item) => item.value_format1(),
             Self::Format2(item) => item.value_format1(),
+            Self::Format3(item) => item.value_format1(),
+            Self::Format4(item) => item.value_format1(),
         }
     }
 
@@ -1403,6 +1551,8 @@ impl<'a> PairPos<'a> {
         match self {
             Self::Format1(item) => item.value_format2(),
             Self::Format2(item) => item.value_format2(),
+            Self::Format3(item) => item.value_format2(),
+            Self::Format4(item) => item.value_format2(),
         }
     }
 }
@@ -1412,11 +1562,14 @@ impl ReadArgs for PairPos<'_> {
 }
 
 impl<'a> FontRead<'a> for PairPos<'a> {
+    #[inline]
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             PairPosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             PairPosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            PairPosFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            PairPosFormat4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1427,12 +1580,16 @@ impl<'a> MinByteRange<'a> for PairPos<'a> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         match self {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1447,7 +1604,7 @@ impl<'a> MinByteRange<'a> for PairPosFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1461,14 +1618,32 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PairPosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub value_format1: BigEndian<ValueFormat>,
+    pub value_format2: BigEndian<ValueFormat>,
+    pub pair_set_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PairPosFormat1FixedHeader>() <= PairPosFormat1::MIN_SIZE);
+
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 #[derive(Clone)]
 pub struct PairPosFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, PairPosFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1482,55 +1657,50 @@ impl<'a> PairPosFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
     pub fn value_format1(&self) -> ValueFormat {
-        let range = self.value_format1_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_format1.get()
     }
 
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
     pub fn value_format2(&self) -> ValueFormat {
-        let range = self.value_format2_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_format2.get()
     }
 
     /// Number of PairSet tables
     pub fn pair_set_count(&self) -> u16 {
-        let range = self.pair_set_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pair_set_count.get()
     }
 
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.pair_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
     pub fn pair_sets(&self) -> ArrayOfOffsets<'a, PairSet<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.pair_set_offsets();
         let args = (self.value_format1(), self.value_format2());
         ArrayOfOffsets::new(offsets, data, args)
@@ -1580,7 +1750,8 @@ const _: () = assert!(FontData::default_data_long_enough(PairPosFormat1::MIN_SIZ
 impl Default for PairPosFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -1591,7 +1762,7 @@ impl<'a> MinByteRange<'a> for PairSet<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1610,6 +1781,9 @@ impl<'a> FontRead<'a> for PairSet<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             value_format1,
@@ -1633,10 +1807,21 @@ impl<'a> PairSet<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PairSetFixedHeader {
+    pub pair_value_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PairSetFixedHeader>() <= PairSet::MIN_SIZE);
+
 /// Part of [PairPosFormat1]
 #[derive(Clone)]
 pub struct PairSet<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, PairSetFixedHeader>,
     value_format1: ValueFormat,
     value_format2: ValueFormat,
 }
@@ -1648,8 +1833,7 @@ impl<'a> PairSet<'a> {
 
     /// Number of PairValueRecords
     pub fn pair_value_count(&self) -> u16 {
-        let range = self.pair_value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pair_value_count.get()
     }
 
     /// Array of PairValueRecords, ordered by glyph ID of the second
@@ -1657,7 +1841,7 @@ impl<'a> PairSet<'a> {
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord<'a>> {
         let range = self.pair_value_records_byte_range();
         ComputedArray::new(
-            self.data,
+            self.offset_data(),
             range,
             (self.value_format1(), self.value_format2()),
         )
@@ -1698,7 +1882,8 @@ const _: () = assert!(FontData::default_data_long_enough(PairSet::MIN_SIZE));
 impl Default for PairSet<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             value_format1: Default::default(),
             value_format2: Default::default(),
         }
@@ -1801,7 +1986,7 @@ impl<'a> MinByteRange<'a> for PairPosFormat2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1815,14 +2000,35 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PairPosFormat2FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub value_format1: BigEndian<ValueFormat>,
+    pub value_format2: BigEndian<ValueFormat>,
+    pub class_def1_offset: BigEndian<Offset16>,
+    pub class_def2_offset: BigEndian<Offset16>,
+    pub class1_count: BigEndian<u16>,
+    pub class2_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PairPosFormat2FixedHeader>() <= PairPosFormat2::MIN_SIZE);
+
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
 #[derive(Clone)]
 pub struct PairPosFormat2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, PairPosFormat2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -1839,88 +2045,71 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Format identifier: format = 2
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
     pub fn value_format1(&self) -> ValueFormat {
-        let range = self.value_format1_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_format1.get()
     }
 
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
     pub fn value_format2(&self) -> ValueFormat {
-        let range = self.value_format2_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_format2.get()
     }
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
     pub fn class_def1_offset(&self) -> Offset16 {
-        let range = self.class_def1_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().class_def1_offset.get()
     }
 
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
     pub fn class_def1(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_def1_offset().resolve(data)
     }
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
     pub fn class_def2_offset(&self) -> Offset16 {
-        let range = self.class_def2_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().class_def2_offset.get()
     }
 
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
     pub fn class_def2(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.class_def2_offset().resolve(data)
     }
 
     /// Number of classes in classDef1 table — includes Class 0.
     pub fn class1_count(&self) -> u16 {
-        let range = self.class1_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().class1_count.get()
     }
 
     /// Number of classes in classDef2 table — includes Class 0.
     pub fn class2_count(&self) -> u16 {
-        let range = self.class2_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().class2_count.get()
     }
 
     /// Array of Class1 records, ordered by classes in classDef1.
     pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
         let range = self.class1_records_byte_range();
         ComputedArray::new(
-            self.data,
+            self.offset_data(),
             range,
             (
                 self.class2_count(),
@@ -2143,7 +2332,7 @@ impl<'a> MinByteRange<'a> for CursivePosFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2157,14 +2346,31 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CursivePosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset16>,
+    pub entry_exit_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<CursivePosFormat1FixedHeader>() <= CursivePosFormat1::MIN_SIZE);
+
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
 #[derive(Clone)]
 pub struct CursivePosFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, CursivePosFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -2174,35 +2380,32 @@ impl<'a> CursivePosFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to Coverage table, from beginning of CursivePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     /// Number of EntryExit records
     pub fn entry_exit_count(&self) -> u16 {
-        let range = self.entry_exit_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().entry_exit_count.get()
     }
 
     /// Array of EntryExit records, in Coverage index order.
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
         let range = self.entry_exit_record_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -2240,7 +2443,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for CursivePosFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -2310,7 +2514,7 @@ impl<'a> MinByteRange<'a> for MarkBasePosFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2324,14 +2528,34 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkBasePosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub mark_coverage_offset: BigEndian<Offset16>,
+    pub base_coverage_offset: BigEndian<Offset16>,
+    pub mark_class_count: BigEndian<u16>,
+    pub mark_array_offset: BigEndian<Offset16>,
+    pub base_array_offset: BigEndian<Offset16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MarkBasePosFormat1FixedHeader>() <= MarkBasePosFormat1::MIN_SIZE);
+
 /// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
 #[derive(Clone)]
 pub struct MarkBasePosFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MarkBasePosFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -2346,77 +2570,59 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn mark_coverage_offset(&self) -> Offset16 {
-        let range = self.mark_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark_coverage_offset.get()
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_coverage_offset().resolve(data)
     }
 
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_coverage_offset(&self) -> Offset16 {
-        let range = self.base_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().base_coverage_offset.get()
     }
 
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
     pub fn base_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.base_coverage_offset().resolve(data)
     }
 
     /// Number of classes defined for marks
     pub fn mark_class_count(&self) -> u16 {
-        let range = self.mark_class_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark_class_count.get()
     }
 
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
     pub fn mark_array_offset(&self) -> Offset16 {
-        let range = self.mark_array_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark_array_offset.get()
     }
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_array_offset().resolve(data)
     }
 
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_array_offset(&self) -> Offset16 {
-        let range = self.base_array_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().base_array_offset.get()
     }
 
     /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
     pub fn base_array(&self) -> Result<BaseArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.mark_class_count();
         self.base_array_offset().resolve_with_args(data, args)
     }
@@ -2465,7 +2671,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MarkBasePosFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -2476,7 +2683,7 @@ impl<'a> MinByteRange<'a> for BaseArray<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2492,6 +2699,9 @@ impl<'a> FontRead<'a> for BaseArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             mark_class_count,
@@ -2510,10 +2720,21 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseArrayFixedHeader {
+    pub base_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseArrayFixedHeader>() <= BaseArray::MIN_SIZE);
+
 /// Part of [MarkBasePosFormat1]
 #[derive(Clone)]
 pub struct BaseArray<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BaseArrayFixedHeader>,
     mark_class_count: u16,
 }
 
@@ -2524,14 +2745,13 @@ impl<'a> BaseArray<'a> {
 
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
-        let range = self.base_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().base_count.get()
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.base_records_byte_range();
-        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -2560,7 +2780,8 @@ const _: () = assert!(FontData::default_data_long_enough(BaseArray::MIN_SIZE));
 impl Default for BaseArray<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             mark_class_count: Default::default(),
         }
     }
@@ -2644,7 +2865,7 @@ impl<'a> MinByteRange<'a> for MarkLigPosFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2658,14 +2879,34 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkLigPosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub mark_coverage_offset: BigEndian<Offset16>,
+    pub ligature_coverage_offset: BigEndian<Offset16>,
+    pub mark_class_count: BigEndian<u16>,
+    pub mark_array_offset: BigEndian<Offset16>,
+    pub ligature_array_offset: BigEndian<Offset16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MarkLigPosFormat1FixedHeader>() <= MarkLigPosFormat1::MIN_SIZE);
+
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 #[derive(Clone)]
 pub struct MarkLigPosFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MarkLigPosFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -2680,77 +2921,59 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn mark_coverage_offset(&self) -> Offset16 {
-        let range = self.mark_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark_coverage_offset.get()
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_coverage_offset().resolve(data)
     }
 
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_coverage_offset(&self) -> Offset16 {
-        let range = self.ligature_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().ligature_coverage_offset.get()
     }
 
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
     pub fn ligature_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.ligature_coverage_offset().resolve(data)
     }
 
     /// Number of defined mark classes
     pub fn mark_class_count(&self) -> u16 {
-        let range = self.mark_class_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark_class_count.get()
     }
 
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
     pub fn mark_array_offset(&self) -> Offset16 {
-        let range = self.mark_array_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark_array_offset.get()
     }
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark_array_offset().resolve(data)
     }
 
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_array_offset(&self) -> Offset16 {
-        let range = self.ligature_array_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().ligature_array_offset.get()
     }
 
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
     pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.mark_class_count();
         self.ligature_array_offset().resolve_with_args(data, args)
     }
@@ -2799,7 +3022,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MarkLigPosFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -2810,7 +3034,7 @@ impl<'a> MinByteRange<'a> for LigatureArray<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2826,6 +3050,9 @@ impl<'a> FontRead<'a> for LigatureArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             mark_class_count,
@@ -2844,10 +3071,21 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigatureArrayFixedHeader {
+    pub ligature_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigatureArrayFixedHeader>() <= LigatureArray::MIN_SIZE);
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone)]
 pub struct LigatureArray<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, LigatureArrayFixedHeader>,
     mark_class_count: u16,
 }
 
@@ -2858,8 +3096,7 @@ impl<'a> LigatureArray<'a> {
 
     /// Number of LigatureAttach table offsets
     pub fn ligature_count(&self) -> u16 {
-        let range = self.ligature_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().ligature_count.get()
     }
 
     /// Array of offsets to LigatureAttach tables. Offsets are from
@@ -2867,12 +3104,15 @@ impl<'a> LigatureArray<'a> {
     /// index.
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.ligature_attach_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
     pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, LigatureAttach<'a>, Offset16> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.ligature_attach_offsets();
         let args = self.mark_class_count();
         ArrayOfOffsets::new(offsets, data, args)
@@ -2902,7 +3142,8 @@ const _: () = assert!(FontData::default_data_long_enough(LigatureArray::MIN_SIZE
 impl Default for LigatureArray<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             mark_class_count: Default::default(),
         }
     }
@@ -2914,7 +3155,7 @@ impl<'a> MinByteRange<'a> for LigatureAttach<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2930,6 +3171,9 @@ impl<'a> FontRead<'a> for LigatureAttach<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             mark_class_count,
@@ -2948,10 +3192,21 @@ impl<'a> LigatureAttach<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigatureAttachFixedHeader {
+    pub component_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigatureAttachFixedHeader>() <= LigatureAttach::MIN_SIZE);
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone)]
 pub struct LigatureAttach<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, LigatureAttachFixedHeader>,
     mark_class_count: u16,
 }
 
@@ -2962,14 +3217,13 @@ impl<'a> LigatureAttach<'a> {
 
     /// Number of ComponentRecords in this ligature
     pub fn component_count(&self) -> u16 {
-        let range = self.component_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().component_count.get()
     }
 
     /// Array of Component records, ordered in writing direction.
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.component_records_byte_range();
-        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -2999,7 +3253,8 @@ const _: () = assert!(FontData::default_data_long_enough(LigatureAttach::MIN_SIZ
 impl Default for LigatureAttach<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             mark_class_count: Default::default(),
         }
     }
@@ -3083,7 +3338,7 @@ impl<'a> MinByteRange<'a> for MarkMarkPosFormat1<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3097,14 +3352,34 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkMarkPosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub mark1_coverage_offset: BigEndian<Offset16>,
+    pub mark2_coverage_offset: BigEndian<Offset16>,
+    pub mark_class_count: BigEndian<u16>,
+    pub mark1_array_offset: BigEndian<Offset16>,
+    pub mark2_array_offset: BigEndian<Offset16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MarkMarkPosFormat1FixedHeader>() <= MarkMarkPosFormat1::MIN_SIZE);
+
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
 #[derive(Clone)]
 pub struct MarkMarkPosFormat1<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MarkMarkPosFormat1FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -3119,77 +3394,59 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark1_coverage_offset(&self) -> Offset16 {
-        let range = self.mark1_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark1_coverage_offset.get()
     }
 
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
     pub fn mark1_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark1_coverage_offset().resolve(data)
     }
 
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_coverage_offset(&self) -> Offset16 {
-        let range = self.mark2_coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark2_coverage_offset.get()
     }
 
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
     pub fn mark2_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark2_coverage_offset().resolve(data)
     }
 
     /// Number of Combining Mark classes defined
     pub fn mark_class_count(&self) -> u16 {
-        let range = self.mark_class_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark_class_count.get()
     }
 
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark1_array_offset(&self) -> Offset16 {
-        let range = self.mark1_array_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark1_array_offset.get()
     }
 
     /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
     pub fn mark1_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.mark1_array_offset().resolve(data)
     }
 
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_array_offset(&self) -> Offset16 {
-        let range = self.mark2_array_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset16::new(Default::default()))
+        self.data.header().mark2_array_offset.get()
     }
 
     /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
     pub fn mark2_array(&self) -> Result<Mark2Array<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         let args = self.mark_class_count();
         self.mark2_array_offset().resolve_with_args(data, args)
     }
@@ -3238,7 +3495,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MarkMarkPosFormat1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -3249,7 +3507,7 @@ impl<'a> MinByteRange<'a> for Mark2Array<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3265,6 +3523,9 @@ impl<'a> FontRead<'a> for Mark2Array<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             mark_class_count,
@@ -3283,10 +3544,21 @@ impl<'a> Mark2Array<'a> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Mark2ArrayFixedHeader {
+    pub mark2_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Mark2ArrayFixedHeader>() <= Mark2Array::MIN_SIZE);
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Clone)]
 pub struct Mark2Array<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, Mark2ArrayFixedHeader>,
     mark_class_count: u16,
 }
 
@@ -3297,14 +3569,13 @@ impl<'a> Mark2Array<'a> {
 
     /// Number of Mark2 records
     pub fn mark2_count(&self) -> u16 {
-        let range = self.mark2_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().mark2_count.get()
     }
 
     /// Array of Mark2Records, in Coverage order.
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.mark2_records_byte_range();
-        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3333,7 +3604,8 @@ const _: () = assert!(FontData::default_data_long_enough(Mark2Array::MIN_SIZE));
 impl Default for Mark2Array<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             mark_class_count: Default::default(),
         }
     }
@@ -3423,7 +3695,7 @@ impl<'a, T> MinByteRange<'a> for ExtensionPosFormat1<'a, T> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3437,6 +3709,9 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self {
             data,
             offset_type: std::marker::PhantomData,
@@ -3455,10 +3730,25 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct ExtensionPosFormat1FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub extension_lookup_type: BigEndian<u16>,
+    pub extension_offset: BigEndian<Offset32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<ExtensionPosFormat1FixedHeader>() <= ExtensionPosFormat1::<()>::MIN_SIZE
+);
+
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
 #[derive(Clone)]
 pub struct ExtensionPosFormat1<'a, T = ()> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, ExtensionPosFormat1FixedHeader>,
     offset_type: std::marker::PhantomData<*const T>,
 }
 
@@ -3469,26 +3759,20 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
 
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
-        let range = self.pos_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().pos_format.get()
     }
 
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
     pub fn extension_lookup_type(&self) -> u16 {
-        let range = self.extension_lookup_type_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().extension_lookup_type.get()
     }
 
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
     pub fn extension_offset(&self) -> Offset32 {
-        let range = self.extension_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().extension_offset.get()
     }
 
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
@@ -3496,7 +3780,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     where
         T: FontRead<'a, Args = ()>,
     {
-        let data = self.data;
+        let data = self.offset_data();
         self.extension_offset().resolve(data)
     }
 
@@ -3526,7 +3810,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl<T> Default for ExtensionPosFormat1<'_, T> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
             offset_type: std::marker::PhantomData,
         }
     }
@@ -3536,10 +3821,10 @@ impl<T> Default for ExtensionPosFormat1<'_, T> {
 pub enum ExtensionSubtable<'a> {
     Single(ExtensionPosFormat1<'a, SinglePos<'a>>),
     Pair(ExtensionPosFormat1<'a, PairPos<'a>>),
-    Cursive(ExtensionPosFormat1<'a, CursivePosFormat1<'a>>),
-    MarkToBase(ExtensionPosFormat1<'a, MarkBasePosFormat1<'a>>),
-    MarkToLig(ExtensionPosFormat1<'a, MarkLigPosFormat1<'a>>),
-    MarkToMark(ExtensionPosFormat1<'a, MarkMarkPosFormat1<'a>>),
+    Cursive(ExtensionPosFormat1<'a, CursivePos<'a>>),
+    MarkToBase(ExtensionPosFormat1<'a, MarkBasePos<'a>>),
+    MarkToLig(ExtensionPosFormat1<'a, MarkLigPos<'a>>),
+    MarkToMark(ExtensionPosFormat1<'a, MarkMarkPos<'a>>),
     Contextual(ExtensionPosFormat1<'a, PositionSequenceContext<'a>>),
     ChainContextual(ExtensionPosFormat1<'a, PositionChainContext<'a>>),
 }
@@ -3586,6 +3871,2530 @@ impl<'a> ExtensionSubtable<'a> {
             ExtensionSubtable::MarkToMark(inner) => inner.of_unit_type(),
             ExtensionSubtable::Contextual(inner) => inner.of_unit_type(),
             ExtensionSubtable::ChainContextual(inner) => inner.of_unit_type(),
+        }
+    }
+}
+
+impl Format<u16> for SinglePosFormat3<'_> {
+    const FORMAT: u16 = 3;
+}
+
+impl<'a> MinByteRange<'a> for SinglePosFormat3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_record_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SinglePosFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SinglePosFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SinglePosFormat3FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub value_format: BigEndian<ValueFormat>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SinglePosFormat3FixedHeader>() <= SinglePosFormat3::MIN_SIZE);
+
+/// SinglePosFormat3 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct SinglePosFormat3<'a> {
+    data: TableDataRef<'a, SinglePosFormat3FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SinglePosFormat3<'a> {
+    pub const MIN_SIZE: usize =
+        (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 3
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Defines the types of data in the ValueRecord.
+    pub fn value_format(&self) -> ValueFormat {
+        self.data.header().value_format.get()
+    }
+
+    /// Defines positioning value(s) — applied to all glyphs in the
+    /// Coverage table.
+    pub fn value_record(&self) -> ValueRecord<'a> {
+        let range = self.value_record_byte_range();
+        ValueRecord::read_at(self.offset_data(), range.start, self.value_format())
+            .unwrap_or_default()
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_format_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + ValueFormat::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_record_byte_range(&self) -> Range<usize> {
+        let start = self.value_format_byte_range().end;
+        let end =
+            start + <ValueRecord as ComputeSize>::compute_size(self.value_format()).unwrap_or(0);
+        start..end
+    }
+}
+
+impl Format<u16> for SinglePosFormat4<'_> {
+    const FORMAT: u16 = 4;
+}
+
+impl<'a> MinByteRange<'a> for SinglePosFormat4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.value_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for SinglePosFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for SinglePosFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SinglePosFormat4FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub value_format: BigEndian<ValueFormat>,
+    pub value_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<SinglePosFormat4FixedHeader>() <= SinglePosFormat4::MIN_SIZE);
+
+/// SinglePosFormat4 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct SinglePosFormat4<'a> {
+    data: TableDataRef<'a, SinglePosFormat4FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> SinglePosFormat4<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 4
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Defines the types of data in the ValueRecords.
+    pub fn value_format(&self) -> ValueFormat {
+        self.data.header().value_format.get()
+    }
+
+    /// Number of ValueRecords — must equal glyphCount in the
+    /// Coverage table.
+    pub fn value_count(&self) -> Uint24 {
+        self.data.header().value_count.get()
+    }
+
+    /// Array of ValueRecords — positioning values applied to glyphs.
+    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord<'a>> {
+        let range = self.value_records_byte_range();
+        ComputedArray::new(self.offset_data(), range, self.value_format()).unwrap_or_default()
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_format_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + ValueFormat::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_count_byte_range(&self) -> Range<usize> {
+        let start = self.value_format_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_records_byte_range(&self) -> Range<usize> {
+        let value_count = self.value_count();
+        let start = self.value_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(value_count)).saturating_mul(
+                <ValueRecord as ComputeSize>::compute_size(self.value_format()).unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+impl Format<u16> for PairPosFormat3<'_> {
+    const FORMAT: u16 = 3;
+}
+
+impl<'a> MinByteRange<'a> for PairPosFormat3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.pair_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for PairPosFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PairPosFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PairPosFormat3FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub value_format1: BigEndian<ValueFormat>,
+    pub value_format2: BigEndian<ValueFormat>,
+    pub pair_set_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PairPosFormat3FixedHeader>() <= PairPosFormat3::MIN_SIZE);
+
+/// PairPosFormat3 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct PairPosFormat3<'a> {
+    data: TableDataRef<'a, PairPosFormat3FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PairPosFormat3<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 3
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Defines the types of data in valueRecord1 — for the first
+    /// glyph in the pair (may be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        self.data.header().value_format1.get()
+    }
+
+    /// Defines the types of data in valueRecord2 — for the second
+    /// glyph in the pair (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        self.data.header().value_format2.get()
+    }
+
+    /// Number of PairSet tables
+    pub fn pair_set_count(&self) -> Uint24 {
+        self.data.header().pair_set_count.get()
+    }
+
+    /// Array of offsets to PairSet tables. Offsets are from beginning
+    /// of PairPos subtable, ordered by Coverage Index.
+    pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.pair_set_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
+    pub fn pair_sets(&self) -> ArrayOfOffsets<'a, PairSet2<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.pair_set_offsets();
+        let args = (self.value_format1(), self.value_format2());
+        ArrayOfOffsets::new(offsets, data, args)
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_format1_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + ValueFormat::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_format2_byte_range(&self) -> Range<usize> {
+        let start = self.value_format1_byte_range().end;
+        let end = start + ValueFormat::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn pair_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.value_format2_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn pair_set_offsets_byte_range(&self) -> Range<usize> {
+        let pair_set_count = self.pair_set_count();
+        let start = self.pair_set_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(pair_set_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for PairSet2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.pair_value_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for PairSet2<'_> {
+    type Args = (ValueFormat, ValueFormat);
+}
+
+impl<'a> FontRead<'a> for PairSet2<'a> {
+    fn read_with_args(
+        data: FontData<'a>,
+        args: (ValueFormat, ValueFormat),
+    ) -> Result<Self, ReadError> {
+        let (value_format1, value_format2) = args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self {
+            data,
+            value_format1,
+            value_format2,
+        })
+    }
+}
+
+impl<'a> PairSet2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        value_format1: ValueFormat,
+        value_format2: ValueFormat,
+    ) -> Result<Self, ReadError> {
+        let args = (value_format1, value_format2);
+        Self::read_with_args(data, args)
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PairSet2FixedHeader {
+    pub pair_value_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PairSet2FixedHeader>() <= PairSet2::MIN_SIZE);
+
+/// PairSet2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct PairSet2<'a> {
+    data: TableDataRef<'a, PairSet2FixedHeader>,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PairSet2<'a> {
+    pub const MIN_SIZE: usize = Uint24::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of PairValueRecords
+    pub fn pair_value_count(&self) -> Uint24 {
+        self.data.header().pair_value_count.get()
+    }
+
+    /// Array of PairValueRecords, ordered by glyph ID of the second
+    /// glyph.
+    pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord2<'a>> {
+        let range = self.pair_value_records_byte_range();
+        ComputedArray::new(
+            self.offset_data(),
+            range,
+            (self.value_format1(), self.value_format2()),
+        )
+        .unwrap_or_default()
+    }
+
+    pub(crate) fn value_format1(&self) -> ValueFormat {
+        self.value_format1
+    }
+
+    pub(crate) fn value_format2(&self) -> ValueFormat {
+        self.value_format2
+    }
+
+    pub fn pair_value_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn pair_value_records_byte_range(&self) -> Range<usize> {
+        let pair_value_count = self.pair_value_count();
+        let start = self.pair_value_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(pair_value_count)).saturating_mul(
+                <PairValueRecord2 as ComputeSize>::compute_size((
+                    self.value_format1(),
+                    self.value_format2(),
+                ))
+                .unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(PairSet2::MIN_SIZE));
+
+impl Default for PairSet2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+            value_format1: Default::default(),
+            value_format2: Default::default(),
+        }
+    }
+}
+
+/// PairValueRecord2 (ISO/IEC 14496-22:2026).
+#[derive(Clone, Debug)]
+pub struct PairValueRecord2<'a> {
+    /// Glyph ID of second glyph in the pair (first glyph is listed in
+    /// the Coverage table).
+    pub second_glyph: BigEndian<GlyphId24>,
+    /// Positioning data for the first glyph in the pair.
+    pub value_record1: ValueRecord<'a>,
+    /// Positioning data for the second glyph in the pair.
+    pub value_record2: ValueRecord<'a>,
+}
+
+impl<'a> PairValueRecord2<'a> {
+    /// Glyph ID of second glyph in the pair (first glyph is listed in
+    /// the Coverage table).
+    pub fn second_glyph(&self) -> GlyphId24 {
+        self.second_glyph.get()
+    }
+
+    /// Positioning data for the first glyph in the pair.
+    pub fn value_record1(&self) -> &ValueRecord<'a> {
+        &self.value_record1
+    }
+
+    /// Positioning data for the second glyph in the pair.
+    pub fn value_record2(&self) -> &ValueRecord<'a> {
+        &self.value_record2
+    }
+}
+
+impl ReadArgs for PairValueRecord2<'_> {
+    type Args = (ValueFormat, ValueFormat);
+}
+
+impl ComputeSize for PairValueRecord2<'_> {
+    #[allow(clippy::needless_question_mark)]
+    fn compute_size(args: (ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
+        let (value_format1, value_format2) = args;
+        let mut result = 0usize;
+        result = result
+            .checked_add(GlyphId24::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        result = result
+            .checked_add(<ValueRecord as ComputeSize>::compute_size(value_format1).unwrap_or(0))
+            .ok_or(ReadError::OutOfBounds)?;
+        result = result
+            .checked_add(<ValueRecord as ComputeSize>::compute_size(value_format2).unwrap_or(0))
+            .ok_or(ReadError::OutOfBounds)?;
+        Ok(result)
+    }
+}
+
+impl<'a> FontReadAt<'a> for PairValueRecord2<'a> {
+    fn read_at(
+        data: FontData<'a>,
+        offset: usize,
+        args: (ValueFormat, ValueFormat),
+    ) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance_by(offset);
+        let (value_format1, value_format2) = args;
+        Ok(Self {
+            second_glyph: cursor.read_be()?,
+            value_record1: cursor.read_at_with_args(value_format1)?,
+            value_record2: cursor.read_at_with_args(value_format2)?,
+        })
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PairValueRecord2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        offset: usize,
+        value_format1: ValueFormat,
+        value_format2: ValueFormat,
+    ) -> Result<Self, ReadError> {
+        let args = (value_format1, value_format2);
+        Self::read_at(data, offset, args)
+    }
+}
+
+impl Format<u16> for PairPosFormat4<'_> {
+    const FORMAT: u16 = 4;
+}
+
+impl<'a> MinByteRange<'a> for PairPosFormat4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class1_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for PairPosFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for PairPosFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct PairPosFormat4FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub value_format1: BigEndian<ValueFormat>,
+    pub value_format2: BigEndian<ValueFormat>,
+    pub class_def1_offset: BigEndian<Offset32>,
+    pub class_def2_offset: BigEndian<Offset32>,
+    pub class1_count: BigEndian<u16>,
+    pub class2_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<PairPosFormat4FixedHeader>() <= PairPosFormat4::MIN_SIZE);
+
+/// PairPosFormat4 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct PairPosFormat4<'a> {
+    data: TableDataRef<'a, PairPosFormat4FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> PairPosFormat4<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 4
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// ValueRecord definition — for the first glyph of the pair (may
+    /// be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        self.data.header().value_format1.get()
+    }
+
+    /// ValueRecord definition — for the second glyph of the pair
+    /// (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        self.data.header().value_format2.get()
+    }
+
+    /// Offset to ClassDef table, from beginning of PairPos subtable
+    /// — for the first glyph of the pair.
+    pub fn class_def1_offset(&self) -> Offset32 {
+        self.data.header().class_def1_offset.get()
+    }
+
+    /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
+    pub fn class_def1(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = self.offset_data();
+        self.class_def1_offset().resolve(data)
+    }
+
+    /// Offset to ClassDef table, from beginning of PairPos subtable
+    /// — for the second glyph of the pair.
+    pub fn class_def2_offset(&self) -> Offset32 {
+        self.data.header().class_def2_offset.get()
+    }
+
+    /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
+    pub fn class_def2(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = self.offset_data();
+        self.class_def2_offset().resolve(data)
+    }
+
+    /// Number of classes in classDef1 table — includes Class 0.
+    pub fn class1_count(&self) -> u16 {
+        self.data.header().class1_count.get()
+    }
+
+    /// Number of classes in classDef2 table — includes Class 0.
+    pub fn class2_count(&self) -> u16 {
+        self.data.header().class2_count.get()
+    }
+
+    /// Array of Class1 records, ordered by classes in classDef1.
+    pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
+        let range = self.class1_records_byte_range();
+        ComputedArray::new(
+            self.offset_data(),
+            range,
+            (
+                self.class2_count(),
+                self.value_format1(),
+                self.value_format2(),
+            ),
+        )
+        .unwrap_or_default()
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_format1_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + ValueFormat::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn value_format2_byte_range(&self) -> Range<usize> {
+        let start = self.value_format1_byte_range().end;
+        let end = start + ValueFormat::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class_def1_offset_byte_range(&self) -> Range<usize> {
+        let start = self.value_format2_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class_def2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.class_def1_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class1_count_byte_range(&self) -> Range<usize> {
+        let start = self.class_def2_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class2_count_byte_range(&self) -> Range<usize> {
+        let start = self.class1_count_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn class1_records_byte_range(&self) -> Range<usize> {
+        let class1_count = self.class1_count();
+        let start = self.class2_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(class1_count)).saturating_mul(
+                <Class1Record as ComputeSize>::compute_size((
+                    self.class2_count(),
+                    self.value_format1(),
+                    self.value_format2(),
+                ))
+                .unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+impl Format<u16> for CursivePosFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for CursivePosFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.entry_exit_record_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for CursivePosFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for CursivePosFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct CursivePosFormat2FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub entry_exit_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<CursivePosFormat2FixedHeader>() <= CursivePosFormat2::MIN_SIZE);
+
+/// CursivePosFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct CursivePosFormat2<'a> {
+    data: TableDataRef<'a, CursivePosFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> CursivePosFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to Coverage table, from beginning of CursivePos subtable.
+    pub fn coverage_offset(&self) -> Offset32 {
+        self.data.header().coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.coverage_offset().resolve(data)
+    }
+
+    /// Number of EntryExit records
+    pub fn entry_exit_count(&self) -> Uint24 {
+        self.data.header().entry_exit_count.get()
+    }
+
+    /// Array of EntryExit records, in Coverage index order.
+    pub fn entry_exit_record(&self) -> &'a [EntryExitRecord2] {
+        let range = self.entry_exit_record_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn entry_exit_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn entry_exit_record_byte_range(&self) -> Range<usize> {
+        let entry_exit_count = self.entry_exit_count();
+        let start = self.entry_exit_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(entry_exit_count))
+                .saturating_mul(EntryExitRecord2::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+/// EntryExitRecord2 (ISO/IEC 14496-22:2026).
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EntryExitRecord2 {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub entry_anchor_offset: BigEndian<Nullable<Offset24>>,
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub exit_anchor_offset: BigEndian<Nullable<Offset24>>,
+}
+
+impl EntryExitRecord2 {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn entry_anchor_offset(&self) -> Nullable<Offset24> {
+        self.entry_anchor_offset.get()
+    }
+
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn entry_anchor<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.entry_anchor_offset().resolve(data)
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn exit_anchor_offset(&self) -> Nullable<Offset24> {
+        self.exit_anchor_offset.get()
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn exit_anchor<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.exit_anchor_offset().resolve(data)
+    }
+}
+
+impl FixedSize for EntryExitRecord2 {
+    const RAW_BYTE_LEN: usize = Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
+impl Format<u16> for MarkBasePosFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for MarkBasePosFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for MarkBasePosFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkBasePosFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkBasePosFormat2FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub mark_coverage_offset: BigEndian<Offset32>,
+    pub base_coverage_offset: BigEndian<Offset32>,
+    pub mark_class_count: BigEndian<u16>,
+    pub mark_array_offset: BigEndian<Offset32>,
+    pub base_array_offset: BigEndian<Offset32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MarkBasePosFormat2FixedHeader>() <= MarkBasePosFormat2::MIN_SIZE);
+
+/// MarkBasePosFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct MarkBasePosFormat2<'a> {
+    data: TableDataRef<'a, MarkBasePosFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkBasePosFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to markCoverage table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn mark_coverage_offset(&self) -> Offset32 {
+        self.data.header().mark_coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
+    pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark_coverage_offset().resolve(data)
+    }
+
+    /// Offset to baseCoverage table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn base_coverage_offset(&self) -> Offset32 {
+        self.data.header().base_coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
+    pub fn base_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.base_coverage_offset().resolve(data)
+    }
+
+    /// Number of classes defined for marks
+    pub fn mark_class_count(&self) -> u16 {
+        self.data.header().mark_class_count.get()
+    }
+
+    /// Offset to MarkArray table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn mark_array_offset(&self) -> Offset32 {
+        self.data.header().mark_array_offset.get()
+    }
+
+    /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
+    pub fn mark_array(&self) -> Result<MarkArray2<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark_array_offset().resolve(data)
+    }
+
+    /// Offset to BaseArray table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn base_array_offset(&self) -> Offset32 {
+        self.data.header().base_array_offset.get()
+    }
+
+    /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
+    pub fn base_array(&self) -> Result<BaseArray2<'a>, ReadError> {
+        let data = self.offset_data();
+        let args = self.mark_class_count();
+        self.base_array_offset().resolve_with_args(data, args)
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn base_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_coverage_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.base_coverage_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_class_count_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn base_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_array_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for BaseArray2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.base_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for BaseArray2<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontRead<'a> for BaseArray2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self {
+            data,
+            mark_class_count,
+        })
+    }
+}
+
+impl<'a> BaseArray2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BaseArray2FixedHeader {
+    pub base_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BaseArray2FixedHeader>() <= BaseArray2::MIN_SIZE);
+
+/// BaseArray2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct BaseArray2<'a> {
+    data: TableDataRef<'a, BaseArray2FixedHeader>,
+    mark_class_count: u16,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> BaseArray2<'a> {
+    pub const MIN_SIZE: usize = Uint24::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of BaseRecords
+    pub fn base_count(&self) -> Uint24 {
+        self.data.header().base_count.get()
+    }
+
+    /// Array of BaseRecords, in order of baseCoverage Index.
+    pub fn base_records(&self) -> ComputedArray<'a, BaseRecord2<'a>> {
+        let range = self.base_records_byte_range();
+        ComputedArray::new(self.offset_data(), range, self.mark_class_count()).unwrap_or_default()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn base_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn base_records_byte_range(&self) -> Range<usize> {
+        let base_count = self.base_count();
+        let start = self.base_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(base_count)).saturating_mul(
+                <BaseRecord2 as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseArray2::MIN_SIZE));
+
+impl Default for BaseArray2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
+/// BaseRecord2 (ISO/IEC 14496-22:2026).
+#[derive(Clone, Debug)]
+pub struct BaseRecord2<'a> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub base_anchor_offsets: &'a [BigEndian<Nullable<Offset24>>],
+}
+
+impl<'a> BaseRecord2<'a> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub fn base_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        self.base_anchor_offsets
+    }
+
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn base_anchors(
+        &self,
+        data: FontData<'a>,
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset24> {
+        let offsets = self.base_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+}
+
+impl ReadArgs for BaseRecord2<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for BaseRecord2<'_> {
+    #[allow(clippy::needless_question_mark)]
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset24::RAW_BYTE_LEN))
+    }
+}
+
+impl<'a> FontRead<'a> for BaseRecord2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_class_count = args;
+        Ok(Self {
+            base_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
+        })
+    }
+}
+
+crate::impl_font_read_at!(BaseRecord2<'a>);
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> BaseRecord2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+impl Format<u16> for MarkLigPosFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for MarkLigPosFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for MarkLigPosFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkLigPosFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkLigPosFormat2FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub mark_coverage_offset: BigEndian<Offset32>,
+    pub ligature_coverage_offset: BigEndian<Offset32>,
+    pub mark_class_count: BigEndian<u16>,
+    pub mark_array_offset: BigEndian<Offset32>,
+    pub ligature_array_offset: BigEndian<Offset32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MarkLigPosFormat2FixedHeader>() <= MarkLigPosFormat2::MIN_SIZE);
+
+/// MarkLigPosFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct MarkLigPosFormat2<'a> {
+    data: TableDataRef<'a, MarkLigPosFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkLigPosFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to markCoverage table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn mark_coverage_offset(&self) -> Offset32 {
+        self.data.header().mark_coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
+    pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark_coverage_offset().resolve(data)
+    }
+
+    /// Offset to ligatureCoverage table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn ligature_coverage_offset(&self) -> Offset32 {
+        self.data.header().ligature_coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
+    pub fn ligature_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.ligature_coverage_offset().resolve(data)
+    }
+
+    /// Number of defined mark classes
+    pub fn mark_class_count(&self) -> u16 {
+        self.data.header().mark_class_count.get()
+    }
+
+    /// Offset to MarkArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn mark_array_offset(&self) -> Offset32 {
+        self.data.header().mark_array_offset.get()
+    }
+
+    /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
+    pub fn mark_array(&self) -> Result<MarkArray2<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark_array_offset().resolve(data)
+    }
+
+    /// Offset to LigatureArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn ligature_array_offset(&self) -> Offset32 {
+        self.data.header().ligature_array_offset.get()
+    }
+
+    /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
+    pub fn ligature_array(&self) -> Result<LigatureArray2<'a>, ReadError> {
+        let data = self.offset_data();
+        let args = self.mark_class_count();
+        self.ligature_array_offset().resolve_with_args(data, args)
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ligature_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_coverage_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.ligature_coverage_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_class_count_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ligature_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_array_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for LigatureArray2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.ligature_attach_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for LigatureArray2<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontRead<'a> for LigatureArray2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self {
+            data,
+            mark_class_count,
+        })
+    }
+}
+
+impl<'a> LigatureArray2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigatureArray2FixedHeader {
+    pub ligature_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LigatureArray2FixedHeader>() <= LigatureArray2::MIN_SIZE);
+
+/// LigatureArray2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct LigatureArray2<'a> {
+    data: TableDataRef<'a, LigatureArray2FixedHeader>,
+    mark_class_count: u16,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LigatureArray2<'a> {
+    pub const MIN_SIZE: usize = Uint24::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of LigatureAttach table offsets
+    pub fn ligature_count(&self) -> Uint24 {
+        self.data.header().ligature_count.get()
+    }
+
+    /// Array of offsets to LigatureAttach tables. Offsets are from
+    /// beginning of LigatureArray2 table, ordered by ligatureCoverage
+    /// index.
+    pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.ligature_attach_offsets_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
+    pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, LigatureAttach2<'a>, Offset24> {
+        let data = self.offset_data();
+        let offsets = self.ligature_attach_offsets();
+        let args = self.mark_class_count();
+        ArrayOfOffsets::new(offsets, data, args)
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn ligature_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
+        let ligature_count = self.ligature_count();
+        let start = self.ligature_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(ligature_count)).saturating_mul(Offset24::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LigatureArray2::MIN_SIZE));
+
+impl Default for LigatureArray2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for LigatureAttach2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.component_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for LigatureAttach2<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontRead<'a> for LigatureAttach2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self {
+            data,
+            mark_class_count,
+        })
+    }
+}
+
+impl<'a> LigatureAttach2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LigatureAttach2FixedHeader {
+    pub component_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<LigatureAttach2FixedHeader>() <= LigatureAttach2::MIN_SIZE);
+
+/// LigatureAttach2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct LigatureAttach2<'a> {
+    data: TableDataRef<'a, LigatureAttach2FixedHeader>,
+    mark_class_count: u16,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> LigatureAttach2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of ComponentRecords in this ligature
+    pub fn component_count(&self) -> u16 {
+        self.data.header().component_count.get()
+    }
+
+    /// Array of Component records, ordered in writing direction.
+    pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord2<'a>> {
+        let range = self.component_records_byte_range();
+        ComputedArray::new(self.offset_data(), range, self.mark_class_count()).unwrap_or_default()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn component_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn component_records_byte_range(&self) -> Range<usize> {
+        let component_count = self.component_count();
+        let start = self.component_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(component_count)).saturating_mul(
+                <ComponentRecord2 as ComputeSize>::compute_size(self.mark_class_count())
+                    .unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    LigatureAttach2::MIN_SIZE
+));
+
+impl Default for LigatureAttach2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
+/// ComponentRecord2 (ISO/IEC 14496-22:2026).
+#[derive(Clone, Debug)]
+pub struct ComponentRecord2<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub ligature_anchor_offsets: &'a [BigEndian<Nullable<Offset24>>],
+}
+
+impl<'a> ComponentRecord2<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub fn ligature_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        self.ligature_anchor_offsets
+    }
+
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn ligature_anchors(
+        &self,
+        data: FontData<'a>,
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset24> {
+        let offsets = self.ligature_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+}
+
+impl ReadArgs for ComponentRecord2<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for ComponentRecord2<'_> {
+    #[allow(clippy::needless_question_mark)]
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset24::RAW_BYTE_LEN))
+    }
+}
+
+impl<'a> FontRead<'a> for ComponentRecord2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_class_count = args;
+        Ok(Self {
+            ligature_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
+        })
+    }
+}
+
+crate::impl_font_read_at!(ComponentRecord2<'a>);
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ComponentRecord2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+impl Format<u16> for MarkMarkPosFormat2<'_> {
+    const FORMAT: u16 = 2;
+}
+
+impl<'a> MinByteRange<'a> for MarkMarkPosFormat2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.mark2_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for MarkMarkPosFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkMarkPosFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkMarkPosFormat2FixedHeader {
+    pub pos_format: BigEndian<u16>,
+    pub mark1_coverage_offset: BigEndian<Offset32>,
+    pub mark2_coverage_offset: BigEndian<Offset32>,
+    pub mark_class_count: BigEndian<u16>,
+    pub mark1_array_offset: BigEndian<Offset32>,
+    pub mark2_array_offset: BigEndian<Offset32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<MarkMarkPosFormat2FixedHeader>() <= MarkMarkPosFormat2::MIN_SIZE);
+
+/// MarkMarkPosFormat2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct MarkMarkPosFormat2<'a> {
+    data: TableDataRef<'a, MarkMarkPosFormat2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkMarkPosFormat2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier: format = 2
+    pub fn pos_format(&self) -> u16 {
+        self.data.header().pos_format.get()
+    }
+
+    /// Offset to Combining Mark Coverage table, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark1_coverage_offset(&self) -> Offset32 {
+        self.data.header().mark1_coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
+    pub fn mark1_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark1_coverage_offset().resolve(data)
+    }
+
+    /// Offset to Base Mark Coverage table, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark2_coverage_offset(&self) -> Offset32 {
+        self.data.header().mark2_coverage_offset.get()
+    }
+
+    /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
+    pub fn mark2_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark2_coverage_offset().resolve(data)
+    }
+
+    /// Number of Combining Mark classes defined
+    pub fn mark_class_count(&self) -> u16 {
+        self.data.header().mark_class_count.get()
+    }
+
+    /// Offset to MarkArray table for mark1, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark1_array_offset(&self) -> Offset32 {
+        self.data.header().mark1_array_offset.get()
+    }
+
+    /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
+    pub fn mark1_array(&self) -> Result<MarkArray2<'a>, ReadError> {
+        let data = self.offset_data();
+        self.mark1_array_offset().resolve(data)
+    }
+
+    /// Offset to Mark2Array table for mark2, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark2_array_offset(&self) -> Offset32 {
+        self.data.header().mark2_array_offset.get()
+    }
+
+    /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
+    pub fn mark2_array(&self) -> Result<Mark2Array2<'a>, ReadError> {
+        let data = self.offset_data();
+        let args = self.mark_class_count();
+        self.mark2_array_offset().resolve_with_args(data, args)
+    }
+
+    pub fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark1_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark2_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark1_coverage_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.mark2_coverage_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark1_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_class_count_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark2_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark1_array_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+impl<'a> MinByteRange<'a> for Mark2Array2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.mark2_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for Mark2Array2<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontRead<'a> for Mark2Array2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self {
+            data,
+            mark_class_count,
+        })
+    }
+}
+
+impl<'a> Mark2Array2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Mark2Array2FixedHeader {
+    pub mark2_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Mark2Array2FixedHeader>() <= Mark2Array2::MIN_SIZE);
+
+/// Mark2Array2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct Mark2Array2<'a> {
+    data: TableDataRef<'a, Mark2Array2FixedHeader>,
+    mark_class_count: u16,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Mark2Array2<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of Mark2 records
+    pub fn mark2_count(&self) -> u16 {
+        self.data.header().mark2_count.get()
+    }
+
+    /// Array of Mark2Records, in Coverage order.
+    pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record2<'a>> {
+        let range = self.mark2_records_byte_range();
+        ComputedArray::new(self.offset_data(), range, self.mark_class_count()).unwrap_or_default()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn mark2_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark2_records_byte_range(&self) -> Range<usize> {
+        let mark2_count = self.mark2_count();
+        let start = self.mark2_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(mark2_count)).saturating_mul(
+                <Mark2Record2 as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Mark2Array2::MIN_SIZE));
+
+impl Default for Mark2Array2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
+/// Mark2Record2 (ISO/IEC 14496-22:2026).
+#[derive(Clone, Debug)]
+pub struct Mark2Record2<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub mark2_anchor_offsets: &'a [BigEndian<Nullable<Offset24>>],
+}
+
+impl<'a> Mark2Record2<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub fn mark2_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset24>>] {
+        self.mark2_anchor_offsets
+    }
+
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn mark2_anchors(
+        &self,
+        data: FontData<'a>,
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset24> {
+        let offsets = self.mark2_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+}
+
+impl ReadArgs for Mark2Record2<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for Mark2Record2<'_> {
+    #[allow(clippy::needless_question_mark)]
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset24::RAW_BYTE_LEN))
+    }
+}
+
+impl<'a> FontRead<'a> for Mark2Record2<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_class_count = args;
+        Ok(Self {
+            mark2_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
+        })
+    }
+}
+
+crate::impl_font_read_at!(Mark2Record2<'a>);
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Mark2Record2<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, args)
+    }
+}
+
+impl<'a> MinByteRange<'a> for MarkArray2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.mark_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for MarkArray2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkArray2<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
+        Ok(Self { data })
+    }
+}
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MarkArray2FixedHeader {
+    pub mark_count: BigEndian<Uint24>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MarkArray2FixedHeader>() <= MarkArray2::MIN_SIZE);
+
+/// MarkArray2 (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub struct MarkArray2<'a> {
+    data: TableDataRef<'a, MarkArray2FixedHeader>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> MarkArray2<'a> {
+    pub const MIN_SIZE: usize = Uint24::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of MarkRecords
+    pub fn mark_count(&self) -> Uint24 {
+        self.data.header().mark_count.get()
+    }
+
+    /// Array of MarkRecords, ordered by corresponding glyphs in the
+    /// associated mark Coverage table.
+    pub fn mark_records(&self) -> &'a [MarkRecord2] {
+        let range = self.mark_records_byte_range();
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
+    }
+
+    pub fn mark_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn mark_records_byte_range(&self) -> Range<usize> {
+        let mark_count = self.mark_count();
+        let start = self.mark_count_byte_range().end;
+        let end =
+            start + (transforms::to_usize(mark_count)).saturating_mul(MarkRecord2::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(MarkArray2::MIN_SIZE));
+
+impl Default for MarkArray2<'_> {
+    fn default() -> Self {
+        Self {
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
+        }
+    }
+}
+
+/// MarkRecord2 (ISO/IEC 14496-22:2026).
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MarkRecord2 {
+    /// Class defined for the associated mark.
+    pub mark_class: BigEndian<u16>,
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub mark_anchor_offset: BigEndian<Offset24>,
+}
+
+impl MarkRecord2 {
+    /// Class defined for the associated mark.
+    pub fn mark_class(&self) -> u16 {
+        self.mark_class.get()
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub fn mark_anchor_offset(&self) -> Offset24 {
+        self.mark_anchor_offset.get()
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
+        self.mark_anchor_offset().resolve(data)
+    }
+}
+
+impl FixedSize for MarkRecord2 {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
+/// CursivePos (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum CursivePos<'a> {
+    Format1(CursivePosFormat1<'a>),
+    Format2(CursivePosFormat2<'a>),
+}
+
+impl Default for CursivePos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> CursivePos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+}
+
+impl ReadArgs for CursivePos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for CursivePos<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            CursivePosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            CursivePosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for CursivePos<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+/// MarkBasePos (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum MarkBasePos<'a> {
+    Format1(MarkBasePosFormat1<'a>),
+    Format2(MarkBasePosFormat2<'a>),
+}
+
+impl Default for MarkBasePos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> MarkBasePos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Number of classes defined for marks
+    pub fn mark_class_count(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.mark_class_count(),
+            Self::Format2(item) => item.mark_class_count(),
+        }
+    }
+}
+
+impl ReadArgs for MarkBasePos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkBasePos<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            MarkBasePosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            MarkBasePosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for MarkBasePos<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+/// MarkLigPos (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum MarkLigPos<'a> {
+    Format1(MarkLigPosFormat1<'a>),
+    Format2(MarkLigPosFormat2<'a>),
+}
+
+impl Default for MarkLigPos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> MarkLigPos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Number of defined mark classes
+    pub fn mark_class_count(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.mark_class_count(),
+            Self::Format2(item) => item.mark_class_count(),
+        }
+    }
+}
+
+impl ReadArgs for MarkLigPos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkLigPos<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            MarkLigPosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            MarkLigPosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for MarkLigPos<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+/// MarkMarkPos (ISO/IEC 14496-22:2026).
+#[derive(Clone)]
+pub enum MarkMarkPos<'a> {
+    Format1(MarkMarkPosFormat1<'a>),
+    Format2(MarkMarkPosFormat2<'a>),
+}
+
+impl Default for MarkMarkPos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl<'a> MarkMarkPos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Number of Combining Mark classes defined
+    pub fn mark_class_count(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.mark_class_count(),
+            Self::Format2(item) => item.mark_class_count(),
+        }
+    }
+}
+
+impl ReadArgs for MarkMarkPos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for MarkMarkPos<'a> {
+    #[inline]
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            MarkMarkPosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            MarkMarkPosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for MarkMarkPos<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.min_byte_range(),
+            Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
