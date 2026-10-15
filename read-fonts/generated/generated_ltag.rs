@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Ltag<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,30 @@ impl<'a> FontRead<'a> for Ltag<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct LtagFixedHeader {
+    pub version: BigEndian<u32>,
+    pub flags: BigEndian<u32>,
+    pub num_tags: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<LtagFixedHeader>() <= Ltag::MIN_SIZE);
+
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
 #[derive(Clone)]
 pub struct Ltag<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, LtagFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,26 +63,26 @@ impl<'a> Ltag<'a> {
 
     /// Table version; currently 1.
     pub fn version(&self) -> u32 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Table flags; currently none defined.
     pub fn flags(&self) -> u32 {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flags.get()
     }
 
     /// Number of language tags which follow.
     pub fn num_tags(&self) -> u32 {
-        let range = self.num_tags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_tags.get()
     }
 
     /// Range of each tag's string.
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.tag_ranges_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -101,7 +117,8 @@ const _: () = assert!(FontData::default_data_long_enough(Ltag::MIN_SIZE));
 impl Default for Ltag<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
