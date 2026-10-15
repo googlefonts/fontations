@@ -177,6 +177,7 @@ fn selected_glyph(bytes: &[u8]) -> u16 {
         SingleSubst::Format1(sub) => 1u16.wrapping_add(sub.delta_glyph_id as u16),
         SingleSubst::Format2(sub) => sub.substitute_glyph_ids[0].to_u16(),
         _ => panic!("fixture uses original single substitutions"),
+        _ => panic!("fixture uses original single substitutions"),
     }
 }
 #[test]
@@ -306,7 +307,14 @@ fn partial_instances_drop_devices_whose_residual_deltas_vanish() {
         .unwrap();
         let font = FontRef::new(&bytes).unwrap();
         let gpos: Gpos = font.gpos().unwrap().to_owned_table();
-        for (i, lookup) in gpos.lookup_list.lookups.iter().enumerate() {
+        for (i, lookup) in gpos
+            .lookup_list
+            .as_ref()
+            .unwrap()
+            .lookups
+            .iter()
+            .enumerate()
+        {
             let PositionLookup::Single(lookup) = lookup.as_ref() else {
                 panic!()
             };
