@@ -47,7 +47,7 @@ impl<'a> MinByteRange<'a> for Device<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -61,14 +61,28 @@ impl<'a> FontRead<'a> for Device<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct DeviceFixedHeader {
+    pub marker: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<DeviceFixedHeader>() <= Device::MIN_SIZE);
+
 /// The target of the offset above, so we can check it resolves.
 #[derive(Clone)]
 pub struct Device<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, DeviceFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -77,8 +91,7 @@ impl<'a> Device<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn marker(&self) -> u16 {
-        let range = self.marker_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().marker.get()
     }
 
     pub fn marker_byte_range(&self) -> Range<usize> {
@@ -93,7 +106,8 @@ const _: () = assert!(FontData::default_data_long_enough(Device::MIN_SIZE));
 impl Default for Device<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -128,7 +142,7 @@ impl<'a> MinByteRange<'a> for EmbeddedRecords<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -142,15 +156,36 @@ impl<'a> FontRead<'a> for EmbeddedRecords<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct EmbeddedRecordsFixedHeader {
+    pub version: BigEndian<u16>,
+    pub first: ValueAndDevice,
+    pub second: ValueAndDevice,
+    pub middle: BigEndian<u16>,
+    pub third: ValueAndDevice,
+    pub pair: Pair,
+    pub trailer: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<EmbeddedRecordsFixedHeader>() <= EmbeddedRecords::MIN_SIZE);
 
 /// Several records embedded back to back, the way MathConstants embeds fifty
 /// one of them, with scalars interleaved to check the offsets stay aligned.
 #[derive(Clone)]
 pub struct EmbeddedRecords<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, EmbeddedRecordsFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -166,42 +201,35 @@ impl<'a> EmbeddedRecords<'a> {
 
     /// A leading scalar, so the records do not start at zero.
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     pub fn first(&self) -> &'a ValueAndDevice {
-        let range = self.first_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().first
     }
 
     pub fn second(&self) -> &'a ValueAndDevice {
-        let range = self.second_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().second
     }
 
     /// A scalar between records.
     pub fn middle(&self) -> u16 {
-        let range = self.middle_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().middle.get()
     }
 
     pub fn third(&self) -> &'a ValueAndDevice {
-        let range = self.third_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().third
     }
 
     /// A record whose own fields are records.
     pub fn pair(&self) -> &'a Pair {
-        let range = self.pair_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().pair
     }
 
     /// A trailing scalar, to check the table's size accounts for everything
     /// above it.
     pub fn trailer(&self) -> u16 {
-        let range = self.trailer_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().trailer.get()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -254,7 +282,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for EmbeddedRecords<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -265,7 +294,7 @@ impl<'a> MinByteRange<'a> for RecordThenArray<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -279,15 +308,31 @@ impl<'a> FontRead<'a> for RecordThenArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct RecordThenArrayFixedHeader {
+    pub metrics: ValueAndDevice,
+    pub value_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () =
+    assert!(std::mem::size_of::<RecordThenArrayFixedHeader>() <= RecordThenArray::MIN_SIZE);
 
 /// An embedded record followed by a variable-length array: the record is still
 /// covered by the table's minimum size, so it is allowed.
 #[derive(Clone)]
 pub struct RecordThenArray<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, RecordThenArrayFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -296,18 +341,19 @@ impl<'a> RecordThenArray<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn metrics(&self) -> &'a ValueAndDevice {
-        let range = self.metrics_byte_range();
-        self.data.read_ref_at(range.start).ok().unwrap()
+        &self.data.header().metrics
     }
 
     pub fn value_count(&self) -> u16 {
-        let range = self.value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_count.get()
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.values_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn metrics_byte_range(&self) -> Range<usize> {
@@ -337,7 +383,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for RecordThenArray<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Name<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,30 @@ impl<'a> FontRead<'a> for Name<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct NameFixedHeader {
+    pub version: BigEndian<u16>,
+    pub count: BigEndian<u16>,
+    pub storage_offset: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<NameFixedHeader>() <= Name::MIN_SIZE);
+
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
 #[derive(Clone)]
 pub struct Name<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, NameFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,33 +63,33 @@ impl<'a> Name<'a> {
 
     /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Number of name records.
     pub fn count(&self) -> u16 {
-        let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().count.get()
     }
 
     /// Offset to start of string storage (from start of table).
     pub fn storage_offset(&self) -> u16 {
-        let range = self.storage_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().storage_offset.get()
     }
 
     /// The name records where count is the number of records.
     pub fn name_record(&self) -> &'a [NameRecord] {
         let range = self.name_record_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Number of language-tag records.
     pub fn lang_tag_count(&self) -> Option<u16> {
         let range = self.lang_tag_count_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -81,7 +97,7 @@ impl<'a> Name<'a> {
     pub fn lang_tag_record(&self) -> Option<&'a [LangTagRecord]> {
         let range = self.lang_tag_record_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
+            .then(|| self.offset_data().read_array(range).ok())
             .flatten()
     }
 
@@ -138,7 +154,8 @@ const _: () = assert!(FontData::default_data_long_enough(Name::MIN_SIZE));
 impl Default for Name<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
