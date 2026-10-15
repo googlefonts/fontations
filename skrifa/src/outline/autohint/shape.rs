@@ -120,6 +120,7 @@ impl<'a> Shaper<'a> {
             .map(|ix| ix.get())
             .collect();
         let Some(variations) = gsub.feature_variations().transpose().ok().flatten() else {
+            sort_and_dedup(&mut lookups);
             return Some(lookups);
         };
         let store = self
@@ -163,18 +164,14 @@ impl<'a> Shaper<'a> {
                 lookups.extend(indices.iter().map(|ix| ix.get()));
             }
         }
-        // Without lookup variations, a single location uses one list as is.
-        let mut merged = all_locations;
         if let Some(lookup_variations) = variations.lookup_variations() {
-            merged = if all_locations {
-                lookup_variations.add_all(feature_ix, &mut lookups)
+            if all_locations {
+                lookup_variations.add_all(feature_ix, &mut lookups);
             } else {
-                lookup_variations.apply(feature_ix, self.coords, delta, &mut lookups)
-            } || merged;
+                lookup_variations.apply(feature_ix, self.coords, delta, &mut lookups);
+            }
         }
-        if merged {
-            sort_and_dedup(&mut lookups);
-        }
+        sort_and_dedup(&mut lookups);
         Some(lookups)
     }
 
@@ -986,6 +983,19 @@ mod tests {
         assert_eq!(single_subst1(0x10005, 1), 0x10006);
         assert_eq!(single_subst1(0x1FFFF, 1), 0x10000);
         assert_eq!(single_subst1(5, -6), 0xFFFF);
+    }
+
+    #[test]
+    fn feature_lookups_follow_lookup_list_order() {
+        // GSUB 1.0 with one feature listing lookups 1, 0 and 1.
+        let words: [u16; 13] = [1, 0, 0, 10, 0, 1, 0x6332, 0x7363, 8, 0, 3, 1, 0];
+        let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        bytes.extend(1u16.to_be_bytes());
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let mut shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
+        assert_eq!(shaper.lookup_indices(0, false).unwrap(), [0, 1]);
+        assert_eq!(shaper.lookup_indices(0, true).unwrap(), [0, 1]);
     }
 
     #[test]
