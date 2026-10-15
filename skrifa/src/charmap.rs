@@ -29,7 +29,7 @@ pub use read_fonts::tables::cmap::MapVariant;
 ///
 /// The mappings are derived from the [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap)
 /// table. Depending on the font, the returned mapping may have entries that point to virtual/phantom glyph
-/// ids beyond the `num_glyphs` entry of the `maxp` table, which are only used during the shaping process,
+/// ids beyond the glyph count of the `MAXP` or `maxp` table, which are only used during the shaping process,
 /// for example.
 /// An optional `DMAP` table (ISO/IEC 14496-22:2026) is consulted first, with
 /// unmapped characters and variation sequences falling back to `cmap`.

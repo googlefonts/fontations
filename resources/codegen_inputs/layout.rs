@@ -852,7 +852,7 @@ table CharacterVariantParams {
     character: [Uint24],
 }
 
-/// ISO Open Font Format, fifth edition: CoverageFormat3.
+/// CoverageFormat3 (ISO/IEC 14496-22:2026).
 table CoverageFormat3 {
     /// Format identifier — format = 3
     #[format = 3]
@@ -865,7 +865,7 @@ table CoverageFormat3 {
     glyph_array: [GlyphId24],
 }
 
-/// ISO Open Font Format, fifth edition: CoverageFormat4.
+/// CoverageFormat4 (ISO/IEC 14496-22:2026).
 table CoverageFormat4 {
     /// Format identifier — format = 4
     #[format = 4]
@@ -878,7 +878,7 @@ table CoverageFormat4 {
     range_records: [RangeRecord2],
 }
 
-/// ISO Open Font Format, fifth edition: RangeRecord2.
+/// RangeRecord2 (ISO/IEC 14496-22:2026).
 record RangeRecord2 {
     /// First glyph ID in the range
     start_glyph_id: GlyphId24,
@@ -888,7 +888,7 @@ record RangeRecord2 {
     start_coverage_index: Uint24,
 }
 
-/// ISO Open Font Format, fifth edition: ClassDefFormat3.
+/// ClassDefFormat3 (ISO/IEC 14496-22:2026).
 table ClassDefFormat3 {
     /// Format identifier — format = 3
     #[format = 3]
@@ -903,7 +903,7 @@ table ClassDefFormat3 {
     class_value_array: [Uint24],
 }
 
-/// ISO Open Font Format, fifth edition: ClassDefFormat4.
+/// ClassDefFormat4 (ISO/IEC 14496-22:2026).
 table ClassDefFormat4 {
     /// Format identifier — format = 4
     #[format = 4]
@@ -916,7 +916,7 @@ table ClassDefFormat4 {
     class_range_records: [ClassRangeRecord2],
 }
 
-/// ISO Open Font Format, fifth edition: ClassRangeRecord2.
+/// ClassRangeRecord2 (ISO/IEC 14496-22:2026).
 record ClassRangeRecord2 {
     /// First glyph ID in the range
     #[validate(validate_glyph_range)]
@@ -927,7 +927,7 @@ record ClassRangeRecord2 {
     class: u16,
 }
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat4.
+/// SequenceContextFormat4 (ISO/IEC 14496-22:2026).
 table SequenceContextFormat4 {
     /// Format identifier: format = 4
     #[format = 4]
@@ -945,7 +945,7 @@ table SequenceContextFormat4 {
     seq_rule_set_offsets: [Offset24<SequenceRuleSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: SequenceRuleSet2.
+/// SequenceRuleSet2 (ISO/IEC 14496-22:2026).
 table SequenceRuleSet2 {
     /// Number of SequenceRule tables
     #[compile(array_len($seq_rule_offsets))]
@@ -956,7 +956,7 @@ table SequenceRuleSet2 {
     seq_rule_offsets: [Offset16<SequenceRule2>],
 }
 
-/// ISO Open Font Format, fifth edition: SequenceRule2.
+/// SequenceRule2 (ISO/IEC 14496-22:2026).
 table SequenceRule2 {
     /// Number of glyphs in the input glyph sequence
     #[compile(plus_one($input_sequence.len()))]
@@ -972,7 +972,7 @@ table SequenceRule2 {
     seq_lookup_records: [SequenceLookupRecord],
 }
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat5.
+/// SequenceContextFormat5 (ISO/IEC 14496-22:2026).
 table SequenceContextFormat5 {
     /// Format identifier: format = 5
     #[format = 5]
@@ -993,7 +993,7 @@ table SequenceContextFormat5 {
     class_seq_rule_set_offsets: [Offset24<ClassSequenceRuleSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: ClassSequenceRuleSet2.
+/// ClassSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 table ClassSequenceRuleSet2 {
     /// Number of ClassSequenceRule tables
     #[compile(array_len($class_seq_rule_offsets))]
@@ -1004,7 +1004,7 @@ table ClassSequenceRuleSet2 {
     class_seq_rule_offsets: [Offset24<ClassSequenceRule>],
 }
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat6.
+/// SequenceContextFormat6 (ISO/IEC 14496-22:2026).
 table SequenceContextFormat6 {
     /// Format identifier: format = 6
     #[format = 6]
@@ -1024,13 +1024,13 @@ table SequenceContextFormat6 {
     seq_lookup_records: [SequenceLookupRecord],
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat4.
+/// ChainedSequenceContextFormat4 (ISO/IEC 14496-22:2026).
 table ChainedSequenceContextFormat4 {
     /// Format identifier: format = 4
     #[format = 4]
     format: u16,
     /// Offset to Coverage table, from beginning of
-    /// ChainSequenceContextFormat1 table
+    /// ChainedSequenceContextFormat4 table
     coverage_offset: Offset32<CoverageTable>,
     /// Number of ChainedSequenceRuleSet tables
     #[compile(array_len($chained_seq_rule_set_offsets))]
@@ -1042,7 +1042,7 @@ table ChainedSequenceContextFormat4 {
     chained_seq_rule_set_offsets: [Offset24<ChainedSequenceRuleSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceRuleSet2.
+/// ChainedSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 table ChainedSequenceRuleSet2 {
     /// Number of ChainedSequenceRule tables
     #[compile(array_len($chained_seq_rule_offsets))]
@@ -1053,7 +1053,7 @@ table ChainedSequenceRuleSet2 {
     chained_seq_rule_offsets: [Offset24<ChainedSequenceRule2>],
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceRule2.
+/// ChainedSequenceRule2 (ISO/IEC 14496-22:2026).
 table ChainedSequenceRule2 {
     /// Number of glyphs in the backtrack sequence
     #[compile(array_len($backtrack_sequence))]
@@ -1081,7 +1081,7 @@ table ChainedSequenceRule2 {
     seq_lookup_records: [SequenceLookupRecord],
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat5.
+/// ChainedSequenceContextFormat5 (ISO/IEC 14496-22:2026).
 table ChainedSequenceContextFormat5 {
     /// Format identifier: format = 5
     #[format = 5]
@@ -1108,7 +1108,7 @@ table ChainedSequenceContextFormat5 {
     chained_class_seq_rule_set_offsets: [Offset24<ChainedClassSequenceRuleSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: ChainedClassSequenceRuleSet2.
+/// ChainedClassSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 table ChainedClassSequenceRuleSet2 {
     /// Number of ChainedClassSequenceRule tables
     #[compile(array_len($chained_class_seq_rule_offsets))]
@@ -1119,7 +1119,7 @@ table ChainedClassSequenceRuleSet2 {
     chained_class_seq_rule_offsets: [Offset24<ChainedClassSequenceRule>],
 }
 
-/// ISO Open Font Format, fifth edition: LookupList2.
+/// LookupList2 (ISO/IEC 14496-22:2026).
 #[generic_offset(T)]
 table LookupList2 {
     /// Number of lookups in this table

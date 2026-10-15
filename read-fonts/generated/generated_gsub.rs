@@ -1813,7 +1813,7 @@ pub struct SingleSubstFormat3FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<SingleSubstFormat3FixedHeader>() <= SingleSubstFormat3::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: SingleSubstFormat3.
+/// SingleSubstFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SingleSubstFormat3<'a> {
     data: TableDataRef<'a, SingleSubstFormat3FixedHeader>,
@@ -1910,7 +1910,7 @@ pub struct SingleSubstFormat4FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<SingleSubstFormat4FixedHeader>() <= SingleSubstFormat4::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: SingleSubstFormat4.
+/// SingleSubstFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SingleSubstFormat4<'a> {
     data: TableDataRef<'a, SingleSubstFormat4FixedHeader>,
@@ -2025,7 +2025,7 @@ const _: () = assert!(
     std::mem::size_of::<MultipleSubstFormat2FixedHeader>() <= MultipleSubstFormat2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: MultipleSubstFormat2.
+/// MultipleSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct MultipleSubstFormat2<'a> {
     data: TableDataRef<'a, MultipleSubstFormat2FixedHeader>,
@@ -2148,7 +2148,7 @@ const _: () = assert!(
     std::mem::size_of::<AlternateSubstFormat2FixedHeader>() <= AlternateSubstFormat2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: AlternateSubstFormat2.
+/// AlternateSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct AlternateSubstFormat2<'a> {
     data: TableDataRef<'a, AlternateSubstFormat2FixedHeader>,
@@ -2271,7 +2271,7 @@ const _: () = assert!(
     std::mem::size_of::<LigatureSubstFormat2FixedHeader>() <= LigatureSubstFormat2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: LigatureSubstFormat2.
+/// LigatureSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct LigatureSubstFormat2<'a> {
     data: TableDataRef<'a, LigatureSubstFormat2FixedHeader>,
@@ -2395,7 +2395,7 @@ const _: () = assert!(
         <= ReverseChainSingleSubstFormat2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ReverseChainSingleSubstFormat2.
+/// ReverseChainSingleSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ReverseChainSingleSubstFormat2<'a> {
     data: TableDataRef<'a, ReverseChainSingleSubstFormat2FixedHeader>,
@@ -2586,7 +2586,7 @@ pub struct Sequence2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<Sequence2FixedHeader>() <= Sequence2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: Sequence2.
+/// Sequence2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct Sequence2<'a> {
     data: TableDataRef<'a, Sequence2FixedHeader>,
@@ -2676,7 +2676,7 @@ pub struct AlternateSet2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<AlternateSet2FixedHeader>() <= AlternateSet2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: AlternateSet2.
+/// AlternateSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct AlternateSet2<'a> {
     data: TableDataRef<'a, AlternateSet2FixedHeader>,
@@ -2765,7 +2765,7 @@ pub struct LigatureSet2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<LigatureSet2FixedHeader>() <= LigatureSet2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: LigatureSet2.
+/// LigatureSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct LigatureSet2<'a> {
     data: TableDataRef<'a, LigatureSet2FixedHeader>,
@@ -2863,7 +2863,7 @@ pub struct Ligature2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<Ligature2FixedHeader>() <= Ligature2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: Ligature2.
+/// Ligature2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct Ligature2<'a> {
     data: TableDataRef<'a, Ligature2FixedHeader>,
@@ -2927,7 +2927,7 @@ impl Default for Ligature2<'_> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MultipleSubst.
+/// MultipleSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum MultipleSubst<'a> {
     Format1(MultipleSubstFormat1<'a>),
@@ -2989,7 +2989,7 @@ impl<'a> MinByteRange<'a> for MultipleSubst<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSubst.
+/// AlternateSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum AlternateSubst<'a> {
     Format1(AlternateSubstFormat1<'a>),
@@ -3051,7 +3051,7 @@ impl<'a> MinByteRange<'a> for AlternateSubst<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSubst.
+/// LigatureSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum LigatureSubst<'a> {
     Format1(LigatureSubstFormat1<'a>),
@@ -3113,7 +3113,7 @@ impl<'a> MinByteRange<'a> for LigatureSubst<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ReverseChainSingleSubst.
+/// ReverseChainSingleSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum ReverseChainSingleSubst<'a> {
     Format1(ReverseChainSingleSubstFormat1<'a>),

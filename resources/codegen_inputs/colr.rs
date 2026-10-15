@@ -434,7 +434,7 @@ table PaintGlyph {
     glyph_id: GlyphId16,
 }
 
-/// PaintGlyph2 (format 33), defined in ISO Open Font Format, fifth edition.
+/// PaintGlyph2, format 33 (ISO/IEC 14496-22:2026).
 table PaintGlyph2 {
     /// Set to 33.
     #[format = 33]

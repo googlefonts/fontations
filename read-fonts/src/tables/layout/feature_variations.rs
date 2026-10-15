@@ -1,4 +1,4 @@
-//! Access to the lookup-oriented feature variations added in ISO OFF fifth edition.
+//! Lookup variations (ISO/IEC 14496-22:2026, 6.2.11).
 
 use super::condition::Evaluator;
 use super::{

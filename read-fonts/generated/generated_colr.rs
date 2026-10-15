@@ -3096,7 +3096,7 @@ pub struct PaintGlyph2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<PaintGlyph2FixedHeader>() <= PaintGlyph2::MIN_SIZE);
 
-/// PaintGlyph2 (format 33), defined in ISO Open Font Format, fifth edition.
+/// PaintGlyph2, format 33 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct PaintGlyph2<'a> {
     data: TableDataRef<'a, PaintGlyph2FixedHeader>,

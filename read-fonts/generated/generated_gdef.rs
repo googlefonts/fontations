@@ -1248,7 +1248,7 @@ pub struct LigCaretList2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<LigCaretList2FixedHeader>() <= LigCaretList2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: LigCaretList2.
+/// LigCaretList2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct LigCaretList2<'a> {
     data: TableDataRef<'a, LigCaretList2FixedHeader>,

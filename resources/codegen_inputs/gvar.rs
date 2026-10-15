@@ -48,7 +48,7 @@ table Gvar {
     glyph_variation_data_offsets: ComputedArray<U16Or32>,
 }
 
-/// GVAR from ISO Open Font Format fifth edition (ISO/IEC 14496-22:2026, 7.3.9).
+/// GVAR glyph variations table (ISO/IEC 14496-22:2026, 7.3.9).
 #[tag = "GVAR"]
 #[skip_from_obj]
 #[skip_constructor]

@@ -51,7 +51,7 @@ impl<'a> Gpos<'a> {
         HeaderOffset::select(original, extended, self.version().compatible((1, 2)))
     }
 
-    /// Resolves the table, preferring the 32-bit offset when present.
+    /// Resolves the table, preferring the 32-bit offset when it is nonzero.
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
         self.selected_script_list_offset()?
             .offset()
@@ -63,7 +63,7 @@ impl<'a> Gpos<'a> {
         self.script_list_offset().resolve(self.offset_data())
     }
 
-    /// Resolves the table, preferring the 32-bit offset when present.
+    /// Resolves the table, preferring the 32-bit offset when it is nonzero.
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
         self.selected_feature_list_offset()?
             .offset()
@@ -96,7 +96,7 @@ impl<'a> Gpos<'a> {
     }
 }
 
-/// A typed GPOS [LookupList](super::layout::LookupList) table
+/// The GPOS lookup list selected by the header.
 pub type PositionLookupList<'a> = super::layout::SelectedLookupList<'a, PositionLookup<'a>>;
 
 /// A lookup list with the original 16-bit offsets.

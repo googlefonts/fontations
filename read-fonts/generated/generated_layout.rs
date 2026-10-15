@@ -6110,7 +6110,7 @@ pub struct CoverageFormat3FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<CoverageFormat3FixedHeader>() <= CoverageFormat3::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: CoverageFormat3.
+/// CoverageFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct CoverageFormat3<'a> {
     data: TableDataRef<'a, CoverageFormat3FixedHeader>,
@@ -6205,7 +6205,7 @@ pub struct CoverageFormat4FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<CoverageFormat4FixedHeader>() <= CoverageFormat4::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: CoverageFormat4.
+/// CoverageFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct CoverageFormat4<'a> {
     data: TableDataRef<'a, CoverageFormat4FixedHeader>,
@@ -6256,7 +6256,7 @@ impl<'a> CoverageFormat4<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: RangeRecord2.
+/// RangeRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -6336,7 +6336,7 @@ pub struct ClassDefFormat3FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<ClassDefFormat3FixedHeader>() <= ClassDefFormat3::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: ClassDefFormat3.
+/// ClassDefFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ClassDefFormat3<'a> {
     data: TableDataRef<'a, ClassDefFormat3FixedHeader>,
@@ -6442,7 +6442,7 @@ pub struct ClassDefFormat4FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<ClassDefFormat4FixedHeader>() <= ClassDefFormat4::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: ClassDefFormat4.
+/// ClassDefFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ClassDefFormat4<'a> {
     data: TableDataRef<'a, ClassDefFormat4FixedHeader>,
@@ -6494,7 +6494,7 @@ impl<'a> ClassDefFormat4<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ClassRangeRecord2.
+/// ClassRangeRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -6575,7 +6575,7 @@ const _: () = assert!(
     std::mem::size_of::<SequenceContextFormat4FixedHeader>() <= SequenceContextFormat4::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat4.
+/// SequenceContextFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SequenceContextFormat4<'a> {
     data: TableDataRef<'a, SequenceContextFormat4FixedHeader>,
@@ -6691,7 +6691,7 @@ pub struct SequenceRuleSet2FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<SequenceRuleSet2FixedHeader>() <= SequenceRuleSet2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: SequenceRuleSet2.
+/// SequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SequenceRuleSet2<'a> {
     data: TableDataRef<'a, SequenceRuleSet2FixedHeader>,
@@ -6791,7 +6791,7 @@ pub struct SequenceRule2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<SequenceRule2FixedHeader>() <= SequenceRule2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: SequenceRule2.
+/// SequenceRule2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SequenceRule2<'a> {
     data: TableDataRef<'a, SequenceRule2FixedHeader>,
@@ -6918,7 +6918,7 @@ const _: () = assert!(
     std::mem::size_of::<SequenceContextFormat5FixedHeader>() <= SequenceContextFormat5::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat5.
+/// SequenceContextFormat5 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SequenceContextFormat5<'a> {
     data: TableDataRef<'a, SequenceContextFormat5FixedHeader>,
@@ -7059,7 +7059,7 @@ const _: () = assert!(
     std::mem::size_of::<ClassSequenceRuleSet2FixedHeader>() <= ClassSequenceRuleSet2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ClassSequenceRuleSet2.
+/// ClassSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ClassSequenceRuleSet2<'a> {
     data: TableDataRef<'a, ClassSequenceRuleSet2FixedHeader>,
@@ -7166,7 +7166,7 @@ const _: () = assert!(
     std::mem::size_of::<SequenceContextFormat6FixedHeader>() <= SequenceContextFormat6::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat6.
+/// SequenceContextFormat6 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SequenceContextFormat6<'a> {
     data: TableDataRef<'a, SequenceContextFormat6FixedHeader>,
@@ -7301,7 +7301,7 @@ const _: () = assert!(
         <= ChainedSequenceContextFormat4::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat4.
+/// ChainedSequenceContextFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ChainedSequenceContextFormat4<'a> {
     data: TableDataRef<'a, ChainedSequenceContextFormat4FixedHeader>,
@@ -7318,7 +7318,7 @@ impl<'a> ChainedSequenceContextFormat4<'a> {
     }
 
     /// Offset to Coverage table, from beginning of
-    /// ChainSequenceContextFormat1 table
+    /// ChainedSequenceContextFormat4 table
     pub fn coverage_offset(&self) -> Offset32 {
         self.data.header().coverage_offset.get()
     }
@@ -7421,7 +7421,7 @@ const _: () = assert!(
     std::mem::size_of::<ChainedSequenceRuleSet2FixedHeader>() <= ChainedSequenceRuleSet2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceRuleSet2.
+/// ChainedSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ChainedSequenceRuleSet2<'a> {
     data: TableDataRef<'a, ChainedSequenceRuleSet2FixedHeader>,
@@ -7522,7 +7522,7 @@ const _: () = assert!(
     std::mem::size_of::<ChainedSequenceRule2FixedHeader>() <= ChainedSequenceRule2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceRule2.
+/// ChainedSequenceRule2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ChainedSequenceRule2<'a> {
     data: TableDataRef<'a, ChainedSequenceRule2FixedHeader>,
@@ -7724,7 +7724,7 @@ const _: () = assert!(
         <= ChainedSequenceContextFormat5::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat5.
+/// ChainedSequenceContextFormat5 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ChainedSequenceContextFormat5<'a> {
     data: TableDataRef<'a, ChainedSequenceContextFormat5FixedHeader>,
@@ -7904,7 +7904,7 @@ const _: () = assert!(
         <= ChainedClassSequenceRuleSet2::MIN_SIZE
 );
 
-/// ISO Open Font Format, fifth edition: ChainedClassSequenceRuleSet2.
+/// ChainedClassSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct ChainedClassSequenceRuleSet2<'a> {
     data: TableDataRef<'a, ChainedClassSequenceRuleSet2FixedHeader>,
@@ -8020,7 +8020,7 @@ pub struct LookupList2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<LookupList2FixedHeader>() <= LookupList2::<()>::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: LookupList2.
+/// LookupList2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct LookupList2<'a, T = ()> {
     data: TableDataRef<'a, LookupList2FixedHeader>,

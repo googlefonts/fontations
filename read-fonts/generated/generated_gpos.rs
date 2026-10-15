@@ -3920,7 +3920,7 @@ pub struct SinglePosFormat3FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<SinglePosFormat3FixedHeader>() <= SinglePosFormat3::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: SinglePosFormat3.
+/// SinglePosFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SinglePosFormat3<'a> {
     data: TableDataRef<'a, SinglePosFormat3FixedHeader>,
@@ -4033,7 +4033,7 @@ pub struct SinglePosFormat4FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<SinglePosFormat4FixedHeader>() <= SinglePosFormat4::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: SinglePosFormat4.
+/// SinglePosFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct SinglePosFormat4<'a> {
     data: TableDataRef<'a, SinglePosFormat4FixedHeader>,
@@ -4161,7 +4161,7 @@ pub struct PairPosFormat3FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<PairPosFormat3FixedHeader>() <= PairPosFormat3::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: PairPosFormat3.
+/// PairPosFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct PairPosFormat3<'a> {
     data: TableDataRef<'a, PairPosFormat3FixedHeader>,
@@ -4328,7 +4328,7 @@ pub struct PairSet2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<PairSet2FixedHeader>() <= PairSet2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: PairSet2.
+/// PairSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct PairSet2<'a> {
     data: TableDataRef<'a, PairSet2FixedHeader>,
@@ -4400,7 +4400,7 @@ impl Default for PairSet2<'_> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: PairValueRecord2.
+/// PairValueRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug)]
 pub struct PairValueRecord2<'a> {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
@@ -4535,7 +4535,7 @@ pub struct PairPosFormat4FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<PairPosFormat4FixedHeader>() <= PairPosFormat4::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: PairPosFormat4.
+/// PairPosFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct PairPosFormat4<'a> {
     data: TableDataRef<'a, PairPosFormat4FixedHeader>,
@@ -4739,7 +4739,7 @@ pub struct CursivePosFormat2FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<CursivePosFormat2FixedHeader>() <= CursivePosFormat2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: CursivePosFormat2.
+/// CursivePosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct CursivePosFormat2<'a> {
     data: TableDataRef<'a, CursivePosFormat2FixedHeader>,
@@ -4808,7 +4808,7 @@ impl<'a> CursivePosFormat2<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: EntryExitRecord2.
+/// EntryExitRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -4911,7 +4911,7 @@ pub struct MarkBasePosFormat2FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<MarkBasePosFormat2FixedHeader>() <= MarkBasePosFormat2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: MarkBasePosFormat2.
+/// MarkBasePosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct MarkBasePosFormat2<'a> {
     data: TableDataRef<'a, MarkBasePosFormat2FixedHeader>,
@@ -5077,7 +5077,7 @@ pub struct BaseArray2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<BaseArray2FixedHeader>() <= BaseArray2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: BaseArray2.
+/// BaseArray2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct BaseArray2<'a> {
     data: TableDataRef<'a, BaseArray2FixedHeader>,
@@ -5133,7 +5133,7 @@ impl Default for BaseArray2<'_> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: BaseRecord2.
+/// BaseRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug)]
 pub struct BaseRecord2<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
@@ -5249,7 +5249,7 @@ pub struct MarkLigPosFormat2FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<MarkLigPosFormat2FixedHeader>() <= MarkLigPosFormat2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: MarkLigPosFormat2.
+/// MarkLigPosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct MarkLigPosFormat2<'a> {
     data: TableDataRef<'a, MarkLigPosFormat2FixedHeader>,
@@ -5415,7 +5415,7 @@ pub struct LigatureArray2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<LigatureArray2FixedHeader>() <= LigatureArray2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: LigatureArray2.
+/// LigatureArray2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct LigatureArray2<'a> {
     data: TableDataRef<'a, LigatureArray2FixedHeader>,
@@ -5537,7 +5537,7 @@ pub struct LigatureAttach2FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<LigatureAttach2FixedHeader>() <= LigatureAttach2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: LigatureAttach2.
+/// LigatureAttach2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct LigatureAttach2<'a> {
     data: TableDataRef<'a, LigatureAttach2FixedHeader>,
@@ -5596,7 +5596,7 @@ impl Default for LigatureAttach2<'_> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ComponentRecord2.
+/// ComponentRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug)]
 pub struct ComponentRecord2<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
@@ -5712,7 +5712,7 @@ pub struct MarkMarkPosFormat2FixedHeader {
 const _: () =
     assert!(std::mem::size_of::<MarkMarkPosFormat2FixedHeader>() <= MarkMarkPosFormat2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: MarkMarkPosFormat2.
+/// MarkMarkPosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct MarkMarkPosFormat2<'a> {
     data: TableDataRef<'a, MarkMarkPosFormat2FixedHeader>,
@@ -5878,7 +5878,7 @@ pub struct Mark2Array2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<Mark2Array2FixedHeader>() <= Mark2Array2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: Mark2Array2.
+/// Mark2Array2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct Mark2Array2<'a> {
     data: TableDataRef<'a, Mark2Array2FixedHeader>,
@@ -5934,7 +5934,7 @@ impl Default for Mark2Array2<'_> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: Mark2Record2.
+/// Mark2Record2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug)]
 pub struct Mark2Record2<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
@@ -6040,7 +6040,7 @@ pub struct MarkArray2FixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<MarkArray2FixedHeader>() <= MarkArray2::MIN_SIZE);
 
-/// ISO Open Font Format, fifth edition: MarkArray2.
+/// MarkArray2 (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub struct MarkArray2<'a> {
     data: TableDataRef<'a, MarkArray2FixedHeader>,
@@ -6092,7 +6092,7 @@ impl Default for MarkArray2<'_> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkRecord2.
+/// MarkRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -6127,7 +6127,7 @@ impl FixedSize for MarkRecord2 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
 }
 
-/// ISO Open Font Format, fifth edition: CursivePos.
+/// CursivePos (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum CursivePos<'a> {
     Format1(CursivePosFormat1<'a>),
@@ -6189,7 +6189,7 @@ impl<'a> MinByteRange<'a> for CursivePos<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkBasePos.
+/// MarkBasePos (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum MarkBasePos<'a> {
     Format1(MarkBasePosFormat1<'a>),
@@ -6259,7 +6259,7 @@ impl<'a> MinByteRange<'a> for MarkBasePos<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkLigPos.
+/// MarkLigPos (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum MarkLigPos<'a> {
     Format1(MarkLigPosFormat1<'a>),
@@ -6329,7 +6329,7 @@ impl<'a> MinByteRange<'a> for MarkLigPos<'a> {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkMarkPos.
+/// MarkMarkPos (ISO/IEC 14496-22:2026).
 #[derive(Clone)]
 pub enum MarkMarkPos<'a> {
     Format1(MarkMarkPosFormat1<'a>),

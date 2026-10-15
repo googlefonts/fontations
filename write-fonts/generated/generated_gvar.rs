@@ -55,7 +55,7 @@ impl TopLevelTable for Gvar {
     const TAG: Tag = Tag::new(b"gvar");
 }
 
-/// GVAR from ISO Open Font Format fifth edition (ISO/IEC 14496-22:2026, 7.3.9).
+/// GVAR glyph variations table (ISO/IEC 14496-22:2026, 7.3.9).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GvarExtended {

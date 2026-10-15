@@ -2487,7 +2487,7 @@ impl From<ExtensionPosFormat1<PositionChainContext>> for ExtensionSubtable {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SinglePosFormat3.
+/// SinglePosFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SinglePosFormat3 {
@@ -2555,7 +2555,7 @@ impl<'a> FontRead<'a> for SinglePosFormat3 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SinglePosFormat4.
+/// SinglePosFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SinglePosFormat4 {
@@ -2633,7 +2633,7 @@ impl<'a> FontRead<'a> for SinglePosFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: PairPosFormat3.
+/// PairPosFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PairPosFormat3 {
@@ -2708,7 +2708,7 @@ impl<'a> FontRead<'a> for PairPosFormat3 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: PairSet2.
+/// PairSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PairSet2 {
@@ -2764,7 +2764,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairSet2<'a>> for PairSet2 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairSet2<'a>> for PairSet2 {}
 
-/// ISO Open Font Format, fifth edition: PairValueRecord2.
+/// PairValueRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PairValueRecord2 {
@@ -2820,7 +2820,7 @@ impl FromObjRef<read_fonts::tables::gpos::PairValueRecord2<'_>> for PairValueRec
     }
 }
 
-/// ISO Open Font Format, fifth edition: PairPosFormat4.
+/// PairPosFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PairPosFormat4 {
@@ -2924,7 +2924,7 @@ impl<'a> FontRead<'a> for PairPosFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: CursivePosFormat2.
+/// CursivePosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CursivePosFormat2 {
@@ -2997,7 +2997,7 @@ impl<'a> FontRead<'a> for CursivePosFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: EntryExitRecord2.
+/// EntryExitRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EntryExitRecord2 {
@@ -3054,7 +3054,7 @@ impl FromObjRef<read_fonts::tables::gpos::EntryExitRecord2> for EntryExitRecord2
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkBasePosFormat2.
+/// MarkBasePosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MarkBasePosFormat2 {
@@ -3149,7 +3149,7 @@ impl<'a> FontRead<'a> for MarkBasePosFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: BaseArray2.
+/// BaseArray2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseArray2 {
@@ -3204,7 +3204,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::BaseArray2<'a>> for BaseArray2 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::BaseArray2<'a>> for BaseArray2 {}
 
-/// ISO Open Font Format, fifth edition: BaseRecord2.
+/// BaseRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseRecord2 {
@@ -3253,7 +3253,7 @@ impl FromObjRef<read_fonts::tables::gpos::BaseRecord2<'_>> for BaseRecord2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkLigPosFormat2.
+/// MarkLigPosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MarkLigPosFormat2 {
@@ -3348,7 +3348,7 @@ impl<'a> FontRead<'a> for MarkLigPosFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LigatureArray2.
+/// LigatureArray2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigatureArray2 {
@@ -3402,7 +3402,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureArray2<'a>> for LigatureAr
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureArray2<'a>> for LigatureArray2 {}
 
-/// ISO Open Font Format, fifth edition: LigatureAttach2.
+/// LigatureAttach2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigatureAttach2 {
@@ -3457,7 +3457,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureAttach2<'a>> for LigatureA
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureAttach2<'a>> for LigatureAttach2 {}
 
-/// ISO Open Font Format, fifth edition: ComponentRecord2.
+/// ComponentRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ComponentRecord2 {
@@ -3509,7 +3509,7 @@ impl FromObjRef<read_fonts::tables::gpos::ComponentRecord2<'_>> for ComponentRec
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkMarkPosFormat2.
+/// MarkMarkPosFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MarkMarkPosFormat2 {
@@ -3604,7 +3604,7 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: Mark2Array2.
+/// Mark2Array2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mark2Array2 {
@@ -3659,7 +3659,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::Mark2Array2<'a>> for Mark2Array2 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::Mark2Array2<'a>> for Mark2Array2 {}
 
-/// ISO Open Font Format, fifth edition: Mark2Record2.
+/// Mark2Record2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mark2Record2 {
@@ -3708,7 +3708,7 @@ impl FromObjRef<read_fonts::tables::gpos::Mark2Record2<'_>> for Mark2Record2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkArray2.
+/// MarkArray2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MarkArray2 {
@@ -3771,7 +3771,7 @@ impl<'a> FontRead<'a> for MarkArray2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkRecord2.
+/// MarkRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MarkRecord2 {
@@ -3820,7 +3820,7 @@ impl FromObjRef<read_fonts::tables::gpos::MarkRecord2> for MarkRecord2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: CursivePos.
+/// CursivePos (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CursivePos {
@@ -3904,7 +3904,7 @@ impl From<CursivePosFormat2> for CursivePos {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkBasePos.
+/// MarkBasePos (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MarkBasePos {
@@ -4008,7 +4008,7 @@ impl From<MarkBasePosFormat2> for MarkBasePos {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkLigPos.
+/// MarkLigPos (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MarkLigPos {
@@ -4112,7 +4112,7 @@ impl From<MarkLigPosFormat2> for MarkLigPos {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MarkMarkPos.
+/// MarkMarkPos (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MarkMarkPos {

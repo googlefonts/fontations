@@ -780,7 +780,7 @@ impl<'a> FontRead<'a> for MarkGlyphSets {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LigCaretList2.
+/// LigCaretList2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigCaretList2 {

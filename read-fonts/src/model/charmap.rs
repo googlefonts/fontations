@@ -34,8 +34,8 @@ use yoke::Yokeable;
 /// An optional `DMAP` table takes precedence, with missing mappings falling
 /// back to `cmap` (ISO/IEC 14496-22:2026, 5.6.15).
 ///
-/// [`map_unicode_variant`](Self::map_unicode_variant) uses the first SFNT
-/// `cmap` format 14 subtable. A non-default variation sequence names its glyph
+/// [`map_unicode_variant`](Self::map_unicode_variant) uses the last SFNT
+/// `cmap` variation sequences subtable, preferring format 15 to format 14. A non-default variation sequence names its glyph
 /// directly; a default sequence resolves through the selected Unicode map.
 /// Type 1 fonts have no variation-sequence map.
 ///

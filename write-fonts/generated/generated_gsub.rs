@@ -1305,7 +1305,7 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SingleSubstFormat3.
+/// SingleSubstFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleSubstFormat3 {
@@ -1371,7 +1371,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat3 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SingleSubstFormat4.
+/// SingleSubstFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleSubstFormat4 {
@@ -1444,7 +1444,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MultipleSubstFormat2.
+/// MultipleSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultipleSubstFormat2 {
@@ -1518,7 +1518,7 @@ impl<'a> FontRead<'a> for MultipleSubstFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSubstFormat2.
+/// AlternateSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AlternateSubstFormat2 {
@@ -1598,7 +1598,7 @@ impl<'a> FontRead<'a> for AlternateSubstFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSubstFormat2.
+/// LigatureSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigatureSubstFormat2 {
@@ -1672,7 +1672,7 @@ impl<'a> FontRead<'a> for LigatureSubstFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ReverseChainSingleSubstFormat2.
+/// ReverseChainSingleSubstFormat2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReverseChainSingleSubstFormat2 {
@@ -1784,7 +1784,7 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: Sequence2.
+/// Sequence2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sequence2 {
@@ -1846,7 +1846,7 @@ impl<'a> FontRead<'a> for Sequence2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSet2.
+/// AlternateSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AlternateSet2 {
@@ -1909,7 +1909,7 @@ impl<'a> FontRead<'a> for AlternateSet2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSet2.
+/// LigatureSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigatureSet2 {
@@ -1972,7 +1972,7 @@ impl<'a> FontRead<'a> for LigatureSet2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: Ligature2.
+/// Ligature2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ligature2 {
@@ -2032,7 +2032,7 @@ impl<'a> FontRead<'a> for Ligature2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: MultipleSubst.
+/// MultipleSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MultipleSubst {
@@ -2117,7 +2117,7 @@ impl From<MultipleSubstFormat2> for MultipleSubst {
     }
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSubst.
+/// AlternateSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AlternateSubst {
@@ -2202,7 +2202,7 @@ impl From<AlternateSubstFormat2> for AlternateSubst {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSubst.
+/// LigatureSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LigatureSubst {
@@ -2287,7 +2287,7 @@ impl From<LigatureSubstFormat2> for LigatureSubst {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ReverseChainSingleSubst.
+/// ReverseChainSingleSubst (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ReverseChainSingleSubst {

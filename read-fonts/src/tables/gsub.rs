@@ -43,7 +43,7 @@ impl<'a> Gsub<'a> {
         HeaderOffset::select(original, extended, self.version().compatible((1, 2)))
     }
 
-    /// Resolves the table, preferring the 32-bit offset when present.
+    /// Resolves the table, preferring the 32-bit offset when it is nonzero.
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
         self.selected_script_list_offset()?
             .offset()
@@ -55,7 +55,7 @@ impl<'a> Gsub<'a> {
         self.script_list_offset().resolve(self.offset_data())
     }
 
-    /// Resolves the table, preferring the 32-bit offset when present.
+    /// Resolves the table, preferring the 32-bit offset when it is nonzero.
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
         self.selected_feature_list_offset()?
             .offset()
@@ -88,7 +88,7 @@ impl<'a> Gsub<'a> {
     }
 }
 
-/// A typed GSUB [LookupList] table
+/// The GSUB lookup list selected by the header.
 pub type SubstitutionLookupList<'a> = super::layout::SelectedLookupList<'a, SubstitutionLookup<'a>>;
 
 /// A lookup list with the original 16-bit offsets.

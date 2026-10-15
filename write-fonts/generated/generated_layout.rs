@@ -4420,7 +4420,7 @@ impl<'a> FontRead<'a> for CharacterVariantParams {
     }
 }
 
-/// ISO Open Font Format, fifth edition: CoverageFormat3.
+/// CoverageFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CoverageFormat3 {
@@ -4482,7 +4482,7 @@ impl<'a> FontRead<'a> for CoverageFormat3 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: CoverageFormat4.
+/// CoverageFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CoverageFormat4 {
@@ -4545,7 +4545,7 @@ impl<'a> FontRead<'a> for CoverageFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: RangeRecord2.
+/// RangeRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RangeRecord2 {
@@ -4597,7 +4597,7 @@ impl FromObjRef<read_fonts::tables::layout::RangeRecord2> for RangeRecord2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ClassDefFormat3.
+/// ClassDefFormat3 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClassDefFormat3 {
@@ -4666,7 +4666,7 @@ impl<'a> FontRead<'a> for ClassDefFormat3 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ClassDefFormat4.
+/// ClassDefFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClassDefFormat4 {
@@ -4731,7 +4731,7 @@ impl<'a> FontRead<'a> for ClassDefFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ClassRangeRecord2.
+/// ClassRangeRecord2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClassRangeRecord2 {
@@ -4785,7 +4785,7 @@ impl FromObjRef<read_fonts::tables::layout::ClassRangeRecord2> for ClassRangeRec
     }
 }
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat4.
+/// SequenceContextFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SequenceContextFormat4 {
@@ -4867,7 +4867,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SequenceRuleSet2.
+/// SequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SequenceRuleSet2 {
@@ -4931,7 +4931,7 @@ impl<'a> FontRead<'a> for SequenceRuleSet2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SequenceRule2.
+/// SequenceRule2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SequenceRule2 {
@@ -5004,7 +5004,7 @@ impl<'a> FontRead<'a> for SequenceRule2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat5.
+/// SequenceContextFormat5 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SequenceContextFormat5 {
@@ -5099,7 +5099,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat5 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ClassSequenceRuleSet2.
+/// ClassSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClassSequenceRuleSet2 {
@@ -5171,7 +5171,7 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: SequenceContextFormat6.
+/// SequenceContextFormat6 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SequenceContextFormat6 {
@@ -5260,12 +5260,12 @@ impl<'a> FontRead<'a> for SequenceContextFormat6 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat4.
+/// ChainedSequenceContextFormat4 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChainedSequenceContextFormat4 {
     /// Offset to Coverage table, from beginning of
-    /// ChainSequenceContextFormat1 table
+    /// ChainedSequenceContextFormat4 table
     pub coverage: OffsetMarker<CoverageTable, WIDTH_32>,
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat4 table (may be NULL)
@@ -5345,7 +5345,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat4 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceRuleSet2.
+/// ChainedSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChainedSequenceRuleSet2 {
@@ -5417,7 +5417,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceRule2.
+/// ChainedSequenceRule2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChainedSequenceRule2 {
@@ -5520,7 +5520,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRule2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ChainedSequenceContextFormat5.
+/// ChainedSequenceContextFormat5 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChainedSequenceContextFormat5 {
@@ -5639,7 +5639,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat5 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: ChainedClassSequenceRuleSet2.
+/// ChainedClassSequenceRuleSet2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ChainedClassSequenceRuleSet2 {
@@ -5714,7 +5714,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet2 {
     }
 }
 
-/// ISO Open Font Format, fifth edition: LookupList2.
+/// LookupList2 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LookupList2<T> {

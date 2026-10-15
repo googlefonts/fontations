@@ -228,7 +228,7 @@ pub struct GvarExtendedFixedHeader {
 #[allow(clippy::absurd_extreme_comparisons)]
 const _: () = assert!(std::mem::size_of::<GvarExtendedFixedHeader>() <= GvarExtended::MIN_SIZE);
 
-/// GVAR from ISO Open Font Format fifth edition (ISO/IEC 14496-22:2026, 7.3.9).
+/// GVAR glyph variations table (ISO/IEC 14496-22:2026, 7.3.9).
 #[derive(Clone)]
 pub struct GvarExtended<'a> {
     data: TableDataRef<'a, GvarExtendedFixedHeader>,

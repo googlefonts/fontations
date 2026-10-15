@@ -260,8 +260,9 @@ impl<'a> CollectionRef<'a> {
                 .ok_or(ReadError::OutOfBounds)?;
             let version = header.version();
             let offsets = if matches!(version.major, 1 | 2) && version.minor >= 1 {
-                // OFF fifth edition places the extended directory list after
-                // the legacy list and, for version 2.1, the three DSIG fields.
+                // ISO/IEC 14496-22:2026 places the extended directory list
+                // after the original list and, for version 2.1, the three DSIG
+                // fields.
                 let count_pos = legacy_end
                     .checked_add(if version.major == 2 { 12 } else { 0 })
                     .ok_or(ReadError::OutOfBounds)?;

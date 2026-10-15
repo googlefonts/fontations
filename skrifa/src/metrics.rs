@@ -59,7 +59,8 @@ pub struct Decoration {
 ///
 /// This metrics here are derived from the following tables:
 /// * [head](https://learn.microsoft.com/en-us/typography/opentype/spec/head): `units_per_em`, `bounds`
-/// * [maxp](https://learn.microsoft.com/en-us/typography/opentype/spec/maxp): `glyph_count`
+/// * [maxp](https://learn.microsoft.com/en-us/typography/opentype/spec/maxp): `glyph_count`, from `MAXP`
+///   when present (ISO/IEC 14496-22:2026)
 /// * [post](https://learn.microsoft.com/en-us/typography/opentype/spec/post): `is_monospace`, `italic_angle`, `underline`
 /// * [OS/2](https://learn.microsoft.com/en-us/typography/opentype/spec/os2): `average_width`, `cap_height`,
 ///   `x_height`, `strikeout`, as well as the line metrics: `ascent`, `descent`, `leading` if the `USE_TYPOGRAPHIC_METRICS`

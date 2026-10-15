@@ -174,7 +174,7 @@ table MarkGlyphSets {
     coverage_offsets: [Offset32<CoverageTable>],
 }
 
-/// ISO Open Font Format, fifth edition: LigCaretList2.
+/// LigCaretList2 (ISO/IEC 14496-22:2026).
 table LigCaretList2 {
     /// Offset to Coverage table - from beginning of LigCaretList2 table
     coverage_offset: Offset32<CoverageTable>,

@@ -2778,7 +2778,7 @@ impl<'a> FontRead<'a> for PaintGlyph {
     }
 }
 
-/// PaintGlyph2 (format 33), defined in ISO Open Font Format, fifth edition.
+/// PaintGlyph2, format 33 (ISO/IEC 14496-22:2026).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PaintGlyph2 {

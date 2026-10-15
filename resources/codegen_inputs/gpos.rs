@@ -535,7 +535,7 @@ table ExtensionPosFormat1 {
     8 => ChainContextual(PositionChainContext),
 }
 
-/// ISO Open Font Format, fifth edition: SinglePosFormat3.
+/// SinglePosFormat3 (ISO/IEC 14496-22:2026).
 table SinglePosFormat3 {
     /// Format identifier: format = 3
     #[format = 3]
@@ -551,7 +551,7 @@ table SinglePosFormat3 {
     value_record: ValueRecord,
 }
 
-/// ISO Open Font Format, fifth edition: SinglePosFormat4.
+/// SinglePosFormat4 (ISO/IEC 14496-22:2026).
 table SinglePosFormat4 {
     /// Format identifier: format = 4
     #[format = 4]
@@ -572,7 +572,7 @@ table SinglePosFormat4 {
     value_records: ComputedArray<ValueRecord<'a>>,
 }
 
-/// ISO Open Font Format, fifth edition: PairPosFormat3.
+/// PairPosFormat3 (ISO/IEC 14496-22:2026).
 table PairPosFormat3 {
     /// Format identifier: format = 3
     #[format = 3]
@@ -598,7 +598,7 @@ table PairPosFormat3 {
     pair_set_offsets: [Offset24<PairSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: PairSet2.
+/// PairSet2 (ISO/IEC 14496-22:2026).
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 table PairSet2 {
     /// Number of PairValueRecords
@@ -611,7 +611,7 @@ table PairSet2 {
     pair_value_records: ComputedArray<PairValueRecord2<'a>>,
 }
 
-/// ISO Open Font Format, fifth edition: PairValueRecord2.
+/// PairValueRecord2 (ISO/IEC 14496-22:2026).
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 record PairValueRecord2<'a> {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
@@ -625,7 +625,7 @@ record PairValueRecord2<'a> {
     value_record2: ValueRecord,
 }
 
-/// ISO Open Font Format, fifth edition: PairPosFormat4.
+/// PairPosFormat4 (ISO/IEC 14496-22:2026).
 #[validate(check_length_and_format_conformance)]
 table PairPosFormat4 {
     /// Format identifier: format = 4
@@ -659,7 +659,7 @@ table PairPosFormat4 {
     class1_records: ComputedArray<Class1Record<'a>>,
 }
 
-/// ISO Open Font Format, fifth edition: CursivePosFormat2.
+/// CursivePosFormat2 (ISO/IEC 14496-22:2026).
 table CursivePosFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
@@ -674,7 +674,7 @@ table CursivePosFormat2 {
     entry_exit_record: [EntryExitRecord2],
 }
 
-/// ISO Open Font Format, fifth edition: EntryExitRecord2.
+/// EntryExitRecord2 (ISO/IEC 14496-22:2026).
 record EntryExitRecord2 {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
@@ -686,7 +686,7 @@ record EntryExitRecord2 {
     exit_anchor_offset: Offset24<AnchorTable>,
 }
 
-/// ISO Open Font Format, fifth edition: MarkBasePosFormat2.
+/// MarkBasePosFormat2 (ISO/IEC 14496-22:2026).
 #[validate(check_class_dimensions)]
 table MarkBasePosFormat2 {
     /// Format identifier: format = 2
@@ -710,7 +710,7 @@ table MarkBasePosFormat2 {
     base_array_offset: Offset32<BaseArray2>,
 }
 
-/// ISO Open Font Format, fifth edition: BaseArray2.
+/// BaseArray2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 table BaseArray2 {
     /// Number of BaseRecords
@@ -722,7 +722,7 @@ table BaseArray2 {
     base_records: ComputedArray<BaseRecord2<'a>>
 }
 
-/// ISO Open Font Format, fifth edition: BaseRecord2.
+/// BaseRecord2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 record BaseRecord2<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
@@ -733,7 +733,7 @@ record BaseRecord2<'a> {
     base_anchor_offsets: [Offset24<AnchorTable>],
 }
 
-/// ISO Open Font Format, fifth edition: MarkLigPosFormat2.
+/// MarkLigPosFormat2 (ISO/IEC 14496-22:2026).
 #[validate(check_class_dimensions)]
 table MarkLigPosFormat2 {
     /// Format identifier: format = 2
@@ -757,7 +757,7 @@ table MarkLigPosFormat2 {
     ligature_array_offset: Offset32<LigatureArray2>,
 }
 
-/// ISO Open Font Format, fifth edition: LigatureArray2.
+/// LigatureArray2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 table LigatureArray2 {
     /// Number of LigatureAttach table offsets
@@ -771,7 +771,7 @@ table LigatureArray2 {
     ligature_attach_offsets: [Offset24<LigatureAttach2>],
 }
 
-/// ISO Open Font Format, fifth edition: LigatureAttach2.
+/// LigatureAttach2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 table LigatureAttach2 {
     /// Number of ComponentRecords in this ligature
@@ -783,7 +783,7 @@ table LigatureAttach2 {
     component_records: ComputedArray<ComponentRecord2<'a>>,
 }
 
-/// ISO Open Font Format, fifth edition: ComponentRecord2.
+/// ComponentRecord2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 record ComponentRecord2<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
@@ -794,7 +794,7 @@ record ComponentRecord2<'a> {
     ligature_anchor_offsets: [Offset24<AnchorTable>],
 }
 
-/// ISO Open Font Format, fifth edition: MarkMarkPosFormat2.
+/// MarkMarkPosFormat2 (ISO/IEC 14496-22:2026).
 #[validate(check_class_dimensions)]
 table MarkMarkPosFormat2 {
     /// Format identifier: format = 2
@@ -818,7 +818,7 @@ table MarkMarkPosFormat2 {
     mark2_array_offset: Offset32<Mark2Array2>,
 }
 
-/// ISO Open Font Format, fifth edition: Mark2Array2.
+/// Mark2Array2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 table Mark2Array2 {
     /// Number of Mark2 records
@@ -830,7 +830,7 @@ table Mark2Array2 {
     mark2_records: ComputedArray<Mark2Record2<'a>>,
 }
 
-/// ISO Open Font Format, fifth edition: Mark2Record2.
+/// Mark2Record2 (ISO/IEC 14496-22:2026).
 #[read_args(mark_class_count: u16)]
 record Mark2Record2<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
@@ -841,7 +841,7 @@ record Mark2Record2<'a> {
     mark2_anchor_offsets: [Offset24<AnchorTable>],
 }
 
-/// ISO Open Font Format, fifth edition: MarkArray2.
+/// MarkArray2 (ISO/IEC 14496-22:2026).
 #[validate(check_class_count)]
 table MarkArray2 {
     /// Number of MarkRecords
@@ -853,7 +853,7 @@ table MarkArray2 {
     mark_records: [MarkRecord2],
 }
 
-/// ISO Open Font Format, fifth edition: MarkRecord2.
+/// MarkRecord2 (ISO/IEC 14496-22:2026).
 record MarkRecord2 {
     /// Class defined for the associated mark.
     mark_class: u16,
@@ -861,25 +861,25 @@ record MarkRecord2 {
     mark_anchor_offset: Offset24<AnchorTable>,
 }
 
-/// ISO Open Font Format, fifth edition: CursivePos.
+/// CursivePos (ISO/IEC 14496-22:2026).
 format u16 CursivePos {
     Format1(CursivePosFormat1),
     Format2(CursivePosFormat2),
 }
 
-/// ISO Open Font Format, fifth edition: MarkBasePos.
+/// MarkBasePos (ISO/IEC 14496-22:2026).
 format u16 MarkBasePos {
     Format1(MarkBasePosFormat1),
     Format2(MarkBasePosFormat2),
 }
 
-/// ISO Open Font Format, fifth edition: MarkLigPos.
+/// MarkLigPos (ISO/IEC 14496-22:2026).
 format u16 MarkLigPos {
     Format1(MarkLigPosFormat1),
     Format2(MarkLigPosFormat2),
 }
 
-/// ISO Open Font Format, fifth edition: MarkMarkPos.
+/// MarkMarkPos (ISO/IEC 14496-22:2026).
 format u16 MarkMarkPos {
     Format1(MarkMarkPosFormat1),
     Format2(MarkMarkPosFormat2),

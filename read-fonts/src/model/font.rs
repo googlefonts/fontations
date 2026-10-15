@@ -239,13 +239,13 @@ impl Font {
         }
     }
 
-    /// Returns what `hmtx` states.
+    /// Returns the horizontal glyph metrics, from `HMTX` or `hmtx`.
     #[inline]
     pub(crate) fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
         self.shared().h_metrics()
     }
 
-    /// Returns what `vmtx` states.
+    /// Returns the vertical glyph metrics, from `VMTX` or `vmtx`.
     #[inline]
     pub(crate) fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
         self.shared().v_metrics()
@@ -269,7 +269,7 @@ impl Font {
         self.shared().vvar()
     }
 
-    /// Returns `gvar`.
+    /// Returns `GVAR`, or `gvar` without it.
     #[inline]
     pub(crate) fn selected_gvar(&self) -> Option<&SelectedGvar<'_>> {
         self.shared().selected_gvar()
@@ -970,7 +970,7 @@ impl SharedFont {
         )
     }
 
-    /// Returns what `hmtx` states, parsed once for the font.
+    /// Returns the horizontal glyph metrics, parsed once for the font.
     #[inline]
     fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
         let Some(tables) = self.tables_arc() else {
@@ -984,10 +984,10 @@ impl SharedFont {
             .get()
     }
 
-    /// Returns what `vmtx` states, parsed once for the font.
+    /// Returns the vertical glyph metrics, parsed once for the font.
     ///
-    /// Read on demand, unlike `hmtx`: most text is horizontal and never
-    /// asks.
+    /// Read on demand, unlike the horizontal metrics: most text is
+    /// horizontal and never asks.
     #[inline]
     fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
         let Some(tables) = self.tables_arc() else {
@@ -1040,7 +1040,7 @@ impl SharedFont {
             .as_ref()
     }
 
-    /// Returns `gvar`, parsed once for the font.
+    /// Returns `GVAR`, or `gvar` without it, parsed once for the font.
     ///
     /// Typically about half a variable font, so nothing should ask for this
     /// that another table can answer.
@@ -1107,10 +1107,11 @@ struct SharedFontRepr {
     // holds one thing for one owner.
     metrics: Once<Metrics>,
     style_metrics: Once<Box<StyleMetrics>>,
-    // What `hmtx` states, parsed once for the font. Held beside the tables
-    // it borrows, which is what lets it live here at all.
+    // The horizontal glyph metrics, parsed once for the font. Held beside
+    // the tables they borrow, which is what lets them live here at all.
     h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
-    /// `vmtx`, read only when something measures vertically.
+    // The vertical glyph metrics, read only when something measures
+    // vertically.
     v_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
     // `HVAR` states the deltas a location makes to a metric outright, and
     // `gvar` states them as phantom points on an outline, which `glyf` and

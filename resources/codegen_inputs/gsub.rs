@@ -248,7 +248,7 @@ table ReverseChainSingleSubstFormat1 {
     substitute_glyph_ids: [GlyphId16],
 }
 
-/// ISO Open Font Format, fifth edition: SingleSubstFormat3.
+/// SingleSubstFormat3 (ISO/IEC 14496-22:2026).
 table SingleSubstFormat3 {
     /// Format identifier: format = 3
     #[format = 3]
@@ -260,7 +260,7 @@ table SingleSubstFormat3 {
     delta_glyph_id: Int24,
 }
 
-/// ISO Open Font Format, fifth edition: SingleSubstFormat4.
+/// SingleSubstFormat4 (ISO/IEC 14496-22:2026).
 table SingleSubstFormat4 {
     /// Format identifier: format = 4
     #[format = 4]
@@ -276,7 +276,7 @@ table SingleSubstFormat4 {
     substitute_glyph_ids: [GlyphId24],
 }
 
-/// ISO Open Font Format, fifth edition: MultipleSubstFormat2.
+/// MultipleSubstFormat2 (ISO/IEC 14496-22:2026).
 table MultipleSubstFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
@@ -293,7 +293,7 @@ table MultipleSubstFormat2 {
     sequence_offsets: [Offset24<Sequence2>],
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSubstFormat2.
+/// AlternateSubstFormat2 (ISO/IEC 14496-22:2026).
 table AlternateSubstFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
@@ -310,7 +310,7 @@ table AlternateSubstFormat2 {
     alternate_set_offsets: [Offset24<AlternateSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSubstFormat2.
+/// LigatureSubstFormat2 (ISO/IEC 14496-22:2026).
 table LigatureSubstFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
@@ -327,7 +327,7 @@ table LigatureSubstFormat2 {
     ligature_set_offsets: [Offset24<LigatureSet2>],
 }
 
-/// ISO Open Font Format, fifth edition: ReverseChainSingleSubstFormat2.
+/// ReverseChainSingleSubstFormat2 (ISO/IEC 14496-22:2026).
 table ReverseChainSingleSubstFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
@@ -357,7 +357,7 @@ table ReverseChainSingleSubstFormat2 {
     substitute_glyph_ids: [GlyphId24],
 }
 
-/// ISO Open Font Format, fifth edition: Sequence2.
+/// Sequence2 (ISO/IEC 14496-22:2026).
 table Sequence2 {
     /// Number of glyph IDs in the substituteGlyphIDs array. This must
     /// always be greater than 0.
@@ -368,7 +368,7 @@ table Sequence2 {
     substitute_glyph_ids: [GlyphId24],
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSet2.
+/// AlternateSet2 (ISO/IEC 14496-22:2026).
 table AlternateSet2 {
     /// Number of glyph IDs in the alternateGlyphIDs array
     #[compile(array_len($alternate_glyph_ids))]
@@ -378,7 +378,7 @@ table AlternateSet2 {
     alternate_glyph_ids: [GlyphId24],
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSet2.
+/// LigatureSet2 (ISO/IEC 14496-22:2026).
 table LigatureSet2 {
     /// Number of Ligature tables
     #[compile(array_len($ligature_offsets))]
@@ -389,7 +389,7 @@ table LigatureSet2 {
     ligature_offsets: [Offset24<Ligature2>],
 }
 
-/// ISO Open Font Format, fifth edition: Ligature2.
+/// Ligature2 (ISO/IEC 14496-22:2026).
 table Ligature2 {
     /// glyph ID of ligature to substitute
     ligature_glyph: GlyphId24,
@@ -402,25 +402,25 @@ table Ligature2 {
     component_glyph_ids: [GlyphId24],
 }
 
-/// ISO Open Font Format, fifth edition: MultipleSubst.
+/// MultipleSubst (ISO/IEC 14496-22:2026).
 format u16 MultipleSubst {
     Format1(MultipleSubstFormat1),
     Format2(MultipleSubstFormat2),
 }
 
-/// ISO Open Font Format, fifth edition: AlternateSubst.
+/// AlternateSubst (ISO/IEC 14496-22:2026).
 format u16 AlternateSubst {
     Format1(AlternateSubstFormat1),
     Format2(AlternateSubstFormat2),
 }
 
-/// ISO Open Font Format, fifth edition: LigatureSubst.
+/// LigatureSubst (ISO/IEC 14496-22:2026).
 format u16 LigatureSubst {
     Format1(LigatureSubstFormat1),
     Format2(LigatureSubstFormat2),
 }
 
-/// ISO Open Font Format, fifth edition: ReverseChainSingleSubst.
+/// ReverseChainSingleSubst (ISO/IEC 14496-22:2026).
 format u16 ReverseChainSingleSubst {
     Format1(ReverseChainSingleSubstFormat1),
     Format2(ReverseChainSingleSubstFormat2),
