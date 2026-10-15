@@ -1290,7 +1290,9 @@ mod tests {
             table.lookup_list.apply(&c).unwrap();
             let bytes = write_fonts::dump_table(&table).unwrap();
             let table = own_gpos(&ReadGpos::read(FontData::new(&bytes)).unwrap()).unwrap();
-            let PositionLookup::Single(single) = table.lookup_list.lookups[0].as_ref() else {
+            let PositionLookup::Single(single) =
+                table.lookup_list.as_ref().unwrap().lookups[0].as_ref()
+            else {
                 panic!()
             };
             let SinglePos::Format2(single) = single.subtables[0].as_ref() else {
@@ -1313,7 +1315,9 @@ mod tests {
                     Some(DeviceOrVariationIndex::Device(_))
                 ));
             }
-            let PositionLookup::Pair(pair) = table.lookup_list.lookups[1].as_ref() else {
+            let PositionLookup::Pair(pair) =
+                table.lookup_list.as_ref().unwrap().lookups[1].as_ref()
+            else {
                 panic!()
             };
             let PairPos::Format1(pair1) = pair.subtables[0].as_ref() else {
@@ -1331,7 +1335,9 @@ mod tests {
                 }
             }
             // Extension wrappers must also retain zero-byte record counts.
-            let PositionLookup::Extension(ext) = table.lookup_list.lookups[2].as_ref() else {
+            let PositionLookup::Extension(ext) =
+                table.lookup_list.as_ref().unwrap().lookups[2].as_ref()
+            else {
                 panic!()
             };
             let ExtensionSubtable::Single(ext) = ext.subtables[0].as_ref() else {
@@ -1341,7 +1347,9 @@ mod tests {
                 panic!()
             };
             assert_eq!(single.value_records.len(), 3);
-            let PositionLookup::Extension(ext) = table.lookup_list.lookups[3].as_ref() else {
+            let PositionLookup::Extension(ext) =
+                table.lookup_list.as_ref().unwrap().lookups[3].as_ref()
+            else {
                 panic!()
             };
             let ExtensionSubtable::Pair(ext) = ext.subtables[1].as_ref() else {
