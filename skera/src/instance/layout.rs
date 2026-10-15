@@ -1382,6 +1382,75 @@ fn save(
     Ok(())
 }
 
+fn own_lookup_variations(
+    vars: &read_fonts::tables::layout::FeatureVariations,
+    features: &read_fonts::tables::layout::FeatureList,
+    tag: Tag,
+    remaining: &mut usize,
+) -> Result<Option<Vec<LookupVariationRecord>>, SubsetError> {
+    let err = || SubsetError::SubsetTableError(tag);
+    if vars.version().major != 1 || vars.version().minor < 1 {
+        return Ok(None);
+    }
+    let records = vars.lookup_variation_records().ok_or_else(err)?;
+    if !records
+        .windows(2)
+        .all(|pair| pair[0].feature_index() < pair[1].feature_index())
+    {
+        return Err(err());
+    }
+    *remaining = remaining.checked_sub(records.len()).ok_or_else(err)?;
+    let mut owned = Vec::new();
+    for record in records {
+        if usize::from(record.feature_index()) >= features.feature_records().len() {
+            return Err(err());
+        }
+        let source = record
+            .feature_lookups(vars.offset_data())
+            .map_err(|_| err())?;
+        let count = usize::try_from(source.lookup_condition_count()).map_err(|_| err())?;
+        // Check before calling the generated array getter on 32-bit targets.
+        let end = count
+            .checked_mul(8)
+            .and_then(|n| n.checked_add(10))
+            .ok_or_else(err)?;
+        if source.version().major != 1 || end > source.offset_data().len() {
+            return Err(err());
+        }
+        *remaining = remaining.checked_sub(count).ok_or_else(err)?;
+        let mut conditions = Vec::new();
+        for record in source.lookup_condition_records() {
+            let offset = record.condition_offset().offset().to_u32();
+            let condition = if offset == 0 {
+                None
+            } else {
+                Some(
+                    crate::conditions::at_offset(source.offset_data(), offset, 33, remaining)
+                        .map_err(|_| err())?,
+                )
+            };
+            let list = record
+                .lookup_index_list(source.offset_data())
+                .map_err(|_| err())?;
+            let indices = list.lookup_indices();
+            if indices.len() != usize::from(list.lookup_index_count()) {
+                return Err(err());
+            }
+            *remaining = remaining.checked_sub(indices.len()).ok_or_else(err)?;
+            conditions.push(LookupConditionRecord {
+                condition: condition.into(),
+                lookup_index_list: LookupIndexList::new(indices.iter().map(|v| v.get()).collect())
+                    .into(),
+            });
+        }
+        owned.push(LookupVariationRecord {
+            feature_index: record.feature_index(),
+            feature_lookups: FeatureLookups::new(source.flags(), conditions).into(),
+        });
+    }
+    Ok(Some(owned))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2278,73 +2347,4 @@ mod tests {
             assert!(vars.is_none());
         }
     }
-}
-
-fn own_lookup_variations(
-    vars: &read_fonts::tables::layout::FeatureVariations,
-    features: &read_fonts::tables::layout::FeatureList,
-    tag: Tag,
-    remaining: &mut usize,
-) -> Result<Option<Vec<LookupVariationRecord>>, SubsetError> {
-    let err = || SubsetError::SubsetTableError(tag);
-    if vars.version().major != 1 || vars.version().minor < 1 {
-        return Ok(None);
-    }
-    let records = vars.lookup_variation_records().ok_or_else(err)?;
-    if !records
-        .windows(2)
-        .all(|pair| pair[0].feature_index() < pair[1].feature_index())
-    {
-        return Err(err());
-    }
-    *remaining = remaining.checked_sub(records.len()).ok_or_else(err)?;
-    let mut owned = Vec::new();
-    for record in records {
-        if usize::from(record.feature_index()) >= features.feature_records().len() {
-            return Err(err());
-        }
-        let source = record
-            .feature_lookups(vars.offset_data())
-            .map_err(|_| err())?;
-        let count = usize::try_from(source.lookup_condition_count()).map_err(|_| err())?;
-        // Check before calling the generated array getter on 32-bit targets.
-        let end = count
-            .checked_mul(8)
-            .and_then(|n| n.checked_add(10))
-            .ok_or_else(err)?;
-        if source.version().major != 1 || end > source.offset_data().len() {
-            return Err(err());
-        }
-        *remaining = remaining.checked_sub(count).ok_or_else(err)?;
-        let mut conditions = Vec::new();
-        for record in source.lookup_condition_records() {
-            let offset = record.condition_offset().offset().to_u32();
-            let condition = if offset == 0 {
-                None
-            } else {
-                Some(
-                    crate::conditions::at_offset(source.offset_data(), offset, 33, remaining)
-                        .map_err(|_| err())?,
-                )
-            };
-            let list = record
-                .lookup_index_list(source.offset_data())
-                .map_err(|_| err())?;
-            let indices = list.lookup_indices();
-            if indices.len() != usize::from(list.lookup_index_count()) {
-                return Err(err());
-            }
-            *remaining = remaining.checked_sub(indices.len()).ok_or_else(err)?;
-            conditions.push(LookupConditionRecord {
-                condition: condition.into(),
-                lookup_index_list: LookupIndexList::new(indices.iter().map(|v| v.get()).collect())
-                    .into(),
-            });
-        }
-        owned.push(LookupVariationRecord {
-            feature_index: record.feature_index(),
-            feature_lookups: FeatureLookups::new(source.flags(), conditions).into(),
-        });
-    }
-    Ok(Some(owned))
 }
