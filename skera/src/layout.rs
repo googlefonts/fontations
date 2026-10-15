@@ -366,7 +366,11 @@ fn classdef_remap_and_serialize(
         return ClassDef::serialize(s, new_gid_classes).map(|()| None);
     }
 
-    let mut class_map = FastHashMap::default();
+    // one entry per retained class, plus class 0
+    let mut class_map = FastHashMap::with_capacity_and_hasher(
+        retained_classes.len() as usize + 1,
+        foldhash::fast::FixedState::default(),
+    );
     if !use_class_zero {
         class_map.insert(0_u16, 0_u16);
     }
