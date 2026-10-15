@@ -70,7 +70,7 @@ fn collect_values(
     indices: &mut IntSet<u32>,
 ) {
     for (glyph, record) in coverage.iter().zip(records) {
-        if plan.glyphset_mathed.contains(GlyphId::from(glyph)) {
+        if plan.glyphset_mathed.contains(glyph) {
             collect_value(record, data, plan, indices);
         }
     }
@@ -114,7 +114,7 @@ pub(crate) fn collect_variation_indices(font: &FontRef, plan: &Plan, indices: &m
         if let Some(Ok(kerns)) = info.math_kern_info() {
             if let Ok(coverage) = kerns.math_kern_coverage() {
                 for (glyph, record) in coverage.iter().zip(kerns.math_kern_info_records()) {
-                    if !plan.glyphset_mathed.contains(GlyphId::from(glyph)) {
+                    if !plan.glyphset_mathed.contains(glyph) {
                         continue;
                     }
                     for kern in [
@@ -149,7 +149,7 @@ pub(crate) fn collect_variation_indices(font: &FontRef, plan: &Plan, indices: &m
                 continue;
             };
             for (glyph, construction) in coverage.iter().zip(constructions.iter()) {
-                if !plan.glyphset_cmaped.contains(GlyphId::from(glyph)) {
+                if !plan.glyphset_cmaped.contains(glyph) {
                     continue;
                 }
                 if let Ok(construction) = construction {
