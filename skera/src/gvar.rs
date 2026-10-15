@@ -90,7 +90,11 @@ fn subset_gvar(
 
     // According to the spec: If the short format (Offset16) is used for offsets, the value stored is the offset divided by 2.
     // So the maximum subset data size that could use short format should be 2 * 0xFFFFu, which is 0x1FFFE
-    let long_offset = if subset_data_size > 0x1FFFE_u64 || plan.subset_flags.contains(SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS) {
+    let long_offset = if subset_data_size > 0x1FFFE_u64
+        || plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS)
+    {
         1_u16
     } else {
         0_u16
