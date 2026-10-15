@@ -589,7 +589,7 @@ fn encode_simple(
     curve_flags: &[PointFlags],
     out: &mut Vec<u8>,
 ) -> Result<(), SubsetError> {
-    if g.contours.is_empty() {
+    if g.contours.is_empty() && g.instructions.is_empty() {
         return Ok(());
     }
     out.extend(
