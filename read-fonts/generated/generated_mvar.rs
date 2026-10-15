@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Mvar<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,32 @@ impl<'a> FontRead<'a> for Mvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MvarFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub _reserved: BigEndian<u16>,
+    pub value_record_size: BigEndian<u16>,
+    pub value_record_count: BigEndian<u16>,
+    pub item_variation_store_offset: BigEndian<Nullable<Offset16>>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<MvarFixedHeader>() <= Mvar::MIN_SIZE);
+
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 #[derive(Clone)]
 pub struct Mvar<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MvarFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -52,38 +70,37 @@ impl<'a> Mvar<'a> {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// The size in bytes of each value record — must be greater than zero.
     pub fn value_record_size(&self) -> u16 {
-        let range = self.value_record_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_record_size.get()
     }
 
     /// The number of value records — may be zero.
     pub fn value_record_count(&self) -> u16 {
-        let range = self.value_record_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().value_record_count.get()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table. If valueRecordCount is zero, set to zero; if valueRecordCount is greater than zero, must be greater than zero.
     pub fn item_variation_store_offset(&self) -> Nullable<Offset16> {
-        let range = self.item_variation_store_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().item_variation_store_offset.get()
     }
 
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.item_variation_store_offset().resolve(data)
     }
 
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.
     pub fn value_records(&self) -> &'a [ValueRecord] {
         let range = self.value_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -130,7 +147,8 @@ const _: () = assert!(FontData::default_data_long_enough(Mvar::MIN_SIZE));
 impl Default for Mvar<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

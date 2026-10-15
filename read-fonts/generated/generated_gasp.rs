@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Gasp<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,29 @@ impl<'a> FontRead<'a> for Gasp<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GaspFixedHeader {
+    pub version: BigEndian<u16>,
+    pub num_ranges: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GaspFixedHeader>() <= Gasp::MIN_SIZE);
+
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
 #[derive(Clone)]
 pub struct Gasp<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GaspFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -47,20 +62,21 @@ impl<'a> Gasp<'a> {
 
     /// Version number (set to 1)
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Number of records to follow
     pub fn num_ranges(&self) -> u16 {
-        let range = self.num_ranges_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_ranges.get()
     }
 
     /// Sorted by ppem
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
         let range = self.gasp_ranges_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -89,7 +105,8 @@ const _: () = assert!(FontData::default_data_long_enough(Gasp::MIN_SIZE));
 impl Default for Gasp<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
