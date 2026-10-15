@@ -75,13 +75,13 @@ fn pairposformat2() {
 
     let class2 = table.class_def2().unwrap();
     match class2 {
-        ClassDef::Format1(_) => panic!("expected format2"),
         ClassDef::Format2(cls) => {
             assert_eq!(
                 cls.class_range_records()[0].start_glyph_id.get(),
                 GlyphId16::new(0x6A)
             );
         }
+        _ => panic!("expected format2"),
     }
 }
 

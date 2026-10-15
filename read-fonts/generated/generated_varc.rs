@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Varc<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,16 +30,35 @@ impl<'a> FontRead<'a> for Varc<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct VarcFixedHeader {
+    pub version: BigEndian<MajorMinor>,
+    pub coverage_offset: BigEndian<Offset32>,
+    pub multi_var_store_offset: BigEndian<Nullable<Offset32>>,
+    pub condition_list_offset: BigEndian<Nullable<Offset32>>,
+    pub axis_indices_list_offset: BigEndian<Nullable<Offset32>>,
+    pub var_composite_glyphs_offset: BigEndian<Offset32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<VarcFixedHeader>() <= Varc::MIN_SIZE);
 
 /// [VARC](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) (Variable Composites / Components Table)
 ///
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
 #[derive(Clone)]
 pub struct Varc<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, VarcFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -54,68 +73,56 @@ impl<'a> Varc<'a> {
 
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     pub fn coverage_offset(&self) -> Offset32 {
-        let range = self.coverage_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().coverage_offset.get()
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.coverage_offset().resolve(data)
     }
 
     pub fn multi_var_store_offset(&self) -> Nullable<Offset32> {
-        let range = self.multi_var_store_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().multi_var_store_offset.get()
     }
 
     /// Attempt to resolve [`multi_var_store_offset`][Self::multi_var_store_offset].
     pub fn multi_var_store(&self) -> Option<Result<MultiItemVariationStore<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.multi_var_store_offset().resolve(data)
     }
 
     pub fn condition_list_offset(&self) -> Nullable<Offset32> {
-        let range = self.condition_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().condition_list_offset.get()
     }
 
     /// Attempt to resolve [`condition_list_offset`][Self::condition_list_offset].
     pub fn condition_list(&self) -> Option<Result<ConditionList<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.condition_list_offset().resolve(data)
     }
 
     pub fn axis_indices_list_offset(&self) -> Nullable<Offset32> {
-        let range = self.axis_indices_list_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().axis_indices_list_offset.get()
     }
 
     /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
     pub fn axis_indices_list(&self) -> Option<Result<Index2<'a>, ReadError>> {
-        let data = self.data;
+        let data = self.offset_data();
         self.axis_indices_list_offset().resolve(data)
     }
 
     pub fn var_composite_glyphs_offset(&self) -> Offset32 {
-        let range = self.var_composite_glyphs_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().var_composite_glyphs_offset.get()
     }
 
     /// Attempt to resolve [`var_composite_glyphs_offset`][Self::var_composite_glyphs_offset].
     pub fn var_composite_glyphs(&self) -> Result<Index2<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.var_composite_glyphs_offset().resolve(data)
     }
 
@@ -161,7 +168,8 @@ const _: () = assert!(FontData::default_data_long_enough(Varc::MIN_SIZE));
 impl Default for Varc<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -176,7 +184,7 @@ impl<'a> MinByteRange<'a> for MultiItemVariationStore<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -190,15 +198,33 @@ impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
+
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MultiItemVariationStoreFixedHeader {
+    pub format: BigEndian<u16>,
+    pub region_list_offset: BigEndian<Offset32>,
+    pub variation_data_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<MultiItemVariationStoreFixedHeader>() <= MultiItemVariationStore::MIN_SIZE
+);
 
 /// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
 /// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 #[derive(Clone)]
 pub struct MultiItemVariationStore<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MultiItemVariationStoreFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -207,37 +233,34 @@ impl<'a> MultiItemVariationStore<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> u16 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format.get()
     }
 
     pub fn region_list_offset(&self) -> Offset32 {
-        let range = self.region_list_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().region_list_offset.get()
     }
 
     /// Attempt to resolve [`region_list_offset`][Self::region_list_offset].
     pub fn region_list(&self) -> Result<SparseVariationRegionList<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.region_list_offset().resolve(data)
     }
 
     pub fn variation_data_count(&self) -> u16 {
-        let range = self.variation_data_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().variation_data_count.get()
     }
 
     pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.variation_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`variation_data_offsets`][Self::variation_data_offsets].
     pub fn variation_data(&self) -> ArrayOfOffsets<'a, MultiItemVariationData<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.variation_data_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -276,7 +299,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MultiItemVariationStore<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u16_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -287,7 +311,7 @@ impl<'a> MinByteRange<'a> for SparseVariationRegionList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -301,13 +325,30 @@ impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SparseVariationRegionListFixedHeader {
+    pub region_count: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<SparseVariationRegionListFixedHeader>()
+        <= SparseVariationRegionList::MIN_SIZE
+);
+
 #[derive(Clone)]
 pub struct SparseVariationRegionList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SparseVariationRegionListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -316,18 +357,20 @@ impl<'a> SparseVariationRegionList<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn region_count(&self) -> u32 {
-        let range = self.region_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().region_count.get()
     }
 
     pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.region_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`region_offsets`][Self::region_offsets].
     pub fn regions(&self) -> ArrayOfOffsets<'a, SparseVariationRegion<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.region_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -354,7 +397,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for SparseVariationRegionList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -365,7 +409,7 @@ impl<'a> MinByteRange<'a> for SparseVariationRegion<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -379,13 +423,29 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SparseVariationRegionFixedHeader {
+    pub region_axis_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<SparseVariationRegionFixedHeader>() <= SparseVariationRegion::MIN_SIZE
+);
+
 #[derive(Clone)]
 pub struct SparseVariationRegion<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SparseVariationRegionFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -394,20 +454,22 @@ impl<'a> SparseVariationRegion<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn region_axis_count(&self) -> u16 {
-        let range = self.region_axis_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().region_axis_count.get()
     }
 
     pub fn axis_coordinate_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.axis_coordinate_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`axis_coordinate_offsets`][Self::axis_coordinate_offsets].
     pub fn axis_coordinates(
         &self,
     ) -> ArrayOfOffsets<'a, SparseRegionAxisCoordinates<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.axis_coordinate_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -434,7 +496,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for SparseVariationRegion<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -445,7 +508,7 @@ impl<'a> MinByteRange<'a> for SparseRegionAxisCoordinates<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -459,13 +522,33 @@ impl<'a> FontRead<'a> for SparseRegionAxisCoordinates<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct SparseRegionAxisCoordinatesFixedHeader {
+    pub axis_index: BigEndian<u16>,
+    pub start: BigEndian<F2Dot14>,
+    pub peak: BigEndian<F2Dot14>,
+    pub end: BigEndian<F2Dot14>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<SparseRegionAxisCoordinatesFixedHeader>()
+        <= SparseRegionAxisCoordinates::MIN_SIZE
+);
+
 #[derive(Clone)]
 pub struct SparseRegionAxisCoordinates<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, SparseRegionAxisCoordinatesFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -475,23 +558,19 @@ impl<'a> SparseRegionAxisCoordinates<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn axis_index(&self) -> u16 {
-        let range = self.axis_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().axis_index.get()
     }
 
     pub fn start(&self) -> F2Dot14 {
-        let range = self.start_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().start.get()
     }
 
     pub fn peak(&self) -> F2Dot14 {
-        let range = self.peak_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().peak.get()
     }
 
     pub fn end(&self) -> F2Dot14 {
-        let range = self.end_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().end.get()
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
@@ -526,7 +605,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for SparseRegionAxisCoordinates<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -541,7 +621,7 @@ impl<'a> MinByteRange<'a> for MultiItemVariationData<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -555,13 +635,30 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct MultiItemVariationDataFixedHeader {
+    pub format: u8,
+    pub region_index_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(
+    std::mem::size_of::<MultiItemVariationDataFixedHeader>() <= MultiItemVariationData::MIN_SIZE
+);
+
 #[derive(Clone)]
 pub struct MultiItemVariationData<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, MultiItemVariationDataFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -570,23 +667,24 @@ impl<'a> MultiItemVariationData<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn format(&self) -> u8 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().format
     }
 
     pub fn region_index_count(&self) -> u16 {
-        let range = self.region_index_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().region_index_count.get()
     }
 
     pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.region_indices_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn delta_sets_offset(&self) -> Offset32 {
         let range = self.delta_sets_offset_byte_range();
-        self.data
+        self.offset_data()
             .read_at(range.start)
             .ok()
             .unwrap_or(Offset32::new(Default::default()))
@@ -594,7 +692,7 @@ impl<'a> MultiItemVariationData<'a> {
 
     /// Attempt to resolve [`delta_sets_offset`][Self::delta_sets_offset].
     pub fn delta_sets(&self) -> Result<Index2<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.delta_sets_offset().resolve(data)
     }
 
@@ -632,7 +730,8 @@ const _: () = assert!(FontData::default_data_long_enough(
 impl Default for MultiItemVariationData<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u8_table_data(),
+            data: TableDataRef::new(FontData::default_format_1_u8_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -643,7 +742,7 @@ impl<'a> MinByteRange<'a> for ConditionList<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -657,13 +756,27 @@ impl<'a> FontRead<'a> for ConditionList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct ConditionListFixedHeader {
+    pub condition_count: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<ConditionListFixedHeader>() <= ConditionList::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct ConditionList<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, ConditionListFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -672,18 +785,20 @@ impl<'a> ConditionList<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn condition_count(&self) -> u32 {
-        let range = self.condition_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().condition_count.get()
     }
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.condition_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
     pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
-        let data = self.data;
+        let data = self.offset_data();
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
     }
@@ -708,7 +823,8 @@ const _: () = assert!(FontData::default_data_long_enough(ConditionList::MIN_SIZE
 impl Default for ConditionList<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
