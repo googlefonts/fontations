@@ -65,3 +65,61 @@ impl<'a> FromObjRef<read_fonts::tables::vmtx::Vmtx<'a>> for Vmtx {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::vmtx::Vmtx<'a>> for Vmtx {}
+
+/// VMTX vertical metrics (ISO/IEC 14496-22:2026, 5.6.14).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct VmtxExtended {
+    pub v_metrics: Vec<LongMetric>,
+    pub top_side_bearings: Vec<i16>,
+}
+
+impl VmtxExtended {
+    /// Construct a new `VmtxExtended`
+    pub fn new(v_metrics: Vec<LongMetric>, top_side_bearings: Vec<i16>) -> Self {
+        Self {
+            v_metrics,
+            top_side_bearings,
+        }
+    }
+}
+
+impl FontWrite for VmtxExtended {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.v_metrics.write_into(writer);
+        self.top_side_bearings.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(VmtxExtended::TAG)
+    }
+}
+
+impl Validate for VmtxExtended {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("VmtxExtended", |ctx| {
+            ctx.in_field("v_metrics", |ctx| {
+                if self.v_metrics.len() > to_usize(u32::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.v_metrics.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl TopLevelTable for VmtxExtended {
+    const TAG: Tag = Tag::new(b"VMTX");
+}
+
+impl<'a> FromObjRef<read_fonts::tables::vmtx::VmtxExtended<'a>> for VmtxExtended {
+    fn from_obj_ref(obj: &read_fonts::tables::vmtx::VmtxExtended<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        VmtxExtended {
+            v_metrics: obj.v_metrics().to_owned_obj(offset_data),
+            top_side_bearings: obj.top_side_bearings().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::vmtx::VmtxExtended<'a>> for VmtxExtended {}
