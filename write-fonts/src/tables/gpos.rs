@@ -14,8 +14,6 @@ impl<'a> FontRead<'a> for PositionLookupList2 {
     }
 }
 
-use std::collections::HashSet;
-
 //use super::layout::value_record::ValueRecord;
 use super::{
     layout::{
