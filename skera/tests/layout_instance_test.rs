@@ -177,7 +177,6 @@ fn selected_glyph(bytes: &[u8]) -> u16 {
         SingleSubst::Format1(sub) => 1u16.wrapping_add(sub.delta_glyph_id as u16),
         SingleSubst::Format2(sub) => sub.substitute_glyph_ids[0].to_u16(),
         _ => panic!("fixture uses original single substitutions"),
-        _ => panic!("fixture uses original single substitutions"),
     }
 }
 #[test]
