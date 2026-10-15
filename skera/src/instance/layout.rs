@@ -4,7 +4,7 @@ use crate::SubsetError;
 use read_fonts::{
     tables::variations::{DeltaSetIndex, ItemVariationStore},
     types::{Compatible, F2Dot14, Tag},
-    FontRef, TableProvider,
+    FontRef, ResolveOffset, TableProvider,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
@@ -565,6 +565,25 @@ fn features(
                 }
             }
             vars.feature_variation_records = records;
+            for variation in vars.lookup_variation_records.iter_mut().flatten() {
+                let mut records = Vec::new();
+                for record in &variation.feature_lookups.lookup_condition_records {
+                    let mut record = record.clone();
+                    if let Some(cond) = record.condition.as_ref() {
+                        match partial_condition(cond, c, 0)? {
+                            PartialCondition::Constant(false) => continue,
+                            PartialCondition::Constant(true) => {
+                                record.condition = Default::default()
+                            }
+                            PartialCondition::Variable(cond) => {
+                                record.condition = Some(cond).into()
+                            }
+                        }
+                    }
+                    records.push(record);
+                }
+                variation.feature_lookups.lookup_condition_records = records;
+            }
         }
         return Ok(());
     }
@@ -589,6 +608,35 @@ fn features(
                 }
             }
             break;
+        }
+    }
+    if let Some(vars) = vars.as_ref() {
+        for variation in vars.lookup_variation_records.iter().flatten() {
+            let feature = list
+                .feature_records
+                .get_mut(usize::from(variation.feature_index))
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?;
+            let table = variation.feature_lookups.as_ref();
+            let lookups = &mut feature.feature.lookup_list_indices;
+            if !table
+                .flags
+                .contains(FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS)
+            {
+                lookups.clear();
+            }
+            for record in &table.lookup_condition_records {
+                if record
+                    .condition
+                    .as_ref()
+                    .map(|cond| condition(cond, c, 0))
+                    .transpose()?
+                    .unwrap_or(true)
+                {
+                    lookups.extend(&record.lookup_index_list.lookup_indices);
+                }
+            }
+            lookups.sort_unstable();
+            lookups.dedup();
         }
     }
     *vars = Default::default();
@@ -727,6 +775,7 @@ fn partial_condition(
 
 fn own_feature_variations(
     vars: Option<read_fonts::tables::layout::FeatureVariations>,
+    features: &read_fonts::tables::layout::FeatureList,
     tag: Tag,
 ) -> Result<Option<FeatureVariations>, SubsetError> {
     let err = || SubsetError::SubsetTableError(tag);
@@ -736,9 +785,9 @@ fn own_feature_variations(
         {
             return Err(err());
         }
-        let mut sets = Vec::new();
+        let mut records = Vec::new();
         for record in vars.feature_variation_records() {
-            if let Some(set) = record
+            let condition_set = if let Some(set) = record
                 .condition_set(vars.offset_data())
                 .transpose()
                 .map_err(|_| err())?
@@ -760,16 +809,53 @@ fn own_feature_variations(
                         .map_err(|_| err())
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                sets.push(Some(ConditionSet { conditions }));
+                Some(ConditionSet { conditions })
             } else {
-                sets.push(None);
-            }
+                None
+            };
+            let feature_table_substitution = if let Some(source) = record
+                .feature_table_substitution(vars.offset_data())
+                .transpose()
+                .map_err(|_| err())?
+            {
+                if source.substitutions().len() != source.substitution_count() as usize {
+                    return Err(err());
+                }
+                let mut owned = FeatureTableSubstitution::default();
+                for substitution in source.substitutions() {
+                    let feature_index = substitution.feature_index();
+                    let tag = features
+                        .feature_records()
+                        .get(feature_index as usize)
+                        .ok_or_else(err)?
+                        .feature_tag();
+                    let alternate = substitution
+                        .alternate_feature_offset()
+                        .resolve_with_args::<read_fonts::tables::layout::Feature>(
+                            source.offset_data(),
+                            tag,
+                        )
+                        .map_err(|_| err())?;
+                    alternate.feature_params().transpose().map_err(|_| err())?;
+                    let alternate: Feature = alternate.to_owned_table();
+                    owned.substitutions.push(FeatureTableSubstitutionRecord {
+                        feature_index,
+                        alternate_feature: alternate.into(),
+                    });
+                }
+                Some(owned)
+            } else {
+                None
+            };
+            records.push(FeatureVariationRecord {
+                condition_set: condition_set.into(),
+                feature_table_substitution: feature_table_substitution.into(),
+            });
         }
-        let mut table: FeatureVariations = vars.to_owned_table();
-        for (record, set) in table.feature_variation_records.iter_mut().zip(sets) {
-            record.condition_set = set.into();
-        }
-        return Ok(Some(table));
+        return Ok(Some(FeatureVariations {
+            feature_variation_records: records,
+            lookup_variation_records: own_lookup_variations(&vars, features, tag, &mut remaining)?,
+        }));
     }
     Ok(None)
 }
@@ -982,6 +1068,9 @@ pub(super) fn instance(
             gpos.feature_variations()
                 .transpose()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
+            &gpos
+                .feature_list()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GPOS")))?,
             Tag::new(b"GPOS"),
         )?;
         let mut table = own_gpos(&gpos)?;
@@ -1003,6 +1092,9 @@ pub(super) fn instance(
         let vars = own_feature_variations(
             gsub.feature_variations()
                 .transpose()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
+            &gsub
+                .feature_list()
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             Tag::new(b"GSUB"),
         )?;
@@ -1101,6 +1193,75 @@ fn save(
         write_fonts::dump_table(table).map_err(|_| SubsetError::SubsetTableError(tag))?,
     );
     Ok(())
+}
+
+fn own_lookup_variations(
+    vars: &read_fonts::tables::layout::FeatureVariations,
+    features: &read_fonts::tables::layout::FeatureList,
+    tag: Tag,
+    remaining: &mut usize,
+) -> Result<Option<Vec<LookupVariationRecord>>, SubsetError> {
+    let err = || SubsetError::SubsetTableError(tag);
+    if vars.version().major != 1 || vars.version().minor < 1 {
+        return Ok(None);
+    }
+    let records = vars.lookup_variation_records().ok_or_else(err)?;
+    if !records
+        .windows(2)
+        .all(|pair| pair[0].feature_index() < pair[1].feature_index())
+    {
+        return Err(err());
+    }
+    *remaining = remaining.checked_sub(records.len()).ok_or_else(err)?;
+    let mut owned = Vec::new();
+    for record in records {
+        if usize::from(record.feature_index()) >= features.feature_records().len() {
+            return Err(err());
+        }
+        let source = record
+            .feature_lookups(vars.offset_data())
+            .map_err(|_| err())?;
+        let count = usize::try_from(source.lookup_condition_count()).map_err(|_| err())?;
+        // Check before calling the generated array getter on 32-bit targets.
+        let end = count
+            .checked_mul(8)
+            .and_then(|n| n.checked_add(10))
+            .ok_or_else(err)?;
+        if source.version().major != 1 || end > source.offset_data().len() {
+            return Err(err());
+        }
+        *remaining = remaining.checked_sub(count).ok_or_else(err)?;
+        let mut conditions = Vec::new();
+        for record in source.lookup_condition_records() {
+            let offset = record.condition_offset().offset().to_u32();
+            let condition = if offset == 0 {
+                None
+            } else {
+                Some(
+                    crate::conditions::at_offset(source.offset_data(), offset, 33, remaining)
+                        .map_err(|_| err())?,
+                )
+            };
+            let list = record
+                .lookup_index_list(source.offset_data())
+                .map_err(|_| err())?;
+            let indices = list.lookup_indices();
+            if indices.len() != usize::from(list.lookup_index_count()) {
+                return Err(err());
+            }
+            *remaining = remaining.checked_sub(indices.len()).ok_or_else(err)?;
+            conditions.push(LookupConditionRecord {
+                condition: condition.into(),
+                lookup_index_list: LookupIndexList::new(indices.iter().map(|v| v.get()).collect())
+                    .into(),
+            });
+        }
+        owned.push(LookupVariationRecord {
+            feature_index: record.feature_index(),
+            feature_lookups: FeatureLookups::new(source.flags(), conditions).into(),
+        });
+    }
+    Ok(Some(owned))
 }
 
 #[cfg(test)]
