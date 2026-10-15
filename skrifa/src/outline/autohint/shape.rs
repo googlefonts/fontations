@@ -10,9 +10,8 @@ use raw::{
             ChainedSequenceContext, Gsub, SequenceContext, SingleSubst, SubstitutionLookupList,
             SubstitutionSubtables,
         },
-        layout::ScriptTags,
+        layout::{store_deltas, ScriptTags},
         varc::CoverageTable,
-        variations::DeltaSetIndex,
     },
     types::{F2Dot14, Tag},
     TableProvider,
@@ -124,23 +123,7 @@ impl<'a> Shaper<'a> {
             .gdef()
             .ok()
             .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten());
-        let delta = |index: u32| {
-            Ok::<_, core::convert::Infallible>(
-                store
-                    .as_ref()
-                    .and_then(|store| {
-                        store.compute_delta(
-                            DeltaSetIndex {
-                                outer: (index >> 16) as u16,
-                                inner: index as u16,
-                            },
-                            self.coords,
-                        )
-                    })
-                    .unwrap_or_default()
-                    .to_f64(),
-            )
-        };
+        let delta = store_deltas(store.as_ref(), self.coords);
         let selected = (!all_locations)
             .then(|| variations.index_for_coords_with_delta(self.coords, delta))
             .flatten();

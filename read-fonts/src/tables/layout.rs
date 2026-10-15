@@ -12,7 +12,7 @@ mod script;
 
 use core::cmp::Ordering;
 
-pub use condition::ConditionError;
+pub use condition::{store_deltas, ConditionError};
 pub use lookup_flag::LookupFlag;
 pub use script::{ScriptTags, SelectedScript, UNICODE_TO_NEW_OPENTYPE_SCRIPT_TAGS};
 
@@ -228,23 +228,8 @@ impl SelectedFeatureVariations {
                 .ok()
                 .flatten()
                 .and_then(|feature_vars| {
-                    feature_vars.index_for_coords_with_delta(coords, |index| {
-                        Ok::<_, core::convert::Infallible>(
-                            store
-                                .as_ref()
-                                .and_then(|store| {
-                                    store.compute_delta(
-                                        DeltaSetIndex {
-                                            outer: (index >> 16) as u16,
-                                            inner: index as u16,
-                                        },
-                                        coords,
-                                    )
-                                })
-                                .unwrap_or_default()
-                                .to_f64(),
-                        )
-                    })
+                    feature_vars
+                        .index_for_coords_with_delta(coords, store_deltas(store.as_ref(), coords))
                 })
         });
         Self {

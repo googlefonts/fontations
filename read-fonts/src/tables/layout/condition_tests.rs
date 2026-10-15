@@ -1,6 +1,6 @@
 use super::*;
 use crate::tables::layout::FeatureVariations;
-use crate::tables::variations::{DeltaSetIndex, ItemVariationStore};
+use crate::tables::variations::ItemVariationStore;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::convert::Infallible;
@@ -101,18 +101,7 @@ fn variable_values_keep_fractional_deltas_and_use_a_strict_positive_test() {
         let coords = [F2Dot14::from_f32(coord)];
         assert_eq!(
             condition
-                .evaluate(&coords, |index| Ok::<_, Infallible>(
-                    store
-                        .compute_delta(
-                            DeltaSetIndex {
-                                outer: (index >> 16) as u16,
-                                inner: index as u16
-                            },
-                            &coords
-                        )
-                        .unwrap_or_default()
-                        .to_f64()
-                ))
+                .evaluate(&coords, store_deltas(Some(&store), &coords))
                 .ok(),
             Some(matches)
         );

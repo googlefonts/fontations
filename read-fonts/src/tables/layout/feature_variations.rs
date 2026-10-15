@@ -29,9 +29,7 @@ impl<'a> FeatureVariations<'a> {
         let end = start.checked_add(count.checked_mul(LookupVariationRecord::RAW_BYTE_LEN)?)?;
         data.read_array(start..end).ok()
     }
-}
 
-impl<'a> FeatureVariations<'a> {
     /// Returns the table's lookup variations, or `None` if it has none.
     ///
     /// Only version 1.1 and later tables carry lookup variations, so for

@@ -2,7 +2,7 @@
 
 use super::{Condition, ConditionSet, LookupConditionRecord};
 use crate::limits::MAX_RECURSION_DEPTH;
-use crate::tables::variations::NO_VARIATION_INDEX;
+use crate::tables::variations::{DeltaSetIndex, ItemVariationStore, NO_VARIATION_INDEX};
 use crate::types::F2Dot14;
 use crate::{FontData, FontRead, ReadError};
 
@@ -32,6 +32,30 @@ impl<E: core::fmt::Display> core::fmt::Display for ConditionError<E> {
 }
 
 impl<E: core::error::Error + 'static> core::error::Error for ConditionError<E> {}
+
+/// Returns a delta function for [`Condition::evaluate`] that reads `store`,
+/// usually the GDEF variation store.
+///
+/// A missing store or delta set has a delta of zero.
+pub fn store_deltas<'a>(
+    store: Option<&'a ItemVariationStore<'a>>,
+    coords: &'a [F2Dot14],
+) -> impl Fn(u32) -> Result<f64, core::convert::Infallible> + Copy + 'a {
+    move |index| {
+        Ok(store
+            .and_then(|store| {
+                store.compute_delta(
+                    DeltaSetIndex {
+                        outer: (index >> 16) as u16,
+                        inner: index as u16,
+                    },
+                    coords,
+                )
+            })
+            .unwrap_or_default()
+            .to_f64())
+    }
+}
 
 impl Condition<'_> {
     /// Evaluates this condition at the given normalized coordinates.
