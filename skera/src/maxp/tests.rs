@@ -59,11 +59,11 @@ fn maximum_profile_preserves_width_and_hint_fields() {
                 let count = if wide { 70000 } else { 100 };
                 let bytes = subset(wide, version, count, no_hinting).unwrap();
                 let table = if wide {
-                    read_fonts::tables::maxp::MaxpTable::Extended(
+                    read_fonts::tables::maxp::SelectedMaxp::Extended(
                         MaxpExtended::read(FontData::new(&bytes)).unwrap(),
                     )
                 } else {
-                    read_fonts::tables::maxp::MaxpTable::Standard(
+                    read_fonts::tables::maxp::SelectedMaxp::Original(
                         Maxp::read(FontData::new(&bytes)).unwrap(),
                     )
                 };

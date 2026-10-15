@@ -2,18 +2,18 @@
 
 include!("../../generated/generated_maxp.rs");
 
-/// A maximum profile from MAXP or the legacy maxp table.
+/// A maximum profile from MAXP or the original maxp table.
 #[derive(Clone)]
-pub enum MaxpTable<'a> {
-    Standard(Maxp<'a>),
+pub enum SelectedMaxp<'a> {
+    Original(Maxp<'a>),
     Extended(MaxpExtended<'a>),
 }
 
-impl MaxpTable<'_> {
+impl SelectedMaxp<'_> {
     /// Returns the glyph count without narrowing it to 16 bits.
     pub fn num_glyphs(&self) -> u32 {
         match self {
-            Self::Standard(table) => table.num_glyphs().into(),
+            Self::Original(table) => table.num_glyphs().into(),
             Self::Extended(table) => table.num_glyphs().into(),
         }
     }

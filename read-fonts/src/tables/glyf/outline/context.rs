@@ -4,7 +4,7 @@ use crate::{
     model::metrics::GlyphMetricRecords,
     tables::{
         glyf::{Glyf, PHANTOM_POINT_COUNT},
-        gvar::{GlyphVariationData, GvarTable},
+        gvar::{GlyphVariationData, SelectedGvar},
         hvar::Hvar,
         loca::{Loca, LocaGlyph},
         os2::Os2,
@@ -37,7 +37,7 @@ pub trait OutlineContext<'a> {
 
     /// Variation deltas for a glyph's four phantom points.
     ///
-    /// [`GvarTable::phantom_point_deltas`] computes these from glyf/GLYF and loca/LOCA,
+    /// [`SelectedGvar::phantom_point_deltas`] computes these from glyf/GLYF and loca/LOCA,
     /// including which glyph of a composite tree supplies the metrics.
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]>;
 
@@ -50,7 +50,7 @@ pub trait OutlineContext<'a> {
     }
 
     /// Scalars for `gvar`'s shared tuples at [`Self::coords`], as
-    /// `GvarTable::compute_scalars` fills them.
+    /// `SelectedGvar::compute_scalars` fills them.
     ///
     /// A scalar depends on the location and the tuple but never on the glyph,
     /// so an implementor reading many glyphs at one location computes these
@@ -119,7 +119,7 @@ pub struct OutlineTables<'a> {
     /// The index into [`Self::glyf`].
     pub loca: Loca<'a>,
     /// Glyph variations, absent if the font does not vary.
-    pub gvar: Option<GvarTable<'a>>,
+    pub gvar: Option<SelectedGvar<'a>>,
     /// Source of the metrics for the first two phantom points.
     pub hmtx: Option<GlyphMetricRecords<'a>>,
     /// Supplies the ascender and descender for the last two.
@@ -143,11 +143,11 @@ impl<'a> OutlineTables<'a> {
     /// without `hmtx` or `OS/2` the corresponding phantom point metrics are
     /// zero.
     pub fn new(font: &impl TableProvider<'a>) -> Result<Self, ReadError> {
-        let (glyf, loca) = font.glyf_loca(None)?;
+        let (glyf, loca) = font.selected_glyf_loca(None)?;
         Ok(Self {
             glyf,
             loca,
-            gvar: font.gvar_table().ok(),
+            gvar: font.selected_gvar().ok(),
             hmtx: font.glyph_metric_records().ok(),
             os2: font.os2().ok(),
             hvar: font.hvar().ok(),
@@ -160,7 +160,7 @@ impl<'a> OutlineTables<'a> {
     /// Reads at `coords` instead of the default instance.
     ///
     /// `gvar_scalars` are the shared tuple scalars for `coords`, from
-    /// `GvarTable::compute_scalars`; pass `&[]` to compute them per glyph
+    /// `SelectedGvar::compute_scalars`; pass `&[]` to compute them per glyph
     /// instead. They are taken together because scalars for another location
     /// produce wrong deltas and nothing can detect it.
     pub fn at(self, coords: &'a [F2Dot14], gvar_scalars: &'a [Fixed]) -> Self {

@@ -604,7 +604,7 @@ mod tests {
         let lookup_list = LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookup_list).unwrap();
         let read_back = rgpos::PositionLookupList::from(
-            rgpos::LegacyPositionLookupList::read(bytes.as_slice().into()).unwrap(),
+            rgpos::OriginalPositionLookupList::read(bytes.as_slice().into()).unwrap(),
         );
         assert_eq!(read_back.lookup_count(), 1);
         let lookup = read_back.lookups().get(0).unwrap();

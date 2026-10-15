@@ -263,7 +263,7 @@ impl<'a> GlyphMetrics<'a> {
         convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
-        if let Some((glyf, loca)) = self.font.glyf_loca() {
+        if let Some((glyf, loca)) = self.font.selected_glyf_loca() {
             if self.coords.is_empty() {
                 // Every glyph states its own box, so nothing has to be
                 // loaded to find it.
@@ -347,7 +347,7 @@ impl<'a> GlyphMetrics<'a> {
     /// Loading the outline also handles composite `USE_MY_METRICS` and gvar.
     #[cfg(test)]
     pub(crate) fn glyf_v_origin(&self, glyph: GlyphId) -> Option<F48Dot16> {
-        if self.font.v_metrics().is_empty() || self.font.glyf_loca().is_none() {
+        if self.font.v_metrics().is_empty() || self.font.selected_glyf_loca().is_none() {
             return None;
         }
         let context = self.font;
@@ -392,7 +392,7 @@ impl<'a> GlyphMetrics<'a> {
             }
             return;
         }
-        if !self.font.v_metrics().is_empty() && self.font.glyf_loca().is_some() {
+        if !self.font.v_metrics().is_empty() && self.font.selected_glyf_loca().is_some() {
             let context = self.font;
             let scale = OutlineScaleF32::new(None, self.units_per_em);
             for (glyph, out) in glyphs {
@@ -556,7 +556,8 @@ impl<'a> GlyphMetrics<'a> {
         // Without `VVAR`, the phantom points answer. The vertical pair runs
         // downward from the origin, so the height is the top less the
         // bottom, the reverse of the width.
-        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.selected_glyf_loca())
+        {
             let scalars = self.font.gvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
@@ -605,7 +606,8 @@ impl<'a> GlyphMetrics<'a> {
         // Without `HVAR`, the answer comes from the phantom points on the
         // outline: an advance spans the two horizontal ones, so a change in
         // it is a change in that span.
-        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.selected_glyf_loca())
+        {
             let scalars = self.font.gvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
@@ -1074,7 +1076,7 @@ mod tests {
                 let data =
                     font_test_data::extended::variable_outlines_font(true, legacy, long_offsets);
                 let font = Font::new(data, 0).unwrap();
-                assert_eq!(font.tables().gvar_table().unwrap().glyph_count(), 65537);
+                assert_eq!(font.tables().selected_gvar().unwrap().glyph_count(), 65537);
                 for coord in [0.0, 0.5, 1.0] {
                     let instance = at(&font, coord);
                     let metrics = instance.glyph_metrics();

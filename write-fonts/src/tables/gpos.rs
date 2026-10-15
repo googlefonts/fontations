@@ -39,7 +39,7 @@ pub use value_record::ValueRecord;
 pub type PositionLookupList = LookupList<PositionLookup>;
 
 /// A lookup list with the original 16-bit offsets.
-pub type LegacyPositionLookupList = PositionLookupList;
+pub type OriginalPositionLookupList = PositionLookupList;
 
 /// A lookup list with 32-bit offsets.
 pub type PositionLookupList2 = super::layout::LookupList2<PositionLookup>;
@@ -120,7 +120,7 @@ impl ReadArgs for PositionLookupList {
 
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        read_fonts::tables::gpos::LegacyPositionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gpos::OriginalPositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }
 

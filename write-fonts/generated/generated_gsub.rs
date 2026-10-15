@@ -14,7 +14,7 @@ pub struct Gsub {
     /// Offset to FeatureList table, from beginning of GSUB table
     pub feature_list: NullableOffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GSUB table
-    pub lookup_list: NullableOffsetMarker<LegacySubstitutionLookupList>,
+    pub lookup_list: NullableOffsetMarker<OriginalSubstitutionLookupList>,
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
@@ -101,9 +101,9 @@ impl TopLevelTable for Gsub {
 impl<'a> FromObjRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {
     fn from_obj_ref(obj: &read_fonts::tables::gsub::Gsub<'a>, _: FontData) -> Self {
         Gsub {
-            script_list: obj.legacy_script_list().to_owned_table(),
-            feature_list: obj.legacy_feature_list().to_owned_table(),
-            lookup_list: obj.legacy_lookup_list().to_owned_table(),
+            script_list: obj.original_script_list().to_owned_table(),
+            feature_list: obj.original_feature_list().to_owned_table(),
+            lookup_list: obj.original_lookup_list().to_owned_table(),
             feature_variations: obj.feature_variations().to_owned_table(),
             script_list2: obj.script_list2().to_owned_table(),
             feature_list2: obj.feature_list2().to_owned_table(),

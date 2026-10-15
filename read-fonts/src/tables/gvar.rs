@@ -19,29 +19,29 @@ use super::{
 /// Variation data specialized for the glyph variations table.
 pub type GlyphVariationData<'a> = TupleVariationData<'a, GlyphDelta>;
 
-/// Glyph variations from GVAR or the legacy gvar table.
+/// Glyph variations from GVAR or the original gvar table.
 #[derive(Clone, yoke::Yokeable)]
-pub enum GvarTable<'a> {
-    Standard(Gvar<'a>),
+pub enum SelectedGvar<'a> {
+    Original(Gvar<'a>),
     Extended(GvarExtended<'a>),
 }
 
-impl<'a> From<Gvar<'a>> for GvarTable<'a> {
+impl<'a> From<Gvar<'a>> for SelectedGvar<'a> {
     fn from(table: Gvar<'a>) -> Self {
-        Self::Standard(table)
+        Self::Original(table)
     }
 }
 
-impl<'a> From<GvarExtended<'a>> for GvarTable<'a> {
+impl<'a> From<GvarExtended<'a>> for SelectedGvar<'a> {
     fn from(table: GvarExtended<'a>) -> Self {
         Self::Extended(table)
     }
 }
 
-impl<'a> GvarTable<'a> {
+impl<'a> SelectedGvar<'a> {
     pub fn glyph_count(&self) -> u32 {
         match self {
-            Self::Standard(table) => table.glyph_count().into(),
+            Self::Original(table) => table.glyph_count().into(),
             Self::Extended(table) => table.glyph_count().into(),
         }
     }
@@ -317,7 +317,7 @@ macro_rules! impl_gvar_methods {
 
 impl_gvar_methods!(Gvar);
 impl_gvar_methods!(GvarExtended);
-impl_gvar_methods!(GvarTable);
+impl_gvar_methods!(SelectedGvar);
 
 impl<'a> GlyphVariationData<'a> {
     pub(crate) fn new(
@@ -484,13 +484,13 @@ mod tests {
                 let bytes =
                     font_test_data::extended::gvar(65537, true, long_offsets, wide_data_offset);
                 let raw = GvarExtended::read(bytes.as_slice().into()).unwrap();
-                let selected = GvarTable::Extended(raw.clone());
+                let selected = SelectedGvar::Extended(raw.clone());
                 assert_eq!(raw.glyph_count().to_u32(), 65537);
                 assert_eq!(selected.glyph_count(), 65537);
                 assert_eq!(raw.flags().contains(GvarFlags::LONG_OFFSETS), long_offsets);
                 assert_eq!(raw.glyph_variation_data_offsets().len(), 65538);
                 assert!(raw.glyph_variation_data(GlyphId::new(0)).unwrap().is_none());
-                for table in [GvarTable::Extended(raw), selected] {
+                for table in [SelectedGvar::Extended(raw), selected] {
                     let mut scalars = [Fixed::ZERO];
                     assert_eq!(
                         table.compute_scalars(&[F2Dot14::from_f32(0.5)], &mut scalars),
@@ -544,22 +544,22 @@ mod tests {
             }
             let bytes = font(&tables);
             let font = FontRef::new(&bytes).unwrap();
-            assert_eq!(font.gvar_table().unwrap().glyph_count(), 65537);
+            assert_eq!(font.selected_gvar().unwrap().glyph_count(), 65537);
         }
         let bytes = font(&[(*b"gvar", &legacy)]);
         assert_eq!(
             FontRef::new(&bytes)
                 .unwrap()
-                .gvar_table()
+                .selected_gvar()
                 .unwrap()
                 .glyph_count(),
             3
         );
         let bytes = font(&[(*b"GVAR", &extended[..20]), (*b"gvar", &legacy)]);
-        assert!(FontRef::new(&bytes).unwrap().gvar_table().is_err());
+        assert!(FontRef::new(&bytes).unwrap().selected_gvar().is_err());
         let bytes = font(&[(*b"GVAR", &extended[..21]), (*b"gvar", &legacy)]);
         let source = FontRef::new(&bytes).unwrap();
-        let selected = source.gvar_table().unwrap();
+        let selected = source.selected_gvar().unwrap();
         assert_eq!(selected.glyph_count(), 65537);
         assert!(selected.glyph_variation_data(GlyphId::new(65536)).is_err());
         let mut overflowing_offsets = extended.clone();

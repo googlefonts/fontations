@@ -142,11 +142,11 @@ impl TopLevelTable for Gdef {
 impl<'a> FromObjRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::Gdef<'a>, _: FontData) -> Self {
         Gdef {
-            glyph_class_def: obj.legacy_glyph_class_def().to_owned_table(),
-            attach_list: obj.legacy_attach_list().to_owned_table(),
-            lig_caret_list: obj.legacy_lig_caret_list().to_owned_table(),
-            mark_attach_class_def: obj.legacy_mark_attach_class_def().to_owned_table(),
-            mark_glyph_sets_def: obj.legacy_mark_glyph_sets_def().to_owned_table(),
+            glyph_class_def: obj.original_glyph_class_def().to_owned_table(),
+            attach_list: obj.original_attach_list().to_owned_table(),
+            lig_caret_list: obj.original_lig_caret_list().to_owned_table(),
+            mark_attach_class_def: obj.original_mark_attach_class_def().to_owned_table(),
+            mark_glyph_sets_def: obj.original_mark_glyph_sets_def().to_owned_table(),
             item_var_store: obj.item_var_store().to_owned_table(),
             glyph_class_def2: obj.glyph_class_def2().to_owned_table(),
             attach_list2: obj.attach_list2().to_owned_table(),

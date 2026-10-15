@@ -593,7 +593,7 @@ impl CmapIterLimits {
     /// glyphs will be limited to `u16::MAX`.
     pub fn default_for_font(font: &FontRef) -> Self {
         let glyph_count = font
-            .maxp_table()
+            .selected_maxp()
             .map(|maxp| maxp.num_glyphs())
             .unwrap_or(u16::MAX as u32);
         Self {

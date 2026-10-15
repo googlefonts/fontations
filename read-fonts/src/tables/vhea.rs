@@ -4,16 +4,16 @@ include!("../../generated/generated_vhea.rs");
 
 /// A vertical header from VHEA or vhea.
 #[derive(Clone)]
-pub enum VheaTable<'a> {
-    Standard(Vhea<'a>),
+pub enum SelectedVhea<'a> {
+    Original(Vhea<'a>),
     Extended(VheaExtended<'a>),
 }
 
-impl VheaTable<'_> {
+impl SelectedVhea<'_> {
     /// Number of long metric records.
     pub fn number_of_long_ver_metrics(&self) -> u32 {
         match self {
-            Self::Standard(table) => table.number_of_long_ver_metrics().into(),
+            Self::Original(table) => table.number_of_long_ver_metrics().into(),
             Self::Extended(table) => table.number_of_long_ver_metrics(),
         }
     }
@@ -21,7 +21,7 @@ impl VheaTable<'_> {
     /// Maximum advance height, preserving VHEA's signed field.
     pub fn advance_height_max(&self) -> i32 {
         match self {
-            Self::Standard(table) => table.advance_height_max().to_u16() as i32,
+            Self::Original(table) => table.advance_height_max().to_u16() as i32,
             Self::Extended(table) => table.advance_height_max().to_i16() as i32,
         }
     }

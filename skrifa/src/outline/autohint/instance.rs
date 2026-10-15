@@ -38,7 +38,7 @@ impl GlyphStyles {
     pub fn new(outlines: &OutlineGlyphCollection) -> Self {
         if let Some(font) = outlines.font() {
             let glyph_count = font
-                .maxp_table()
+                .selected_maxp()
                 .map(|maxp| maxp.num_glyphs())
                 .unwrap_or_default();
             let shaper = Shaper::new(font, SHAPER_MODE);

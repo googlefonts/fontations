@@ -85,14 +85,14 @@ fn gdef_extended_header_precedence_fallback_and_roundtrip() {
     assert_eq!(dump_table(&owned).unwrap(), bytes);
     // The raw legacy fields must stay independent of the selected ones.
     assert_eq!(
-        read.legacy_glyph_class_def()
+        read.original_glyph_class_def()
             .unwrap()
             .unwrap()
             .get(GlyphId::new(1)),
         1
     );
     assert_eq!(
-        read.legacy_attach_list()
+        read.original_attach_list()
             .unwrap()
             .unwrap()
             .attach_points()
@@ -103,7 +103,7 @@ fn gdef_extended_header_precedence_fallback_and_roundtrip() {
         1
     );
     assert_eq!(
-        read.legacy_mark_glyph_sets_def()
+        read.original_mark_glyph_sets_def()
             .unwrap()
             .unwrap()
             .mark_glyph_set_count(),
@@ -151,7 +151,7 @@ fn gdef_extended_header_precedence_fallback_and_roundtrip() {
     bytes[18..22].copy_from_slice(&u32::MAX.to_be_bytes());
     let read = raw::Gdef::read(FontData::new(&bytes)).unwrap();
     assert!(read.glyph_class_def().unwrap().is_err());
-    assert!(read.legacy_glyph_class_def().unwrap().is_ok());
+    assert!(read.original_glyph_class_def().unwrap().is_ok());
 }
 
 #[test]

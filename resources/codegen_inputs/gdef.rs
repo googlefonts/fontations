@@ -11,32 +11,32 @@ table Gdef {
     /// of GDEF header (may be NULL)
     #[nullable]
     #[offset_getter(glyph_class_def)]
-    #[to_owned(obj.legacy_glyph_class_def().to_owned_table())]
+    #[to_owned(obj.original_glyph_class_def().to_owned_table())]
     glyph_class_def_offset: Offset16<ClassDef>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     #[nullable]
     #[offset_getter(attach_list)]
-    #[to_owned(obj.legacy_attach_list().to_owned_table())]
+    #[to_owned(obj.original_attach_list().to_owned_table())]
     attach_list_offset: Offset16<AttachList>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
     #[nullable]
     #[offset_getter(lig_caret_list)]
-    #[to_owned(obj.legacy_lig_caret_list().to_owned_table())]
+    #[to_owned(obj.original_lig_caret_list().to_owned_table())]
     lig_caret_list_offset: Offset16<LigCaretList>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     #[nullable]
     #[offset_getter(mark_attach_class_def)]
-    #[to_owned(obj.legacy_mark_attach_class_def().to_owned_table())]
+    #[to_owned(obj.original_mark_attach_class_def().to_owned_table())]
     mark_attach_class_def_offset: Offset16<ClassDef>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
     #[since_version(1.2)]
     #[nullable]
     #[offset_getter(mark_glyph_sets_def)]
-    #[to_owned(obj.legacy_mark_glyph_sets_def().to_owned_table())]
+    #[to_owned(obj.original_mark_glyph_sets_def().to_owned_table())]
     mark_glyph_sets_def_offset: Offset16<MarkGlyphSets>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)

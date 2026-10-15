@@ -727,7 +727,7 @@ mod tests {
         let bytes = crate::dump_table(&lookuplist).unwrap();
 
         let rlookuplist = rgpos::PositionLookupList::from(
-            rgpos::LegacyPositionLookupList::read(FontData::new(&bytes)).unwrap(),
+            rgpos::OriginalPositionLookupList::read(FontData::new(&bytes)).unwrap(),
         );
         let rlookup = rlookuplist.lookups().get(0).unwrap();
         assert_eq!(rlookup.lookup_type(), LookupType::GPOS_EXT_TYPE);
@@ -952,7 +952,7 @@ mod tests {
         let bytes = crate::dump_table(&lookup_list).unwrap();
 
         let rlookuplist = rgpos::PositionLookupList::from(
-            rgpos::LegacyPositionLookupList::read(FontData::new(&bytes)).unwrap(),
+            rgpos::OriginalPositionLookupList::read(FontData::new(&bytes)).unwrap(),
         );
         assert_eq!(rlookuplist.lookup_count(), 1);
         let rlookup = rlookuplist.lookups().get(0).unwrap();

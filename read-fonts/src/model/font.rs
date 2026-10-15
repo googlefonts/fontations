@@ -25,7 +25,7 @@ use crate::tables::{
     avar::Avar,
     fvar::Fvar,
     glyf::{outline::OutlineContext, Glyf, PHANTOM_POINT_COUNT},
-    gvar::{GlyphVariationData, GvarTable as SelectedGvar},
+    gvar::{GlyphVariationData, SelectedGvar},
     hvar::Hvar,
     layout::SelectedFeatureVariations,
     loca::Loca,
@@ -253,8 +253,8 @@ impl Font {
 
     /// Returns the outline tables.
     #[inline]
-    pub(crate) fn glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
-        self.shared().glyf_loca()
+    pub(crate) fn selected_glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
+        self.shared().selected_glyf_loca()
     }
 
     /// Returns `HVAR`.
@@ -357,7 +357,7 @@ impl Font {
 
 impl<'a> OutlineContext<'a> for &'a Font {
     fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>> {
-        let (glyf, loca) = self.glyf_loca()?;
+        let (glyf, loca) = self.selected_glyf_loca()?;
         loca.get(glyph, glyf)
     }
 
@@ -370,7 +370,7 @@ impl<'a> OutlineContext<'a> for &'a Font {
     }
 
     fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
-        let (glyf, loca) = self.glyf_loca()?;
+        let (glyf, loca) = self.selected_glyf_loca()?;
         self.gvar()?.phantom_point_deltas_with_scalars(
             glyf,
             loca,
@@ -1006,7 +1006,7 @@ impl SharedFont {
     /// Outlines and metrics in both directions read these, so they are
     /// shared rather than parsed by each.
     #[inline]
-    fn glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
+    fn selected_glyf_loca(&self) -> Option<&(Glyf<'_>, Loca<'_>)> {
         let tables = self.tables_arc()?;
         self.0
             .glyf_loca

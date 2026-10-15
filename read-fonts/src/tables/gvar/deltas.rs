@@ -10,7 +10,7 @@
 
 use core::ops::Range;
 
-use super::{GlyphDelta, GlyphVariationData, Gvar, GvarExtended, GvarTable};
+use super::{GlyphDelta, GlyphVariationData, Gvar, GvarExtended, SelectedGvar};
 use crate::{
     tables::{
         glyf::{PointCoord, PointFlags, PointMarker, PHANTOM_POINT_COUNT},
@@ -148,7 +148,7 @@ macro_rules! impl_gvar_deltas {
 
 impl_gvar_deltas!(Gvar);
 impl_gvar_deltas!(GvarExtended);
-impl_gvar_deltas!(GvarTable);
+impl_gvar_deltas!(SelectedGvar);
 
 impl GlyphVariationData<'_> {
     /// Computes the deltas for the points of a simple glyph at the given

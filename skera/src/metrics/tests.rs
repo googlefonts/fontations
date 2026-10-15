@@ -91,7 +91,7 @@ fn metric_subsets_preserve_wide_counts_and_tail_compression() {
         for wide in [false, true] {
             let bytes = source(vertical, wide, false, wide);
             let font = FontRef::new(&bytes).unwrap();
-            let count = font.maxp_table().unwrap().num_glyphs() as usize;
+            let count = font.selected_maxp().unwrap().num_glyphs() as usize;
             let gids = (0..count as u32).map(GlyphId::new).collect();
             let bytes = subset_font(&font, &plan(&font, &gids, false)).unwrap();
             let font = FontRef::new(&bytes).unwrap();
@@ -153,7 +153,7 @@ fn metric_subsets_reject_missing_source_side_bearings() {
         for wide in [false, true] {
             let bytes = source(vertical, wide, true, false);
             let font = FontRef::new(&bytes).unwrap();
-            let last = font.maxp_table().unwrap().num_glyphs() - 1;
+            let last = font.selected_maxp().unwrap().num_glyphs() - 1;
             let gids = [GlyphId::new(last)].into_iter().collect();
             assert!(
                 matches!(subset_font(&font, &plan(&font, &gids, false)), Err(SubsetError::SubsetTableError(tag)) if tag == tags(vertical, wide).0)

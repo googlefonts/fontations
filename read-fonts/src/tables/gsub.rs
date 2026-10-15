@@ -49,7 +49,7 @@ impl<'a> Gsub<'a> {
     }
 
     /// Resolves the original 16-bit offset without applying precedence.
-    pub fn legacy_script_list(&self) -> Option<Result<ScriptList<'a>, ReadError>> {
+    pub fn original_script_list(&self) -> Option<Result<ScriptList<'a>, ReadError>> {
         self.script_list_offset().resolve(self.offset_data())
     }
 
@@ -61,7 +61,7 @@ impl<'a> Gsub<'a> {
     }
 
     /// Resolves the original 16-bit offset without applying precedence.
-    pub fn legacy_feature_list(&self) -> Option<Result<FeatureList<'a>, ReadError>> {
+    pub fn original_feature_list(&self) -> Option<Result<FeatureList<'a>, ReadError>> {
         self.feature_list_offset().resolve(self.offset_data())
     }
 
@@ -75,9 +75,9 @@ impl<'a> Gsub<'a> {
     }
 
     /// Resolves the original 16-bit lookup-list offset.
-    pub fn legacy_lookup_list(
+    pub fn original_lookup_list(
         &self,
-    ) -> Option<Result<LegacySubstitutionLookupList<'a>, ReadError>> {
+    ) -> Option<Result<OriginalSubstitutionLookupList<'a>, ReadError>> {
         self.lookup_list_offset().resolve(self.offset_data())
     }
 }
@@ -86,7 +86,7 @@ impl<'a> Gsub<'a> {
 pub type SubstitutionLookupList<'a> = super::layout::LookupListTable<'a, SubstitutionLookup<'a>>;
 
 /// A lookup list with the original 16-bit offsets.
-pub type LegacySubstitutionLookupList<'a> = super::layout::LookupList<'a, SubstitutionLookup<'a>>;
+pub type OriginalSubstitutionLookupList<'a> = super::layout::LookupList<'a, SubstitutionLookup<'a>>;
 
 /// A lookup list with 32-bit offsets.
 pub type SubstitutionLookupList2<'a> = super::layout::LookupList2<'a, SubstitutionLookup<'a>>;

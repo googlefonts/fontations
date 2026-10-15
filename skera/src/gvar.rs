@@ -7,7 +7,7 @@ use crate::{
 };
 
 use read_fonts::{
-    tables::gvar::{Gvar, GvarExtended, GvarTable},
+    tables::gvar::{Gvar, GvarExtended, SelectedGvar},
     types::GlyphId,
     types::{Scalar, Tag, Uint24},
     FontRef, TopLevelTable,
@@ -27,7 +27,7 @@ macro_rules! subset_gvar_table {
                 s: &mut Serializer,
                 _builder: &mut FontBuilder,
             ) -> Result<(), SubsetError> {
-                let table: GvarTable = self.clone().into();
+                let table: SelectedGvar = self.clone().into();
                 let result = subset_gvar(&table, plan, s);
                 if result.is_err() {
                     s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
@@ -40,8 +40,12 @@ macro_rules! subset_gvar_table {
 subset_gvar_table!(Gvar);
 subset_gvar_table!(GvarExtended);
 
-fn subset_gvar(gvar: &GvarTable<'_>, plan: &Plan, s: &mut Serializer) -> Result<(), SubsetError> {
-    let extended = matches!(gvar, GvarTable::Extended(_));
+fn subset_gvar(
+    gvar: &SelectedGvar<'_>,
+    plan: &Plan,
+    s: &mut Serializer,
+) -> Result<(), SubsetError> {
+    let extended = matches!(gvar, SelectedGvar::Extended(_));
     let tag = if extended {
         GvarExtended::TAG
     } else {
@@ -105,7 +109,7 @@ fn subset_gvar(gvar: &GvarTable<'_>, plan: &Plan, s: &mut Serializer) -> Result<
 }
 
 fn subset_with_offset_type<OffsetType: GvarOffset>(
-    gvar: &GvarTable<'_>,
+    gvar: &SelectedGvar<'_>,
     plan: &Plan,
     num_glyphs: u32,
     header_size: u32,

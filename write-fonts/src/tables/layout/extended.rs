@@ -187,17 +187,20 @@ fn gsub_and_gpos_extended_headers_roundtrip_and_fall_back() {
                 Tag::new(b"grek")
             );
             assert_eq!(
-                read.legacy_script_list().unwrap().unwrap().script_count(),
+                read.original_script_list().unwrap().unwrap().script_count(),
                 0
             );
             assert_eq!(read.feature_list().unwrap().feature_count(), 1);
             assert_eq!(
-                read.legacy_feature_list().unwrap().unwrap().feature_count(),
+                read.original_feature_list()
+                    .unwrap()
+                    .unwrap()
+                    .feature_count(),
                 0
             );
             assert_eq!(read.lookup_list().unwrap().lookup_count(), 1);
             assert_eq!(
-                read.legacy_lookup_list().unwrap().unwrap().lookup_count(),
+                read.original_lookup_list().unwrap().unwrap().lookup_count(),
                 0
             );
             assert!(matches!(
@@ -220,7 +223,7 @@ fn gsub_and_gpos_extended_headers_roundtrip_and_fall_back() {
             bytes[14..18].copy_from_slice(&u32::MAX.to_be_bytes());
             let read = raw::$header::read(FontData::new(&bytes)).unwrap();
             assert!(read.script_list().is_err());
-            assert!(read.legacy_script_list().unwrap().is_ok());
+            assert!(read.original_script_list().unwrap().is_ok());
         }};
     }
     check!(

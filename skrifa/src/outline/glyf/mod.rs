@@ -20,7 +20,7 @@ use read_fonts::{
         glyf::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
-        gvar::{DeltaBuffers, GvarTable},
+        gvar::{DeltaBuffers, SelectedGvar},
         hdmx::Hdmx,
         loca::Loca,
     },
@@ -38,7 +38,7 @@ pub struct Outlines<'a> {
     pub(crate) glyph_metrics: GlyphHMetrics<'a>,
     loca: Loca<'a>,
     glyf: Glyf<'a>,
-    gvar: Option<GvarTable<'a>>,
+    gvar: Option<SelectedGvar<'a>>,
     hdmx: Option<Hdmx<'a>>,
     fpgm: &'a [u8],
     prep: &'a [u8],
@@ -63,7 +63,9 @@ impl<'a> Outlines<'a> {
         let fractional_size_hinting = !head
             .flags()
             .contains(read_fonts::tables::head::Flags::FORCE_INTEGER_PPEM);
-        let (glyf, loca) = font.glyf_loca(Some(head.index_to_loc_format() == 1)).ok()?;
+        let (glyf, loca) = font
+            .selected_glyf_loca(Some(head.index_to_loc_format() == 1))
+            .ok()?;
         let glyph_metrics = GlyphHMetrics::new(font)?;
         let (
             glyph_count,
@@ -74,7 +76,7 @@ impl<'a> Outlines<'a> {
             max_storage,
             max_instructions,
         ) = font
-            .maxp_table()
+            .selected_maxp()
             .map(|maxp| {
                 (
                     maxp.num_glyphs(),
@@ -116,7 +118,7 @@ impl<'a> Outlines<'a> {
             glyph_metrics,
             loca,
             glyf,
-            gvar: font.gvar_table().ok(),
+            gvar: font.selected_gvar().ok(),
             hdmx: font.hdmx().ok(),
             fpgm,
             prep,

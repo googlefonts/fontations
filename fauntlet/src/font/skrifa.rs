@@ -129,7 +129,7 @@ impl<'a> SkrifaSfntInstance<'a> {
 
     pub fn glyph_count(&self) -> u32 {
         self.font
-            .maxp_table()
+            .selected_maxp()
             .map(|maxp| maxp.num_glyphs())
             .unwrap_or_default()
     }

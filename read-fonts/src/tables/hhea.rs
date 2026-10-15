@@ -4,16 +4,16 @@ include!("../../generated/generated_hhea.rs");
 
 /// A horizontal header from HHEA or hhea.
 #[derive(Clone)]
-pub enum HheaTable<'a> {
-    Standard(Hhea<'a>),
+pub enum SelectedHhea<'a> {
+    Original(Hhea<'a>),
     Extended(HheaExtended<'a>),
 }
 
-impl HheaTable<'_> {
+impl SelectedHhea<'_> {
     /// Number of long metric records.
     pub fn number_of_h_metrics(&self) -> u32 {
         match self {
-            Self::Standard(table) => table.number_of_h_metrics().into(),
+            Self::Original(table) => table.number_of_h_metrics().into(),
             Self::Extended(table) => table.number_of_h_metrics(),
         }
     }

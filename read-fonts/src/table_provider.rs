@@ -43,10 +43,15 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Reads the `hhea` table only. A font may carry its metrics header in
+    /// HHEA instead; [`selected_hhea`](Self::selected_hhea) chooses between them.
     fn hhea(&self) -> Result<tables::hhea::Hhea<'a>, ReadError> {
         self.expect_table()
     }
 
+    /// Reads the `vhea` table only. A font may carry its vertical metrics
+    /// header in VHEA instead; [`selected_vhea`](Self::selected_vhea) chooses
+    /// between them.
     fn vhea(&self) -> Result<tables::vhea::Vhea<'a>, ReadError> {
         self.expect_table()
     }
@@ -57,12 +62,12 @@ pub trait TableProvider<'a> {
     }
 
     /// Selects HHEA before hhea, independently of the outline tables.
-    fn hhea_table(&self) -> Result<tables::hhea::HheaTable<'a>, ReadError> {
-        use tables::hhea::HheaTable;
+    fn selected_hhea(&self) -> Result<tables::hhea::SelectedHhea<'a>, ReadError> {
+        use tables::hhea::SelectedHhea;
         prefer_extended(
-            self.hhea_extended().map(HheaTable::Extended),
+            self.hhea_extended().map(SelectedHhea::Extended),
             Tag::new(b"HHEA"),
-            || self.hhea().map(HheaTable::Standard),
+            || self.hhea().map(SelectedHhea::Original),
         )
     }
 
@@ -72,12 +77,12 @@ pub trait TableProvider<'a> {
     }
 
     /// Selects VHEA before vhea, independently of the outline tables.
-    fn vhea_table(&self) -> Result<tables::vhea::VheaTable<'a>, ReadError> {
-        use tables::vhea::VheaTable;
+    fn selected_vhea(&self) -> Result<tables::vhea::SelectedVhea<'a>, ReadError> {
+        use tables::vhea::SelectedVhea;
         prefer_extended(
-            self.vhea_extended().map(VheaTable::Extended),
+            self.vhea_extended().map(SelectedVhea::Extended),
             Tag::new(b"VHEA"),
-            || self.vhea().map(VheaTable::Standard),
+            || self.vhea().map(SelectedVhea::Original),
         )
     }
 
@@ -155,6 +160,9 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Reads the `maxp` table only. A font with more than 65535 glyphs
+    /// carries its glyph count in MAXP; [`selected_maxp`](Self::selected_maxp)
+    /// chooses between them.
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
         self.expect_table()
     }
@@ -165,12 +173,12 @@ pub trait TableProvider<'a> {
     }
 
     /// Selects MAXP before maxp without narrowing its glyph count.
-    fn maxp_table(&self) -> Result<tables::maxp::MaxpTable<'a>, ReadError> {
-        use tables::maxp::MaxpTable;
+    fn selected_maxp(&self) -> Result<tables::maxp::SelectedMaxp<'a>, ReadError> {
+        use tables::maxp::SelectedMaxp;
         prefer_extended(
-            self.maxp_extended().map(MaxpTable::Extended),
+            self.maxp_extended().map(SelectedMaxp::Extended),
             Tag::new(b"MAXP"),
-            || self.maxp().map(MaxpTable::Standard),
+            || self.maxp().map(SelectedMaxp::Original),
         )
     }
 
@@ -196,6 +204,9 @@ pub trait TableProvider<'a> {
         tables::loca::Loca::read(data, is_long)
     }
 
+    /// Reads the `glyf` table only. A font may carry its outlines in GLYF and
+    /// LOCA instead; [`selected_glyf_loca`](Self::selected_glyf_loca) chooses
+    /// between the pairs.
     fn glyf(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {
         self.expect_table()
     }
@@ -219,8 +230,8 @@ pub trait TableProvider<'a> {
     }
 
     /// Selects GLYF/LOCA before glyf/loca, independently of metrics.
-    /// A present GLYF requires LOCA; it never uses legacy loca offsets.
-    fn glyf_loca(
+    /// A present GLYF requires LOCA; it never uses the original loca offsets.
+    fn selected_glyf_loca(
         &self,
         is_long: impl Into<Option<bool>>,
     ) -> Result<(tables::glyf::Glyf<'a>, tables::loca::Loca<'a>), ReadError> {
@@ -236,6 +247,9 @@ pub trait TableProvider<'a> {
         )
     }
 
+    /// Reads the `gvar` table only. A font may carry its glyph variations in
+    /// GVAR instead; [`selected_gvar`](Self::selected_gvar) chooses between
+    /// them.
     fn gvar(&self) -> Result<tables::gvar::Gvar<'a>, ReadError> {
         self.expect_table()
     }
@@ -244,12 +258,13 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
-    /// Selects GVAR before the legacy gvar table.
-    fn gvar_table(&self) -> Result<tables::gvar::GvarTable<'a>, ReadError> {
+    /// Selects GVAR before the original gvar table.
+    fn selected_gvar(&self) -> Result<tables::gvar::SelectedGvar<'a>, ReadError> {
         prefer_extended(
-            self.gvar_extended().map(tables::gvar::GvarTable::Extended),
+            self.gvar_extended()
+                .map(tables::gvar::SelectedGvar::Extended),
             Tag::new(b"GVAR"),
-            || self.gvar().map(tables::gvar::GvarTable::Standard),
+            || self.gvar().map(tables::gvar::SelectedGvar::Original),
         )
     }
 
@@ -411,10 +426,13 @@ mod tests {
                 let font = FontRef::new(&data).unwrap();
                 let expected_count = if extended { 70002 } else { 3 };
                 let long_count = if extended { 70000 } else { 2 };
-                assert_eq!(font.maxp_table().unwrap().num_glyphs(), expected_count);
-                assert_eq!(font.hhea_table().unwrap().number_of_h_metrics(), long_count);
+                assert_eq!(font.selected_maxp().unwrap().num_glyphs(), expected_count);
                 assert_eq!(
-                    font.vhea_table().unwrap().number_of_long_ver_metrics(),
+                    font.selected_hhea().unwrap().number_of_h_metrics(),
+                    long_count
+                );
+                assert_eq!(
+                    font.selected_vhea().unwrap().number_of_long_ver_metrics(),
                     long_count
                 );
                 let horizontal = font.glyph_metric_records().unwrap();
@@ -471,7 +489,7 @@ mod tests {
             (*b"hmtx", &records),
         ]);
         let font = FontRef::new(&data).unwrap();
-        assert_eq!(font.maxp_table().unwrap().num_glyphs(), 70002);
+        assert_eq!(font.selected_maxp().unwrap().num_glyphs(), 70002);
         let metrics = font.glyph_metric_records().unwrap();
         assert_eq!(metrics.long_metrics().len(), 2);
         assert_eq!(metrics.advance(GlyphId::new(2)), Some(501));
@@ -493,8 +511,8 @@ mod tests {
             (*b"hmtx", &records),
         ]);
         let font_ref = FontRef::new(&data).unwrap();
-        assert!(font_ref.maxp_table().is_err());
-        assert!(font_ref.hhea_table().is_err());
+        assert!(font_ref.selected_maxp().is_err());
+        assert!(font_ref.selected_hhea().is_err());
         // Metrics selection is independent of the malformed uppercase header
         // when there is no HMTX table to use it.
         assert_eq!(
@@ -554,7 +572,7 @@ mod tests {
                 for extended_metrics in [false, true] {
                     let data = outlines_font(true, legacy, extended_metrics, long_loca);
                     let font = FontRef::new(&data).unwrap();
-                    let (glyf, loca) = font.glyf_loca(None).unwrap();
+                    let (glyf, loca) = font.selected_glyf_loca(None).unwrap();
                     assert_eq!(loca.len(), 65537);
                     let Glyph::Composite(composite) = loca
                         .get(GlyphId::new(1), &glyf)
@@ -605,7 +623,7 @@ mod tests {
         let data = font(&tables);
         let source = FontRef::new(&data).unwrap();
         assert!(
-            matches!(source.glyf_loca(None), Err(ReadError::TableIsMissing(tag)) if tag == Tag::new(b"LOCA"))
+            matches!(source.selected_glyf_loca(None), Err(ReadError::TableIsMissing(tag)) if tag == Tag::new(b"LOCA"))
         );
         assert!(source.glyf().is_ok());
         assert!(source.loca(None).is_ok());
@@ -613,7 +631,7 @@ mod tests {
         tables.push((*b"LOCA", &[0]));
         let data = font(&tables);
         let source = FontRef::new(&data).unwrap();
-        assert!(source.glyf_loca(None).is_err());
+        assert!(source.selected_glyf_loca(None).is_err());
     }
 
     /// https://github.com/googlefonts/fontations/issues/105

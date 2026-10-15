@@ -175,7 +175,7 @@ fn extended_outlines_close_components_and_preserve_cubic_flags() {
                 let output = FontRef::new(&bytes).unwrap();
                 assert!(output.data_for_tag(Glyf::TAG).is_none());
                 assert!(output.data_for_tag(Loca::TAG).is_none());
-                let (glyf, loca) = output.glyf_loca(None).unwrap();
+                let (glyf, loca) = output.selected_glyf_loca(None).unwrap();
                 let expected = if retain_ids {
                     [2, 65536, 70001]
                 } else {
@@ -183,7 +183,7 @@ fn extended_outlines_close_components_and_preserve_cubic_flags() {
                 };
                 assert_eq!(loca.len(), if retain_ids { 70002 } else { 4 });
                 assert_eq!(
-                    output.maxp_table().unwrap().num_glyphs() as usize,
+                    output.selected_maxp().unwrap().num_glyphs() as usize,
                     loca.len()
                 );
                 assert!(loca.all_offsets_are_ascending());

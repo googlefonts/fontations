@@ -13,7 +13,7 @@
 use super::Tables;
 use crate::ps::cff::CffFontRef;
 use crate::tables::{
-    glyf::Glyf, gvar::GvarTable as SelectedGvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar,
+    glyf::Glyf, gvar::SelectedGvar, hvar::Hvar, loca::Loca, vorg::Vorg, vvar::Vvar,
 };
 use crate::TableProvider;
 use alloc::sync::Arc;
@@ -47,7 +47,7 @@ pub(crate) struct GlyfLoca<'a>(pub(crate) Option<(Glyf<'a>, Loca<'a>)>);
 
 impl<'a> GlyfLoca<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
-        Self(tables.glyf_loca(None).ok())
+        Self(tables.selected_glyf_loca(None).ok())
     }
 }
 
@@ -80,7 +80,7 @@ pub(crate) struct GvarTable<'a>(pub(crate) Option<SelectedGvar<'a>>);
 
 impl<'a> GvarTable<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
-        Self(tables.gvar_table().ok())
+        Self(tables.selected_gvar().ok())
     }
 }
 

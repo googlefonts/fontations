@@ -16,20 +16,20 @@ table Gpos {
     #[nullable]
     #[default(Some(Default::default()).into())]
     #[offset_getter(script_list)]
-    #[to_owned(obj.legacy_script_list().to_owned_table())]
+    #[to_owned(obj.original_script_list().to_owned_table())]
     script_list_offset: Offset16<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
     #[nullable]
     #[default(Some(Default::default()).into())]
     #[offset_getter(feature_list)]
-    #[to_owned(obj.legacy_feature_list().to_owned_table())]
+    #[to_owned(obj.original_feature_list().to_owned_table())]
     feature_list_offset: Offset16<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
     #[nullable]
     #[default(Some(Default::default()).into())]
     #[offset_getter(lookup_list)]
-    #[to_owned(obj.legacy_lookup_list().to_owned_table())]
-    lookup_list_offset: Offset16<LegacyPositionLookupList>,
+    #[to_owned(obj.original_lookup_list().to_owned_table())]
+    lookup_list_offset: Offset16<OriginalPositionLookupList>,
     #[since_version(1.1)]
     #[nullable]
     feature_variations_offset: Offset32<FeatureVariations>,

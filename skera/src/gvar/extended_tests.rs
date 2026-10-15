@@ -28,7 +28,7 @@ fn input(wide: bool, count: usize, axes: u16, tuples: u16, payload: &[u8]) -> Ve
     bytes
 }
 
-fn read(bytes: &[u8], wide: bool) -> GvarTable<'_> {
+fn read(bytes: &[u8], wide: bool) -> SelectedGvar<'_> {
     if wide {
         GvarExtended::read(FontData::new(bytes)).unwrap().into()
     } else {

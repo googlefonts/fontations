@@ -24,7 +24,8 @@
 
 use read_fonts::{
     tables::{
-        glyf::Glyf, gvar::GvarTable, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags,
+        glyf::Glyf, gvar::SelectedGvar, hmtx::LongMetric, hvar::Hvar, loca::Loca,
+        os2::SelectionFlags,
     },
     types::{BigEndian, Fixed, GlyphId},
     FontRef, TableProvider,
@@ -121,7 +122,7 @@ impl Metrics {
                 y_max: head.y_max() as f32 * scale,
             });
         }
-        if let Ok(maxp) = font.maxp_table() {
+        if let Ok(maxp) = font.selected_maxp() {
             metrics.glyph_count = maxp.num_glyphs();
         }
         if let Ok(post) = font.post() {
@@ -132,7 +133,7 @@ impl Metrics {
                 thickness: post.underline_thickness().to_i16() as f32 * scale,
             });
         }
-        let hhea = font.hhea_table();
+        let hhea = font.selected_hhea();
         if let Ok(hhea) = &hhea {
             metrics.max_width = Some(hhea.advance_width_max().to_u16() as f32 * scale);
         }
@@ -169,7 +170,7 @@ impl Metrics {
             });
         }
         if !used_typo_metrics {
-            if let Ok(hhea) = font.hhea_table() {
+            if let Ok(hhea) = font.selected_hhea() {
                 metrics.ascent = hhea.ascender().to_i16() as f32 * scale;
                 metrics.descent = hhea.descender().to_i16() as f32 * scale;
                 metrics.leading = hhea.line_gap().to_i16() as f32 * scale;
@@ -226,7 +227,7 @@ pub struct GlyphMetrics<'a> {
     default_advance_width: u16,
     lsbs: &'a [BigEndian<i16>],
     hvar: Option<Hvar<'a>>,
-    gvar: Option<GvarTable<'a>>,
+    gvar: Option<SelectedGvar<'a>>,
     loca_glyf: Option<(Loca<'a>, Glyf<'a>)>,
     coords: &'a [NormalizedCoord],
 }
@@ -236,7 +237,7 @@ impl<'a> GlyphMetrics<'a> {
     /// normalized variation space.
     pub fn new(font: &FontRef<'a>, size: Size, location: impl Into<LocationRef<'a>>) -> Self {
         let glyph_count = font
-            .maxp_table()
+            .selected_maxp()
             .map(|maxp| maxp.num_glyphs())
             .unwrap_or_default();
         let upem = font
@@ -255,8 +256,11 @@ impl<'a> GlyphMetrics<'a> {
             })
             .unwrap_or_default();
         let hvar = font.hvar().ok();
-        let gvar = font.gvar_table().ok();
-        let loca_glyf = font.glyf_loca(None).ok().map(|(glyf, loca)| (loca, glyf));
+        let gvar = font.selected_gvar().ok();
+        let loca_glyf = font
+            .selected_glyf_loca(None)
+            .ok()
+            .map(|(glyf, loca)| (loca, glyf));
         Self {
             font: font.clone(),
             size,

@@ -17,7 +17,7 @@ pub struct Gpos {
     /// Offset to FeatureList table, from beginning of GPOS table
     pub feature_list: NullableOffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    pub lookup_list: NullableOffsetMarker<LegacyPositionLookupList>,
+    pub lookup_list: NullableOffsetMarker<OriginalPositionLookupList>,
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
     /// 32-bit offset to ScriptList, taking precedence when nonzero.
     pub script_list2: NullableOffsetMarker<ScriptList, WIDTH_32>,
@@ -102,9 +102,9 @@ impl TopLevelTable for Gpos {
 impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {
-            script_list: obj.legacy_script_list().to_owned_table(),
-            feature_list: obj.legacy_feature_list().to_owned_table(),
-            lookup_list: obj.legacy_lookup_list().to_owned_table(),
+            script_list: obj.original_script_list().to_owned_table(),
+            feature_list: obj.original_feature_list().to_owned_table(),
+            lookup_list: obj.original_lookup_list().to_owned_table(),
             feature_variations: obj.feature_variations().to_owned_table(),
             script_list2: obj.script_list2().to_owned_table(),
             feature_list2: obj.feature_list2().to_owned_table(),

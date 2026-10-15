@@ -19,7 +19,7 @@ mod spec_tests;
 pub type SubstitutionLookupList = LookupList<SubstitutionLookup>;
 
 /// A lookup list with the original 16-bit offsets.
-pub type LegacySubstitutionLookupList = SubstitutionLookupList;
+pub type OriginalSubstitutionLookupList = SubstitutionLookupList;
 
 /// A lookup list with 32-bit offsets.
 pub type SubstitutionLookupList2 = super::layout::LookupList2<SubstitutionLookup>;
@@ -99,7 +99,7 @@ impl ReadArgs for SubstitutionLookupList {
 
 impl<'a> FontRead<'a> for SubstitutionLookupList {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        read_fonts::tables::gsub::LegacySubstitutionLookupList::read(data)
+        read_fonts::tables::gsub::OriginalSubstitutionLookupList::read(data)
             .map(|x| x.to_owned_table())
     }
 }

@@ -42,7 +42,7 @@ impl<'a> Gdef<'a> {
     }
 
     /// Resolves only the original 16-bit offset.
-    pub fn legacy_glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+    pub fn original_glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         self.glyph_class_def_offset().resolve(self.offset_data())
     }
 
@@ -52,7 +52,7 @@ impl<'a> Gdef<'a> {
     }
 
     /// Resolves only the original 16-bit offset.
-    pub fn legacy_attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
+    pub fn original_attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
         self.attach_list_offset().resolve(self.offset_data())
     }
 
@@ -65,7 +65,7 @@ impl<'a> Gdef<'a> {
     }
 
     /// Resolves only the original 16-bit offset.
-    pub fn legacy_mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+    pub fn original_mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         self.mark_attach_class_def_offset()
             .resolve(self.offset_data())
     }
@@ -79,7 +79,7 @@ impl<'a> Gdef<'a> {
     }
 
     /// Resolves only the original 16-bit offset.
-    pub fn legacy_mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
+    pub fn original_mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
         self.mark_glyph_sets_def_offset()
             .unwrap_or_default()
             .resolve(self.offset_data())
@@ -133,7 +133,7 @@ impl<'a> Gdef<'a> {
         })
     }
 
-    pub fn legacy_lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
+    pub fn original_lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
         self.lig_caret_list_offset().resolve(self.offset_data())
     }
 }
