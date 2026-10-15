@@ -14,7 +14,7 @@ use std::{cmp::Ordering, mem};
 
 use crate::FastHashMap;
 use crate::{
-    offset::{SerializeCopy, SerializeSubset},
+    offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable, INVALID_GID,
@@ -1484,49 +1484,6 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
 }
 
 /// Visit borrowed conditions before recursively materializing an owned tree.
-pub(crate) fn walk_conditions(
-    condition: &Condition,
-    depth: usize,
-    remaining: &mut usize,
-    visit: &mut impl FnMut(&Condition),
-) -> Result<(), ReadError> {
-    if depth > 32 || *remaining == 0 {
-        return Err(ReadError::MalformedData("condition tree exceeds limits"));
-    }
-    *remaining -= 1;
-    visit(condition);
-    match condition {
-        Condition::Format3And(v) => {
-            if v.condition_offsets().len() != v.condition_count() as usize {
-                return Err(ReadError::OutOfBounds);
-            }
-            for (offset, child) in v.condition_offsets().iter().zip(v.conditions().iter()) {
-                if offset.get().is_null() {
-                    continue;
-                }
-                walk_conditions(&child?, depth + 1, remaining, visit)?;
-            }
-        }
-        Condition::Format4Or(v) => {
-            if v.condition_offsets().len() != v.condition_count() as usize {
-                return Err(ReadError::OutOfBounds);
-            }
-            for (offset, child) in v.condition_offsets().iter().zip(v.conditions().iter()) {
-                if offset.get().is_null() {
-                    continue;
-                }
-                walk_conditions(&child?, depth + 1, remaining, visit)?;
-            }
-        }
-        Condition::Format5Negate(v) => {
-            if !v.condition_offset().is_null() {
-                walk_conditions(&v.condition()?, depth + 1, remaining, visit)?
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
 
 impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
     type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut SubsetLayoutContext);

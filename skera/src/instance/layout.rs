@@ -199,6 +199,11 @@ impl<T: Apply> Apply for LookupList<T> {
         self.lookups.apply(c)
     }
 }
+impl<T: Apply> Apply for LookupList2<T> {
+    fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
+        self.lookups.apply(c)
+    }
+}
 impl<T: Apply> Apply for ExtensionPosFormat1<T> {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         self.extension.apply(c)
@@ -207,9 +212,14 @@ impl<T: Apply> Apply for ExtensionPosFormat1<T> {
 macro_rules! variants {($t:ty;$($variant:ident),+; $($ignore:ident),*)=>{impl Apply for $t{fn apply(&mut self,c:&Context)->Result<(),SubsetError>{match self {$ (Self::$variant(v)=>v.apply(c),)+ $(Self::$ignore(_)=>Ok(()),)*}}}};}
 variants!(PositionLookup;Single,Pair,Cursive,MarkToBase,MarkToLig,MarkToMark,Extension;Contextual,ChainContextual);
 variants!(ExtensionSubtable;Single,Pair,Cursive,MarkToBase,MarkToLig,MarkToMark;Contextual,ChainContextual);
-variants!(SinglePos;Format1,Format2;);
-variants!(PairPos;Format1,Format2;);
+variants!(SinglePos;Format1,Format2,Format3,Format4;);
+variants!(CursivePos;Format1,Format2;);
+variants!(MarkBasePos;Format1,Format2;);
+variants!(MarkLigPos;Format1,Format2;);
+variants!(MarkMarkPos;Format1,Format2;);
+variants!(PairPos;Format1,Format2,Format3,Format4;);
 fields!(SinglePosFormat1;value_record);
+fields!(SinglePosFormat3;value_record);
 fn uniform_value_format<'a>(records: impl Iterator<Item = &'a mut ValueRecord>) {
     let records = records.collect::<Vec<_>>();
     let format = records.iter().fold(ValueFormat::empty(), |format, record| {
@@ -220,6 +230,13 @@ fn uniform_value_format<'a>(records: impl Iterator<Item = &'a mut ValueRecord>) 
     }
 }
 impl Apply for SinglePosFormat2 {
+    fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
+        self.value_records.apply(c)?;
+        uniform_value_format(self.value_records.iter_mut());
+        Ok(())
+    }
+}
+impl Apply for SinglePosFormat4 {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         self.value_records.apply(c)?;
         uniform_value_format(self.value_records.iter_mut());
@@ -244,9 +261,47 @@ impl Apply for PairPosFormat1 {
         Ok(())
     }
 }
+impl Apply for PairPosFormat3 {
+    fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
+        self.pair_sets.apply(c)?;
+        uniform_value_format(
+            self.pair_sets
+                .iter_mut()
+                .flat_map(|set| set.pair_value_records.iter_mut())
+                .map(|record| &mut record.value_record1),
+        );
+        uniform_value_format(
+            self.pair_sets
+                .iter_mut()
+                .flat_map(|set| set.pair_value_records.iter_mut())
+                .map(|record| &mut record.value_record2),
+        );
+        Ok(())
+    }
+}
 fields!(PairSet;pair_value_records);
+fields!(PairSet2;pair_value_records);
 fields!(PairValueRecord;value_record1,value_record2);
+fields!(PairValueRecord2;value_record1,value_record2);
 impl Apply for PairPosFormat2 {
+    fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
+        self.class1_records.apply(c)?;
+        uniform_value_format(
+            self.class1_records
+                .iter_mut()
+                .flat_map(|class| class.class2_records.iter_mut())
+                .map(|record| &mut record.value_record1),
+        );
+        uniform_value_format(
+            self.class1_records
+                .iter_mut()
+                .flat_map(|class| class.class2_records.iter_mut())
+                .map(|record| &mut record.value_record2),
+        );
+        Ok(())
+    }
+}
+impl Apply for PairPosFormat4 {
     fn apply(&mut self, c: &Context) -> Result<(), SubsetError> {
         self.class1_records.apply(c)?;
         uniform_value_format(
@@ -267,20 +322,35 @@ impl Apply for PairPosFormat2 {
 fields!(Class1Record;class2_records);
 fields!(Class2Record;value_record1,value_record2);
 fields!(CursivePosFormat1;entry_exit_record);
+fields!(CursivePosFormat2;entry_exit_record);
 fields!(EntryExitRecord;entry_anchor,exit_anchor);
+fields!(EntryExitRecord2;entry_anchor,exit_anchor);
 fields!(MarkBasePosFormat1;mark_array,base_array);
+fields!(MarkBasePosFormat2;mark_array,base_array);
 fields!(MarkArray;mark_records);
+fields!(MarkArray2;mark_records);
 fields!(MarkRecord;mark_anchor);
+fields!(MarkRecord2;mark_anchor);
 fields!(BaseArray;base_records);
+fields!(BaseArray2;base_records);
 fields!(BaseRecord;base_anchors);
+fields!(BaseRecord2;base_anchors);
 fields!(MarkLigPosFormat1;mark_array,ligature_array);
+fields!(MarkLigPosFormat2;mark_array,ligature_array);
 fields!(LigatureArray;ligature_attaches);
+fields!(LigatureArray2;ligature_attaches);
 fields!(LigatureAttach;component_records);
+fields!(LigatureAttach2;component_records);
 fields!(ComponentRecord;ligature_anchors);
+fields!(ComponentRecord2;ligature_anchors);
 fields!(MarkMarkPosFormat1;mark1_array,mark2_array);
+fields!(MarkMarkPosFormat2;mark1_array,mark2_array);
 fields!(Mark2Array;mark2_records);
+fields!(Mark2Array2;mark2_records);
 fields!(Mark2Record;mark2_anchors);
+fields!(Mark2Record2;mark2_anchors);
 fields!(LigCaretList;lig_glyphs);
+fields!(LigCaretList2;lig_glyphs);
 fields!(LigGlyph;caret_values);
 fields!(Axis;base_script_list);
 fields!(BaseScriptList;base_script_records);
@@ -480,6 +550,25 @@ fn features(
                 }
             }
             vars.feature_variation_records = records;
+            for variation in vars.lookup_variation_records.iter_mut().flatten() {
+                let mut records = Vec::new();
+                for record in &variation.feature_lookups.lookup_condition_records {
+                    let mut record = record.clone();
+                    if let Some(cond) = record.condition.as_ref() {
+                        match partial_condition(cond, c, 0)? {
+                            PartialCondition::Constant(false) => continue,
+                            PartialCondition::Constant(true) => {
+                                record.condition = Default::default()
+                            }
+                            PartialCondition::Variable(cond) => {
+                                record.condition = Some(cond).into()
+                            }
+                        }
+                    }
+                    records.push(record);
+                }
+                variation.feature_lookups.lookup_condition_records = records;
+            }
         }
         return Ok(());
     }
@@ -504,6 +593,35 @@ fn features(
                 }
             }
             break;
+        }
+    }
+    if let Some(vars) = vars.as_ref() {
+        for variation in vars.lookup_variation_records.iter().flatten() {
+            let feature = list
+                .feature_records
+                .get_mut(usize::from(variation.feature_index))
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?;
+            let table = variation.feature_lookups.as_ref();
+            let lookups = &mut feature.feature.lookup_list_indices;
+            if !table
+                .flags
+                .contains(FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS)
+            {
+                lookups.clear();
+            }
+            for record in &table.lookup_condition_records {
+                if record
+                    .condition
+                    .as_ref()
+                    .map(|cond| condition(cond, c, 0))
+                    .transpose()?
+                    .unwrap_or(true)
+                {
+                    lookups.extend(&record.lookup_index_list.lookup_indices);
+                }
+            }
+            lookups.sort_unstable();
+            lookups.dedup();
         }
     }
     *vars = Default::default();
@@ -760,6 +878,7 @@ fn own_feature_variations(
         }
         return Ok(Some(FeatureVariations {
             feature_variation_records: records,
+            lookup_variation_records: own_lookup_variations(&vars, features, tag, &mut remaining)?,
         }));
     }
     Ok(None)
@@ -827,14 +946,27 @@ fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError
     let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
     let mut table: Gpos = source.to_owned_table();
     let mut remaining = 200_000;
+    let lookups: Vec<&mut PositionLookup> = if let Some(list) = table.lookup_list2.as_mut() {
+        table.lookup_list = Default::default();
+        list.lookups.iter_mut().map(|v| v.as_mut()).collect()
+    } else {
+        table
+            .lookup_list
+            .as_mut()
+            .ok_or_else(error)?
+            .lookups
+            .iter_mut()
+            .map(|v| v.as_mut())
+            .collect()
+    };
     for (source, target) in source
         .lookup_list()
         .map_err(|_| error())?
         .lookups()
         .iter()
-        .zip(&mut table.lookup_list.lookups)
+        .zip(lookups)
     {
-        match (source.map_err(|_| error())?, target.as_mut()) {
+        match (source.map_err(|_| error())?, target) {
             (read::PositionLookup::Single(source), PositionLookup::Single(target)) => {
                 for (source, target) in source.subtables().iter().zip(&mut target.subtables) {
                     own_empty_singles(
@@ -966,8 +1098,13 @@ pub(super) fn instance(
         let mut table = own_gpos(&gpos)?;
         table.feature_variations = vars.into();
         table.lookup_list.apply(&context)?;
+        table.lookup_list2.apply(&context)?;
         features(
-            &mut table.feature_list,
+            table
+                .feature_list2
+                .as_mut()
+                .or(table.feature_list.as_mut())
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             &mut table.feature_variations,
             &context,
         )?;
@@ -986,7 +1123,11 @@ pub(super) fn instance(
         let mut table: write_fonts::tables::gsub::Gsub = gsub.to_owned_table();
         table.feature_variations = vars.into();
         features(
-            &mut table.feature_list,
+            table
+                .feature_list2
+                .as_mut()
+                .or(table.feature_list.as_mut())
+                .ok_or(SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             &mut table.feature_variations,
             &context,
         )?;
@@ -999,7 +1140,11 @@ pub(super) fn instance(
     }
     if let Some(gdef) = gdef {
         let mut table: Gdef = gdef.to_owned_table();
+        if table.lig_caret_list2.is_some() {
+            table.lig_caret_list = Default::default();
+        }
         table.lig_caret_list.apply(&context)?;
+        table.lig_caret_list2.apply(&context)?;
         table.item_var_store = if axes.all_pinned() {
             Default::default()
         } else {
@@ -1396,7 +1541,9 @@ mod tests {
             table.lookup_list.apply(&c).unwrap();
             let bytes = write_fonts::dump_table(&table).unwrap();
             let table = own_gpos(&ReadGpos::read(FontData::new(&bytes)).unwrap()).unwrap();
-            let PositionLookup::Single(single) = table.lookup_list.lookups[0].as_ref() else {
+            let PositionLookup::Single(single) =
+                table.lookup_list.as_ref().unwrap().lookups[0].as_ref()
+            else {
                 panic!()
             };
             let SinglePos::Format2(single) = single.subtables[0].as_ref() else {
@@ -1419,7 +1566,9 @@ mod tests {
                     Some(DeviceOrVariationIndex::Device(_))
                 ));
             }
-            let PositionLookup::Pair(pair) = table.lookup_list.lookups[1].as_ref() else {
+            let PositionLookup::Pair(pair) =
+                table.lookup_list.as_ref().unwrap().lookups[1].as_ref()
+            else {
                 panic!()
             };
             let PairPos::Format1(pair1) = pair.subtables[0].as_ref() else {
@@ -1437,7 +1586,9 @@ mod tests {
                 }
             }
             // Extension wrappers must also retain zero-byte record counts.
-            let PositionLookup::Extension(ext) = table.lookup_list.lookups[2].as_ref() else {
+            let PositionLookup::Extension(ext) =
+                table.lookup_list.as_ref().unwrap().lookups[2].as_ref()
+            else {
                 panic!()
             };
             let ExtensionSubtable::Single(ext) = ext.subtables[0].as_ref() else {
@@ -1447,7 +1598,9 @@ mod tests {
                 panic!()
             };
             assert_eq!(single.value_records.len(), 3);
-            let PositionLookup::Extension(ext) = table.lookup_list.lookups[3].as_ref() else {
+            let PositionLookup::Extension(ext) =
+                table.lookup_list.as_ref().unwrap().lookups[3].as_ref()
+            else {
                 panic!()
             };
             let ExtensionSubtable::Pair(ext) = ext.subtables[1].as_ref() else {
@@ -1722,6 +1875,7 @@ mod tests {
             ),
         );
         gpos.feature_variations = FeatureVariations {
+            lookup_variation_records: None,
             feature_variation_records: vec![FeatureVariationRecord {
                 condition_set: ConditionSet {
                     conditions: vec![tree.into()],
@@ -1781,10 +1935,12 @@ mod tests {
             .unwrap();
             let full = FontRef::new(&bytes).unwrap();
             let table: Gpos = full.gpos().unwrap().to_owned_table();
-            let index = table.feature_list.feature_records[0]
+            let index = table.feature_list.as_ref().unwrap().feature_records[0]
                 .feature
                 .lookup_list_indices[0] as usize;
-            let PositionLookup::Single(lookup) = table.lookup_list.lookups[index].as_ref() else {
+            let PositionLookup::Single(lookup) =
+                table.lookup_list.as_ref().unwrap().lookups[index].as_ref()
+            else {
                 panic!()
             };
             let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
@@ -1892,6 +2048,7 @@ mod tests {
             .into(),
         };
         let mut vars: NullableOffsetMarker<FeatureVariations, 4> = FeatureVariations {
+            lookup_variation_records: None,
             feature_variation_records: vec![
                 record(vec![range(0), range(1)], 1),
                 record(vec![range(0)], 2),
@@ -1945,4 +2102,73 @@ mod tests {
             assert!(vars.is_none());
         }
     }
+}
+
+fn own_lookup_variations(
+    vars: &read_fonts::tables::layout::FeatureVariations,
+    features: &read_fonts::tables::layout::FeatureList,
+    tag: Tag,
+    remaining: &mut usize,
+) -> Result<Option<Vec<LookupVariationRecord>>, SubsetError> {
+    let err = || SubsetError::SubsetTableError(tag);
+    if vars.version().major != 1 || vars.version().minor < 1 {
+        return Ok(None);
+    }
+    let records = vars.lookup_variation_records().ok_or_else(err)?;
+    if !records
+        .windows(2)
+        .all(|pair| pair[0].feature_index() < pair[1].feature_index())
+    {
+        return Err(err());
+    }
+    *remaining = remaining.checked_sub(records.len()).ok_or_else(err)?;
+    let mut owned = Vec::new();
+    for record in records {
+        if usize::from(record.feature_index()) >= features.feature_records().len() {
+            return Err(err());
+        }
+        let source = record
+            .feature_lookups(vars.offset_data())
+            .map_err(|_| err())?;
+        let count = usize::try_from(source.lookup_condition_count()).map_err(|_| err())?;
+        // Check before calling the generated array getter on 32-bit targets.
+        let end = count
+            .checked_mul(8)
+            .and_then(|n| n.checked_add(10))
+            .ok_or_else(err)?;
+        if source.version().major != 1 || end > source.offset_data().len() {
+            return Err(err());
+        }
+        *remaining = remaining.checked_sub(count).ok_or_else(err)?;
+        let mut conditions = Vec::new();
+        for record in source.lookup_condition_records() {
+            let offset = record.condition_offset().offset().to_u32();
+            let condition = if offset == 0 {
+                None
+            } else {
+                Some(
+                    crate::conditions::at_offset(source.offset_data(), offset, 33, remaining)
+                        .map_err(|_| err())?,
+                )
+            };
+            let list = record
+                .lookup_index_list(source.offset_data())
+                .map_err(|_| err())?;
+            let indices = list.lookup_indices();
+            if indices.len() != usize::from(list.lookup_index_count()) {
+                return Err(err());
+            }
+            *remaining = remaining.checked_sub(indices.len()).ok_or_else(err)?;
+            conditions.push(LookupConditionRecord {
+                condition: condition.into(),
+                lookup_index_list: LookupIndexList::new(indices.iter().map(|v| v.get()).collect())
+                    .into(),
+            });
+        }
+        owned.push(LookupVariationRecord {
+            feature_index: record.feature_index(),
+            feature_lookups: FeatureLookups::new(source.flags(), conditions).into(),
+        });
+    }
+    Ok(Some(owned))
 }
