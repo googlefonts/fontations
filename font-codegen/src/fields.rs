@@ -497,6 +497,15 @@ impl Field {
         self.attrs.format.is_some() || self.attrs.compile.is_some()
     }
 
+    /// `true` if this field can be laid out as plain bytes in a table header.
+    pub(crate) fn can_be_in_header(&self) -> bool {
+        match &self.typ {
+            FieldType::Offset { .. } | FieldType::Scalar { .. } => true,
+            FieldType::Struct { .. } => self.fixed_size_record && !self.positioned,
+            _ => false,
+        }
+    }
+
     pub(crate) fn has_getter(&self) -> bool {
         self.attrs.skip_getter.is_none()
     }
@@ -589,6 +598,24 @@ impl Field {
         let is_var_array = self.is_var_array();
         let is_conditional = self.is_conditional();
 
+        if self.in_header {
+            let docs = &self.attrs.docs;
+            let offset_getter = self.typed_offset_field_getter(generic, None);
+            let read = match &self.typ {
+                FieldType::Struct { .. } => quote!(&self.data.header().#name),
+                FieldType::Scalar { typ } if typ == "u8" => quote!(self.data.header().#name),
+                _ => quote!(self.data.header().#name.get()),
+            };
+            return Some(quote! {
+                #( #docs )*
+                pub fn #name(&self) -> #return_type {
+                    #read
+                }
+
+                #offset_getter
+            });
+        }
+
         //// if a field is non-conditional we will always return some value, even
         //// if the data is malformed.
         //let maybe_unwrap_or_def = (!is_conditional).then(|| quote!( .unwrap_or_default() ));
@@ -618,7 +645,7 @@ impl Field {
                 .as_ref()
                 .expect("a computed array has read args")
                 .to_tokens_for_table_getter();
-            quote!( ComputedArray::new(self.data, range, #get_args) #maybe_unwrap_or_def )
+            quote!( ComputedArray::new(self.offset_data(), range, #get_args) #maybe_unwrap_or_def )
         } else if let Some(args) = self
             .attrs
             .read_with_args
@@ -629,21 +656,21 @@ impl Field {
             // starts within it
             let get_args = args.to_tokens_for_table_getter();
             let typ = self.typ.cooked_type_tokens();
-            quote!( #typ::read_at(self.data, range.start, #get_args) #maybe_unwrap_or_def )
+            quote!( #typ::read_at(self.offset_data(), range.start, #get_args) #maybe_unwrap_or_def )
         } else if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, #get_args) #maybe_unwrap_or_def )
+            quote!( self.offset_data().read_with_args(range, #get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
-            quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
+            quote!( self.offset_data().split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
-            quote!(self.data.read_array(range).ok() #maybe_unwrap #maybe_unwrap_or_def)
+            quote!(self.offset_data().read_array(range).ok() #maybe_unwrap #maybe_unwrap_or_def)
         } else if self.fixed_size_record {
             // there is no default to fall back on for a borrowed record, so
             // this relies on the field being validated at parse; see
             // `Field::sanity_check`
-            quote!(self.data.read_ref_at(range.start).ok() #maybe_unwrap)
+            quote!(self.offset_data().read_ref_at(range.start).ok() #maybe_unwrap)
         } else {
-            quote!(self.data.read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
+            quote!(self.offset_data().read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
         };
         if is_conditional {
             read_stmt = quote! { (!range.is_empty()).then(||#read_stmt).flatten() };
@@ -760,8 +787,10 @@ impl Field {
         let decl_lifetime_if_needed =
             record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
 
-        // if a table, data is self.data, else it is passed as an argument
-        let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
+        // if a table, data is self.offset_data(), else it is passed as an argument
+        let data_alias_if_needed = record
+            .is_none()
+            .then(|| quote!(let data = self.offset_data();));
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
             let args = args.to_tokens_for_table_getter();
@@ -908,9 +937,9 @@ impl Field {
                         // Make sure the remaining byte size is a multiple of
                         // the requested element type size.
                         // See <https://github.com/googlefonts/fontations/issues/797>
-                        quote!(self.data.len().saturating_sub(start) / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN)
+                        quote!(self.offset_data().len().saturating_sub(start) / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN)
                     }
-                    _ => quote!(self.data.len().saturating_sub(start)),
+                    _ => quote!(self.offset_data().len().saturating_sub(start)),
                 }
             }
             Some(other) => {
@@ -928,7 +957,7 @@ impl Field {
                         let inner = array.raw_inner_type();
                         return Some(quote! {
                             {
-                                let data = self.data.split_off(start).unwrap_or_default();
+                                let data = self.offset_data().split_off(start).unwrap_or_default();
                                 <#inner as VarSize>::total_len_for_count(data, #count_expr).unwrap_or(0)
                             }
                         });
