@@ -17,7 +17,7 @@ pub use tables::{TableFunction, Tables};
 pub mod interop;
 
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
-use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, RawGlyphMetrics, StyleMetrics};
+use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, StyleMetrics};
 use super::name::{self, GlyphName, Names};
 use super::once::Once;
 use crate::tables::loca::LocaGlyph;
@@ -26,6 +26,7 @@ use crate::tables::{
     fvar::Fvar,
     glyf::{outline::OutlineContext, Glyf, PHANTOM_POINT_COUNT},
     gvar::{GlyphVariationData, SelectedGvar},
+    hmtx::GlyphMetricRecords,
     hvar::Hvar,
     layout::SelectedFeatureVariations,
     loca::Loca,
@@ -241,13 +242,13 @@ impl Font {
 
     /// Returns the horizontal glyph metrics, from `HMTX` or `hmtx`.
     #[inline]
-    pub(crate) fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
+    pub(crate) fn h_metrics(&self) -> &GlyphMetricRecords<'_> {
         self.shared().h_metrics()
     }
 
     /// Returns the vertical glyph metrics, from `VMTX` or `vmtx`.
     #[inline]
-    pub(crate) fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
+    pub(crate) fn v_metrics(&self) -> &GlyphMetricRecords<'_> {
         self.shared().v_metrics()
     }
 
@@ -972,14 +973,16 @@ impl SharedFont {
 
     /// Returns the horizontal glyph metrics, parsed once for the font.
     #[inline]
-    fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
+    fn h_metrics(&self) -> &GlyphMetricRecords<'_> {
         let Some(tables) = self.tables_arc() else {
             return empty_glyph_metrics();
         };
         self.0
             .h_metrics
             .get_or_init(|| {
-                TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_hmtx(&tables))
+                TableCache::read(tables.clone(), |tables| {
+                    tables.h_glyph_metric_records().unwrap_or_default()
+                })
             })
             .get()
     }
@@ -989,14 +992,16 @@ impl SharedFont {
     /// Read on demand, unlike the horizontal metrics: most text is
     /// horizontal and never asks.
     #[inline]
-    fn v_metrics(&self) -> &RawGlyphMetrics<'_> {
+    fn v_metrics(&self) -> &GlyphMetricRecords<'_> {
         let Some(tables) = self.tables_arc() else {
             return empty_glyph_metrics();
         };
         self.0
             .v_metrics
             .get_or_init(|| {
-                TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_vmtx(&tables))
+                TableCache::read(tables.clone(), |tables| {
+                    tables.v_glyph_metric_records().unwrap_or_default()
+                })
             })
             .get()
     }
@@ -1109,10 +1114,10 @@ struct SharedFontRepr {
     style_metrics: Once<Box<StyleMetrics>>,
     // The horizontal glyph metrics, parsed once for the font. Held beside
     // the tables they borrow, which is what lets them live here at all.
-    h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
+    h_metrics: Once<TableCache<GlyphMetricRecords<'static>>>,
     // The vertical glyph metrics, read only when something measures
     // vertically.
-    v_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
+    v_metrics: Once<TableCache<GlyphMetricRecords<'static>>>,
     // `HVAR` states the deltas a location makes to a metric outright, and
     // `gvar` states them as phantom points on an outline, which `glyf` and
     // `loca` are read to reach and which outlines will read for their own

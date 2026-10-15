@@ -19,7 +19,6 @@ use crate::{
         glyf::outline::{Buffers, OutlineContext, OutlinePlan, ScaleF32 as OutlineScaleF32},
         hmtx::GlyphMetricRecords,
     },
-    TableProvider,
 };
 use types::{BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
 
@@ -46,7 +45,7 @@ pub struct GlyphExtents<T> {
 /// Cheap to obtain, so it can be taken per query rather than held.
 #[derive(Clone, Copy)]
 pub struct GlyphMetrics<'a> {
-    h_metrics: &'a RawGlyphMetrics<'a>,
+    h_metrics: &'a GlyphMetricRecords<'a>,
     font: &'a Font,
     global: &'a Metrics,
     coords: &'a [F2Dot14],
@@ -535,7 +534,7 @@ impl<'a> GlyphMetrics<'a> {
     #[inline(never)]
     fn v_advance_batched_varied<'o, V: 'o>(
         &self,
-        raw: &RawGlyphMetrics<'_>,
+        raw: &GlyphMetricRecords<'_>,
         coords: &[F2Dot14],
         convert: impl Fn(F48Dot16) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
@@ -586,7 +585,7 @@ impl<'a> GlyphMetrics<'a> {
     #[inline(never)]
     fn h_advance_batched_varied<'o, V: 'o>(
         &self,
-        raw: &RawGlyphMetrics<'_>,
+        raw: &GlyphMetricRecords<'_>,
         coords: &[F2Dot14],
         convert: impl Fn(F48Dot16) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
@@ -679,19 +678,7 @@ impl<'a> GlyphMetrics<'a> {
     }
 }
 
-pub(crate) type RawGlyphMetrics<'a> = GlyphMetricRecords<'a>;
-
 impl<'a> GlyphMetricRecords<'a> {
-    /// Reads what `hmtx` states.
-    pub(crate) fn from_hmtx(tables: &impl TableProvider<'a>) -> Self {
-        tables.h_glyph_metric_records().unwrap_or_default()
-    }
-
-    /// Reads what `vmtx` states.
-    pub(crate) fn from_vmtx(tables: &impl TableProvider<'a>) -> Self {
-        tables.v_glyph_metric_records().unwrap_or_default()
-    }
-
     /// Returns `true` if the table states no metrics.
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
@@ -781,8 +768,8 @@ impl<'a> GlyphMetricRecords<'a> {
 }
 
 /// Returns the metrics of a font that states none.
-pub(crate) fn empty() -> &'static RawGlyphMetrics<'static> {
-    static EMPTY: RawGlyphMetrics<'static> = RawGlyphMetrics {
+pub(crate) fn empty() -> &'static GlyphMetricRecords<'static> {
+    static EMPTY: GlyphMetricRecords<'static> = GlyphMetricRecords {
         metrics: &[],
         bearings: &[],
     };
@@ -894,7 +881,7 @@ mod tests {
             Blob, NormalizedCoord,
         },
         tables::glyf::outline::{Outline, OutlineTables, PathContourStart, Unscaled},
-        FontRef,
+        FontRef, TableProvider,
     };
     use alloc::{sync::Arc, vec, vec::Vec};
     use std::sync::Mutex;
@@ -1348,16 +1335,16 @@ mod tests {
     #[test]
     fn the_tables_are_parsed_once_for_the_font() {
         let font = Font::new(VAR, 0).unwrap();
-        let first = font.h_metrics() as *const RawGlyphMetrics<'_>;
+        let first = font.h_metrics() as *const GlyphMetricRecords<'_>;
         for _ in 0..8 {
             assert!(core::ptr::eq(
-                font.h_metrics() as *const RawGlyphMetrics<'_>,
+                font.h_metrics() as *const GlyphMetricRecords<'_>,
                 first
             ));
         }
         // And clones share it, since they share one `Arc<FontRepr>`.
         assert!(core::ptr::eq(
-            font.clone().h_metrics() as *const RawGlyphMetrics<'_>,
+            font.clone().h_metrics() as *const GlyphMetricRecords<'_>,
             first
         ));
     }
