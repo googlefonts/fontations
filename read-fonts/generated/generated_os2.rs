@@ -357,7 +357,7 @@ impl<'a> MinByteRange<'a> for Os2<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -376,14 +376,43 @@ impl<'a> FontRead<'a> for Os2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct Os2FixedHeader {
+    pub version: BigEndian<u16>,
+    pub x_avg_char_width: BigEndian<i16>,
+    pub us_weight_class: BigEndian<u16>,
+    pub us_width_class: BigEndian<u16>,
+    pub fs_type: BigEndian<u16>,
+    pub y_subscript_x_size: BigEndian<i16>,
+    pub y_subscript_y_size: BigEndian<i16>,
+    pub y_subscript_x_offset: BigEndian<i16>,
+    pub y_subscript_y_offset: BigEndian<i16>,
+    pub y_superscript_x_size: BigEndian<i16>,
+    pub y_superscript_y_size: BigEndian<i16>,
+    pub y_superscript_x_offset: BigEndian<i16>,
+    pub y_superscript_y_offset: BigEndian<i16>,
+    pub y_strikeout_size: BigEndian<i16>,
+    pub y_strikeout_position: BigEndian<i16>,
+    pub s_family_class: BigEndian<i16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<Os2FixedHeader>() <= Os2::MIN_SIZE);
+
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Clone)]
 pub struct Os2<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, Os2FixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -421,8 +450,7 @@ impl<'a> Os2<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// [Average weighted escapement](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#xavgcharwidth).
@@ -430,8 +458,7 @@ impl<'a> Os2<'a> {
     /// The Average Character Width parameter specifies the arithmetic average
     /// of the escapement (width) of all non-zero width glyphs in the font.
     pub fn x_avg_char_width(&self) -> i16 {
-        let range = self.x_avg_char_width_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().x_avg_char_width.get()
     }
 
     /// [Weight class](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass).
@@ -439,8 +466,7 @@ impl<'a> Os2<'a> {
     /// Indicates the visual weight (degree of blackness or thickness of
     /// strokes) of the characters in the font. Values from 1 to 1000 are valid.
     pub fn us_weight_class(&self) -> u16 {
-        let range = self.us_weight_class_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().us_weight_class.get()
     }
 
     /// [Width class](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass).
@@ -448,92 +474,79 @@ impl<'a> Os2<'a> {
     /// Indicates a relative change from the normal aspect ratio (width to height
     /// ratio) as specified by a font designer for the glyphs in a font.
     pub fn us_width_class(&self) -> u16 {
-        let range = self.us_width_class_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().us_width_class.get()
     }
 
     /// [Type flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fstype).
     ///
     /// Indicates font embedding licensing rights for the font.
     pub fn fs_type(&self) -> u16 {
-        let range = self.fs_type_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().fs_type.get()
     }
 
     /// The recommended horizontal size in font design units for subscripts for
     /// this font.
     pub fn y_subscript_x_size(&self) -> i16 {
-        let range = self.y_subscript_x_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_subscript_x_size.get()
     }
 
     /// The recommended vertical size in font design units for subscripts for
     /// this font.
     pub fn y_subscript_y_size(&self) -> i16 {
-        let range = self.y_subscript_y_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_subscript_y_size.get()
     }
 
     /// The recommended horizontal offset in font design units for subscripts
     /// for this font.
     pub fn y_subscript_x_offset(&self) -> i16 {
-        let range = self.y_subscript_x_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_subscript_x_offset.get()
     }
 
     /// The recommended vertical offset in font design units for subscripts
     /// for this font.
     pub fn y_subscript_y_offset(&self) -> i16 {
-        let range = self.y_subscript_y_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_subscript_y_offset.get()
     }
 
     /// The recommended horizontal size in font design units for superscripts
     /// for this font.
     pub fn y_superscript_x_size(&self) -> i16 {
-        let range = self.y_superscript_x_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_superscript_x_size.get()
     }
 
     /// The recommended vertical size in font design units for superscripts
     /// for this font.
     pub fn y_superscript_y_size(&self) -> i16 {
-        let range = self.y_superscript_y_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_superscript_y_size.get()
     }
 
     /// The recommended horizontal offset in font design units for superscripts
     /// for this font.
     pub fn y_superscript_x_offset(&self) -> i16 {
-        let range = self.y_superscript_x_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_superscript_x_offset.get()
     }
 
     /// The recommended vertical offset in font design units for superscripts
     /// for this font.
     pub fn y_superscript_y_offset(&self) -> i16 {
-        let range = self.y_superscript_y_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_superscript_y_offset.get()
     }
 
     /// Thickness of the strikeout stroke in font design units.
     pub fn y_strikeout_size(&self) -> i16 {
-        let range = self.y_strikeout_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_strikeout_size.get()
     }
 
     /// The position of the top of the strikeout stroke relative to the
     /// baseline in font design units.
     pub fn y_strikeout_position(&self) -> i16 {
-        let range = self.y_strikeout_position_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().y_strikeout_position.get()
     }
 
     /// [Font-family class and subclass](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#sfamilyclass).
     /// This parameter is a classification of font-family design.
     pub fn s_family_class(&self) -> i16 {
-        let range = self.s_family_class_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().s_family_class.get()
     }
 
     /// [PANOSE classification number](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#panose).
@@ -542,7 +555,10 @@ impl<'a> Os2<'a> {
     /// character sets.
     pub fn panose_10(&self) -> &'a [u8] {
         let range = self.panose_10_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// [Unicode Character Range](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulunicoderange1-bits-031ulunicoderange2-bits-3263ulunicoderange3-bits-6495ulunicoderange4-bits-96127).
@@ -550,25 +566,37 @@ impl<'a> Os2<'a> {
     /// Unicode Character Range (bits 0-31).
     pub fn ul_unicode_range_1(&self) -> u32 {
         let range = self.ul_unicode_range_1_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Unicode Character Range (bits 32-63).
     pub fn ul_unicode_range_2(&self) -> u32 {
         let range = self.ul_unicode_range_2_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Unicode Character Range (bits 64-95).
     pub fn ul_unicode_range_3(&self) -> u32 {
         let range = self.ul_unicode_range_3_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Unicode Character Range (bits 96-127).
     pub fn ul_unicode_range_4(&self) -> u32 {
         let range = self.ul_unicode_range_4_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// [Font Vendor Identification](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#achvendid).
@@ -576,7 +604,10 @@ impl<'a> Os2<'a> {
     /// The four-character identifier for the vendor of the given type face.
     pub fn ach_vend_id(&self) -> Tag {
         let range = self.ach_vend_id_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// [Font selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection).
@@ -584,37 +615,55 @@ impl<'a> Os2<'a> {
     /// Contains information concerning the nature of the font patterns.
     pub fn fs_selection(&self) -> SelectionFlags {
         let range = self.fs_selection_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The minimum Unicode index (character code) in this font.
     pub fn us_first_char_index(&self) -> u16 {
         let range = self.us_first_char_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The maximum Unicode index (character code) in this font.
     pub fn us_last_char_index(&self) -> u16 {
         let range = self.us_last_char_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The typographic ascender for this font.
     pub fn s_typo_ascender(&self) -> i16 {
         let range = self.s_typo_ascender_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The typographic descender for this font.
     pub fn s_typo_descender(&self) -> i16 {
         let range = self.s_typo_descender_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The typographic line gap for this font.
     pub fn s_typo_line_gap(&self) -> i16 {
         let range = self.s_typo_line_gap_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The “Windows ascender” metric.
@@ -623,7 +672,10 @@ impl<'a> Os2<'a> {
     /// clipping region.
     pub fn us_win_ascent(&self) -> u16 {
         let range = self.us_win_ascent_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// The “Windows descender” metric.
@@ -632,14 +684,17 @@ impl<'a> Os2<'a> {
     /// for a clipping region.
     pub fn us_win_descent(&self) -> u16 {
         let range = self.us_win_descent_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     /// Code page character range bits 0-31.
     pub fn ul_code_page_range_1(&self) -> Option<u32> {
         let range = self.ul_code_page_range_1_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -647,7 +702,7 @@ impl<'a> Os2<'a> {
     pub fn ul_code_page_range_2(&self) -> Option<u32> {
         let range = self.ul_code_page_range_2_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -657,7 +712,7 @@ impl<'a> Os2<'a> {
     pub fn sx_height(&self) -> Option<i16> {
         let range = self.sx_height_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -666,7 +721,7 @@ impl<'a> Os2<'a> {
     pub fn s_cap_height(&self) -> Option<i16> {
         let range = self.s_cap_height_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -675,7 +730,7 @@ impl<'a> Os2<'a> {
     pub fn us_default_char(&self) -> Option<u16> {
         let range = self.us_default_char_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -684,7 +739,7 @@ impl<'a> Os2<'a> {
     pub fn us_break_char(&self) -> Option<u16> {
         let range = self.us_break_char_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -692,7 +747,7 @@ impl<'a> Os2<'a> {
     pub fn us_max_context(&self) -> Option<u16> {
         let range = self.us_max_context_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -700,7 +755,7 @@ impl<'a> Os2<'a> {
     pub fn us_lower_optical_point_size(&self) -> Option<u16> {
         let range = self.us_lower_optical_point_size_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -708,7 +763,7 @@ impl<'a> Os2<'a> {
     pub fn us_upper_optical_point_size(&self) -> Option<u16> {
         let range = self.us_upper_optical_point_size_byte_range();
         (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
+            .then(|| self.offset_data().read_at(range.start).ok())
             .flatten()
     }
 
@@ -988,7 +1043,8 @@ const _: () = assert!(FontData::default_data_long_enough(Os2::MIN_SIZE));
 impl Default for Os2<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }

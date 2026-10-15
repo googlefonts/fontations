@@ -67,6 +67,64 @@ impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {}
 
+/// HMTX horizontal metrics (ISO/IEC 14496-22:2026, 5.1.11).
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HmtxExtended {
+    pub h_metrics: Vec<LongMetric>,
+    pub left_side_bearings: Vec<i16>,
+}
+
+impl HmtxExtended {
+    /// Construct a new `HmtxExtended`
+    pub fn new(h_metrics: Vec<LongMetric>, left_side_bearings: Vec<i16>) -> Self {
+        Self {
+            h_metrics,
+            left_side_bearings,
+        }
+    }
+}
+
+impl FontWrite for HmtxExtended {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.h_metrics.write_into(writer);
+        self.left_side_bearings.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(HmtxExtended::TAG)
+    }
+}
+
+impl Validate for HmtxExtended {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("HmtxExtended", |ctx| {
+            ctx.in_field("h_metrics", |ctx| {
+                if self.h_metrics.len() > to_usize(u32::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.h_metrics.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl TopLevelTable for HmtxExtended {
+    const TAG: Tag = Tag::new(b"HMTX");
+}
+
+impl<'a> FromObjRef<read_fonts::tables::hmtx::HmtxExtended<'a>> for HmtxExtended {
+    fn from_obj_ref(obj: &read_fonts::tables::hmtx::HmtxExtended<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        HmtxExtended {
+            h_metrics: obj.h_metrics().to_owned_obj(offset_data),
+            left_side_bearings: obj.left_side_bearings().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::hmtx::HmtxExtended<'a>> for HmtxExtended {}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LongMetric {
