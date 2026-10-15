@@ -46,6 +46,15 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
     });
 
+    let header_name = item.header_type_name();
+    let header_fields = item
+        .fields
+        .iter()
+        .filter(|fld| fld.in_header)
+        .collect::<Vec<_>>();
+    let header_field_names = header_fields.iter().map(|fld| &fld.name);
+    let header_field_types = header_fields.iter().map(|fld| fld.type_for_record());
+
     let table_ref_getters = item.iter_table_ref_getters();
     let optional_format_trait_impl = item.impl_format_trait();
     let optional_discriminant_trait_impl = item.impl_discriminant_trait();
@@ -106,7 +115,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
             impl #impl_generics Default for #raw_name #type_generics {
                 fn default() -> Self {
                     Self {
-                        data: FontData::#data_method(),
+                        data: TableDataRef::new(FontData::#data_method().as_bytes())
+                            .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
                         #( #default_args )*
                         #phantom_init
                     }
@@ -128,10 +138,21 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
         #impl_of_unit_type
 
+        /// The fields at the start of the table, which are read directly.
+        #[derive(Clone, Copy, bytemuck::AnyBitPattern)]
+        #[repr(C, packed)]
+        #[doc(hidden)]
+        pub struct #header_name {
+            #( pub #header_field_names: #header_field_types, )*
+        }
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        const _: () = assert!(std::mem::size_of::<#header_name>() <= #raw_name #const_generic ::MIN_SIZE);
+
         #( #docs )*
         #[derive(Clone)]
         pub struct #raw_name<'a, #generic_with_default> {
-            data: FontData<'a>,
+            data: TableDataRef<'a, #header_name>,
             #( #stored_args, )*
             #phantom_decl
         }
@@ -205,6 +226,10 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                 if data.len() < Self::MIN_SIZE {
                     return Err(ReadError::OutOfBounds);
                 }
+                // The header is a prefix of the minimum size, so this can't fail.
+                let Some(data) = TableDataRef::new(data.as_bytes()) else {
+                    return Err(ReadError::OutOfBounds);
+                };
                  Ok(
                      Self {
                          data,
@@ -379,6 +404,10 @@ impl Table {
         })
     }
 
+    pub(crate) fn header_type_name(&self) -> syn::Ident {
+        quote::format_ident!("{}FixedHeader", self.raw_name())
+    }
+
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
         let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
         self.fields
@@ -423,7 +452,7 @@ impl Table {
                 }
                 fn min_table_bytes(&self) -> &'a [u8] {
                     let range = self.min_byte_range();
-                    self.data.as_bytes().get(range).unwrap_or_default()
+                    self.offset_data().as_bytes().get(range).unwrap_or_default()
                 }
             }
         })
