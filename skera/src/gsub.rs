@@ -1,5 +1,6 @@
 //! impl subset() for GSUB table
 mod alternate_subst;
+mod extended;
 mod ligature_subst;
 mod multiple_subst;
 mod reverse_chain_single_subst;
@@ -81,7 +82,12 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
-        find_duplicate_features(&feature_list, lookup_indices, feature_indices)
+        let mut duplicates =
+            find_duplicate_features(&feature_list, lookup_indices, feature_indices);
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::protect_lookup_variation_features(&variations, &mut duplicates);
+        }
+        duplicates
     }
 
     fn prune_langsys(
@@ -156,30 +162,20 @@ fn subset_gsub(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    if gsub.version() >= MajorMinor::new(1, 2) {
+        return subset_extended_layout(gsub, plan, font, state, s);
+    }
     let version_pos = s.embed(gsub.version())?;
     let mut c = SubsetLayoutContext::new(Gsub::TAG);
-    // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
-
-    if !gsub.script_list_offset().is_null() {
-        let script_list = gsub
-            .script_list()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
-        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
-    }
-
-    // feature list
     let feature_list_offset_pos = s.embed(0_u16)?;
-    if !gsub.feature_list_offset().is_null() {
-        let feature_list = gsub
-            .feature_list()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
-    }
-
-    // lookup list
     let lookup_list_offset_pos = s.embed(0_u16)?;
+
+    // Subset the lists in the same order as harfbuzz: lookup list, feature list, then
+    // script list. Objects packed later are placed closer to the header, so this keeps
+    // the small script and feature lists within reach of the header's 16-bit offsets
+    // when the lookups are large.
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-ot-layout-gsubgpos.hh>
     if !gsub.lookup_list_offset().is_null() {
         let lookup_list = gsub
             .lookup_list()
@@ -191,6 +187,21 @@ fn subset_gsub(
             (state, font, &plan.gsub_lookups),
             lookup_list_offset_pos,
         )?;
+    }
+
+    if !gsub.feature_list_offset().is_null() {
+        let feature_list = gsub
+            .feature_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    }
+
+    if !gsub.script_list_offset().is_null() {
+        let script_list = gsub
+            .script_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
     }
 
     if let Some(feature_variations) = gsub
@@ -222,6 +233,8 @@ fn subset_gsub(
 
     Ok(())
 }
+
+crate::layout::header::subset_extended_layout!(Gsub, gsub_lookups);
 
 impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
