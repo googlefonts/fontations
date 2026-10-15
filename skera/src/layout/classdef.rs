@@ -66,12 +66,10 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
         if !use_class_zero {
             class_map.insert(0, 0);
         }
-        let mut next_class = u32::from(!use_class_zero);
-        for class in retained_classes.iter() {
+        for (next_class, class) in (u32::from(!use_class_zero)..).zip(retained_classes.iter()) {
             Uint24::checked_new(next_class)
                 .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
             class_map.insert(class, next_class);
-            next_class += 1;
         }
         for (_, class) in &mut pairs {
             *class = class_map[class];
