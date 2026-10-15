@@ -113,7 +113,7 @@ impl PointFlags {
     /// Returns true if this is an off curve cubic point.
     #[inline]
     pub const fn is_off_curve_cubic(self) -> bool {
-        self.0 & Self::OFF_CURVE_CUBIC != 0
+        self.0 & Self::CURVE_MASK == Self::OFF_CURVE_CUBIC
     }
 
     pub const fn is_off_curve(self) -> bool {
@@ -211,8 +211,8 @@ impl<'a> SimpleGlyph<'a> {
 
     /// Reads points and flags into the provided buffers.
     ///
-    /// Drops all flag bits except on-curve. The lengths of the buffers must be
-    /// equal to the value returned by [num_points](Self::num_points).
+    /// Drops all flag bits except on-curve and cubic. The lengths of the
+    /// buffers must equal the value returned by [num_points](Self::num_points).
     ///
     /// ## Performance
     ///
@@ -305,13 +305,7 @@ impl<'a> SimpleGlyph<'a> {
             }
             y = y.wrapping_add(delta);
             point.y = C::from_i32(y);
-            let flags_mask = if cfg!(feature = "spec_next") {
-                PointFlags::CURVE_MASK
-            } else {
-                // Drop the cubic bit if the spec_next feature is not enabled
-                PointFlags::ON_CURVE
-            };
-            point_flags.0 &= flags_mask;
+            point_flags.0 &= PointFlags::CURVE_MASK;
         }
         Ok(())
     }
@@ -344,7 +338,7 @@ impl<'a> SimpleGlyph<'a> {
     }
 }
 
-/// Point with an associated on-curve flag in a simple glyph.
+/// Point with associated on-curve and cubic flags in a simple glyph.
 ///
 /// This type is a simpler representation of the data in the blob.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -355,12 +349,19 @@ pub struct CurvePoint {
     pub y: i16,
     /// True if this is an on-curve point.
     pub on_curve: bool,
+    /// True if the CUBIC flag is set, including on on-curve points.
+    pub cubic: bool,
 }
 
 impl CurvePoint {
     /// Construct a new `CurvePoint`
     pub fn new(x: i16, y: i16, on_curve: bool) -> Self {
-        Self { x, y, on_curve }
+        Self {
+            x,
+            y,
+            on_curve,
+            cubic: false,
+        }
     }
 
     /// Convenience method to construct an on-curve point
@@ -371,6 +372,14 @@ impl CurvePoint {
     /// Convenience method to construct an off-curve point
     pub fn off_curve(x: i16, y: i16) -> Self {
         Self::new(x, y, false)
+    }
+
+    /// Constructs a cubic off-curve control point.
+    pub fn off_curve_cubic(x: i16, y: i16) -> Self {
+        Self {
+            cubic: true,
+            ..Self::off_curve(x, y)
+        }
     }
 }
 
@@ -390,8 +399,12 @@ impl Iterator for PointIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         self.advance_flags()?;
         self.advance_points();
-        let is_on_curve = self.cur_flags.contains(SimpleGlyphFlags::ON_CURVE_POINT);
-        Some(CurvePoint::new(self.cur_x, self.cur_y, is_on_curve))
+        Some(CurvePoint {
+            x: self.cur_x,
+            y: self.cur_y,
+            on_curve: self.cur_flags.contains(SimpleGlyphFlags::ON_CURVE_POINT),
+            cubic: self.cur_flags.contains(SimpleGlyphFlags::CUBIC),
+        })
     }
 }
 
@@ -554,7 +567,7 @@ pub struct Component {
     /// Component flags.
     pub flags: CompositeGlyphFlags,
     /// Glyph identifier.
-    pub glyph: GlyphId16,
+    pub glyph: GlyphId,
     /// Anchor for component placement.
     pub anchor: Anchor,
     /// Component transformation matrix.
@@ -582,7 +595,7 @@ impl<'a> CompositeGlyph<'a> {
     /// component in the composite glyph.
     pub fn component_glyphs_and_flags(
         &self,
-    ) -> impl Iterator<Item = (GlyphId16, CompositeGlyphFlags)> + 'a + Clone {
+    ) -> impl Iterator<Item = (GlyphId, CompositeGlyphFlags)> + 'a + Clone {
         ComponentGlyphIdFlagsIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,
@@ -599,13 +612,13 @@ impl<'a> CompositeGlyph<'a> {
             cursor: FontData::new(self.component_data()).cursor(),
         };
         let mut count = 0;
-        while iter.by_ref().next().is_some() {
+        let mut has_instructions = false;
+        for (_, flags) in iter.by_ref() {
             count += 1;
+            // ISO OFF permits this flag on any component; instructions follow the last.
+            has_instructions |= flags.contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS);
         }
-        let instructions = if iter
-            .cur_flags
-            .contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS)
-        {
+        let instructions = if has_instructions {
             iter.cursor
                 .read::<u16>()
                 .ok()
@@ -630,6 +643,14 @@ struct ComponentIter<'a> {
     cursor: Cursor<'a>,
 }
 
+fn read_component_glyph(cursor: &mut Cursor<'_>, flags: CompositeGlyphFlags) -> Option<GlyphId> {
+    if flags.contains(CompositeGlyphFlags::GID_IS_24_BIT) {
+        Some(GlyphId::new(cursor.read::<Uint24>().ok()?.to_u32()))
+    } else {
+        Some(cursor.read::<GlyphId16>().ok()?.into())
+    }
+}
+
 impl Iterator for ComponentIter<'_> {
     type Item = Component;
 
@@ -639,7 +660,7 @@ impl Iterator for ComponentIter<'_> {
         }
         let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
         self.cur_flags = flags;
-        let glyph = self.cursor.read::<GlyphId16>().ok()?;
+        let glyph = read_component_glyph(&mut self.cursor, flags)?;
         let args_are_words = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
         let args_are_xy_values = flags.contains(CompositeGlyphFlags::ARGS_ARE_XY_VALUES);
         let anchor = match (args_are_xy_values, args_are_words) {
@@ -696,7 +717,7 @@ struct ComponentGlyphIdFlagsIter<'a> {
 }
 
 impl Iterator for ComponentGlyphIdFlagsIter<'_> {
-    type Item = (GlyphId16, CompositeGlyphFlags);
+    type Item = (GlyphId, CompositeGlyphFlags);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
@@ -704,7 +725,7 @@ impl Iterator for ComponentGlyphIdFlagsIter<'_> {
         }
         let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
         self.cur_flags = flags;
-        let glyph = self.cursor.read::<GlyphId16>().ok()?;
+        let glyph = read_component_glyph(&mut self.cursor, flags)?;
         let args_are_words = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
         if args_are_words {
             self.cursor.advance_by(4);
@@ -949,6 +970,53 @@ mod tests {
             expected_gids_components_with_overlap,
             gids_components_with_overlap
         );
+    }
+
+    #[test]
+    fn composite_instructions_flag_on_any_component() {
+        use font_test_data::bebuffer::BeBuffer;
+
+        let instructions = [0x40_u8, 0x01, 0x2A];
+        for wide_first in [false, true] {
+            for (first_flag, last_flag) in
+                [(true, false), (false, true), (true, true), (false, false)]
+            {
+                let mut first_flags =
+                    CompositeGlyphFlags::ARGS_ARE_XY_VALUES | CompositeGlyphFlags::MORE_COMPONENTS;
+                let mut last_flags = CompositeGlyphFlags::ARGS_ARE_XY_VALUES;
+                if wide_first {
+                    first_flags |= CompositeGlyphFlags::GID_IS_24_BIT;
+                }
+                if first_flag {
+                    first_flags |= CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS;
+                }
+                if last_flag {
+                    last_flags |= CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS;
+                }
+                let mut buf = BeBuffer::new()
+                    .push(-1_i16)
+                    .extend([0_i16; 4])
+                    .push(first_flags.bits());
+                buf = if wide_first {
+                    buf.push(Uint24::new(65536))
+                } else {
+                    buf.push(1_u16)
+                };
+                buf = buf
+                    .extend([0_i8; 2])
+                    .push(last_flags.bits())
+                    .push(2_u16)
+                    .extend([0_i8; 2]);
+                let expected = (first_flag || last_flag).then_some(instructions.as_slice());
+                if expected.is_some() {
+                    buf = buf.push(instructions.len() as u16).extend(instructions);
+                }
+                let glyph = CompositeGlyph::read(buf.data().into()).unwrap();
+                assert_eq!(glyph.components().count(), 2);
+                assert_eq!(glyph.count_and_instructions(), (2, expected));
+                assert_eq!(glyph.instructions(), expected);
+            }
+        }
     }
 
     #[test]
