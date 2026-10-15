@@ -7,7 +7,11 @@ use super::{
     PositionLookup, PositionLookupList, PositionSubtables, SinglePos, SinglePosFormat1,
     SinglePosFormat2,
 };
-use crate::{collections::IntSet, FontRead, GlyphId, ReadError, Tag};
+use crate::{
+    collections::IntSet, tables::layout::CoverageTable, ArrayOfOffsets, FontRead, GlyphId, Offset,
+    ReadError, Tag,
+};
+use font_types::Scalar;
 
 #[cfg(feature = "std")]
 use crate::tables::layout::{Intersect, LayoutLookupList, LookupClosure, LookupClosureCtx};
@@ -202,12 +206,55 @@ impl Intersect for PairPos<'_> {
     }
 }
 
+/// Returns whether a pair set of a covered glyph in `glyphs` intersects them,
+/// for either pair set width.
+fn pair_pos_intersects<'a, T, O>(
+    coverage: &CoverageTable,
+    pair_sets: ArrayOfOffsets<'a, T, O>,
+    count: u32,
+    glyphs: &IntSet<GlyphId>,
+) -> Result<bool, ReadError>
+where
+    T: FontRead<'a> + Intersect,
+    T::Args: Copy + 'static,
+    O: Scalar + Offset,
+{
+    let num_bits = 32 - count.leading_zeros();
+    if count as u64 > glyphs.len() * num_bits as u64 {
+        for gid in glyphs.iter() {
+            let Some(index) = coverage.get(gid) else {
+                continue;
+            };
+            let set = match pair_sets.get(index as usize) {
+                Err(ReadError::NullOffset) => continue,
+                other => other,
+            }?;
+            if set.intersects(glyphs)? {
+                return Ok(true);
+            }
+        }
+    } else {
+        for (gid, set) in coverage.iter().zip(pair_sets.iter_as_nullable()) {
+            if !glyphs.contains(gid) {
+                continue;
+            }
+            let Some(set) = set.transpose()? else {
+                continue;
+            };
+            if set.intersects(glyphs)? {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 impl Intersect for PairPosFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
-        extended::pair_pos_intersects(
+        pair_pos_intersects(
             &self.coverage()?,
             self.pair_sets(),
             u32::from(self.pair_set_count()),
