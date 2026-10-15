@@ -296,7 +296,6 @@ impl SubsetPlan {
             .enumerate()
             .take(records.count() as usize)
         {
-            let gid = GlyphId::from(gid);
             if plan.glyphset_varced.contains(gid) {
                 out.old_indices.push(index);
                 let new_gid = plan.glyph_map.get(&gid).ok_or(())?.to_u32();
