@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for BasicTable<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -25,13 +25,27 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct BasicTableFixedHeader {
+    pub simple_count: BigEndian<u16>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<BasicTableFixedHeader>() <= BasicTable::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct BasicTable<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, BasicTableFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -40,28 +54,36 @@ impl<'a> BasicTable<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn simple_count(&self) -> u16 {
-        let range = self.simple_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().simple_count.get()
     }
 
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
         let range = self.simple_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn arrays_inner_count(&self) -> u16 {
         let range = self.arrays_inner_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn array_records_count(&self) -> u32 {
         let range = self.array_records_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.offset_data()
+            .read_at(range.start)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.array_records_byte_range();
-        ComputedArray::new(self.data, range, self.arrays_inner_count()).unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.arrays_inner_count()).unwrap_or_default()
     }
 
     pub fn simple_count_byte_range(&self) -> Range<usize> {
@@ -107,7 +129,8 @@ const _: () = assert!(FontData::default_data_long_enough(BasicTable::MIN_SIZE));
 impl Default for BasicTable<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -244,7 +267,7 @@ impl<'a> MinByteRange<'a> for VarLenItem<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -258,13 +281,27 @@ impl<'a> FontRead<'a> for VarLenItem<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct VarLenItemFixedHeader {
+    pub length: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<VarLenItemFixedHeader>() <= VarLenItem::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct VarLenItem<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, VarLenItemFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -273,13 +310,15 @@ impl<'a> VarLenItem<'a> {
     basic_table_impls!(impl_the_methods);
 
     pub fn length(&self) -> u32 {
-        let range = self.length_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().length.get()
     }
 
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
@@ -290,8 +329,8 @@ impl<'a> VarLenItem<'a> {
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start
+            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         start..end
     }
 }
@@ -301,7 +340,8 @@ const _: () = assert!(FontData::default_data_long_enough(VarLenItem::MIN_SIZE));
 impl Default for VarLenItem<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
