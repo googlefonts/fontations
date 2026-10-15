@@ -1,5 +1,18 @@
 //! The various font tables
 
+// Getters shared by the selected views of original and extended tables.
+macro_rules! selected_table_getters {
+    ($($method:ident -> $result:ty),* $(,)?) => {
+        $(#[doc = concat!("Returns `", stringify!($method), "` from the selected table.")]
+        pub fn $method(&self) -> $result {
+            match self {
+                Self::Original(table) => table.$method(),
+                Self::Extended(table) => table.$method(),
+            }
+        })*
+    };
+}
+
 pub mod aat;
 pub mod ankr;
 pub mod avar;
