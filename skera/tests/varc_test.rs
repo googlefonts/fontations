@@ -461,10 +461,9 @@ fn varc_components_include_truetype_composite_dependencies() {
     let glyf = source.glyf().unwrap();
     let loca = source.loca(None).unwrap();
     let dependencies = match loca.get(composite, &glyf).unwrap().into_glyph().unwrap() {
-        write_fonts::read::tables::glyf::Glyph::Composite(g) => g
-            .components()
-            .map(|c| GlyphId::from(c.glyph))
-            .collect::<Vec<_>>(),
+        write_fonts::read::tables::glyf::Glyph::Composite(g) => {
+            g.components().map(|c| c.glyph).collect::<Vec<_>>()
+        }
         _ => panic!("fixture glyph is not composite"),
     };
     let mut builder = FontBuilder::new();
