@@ -79,6 +79,11 @@ struct TableInfo {
 }
 
 fn get_table_info(graph: &mut Graph, table_idx: ObjIdx) -> Option<TableInfo> {
+    // Format 2 places its offsets elsewhere; only format 1 is split.
+    let format = graph.vertex_data(table_idx)?.get(..2)?;
+    if format != [0, 1] {
+        return None;
+    }
     let mut mark_coverage_idx = None;
     let mut base_coverage_idx = None;
     let mut mark_array_idx = None;

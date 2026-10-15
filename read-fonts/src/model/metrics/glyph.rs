@@ -17,11 +17,10 @@ use crate::{
     },
     tables::{
         glyf::outline::{Buffers, OutlineContext, OutlinePlan, ScaleF32 as OutlineScaleF32},
-        hmtx::LongMetric,
+        hmtx::GlyphMetricRecords,
     },
-    TableProvider,
 };
-use types::{BigEndian, BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
+use types::{BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
 
 /// Where a glyph's ink sits, relative to its origin.
 ///
@@ -46,7 +45,7 @@ pub struct GlyphExtents<T> {
 /// Cheap to obtain, so it can be taken per query rather than held.
 #[derive(Clone, Copy)]
 pub struct GlyphMetrics<'a> {
-    h_metrics: &'a RawGlyphMetrics<'a>,
+    h_metrics: &'a GlyphMetricRecords<'a>,
     font: &'a Font,
     global: &'a Metrics,
     coords: &'a [F2Dot14],
@@ -263,7 +262,7 @@ impl<'a> GlyphMetrics<'a> {
         convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
-        if let Some((glyf, loca)) = self.font.glyf_loca() {
+        if let Some((glyf, loca)) = self.font.selected_glyf_loca() {
             if self.coords.is_empty() {
                 // Every glyph states its own box, so nothing has to be
                 // loaded to find it.
@@ -347,7 +346,7 @@ impl<'a> GlyphMetrics<'a> {
     /// Loading the outline also handles composite `USE_MY_METRICS` and gvar.
     #[cfg(test)]
     pub(crate) fn glyf_v_origin(&self, glyph: GlyphId) -> Option<F48Dot16> {
-        if self.font.v_metrics().is_empty() || self.font.glyf_loca().is_none() {
+        if self.font.v_metrics().is_empty() || self.font.selected_glyf_loca().is_none() {
             return None;
         }
         let context = self.font;
@@ -392,7 +391,7 @@ impl<'a> GlyphMetrics<'a> {
             }
             return;
         }
-        if !self.font.v_metrics().is_empty() && self.font.glyf_loca().is_some() {
+        if !self.font.v_metrics().is_empty() && self.font.selected_glyf_loca().is_some() {
             let context = self.font;
             let scale = OutlineScaleF32::new(None, self.units_per_em);
             for (glyph, out) in glyphs {
@@ -535,7 +534,7 @@ impl<'a> GlyphMetrics<'a> {
     #[inline(never)]
     fn v_advance_batched_varied<'o, V: 'o>(
         &self,
-        raw: &RawGlyphMetrics<'_>,
+        raw: &GlyphMetricRecords<'_>,
         coords: &[F2Dot14],
         convert: impl Fn(F48Dot16) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
@@ -556,7 +555,9 @@ impl<'a> GlyphMetrics<'a> {
         // Without `VVAR`, the phantom points answer. The vertical pair runs
         // downward from the origin, so the height is the top less the
         // bottom, the reverse of the width.
-        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+        if let (Some(gvar), Some((glyf, loca))) =
+            (self.font.selected_gvar(), self.font.selected_glyf_loca())
+        {
             let scalars = self.font.gvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
@@ -584,7 +585,7 @@ impl<'a> GlyphMetrics<'a> {
     #[inline(never)]
     fn h_advance_batched_varied<'o, V: 'o>(
         &self,
-        raw: &RawGlyphMetrics<'_>,
+        raw: &GlyphMetricRecords<'_>,
         coords: &[F2Dot14],
         convert: impl Fn(F48Dot16) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
@@ -605,7 +606,9 @@ impl<'a> GlyphMetrics<'a> {
         // Without `HVAR`, the answer comes from the phantom points on the
         // outline: an advance spans the two horizontal ones, so a change in
         // it is a change in that span.
-        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+        if let (Some(gvar), Some((glyf, loca))) =
+            (self.font.selected_gvar(), self.font.selected_glyf_loca())
+        {
             let scalars = self.font.gvar_scalars();
             return raw.run_varied(
                 self.num_glyphs,
@@ -675,50 +678,7 @@ impl<'a> GlyphMetrics<'a> {
     }
 }
 
-/// The per-glyph records of `hmtx` or `vmtx`.
-///
-/// Both tables hold the same records, so one type reads either, and which
-/// direction it describes is fixed when it is read.
-///
-/// Nothing here depends on a location, so every location shares one parse.
-#[derive(Clone, Default, yoke::Yokeable)]
-pub(crate) struct RawGlyphMetrics<'a> {
-    metrics: &'a [LongMetric],
-    /// Bare side bearings after the last long metric.
-    bearings: &'a [BigEndian<i16>],
-}
-
-impl<'a> RawGlyphMetrics<'a> {
-    /// Reads what `hmtx` states.
-    pub(crate) fn from_hmtx(tables: &impl TableProvider<'a>) -> Self {
-        let hmtx = tables.hmtx().ok();
-        Self {
-            metrics: hmtx
-                .as_ref()
-                .map(|hmtx| hmtx.h_metrics())
-                .unwrap_or_default(),
-            bearings: hmtx
-                .as_ref()
-                .map(|hmtx| hmtx.left_side_bearings())
-                .unwrap_or_default(),
-        }
-    }
-
-    /// Reads what `vmtx` states.
-    pub(crate) fn from_vmtx(tables: &impl TableProvider<'a>) -> Self {
-        let vmtx = tables.vmtx().ok();
-        Self {
-            metrics: vmtx
-                .as_ref()
-                .map(|vmtx| vmtx.v_metrics())
-                .unwrap_or_default(),
-            bearings: vmtx
-                .as_ref()
-                .map(|vmtx| vmtx.top_side_bearings())
-                .unwrap_or_default(),
-        }
-    }
-
+impl<'a> GlyphMetricRecords<'a> {
     /// Returns `true` if the table states no metrics.
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
@@ -808,8 +768,8 @@ impl<'a> RawGlyphMetrics<'a> {
 }
 
 /// Returns the metrics of a font that states none.
-pub(crate) fn empty() -> &'static RawGlyphMetrics<'static> {
-    static EMPTY: RawGlyphMetrics<'static> = RawGlyphMetrics {
+pub(crate) fn empty() -> &'static GlyphMetricRecords<'static> {
+    static EMPTY: GlyphMetricRecords<'static> = GlyphMetricRecords {
         metrics: &[],
         bearings: &[],
     };
@@ -921,13 +881,146 @@ mod tests {
             Blob, NormalizedCoord,
         },
         tables::glyf::outline::{Outline, OutlineTables, PathContourStart, Unscaled},
-        FontRef,
+        FontRef, TableProvider,
     };
     use alloc::{sync::Arc, vec, vec::Vec};
     use std::sync::Mutex;
     use types::Tag;
 
     const STATIC: &[u8] = font_test_data::TINOS_SUBSET;
+
+    #[test]
+    fn extended_metrics_in_the_cached_font_model() {
+        use font_test_data::extended::metrics_font;
+        for outline in [None, Some(*b"glyf"), Some(*b"GLYF")] {
+            for legacy in [false, true] {
+                let data = metrics_font(true, legacy, outline);
+                let font = Font::new(data, 0).unwrap();
+                assert_eq!(font.num_glyphs(), 70002);
+                assert_eq!(
+                    font.tables().maxp_extended().unwrap().num_glyphs().to_u32(),
+                    70002
+                );
+                assert_eq!(
+                    font.tables().hhea_extended().unwrap().number_of_h_metrics(),
+                    70000
+                );
+                assert_eq!(
+                    font.tables()
+                        .vhea_extended()
+                        .unwrap()
+                        .number_of_long_ver_metrics(),
+                    70000
+                );
+                let metrics = font.glyph_metrics();
+                for gid in [0, 65535, 65536, 69999] {
+                    assert_eq!(
+                        metrics.h_advance_exact(GlyphId::new(gid)),
+                        F48Dot16::from_i32((1000 + gid % 100) as i32)
+                    );
+                    assert_eq!(
+                        metrics.v_advance_exact(GlyphId::new(gid)),
+                        F48Dot16::from_i32((1200 + gid % 100) as i32)
+                    );
+                }
+                assert_eq!(
+                    metrics.h_advance_exact(GlyphId::new(70001)),
+                    F48Dot16::from_i32(1099)
+                );
+                assert_eq!(
+                    metrics.v_advance_exact(GlyphId::new(70001)),
+                    F48Dot16::from_i32(1299)
+                );
+                assert_eq!(metrics.h_advance_exact(GlyphId::new(70002)), F48Dot16::ZERO);
+            }
+        }
+    }
+
+    #[test]
+    fn extended_metrics_from_callback_tables_are_cached() {
+        let data = font_test_data::extended::metrics_font(true, true, None);
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let requests = asked.clone();
+        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+            requests.lock().unwrap().push(tag);
+            let font = FontRef::new(&data).ok()?;
+            Some(Blob::from(font.table_data(tag)?.as_bytes().to_vec()))
+        });
+        let font = Font::new(source, 0).unwrap();
+        for _ in 0..2 {
+            let metrics = font.glyph_metrics();
+            assert_eq!(font.num_glyphs(), 70002);
+            assert_eq!(
+                metrics.h_advance_exact(GlyphId::new(65536)),
+                F48Dot16::from_i32(1036)
+            );
+            assert_eq!(
+                metrics.v_advance_exact(GlyphId::new(65536)),
+                F48Dot16::from_i32(1236)
+            );
+        }
+        let asked = asked.lock().unwrap();
+        for tag in [b"MAXP", b"HHEA", b"HMTX", b"VHEA", b"VMTX"] {
+            assert_eq!(
+                asked.iter().filter(|&&seen| seen == Tag::new(tag)).count(),
+                1
+            );
+        }
+        for tag in [b"maxp", b"hhea", b"hmtx", b"vhea", b"vmtx"] {
+            assert!(!asked.contains(&Tag::new(tag)));
+        }
+    }
+
+    #[test]
+    fn extended_outline_extents_in_the_cached_font_model() {
+        for long_loca in [false, true] {
+            let data = font_test_data::extended::outlines_font(true, true, true, long_loca);
+            let font = Font::new(data, 0).unwrap();
+            let metrics = font.glyph_metrics();
+            for gid in [1, 65536] {
+                let extents = metrics.extents_exact(GlyphId::new(gid)).unwrap();
+                assert_eq!(extents.width, F48Dot16::from_i32(80));
+                assert_eq!(extents.height, F48Dot16::from_i32(80));
+            }
+        }
+    }
+
+    #[test]
+    fn extended_gvar_metrics_and_extents_in_the_cached_font_model() {
+        for long_offsets in [false, true] {
+            for legacy in [false, true] {
+                let data =
+                    font_test_data::extended::variable_outlines_font(true, legacy, long_offsets);
+                let font = Font::new(data, 0).unwrap();
+                assert_eq!(font.tables().selected_gvar().unwrap().glyph_count(), 65537);
+                for coord in [0.0, 0.5, 1.0] {
+                    let instance = at(&font, coord);
+                    let metrics = instance.glyph_metrics();
+                    for (gid, delta, shift) in [(65536, 100.0, 40.0), (1, 60.0, 60.0)] {
+                        let id = GlyphId::new(gid);
+                        assert_eq!(
+                            metrics.h_advance_exact(id),
+                            F48Dot16::from_f64(1000.0 + delta * coord as f64)
+                        );
+                        let v_delta = if gid == 65536 { 60.0 } else { 0.0 };
+                        assert_eq!(
+                            metrics.v_advance_exact(id),
+                            F48Dot16::from_f64(1200.0 + v_delta * coord as f64)
+                        );
+                        let extents = metrics.extents_exact(id).unwrap();
+                        assert_eq!(
+                            extents.x_bearing,
+                            F48Dot16::from_f64(shift * coord as f64),
+                            "gid {gid}, coord {coord}"
+                        );
+                        assert_eq!(extents.width, F48Dot16::from_i32(80));
+                        assert_eq!(extents.height, F48Dot16::from_i32(80));
+                    }
+                }
+            }
+        }
+    }
+
     /// Has both `HVAR` and `gvar`, so it can answer either way.
     const VAR: &[u8] = font_test_data::VAZIRMATN_VAR;
     /// Eleven glyphs but one long metric, so ten of them are in the tail.
@@ -1242,16 +1335,16 @@ mod tests {
     #[test]
     fn the_tables_are_parsed_once_for_the_font() {
         let font = Font::new(VAR, 0).unwrap();
-        let first = font.h_metrics() as *const RawGlyphMetrics<'_>;
+        let first = font.h_metrics() as *const GlyphMetricRecords<'_>;
         for _ in 0..8 {
             assert!(core::ptr::eq(
-                font.h_metrics() as *const RawGlyphMetrics<'_>,
+                font.h_metrics() as *const GlyphMetricRecords<'_>,
                 first
             ));
         }
         // And clones share it, since they share one `Arc<FontRepr>`.
         assert!(core::ptr::eq(
-            font.clone().h_metrics() as *const RawGlyphMetrics<'_>,
+            font.clone().h_metrics() as *const GlyphMetricRecords<'_>,
             first
         ));
     }
