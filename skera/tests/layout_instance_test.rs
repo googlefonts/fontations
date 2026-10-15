@@ -417,11 +417,11 @@ fn residual_reference_font() -> Vec<u8> {
     gdef.lig_caret_list.as_mut().unwrap().lig_glyphs[0].caret_values[0] =
         CaretValue::format_3(100, VariationIndex::new(0, 5).into()).into();
     let mut gpos: Gpos = font.gpos().unwrap().to_owned_table();
-    gpos.feature_list.feature_records[0]
+    gpos.feature_list.as_mut().unwrap().feature_records[0]
         .feature
         .lookup_list_indices
         .push(6);
-    gpos.lookup_list.lookups.push(
+    gpos.lookup_list.as_mut().unwrap().lookups.push(
         PositionLookup::Cursive(Lookup::new(
             LookupFlag::empty(),
             vec![CursivePosFormat1::new(
@@ -440,7 +440,8 @@ fn residual_reference_font() -> Vec<u8> {
                         Some(Device::new(10, 12, &[1, 0, -1]).into()),
                     )),
                 )],
-            )],
+            )
+            .into()],
         ))
         .into(),
     );
