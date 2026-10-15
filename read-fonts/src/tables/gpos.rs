@@ -10,7 +10,7 @@ mod closure;
 
 use crate::array::ComputedArray;
 
-use super::layout::extended::HeaderOffset;
+use super::layout::header::HeaderOffset;
 /// reexport stuff from layout that we use
 pub use super::layout::{
     ClassDef, CoverageTable, Device, DeviceOrVariationIndex, FeatureList, FeatureVariations,

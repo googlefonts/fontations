@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     types::{Compatible, F2Dot14, FixedSize},
-    FontData, ReadError,
+    FontData,
 };
 use alloc::vec::Vec;
 
@@ -27,23 +27,6 @@ impl<'a> FeatureVariations<'a> {
         let start = self.lookup_variation_record_count_byte_range().end;
         let end = start.checked_add(count.checked_mul(LookupVariationRecord::RAW_BYTE_LEN)?)?;
         data.read_array(start..end).ok()
-    }
-
-    /// Returns the conditional lookup table for a feature, if present.
-    ///
-    /// The table's lookups replace the current feature's lookups unless
-    /// [`super::FeatureLookupsFlags::ADD_DEFAULT_LOOKUPS`] is set. The current
-    /// feature may be an alternate selected by a feature variation record;
-    /// its feature parameters are unaffected by lookup variations.
-    pub fn feature_lookups(
-        &self,
-        feature_index: u16,
-    ) -> Option<Result<FeatureLookups<'a>, ReadError>> {
-        let records = self.lookup_variation_records()?;
-        let index = records
-            .binary_search_by_key(&feature_index, LookupVariationRecord::feature_index)
-            .ok()?;
-        Some(records[index].feature_lookups(self.offset_data()))
     }
 }
 
@@ -161,7 +144,19 @@ fn extend_lookups(table: &FeatureLookups, record: &LookupConditionRecord, lookup
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{types::MajorMinor, FontRead};
+    use crate::{types::MajorMinor, FontRead, ReadError};
+
+    /// The conditional lookups of a feature, found through the raw records.
+    fn feature_lookups<'a>(
+        table: &FeatureVariations<'a>,
+        feature_index: u16,
+    ) -> Option<Result<FeatureLookups<'a>, ReadError>> {
+        let records = table.lookup_variation_records()?;
+        let record = records
+            .iter()
+            .find(|record| record.feature_index() == feature_index)?;
+        Some(record.feature_lookups(table.offset_data()))
+    }
 
     /// A version 1.1 FeatureVariations table whose feature 2 has two
     /// condition records: lookups 7 and 8 when axis 0 is at least 0.5, and
@@ -254,14 +249,14 @@ mod tests {
         assert_eq!(table.version(), MajorMinor::VERSION_1_0);
         assert_eq!(table.lookup_variation_record_count(), None);
         assert!(table.lookup_variation_records().is_none());
-        assert!(table.feature_lookups(0).is_none());
+        assert!(feature_lookups(&table, 0).is_none());
 
         let v1_1 = [0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
         let table = FeatureVariations::read(v1_1.as_slice().into()).unwrap();
         assert_eq!(table.version(), MajorMinor::VERSION_1_1);
         assert_eq!(table.lookup_variation_record_count(), Some(0));
         assert_eq!(table.lookup_variation_records().unwrap().len(), 0);
-        assert!(table.feature_lookups(0).is_none());
+        assert!(feature_lookups(&table, 0).is_none());
     }
 
     #[test]
@@ -272,15 +267,15 @@ mod tests {
         for len in 8..bytes.len() {
             let table = FeatureVariations::read(bytes[..len].into()).unwrap();
             assert!(table.lookup_variation_records().is_none());
-            assert!(table.feature_lookups(3).is_none());
+            assert!(feature_lookups(&table, 3).is_none());
         }
         let table = FeatureVariations::read(bytes.as_slice().into()).unwrap();
         assert_eq!(table.lookup_variation_records().unwrap().len(), 1);
         assert_eq!(
-            table.feature_lookups(3).unwrap().err(),
+            feature_lookups(&table, 3).unwrap().err(),
             Some(ReadError::OutOfBounds)
         );
-        assert!(table.feature_lookups(2).is_none());
-        assert!(table.feature_lookups(4).is_none());
+        assert!(feature_lookups(&table, 2).is_none());
+        assert!(feature_lookups(&table, 4).is_none());
     }
 }

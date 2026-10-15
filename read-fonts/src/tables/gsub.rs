@@ -2,7 +2,7 @@
 //!
 //! [GSUB]: https://docs.microsoft.com/en-us/typography/opentype/spec/gsub
 
-use super::layout::extended::HeaderOffset;
+use super::layout::header::HeaderOffset;
 pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,

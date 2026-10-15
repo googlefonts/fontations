@@ -4,7 +4,7 @@
 
 pub use super::layout::{ClassDef, CoverageTable, DeviceOrVariationIndex};
 
-use super::layout::extended::HeaderOffset;
+use super::layout::header::HeaderOffset;
 use super::variations::ItemVariationStore;
 
 #[cfg(test)]

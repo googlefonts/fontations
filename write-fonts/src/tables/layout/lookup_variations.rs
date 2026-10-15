@@ -8,6 +8,18 @@ use crate::{
 };
 use read_fonts::{tables::layout as read_layout, FontRead};
 
+/// The conditional lookups of a feature, found through the raw records.
+fn feature_lookups<'a>(
+    table: &read_layout::FeatureVariations<'a>,
+    feature_index: u16,
+) -> Option<Result<read_layout::FeatureLookups<'a>, read_fonts::ReadError>> {
+    let records = table.lookup_variation_records()?;
+    let record = records
+        .iter()
+        .find(|record| record.feature_index() == feature_index)?;
+    Some(record.feature_lookups(table.offset_data()))
+}
+
 fn lookup_variations() -> FeatureVariations {
     let range = ConditionFormat1::new(1, F2Dot14::ZERO, F2Dot14::ONE);
     let value = ConditionFormat2::new(-10, 0x0002_0003);
@@ -86,7 +98,7 @@ fn lookup_variations_roundtrip_records_and_offsets() {
         .unwrap();
     assert_eq!(alternate.lookup_list_indices()[0].get(), 8);
 
-    let lookups = parsed.feature_lookups(4).unwrap().unwrap();
+    let lookups = feature_lookups(&parsed, 4).unwrap().unwrap();
     assert_eq!(lookups.version(), MajorMinor::VERSION_1_0);
     assert_eq!(lookups.flags().bits(), 1);
     assert_eq!(lookups.lookup_condition_count(), 6);
@@ -123,11 +135,11 @@ fn lookup_variations_roundtrip_records_and_offsets() {
     };
     assert_eq!(value.default_value(), -10);
     assert_eq!(value.var_index(), 0x0002_0003);
-    let empty = parsed.feature_lookups(9).unwrap().unwrap();
+    let empty = feature_lookups(&parsed, 9).unwrap().unwrap();
     assert!(empty.flags().is_empty());
     assert_eq!(empty.lookup_condition_count(), 0);
     for missing in [0, 3, 5, 10, u16::MAX] {
-        assert!(parsed.feature_lookups(missing).is_none());
+        assert!(feature_lookups(&parsed, missing).is_none());
     }
     let owned: FeatureVariations = parsed.to_owned_table();
     assert_eq!(owned, table);
@@ -146,8 +158,7 @@ fn lookup_variations_in_gsub_and_gpos() {
     let feature_vars = parsed.feature_variations().unwrap().unwrap();
     assert_eq!(parsed.version(), MajorMinor::VERSION_1_1);
     assert_eq!(
-        feature_vars
-            .feature_lookups(4)
+        feature_lookups(&feature_vars, 4)
             .unwrap()
             .unwrap()
             .lookup_condition_count(),
@@ -165,8 +176,7 @@ fn lookup_variations_in_gsub_and_gpos() {
     let feature_vars = parsed.feature_variations().unwrap().unwrap();
     assert_eq!(parsed.version(), MajorMinor::VERSION_1_1);
     assert_eq!(
-        feature_vars
-            .feature_lookups(4)
+        feature_lookups(&feature_vars, 4)
             .unwrap()
             .unwrap()
             .lookup_condition_count(),
@@ -189,8 +199,7 @@ fn lookup_variations_use_32_bit_record_counts() {
     assert_eq!(parsed.lookup_variation_record_count(), Some(65536));
     assert_eq!(parsed.lookup_variation_records().unwrap().len(), 65536);
     assert_eq!(
-        parsed
-            .feature_lookups(u16::MAX)
+        feature_lookups(&parsed, u16::MAX)
             .unwrap()
             .unwrap()
             .lookup_condition_count(),
