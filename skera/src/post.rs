@@ -88,8 +88,12 @@ fn subset_post_v2tail(
     };
 
     let mut new_name_idx = 258_u16;
-    let mut old_to_new_idx_map = FastHashMap::default();
-    let mut name_bytes_to_new_idx_map = FastHashMap::default();
+    // at most one entry per retained glyph; reserve up front to avoid rehashing
+    let num_glyphs = plan.new_to_old_gid_list.len();
+    let mut old_to_new_idx_map =
+        FastHashMap::with_capacity_and_hasher(num_glyphs, foldhash::fast::FixedState::default());
+    let mut name_bytes_to_new_idx_map =
+        FastHashMap::with_capacity_and_hasher(num_glyphs, foldhash::fast::FixedState::default());
 
     for (new_gid, old_gid) in plan
         .new_to_old_gid_list

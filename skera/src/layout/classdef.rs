@@ -62,7 +62,11 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
             glyph_set.len() as usize
         };
         let use_class_zero = args.use_class_zero && glyph_count <= pairs.len();
-        let mut class_map = ClassMap::default();
+        // one entry per retained class, plus class 0
+        let mut class_map = ClassMap::with_capacity_and_hasher(
+            retained_classes.len() as usize + 1,
+            foldhash::fast::FixedState::default(),
+        );
         if !use_class_zero {
             class_map.insert(0, 0);
         }
