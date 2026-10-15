@@ -11,7 +11,7 @@ impl<'a> MinByteRange<'a> for Ankr<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -30,14 +30,31 @@ impl<'a> FontRead<'a> for Ankr<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct AnkrFixedHeader {
+    pub version: BigEndian<u16>,
+    pub flags: BigEndian<u16>,
+    pub lookup_table_offset: BigEndian<Offset32>,
+    pub glyph_data_table_offset: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<AnkrFixedHeader>() <= Ankr::MIN_SIZE);
+
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
 #[derive(Clone)]
 pub struct Ankr<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, AnkrFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -48,37 +65,30 @@ impl<'a> Ankr<'a> {
 
     /// Version number (set to zero).
     pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().version.get()
     }
 
     /// Flags (currently unused; set to zero).
     pub fn flags(&self) -> u16 {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().flags.get()
     }
 
     /// Offset to the table's lookup table; currently this is always `0x0000000C`.
     ///
     /// Lookup values are two byte offsets into the glyph data table.
     pub fn lookup_table_offset(&self) -> Offset32 {
-        let range = self.lookup_table_offset_byte_range();
-        self.data
-            .read_at(range.start)
-            .ok()
-            .unwrap_or(Offset32::new(Default::default()))
+        self.data.header().lookup_table_offset.get()
     }
 
     /// Attempt to resolve [`lookup_table_offset`][Self::lookup_table_offset].
     pub fn lookup_table(&self) -> Result<LookupU16<'a>, ReadError> {
-        let data = self.data;
+        let data = self.offset_data();
         self.lookup_table_offset().resolve(data)
     }
 
     /// Offset to the glyph data table.
     pub fn glyph_data_table_offset(&self) -> u32 {
-        let range = self.glyph_data_table_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().glyph_data_table_offset.get()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -111,7 +121,8 @@ const _: () = assert!(FontData::default_data_long_enough(Ankr::MIN_SIZE));
 impl Default for Ankr<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
@@ -122,7 +133,7 @@ impl<'a> MinByteRange<'a> for GlyphDataEntry<'a> {
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         let range = self.min_byte_range();
-        self.data.as_bytes().get(range).unwrap_or_default()
+        self.offset_data().as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -136,13 +147,27 @@ impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
+        let Some(data) = TableDataRef::new(data.as_bytes()) else {
+            return Err(ReadError::OutOfBounds);
+        };
         Ok(Self { data })
     }
 }
 
+/// The fields at the start of the table, which are read directly.
+#[derive(Clone, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C, packed)]
+#[doc(hidden)]
+pub struct GlyphDataEntryFixedHeader {
+    pub num_points: BigEndian<u32>,
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(std::mem::size_of::<GlyphDataEntryFixedHeader>() <= GlyphDataEntry::MIN_SIZE);
+
 #[derive(Clone)]
 pub struct GlyphDataEntry<'a> {
-    data: FontData<'a>,
+    data: TableDataRef<'a, GlyphDataEntryFixedHeader>,
 }
 
 #[allow(clippy::needless_lifetimes)]
@@ -152,14 +177,16 @@ impl<'a> GlyphDataEntry<'a> {
 
     /// Number of anchor points for this glyph.
     pub fn num_points(&self) -> u32 {
-        let range = self.num_points_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.header().num_points.get()
     }
 
     /// Individual anchor points.
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.anchor_points_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.offset_data()
+            .read_array(range)
+            .ok()
+            .unwrap_or_default()
     }
 
     pub fn num_points_byte_range(&self) -> Range<usize> {
@@ -182,7 +209,8 @@ const _: () = assert!(FontData::default_data_long_enough(GlyphDataEntry::MIN_SIZ
 impl Default for GlyphDataEntry<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_table_data(),
+            data: TableDataRef::new(FontData::default_table_data().as_bytes())
+                .unwrap_or_else(|| unreachable!("the default data covers MIN_SIZE")),
         }
     }
 }
