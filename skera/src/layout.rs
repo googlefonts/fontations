@@ -37,7 +37,8 @@ use read_fonts::{
     },
     types::{FixedSize, GlyphId24, Offset16, Offset32, Tag, Uint24},
     types::{GlyphId, NameId},
-    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, ResolveOffset, TopLevelTable,
+    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, ResolveOffset,
+    TopLevelTable,
 };
 
 use read_fonts::limits::{
