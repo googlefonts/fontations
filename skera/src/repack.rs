@@ -425,7 +425,7 @@ pub(crate) mod test {
             let old = add_object(&mut s, &[0, 0], 2, false);
             let new = add_object(&mut s, &[0, 0], 2, false);
             extended_header(&mut s, legacy.then_some(old), wide.then_some(new));
-            let graph = Graph::from_serializer(&s).unwrap();
+            let graph = Graph::from_serializer(s).unwrap();
             let (list, _, is_wide) = find_lookup_indices(&graph).unwrap();
             assert_eq!(is_wide, wide);
             assert_eq!(
@@ -456,7 +456,7 @@ pub(crate) mod test {
         add_wide_offset(&mut s, lookup);
         let list = s.pop_pack(false).unwrap();
         extended_header(&mut s, None, Some(list));
-        let output = resolve_overflows(&s, Gsub::TAG, 32).unwrap();
+        let output = resolve_overflows(s, Gsub::TAG, 32).unwrap();
         let table = Gsub::read(FontData::new(&output)).unwrap();
         let list = table.lookup_list().unwrap();
         let lookup = list.lookups().get(0).unwrap();
@@ -485,7 +485,7 @@ pub(crate) mod test {
         }
         let list = s.pop_pack(false).unwrap();
         extended_header(&mut s, None, Some(list));
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
         let (list, lookups, wide) = find_lookup_indices(&graph).unwrap();
         assert!(wide);
         promote_extensions_if_needed(&mut graph, list, &lookups, Gsub::TAG, wide).unwrap();
