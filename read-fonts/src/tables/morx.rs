@@ -152,10 +152,10 @@ impl<'a> SubtableKind<'a> {
                 let end = data.len();
                 let offsets_data = FontData::new(data.read_array(offset..end)?);
                 let raw_offsets: &[BigEndian<Offset32>] = safe_read_array_to_end(&offsets_data, 0)?;
-                let lookups = ArrayOfOffsets::new(raw_offsets, offsets_data, ());
                 Ok(Self::Contextual(ContextualSubtable {
                     state_table,
-                    lookups,
+                    lookup_offsets: raw_offsets,
+                    lookup_data: offsets_data,
                 }))
             }
             2 => Ok(Self::Ligature(LigatureSubtable {
@@ -178,9 +178,22 @@ impl<'a> SubtableKind<'a> {
 #[derive(Clone)]
 pub struct ContextualSubtable<'a> {
     pub state_table: ExtendedStateTable<'a, ContextualEntryData>,
-    /// List of lookups specifying substitutions. The index into this array
-    /// is specified by the action in the state table.
-    pub lookups: ArrayOfOffsets<'a, LookupU16<'a>, Offset32>,
+    // The lookups are kept as raw offsets so the subtable stays covariant
+    // over its lifetime.
+    lookup_offsets: &'a [BigEndian<Offset32>],
+    lookup_data: FontData<'a>,
+}
+
+impl<'a> ContextualSubtable<'a> {
+    /// Returns the substitution lookup at `index`, as selected by an action
+    /// in the state table, or `None` if it can't be read.
+    pub fn lookup(&self, index: usize) -> Option<LookupU16<'a>> {
+        self.lookup_offsets
+            .get(index)?
+            .get()
+            .resolve(self.lookup_data)
+            .ok()
+    }
 }
 
 impl ReadArgs for ContextualSubtable<'_> {
@@ -196,10 +209,10 @@ impl<'a> FontRead<'a> for ContextualSubtable<'a> {
         let end = data.len();
         let offsets_data = FontData::new(data.read_array(offset..end)?);
         let raw_offsets: &[BigEndian<Offset32>] = safe_read_array_to_end(&offsets_data, 0)?;
-        let lookups = ArrayOfOffsets::new(raw_offsets, offsets_data, ());
         Ok(Self {
             state_table,
-            lookups,
+            lookup_offsets: raw_offsets,
+            lookup_data: offsets_data,
         })
     }
 }
@@ -314,10 +327,20 @@ mod tests {
         let SubtableKind::Contextual(kind) = subtable.kind().unwrap() else {
             panic!("expected contextual subtable!");
         };
-        let lookup = kind.lookups.get(0).unwrap();
+        let lookup = kind.lookup(0).unwrap();
         let expected = [None, None, Some(7u16), Some(8), Some(9), Some(10), Some(11)];
         let values = (0..7).map(|gid| lookup.value(gid).ok()).collect::<Vec<_>>();
         assert_eq!(values, &expected);
+    }
+
+    /// Parsed subtables can be kept beside the data they borrow, which
+    /// needs them to be covariant.
+    #[test]
+    fn subtable_kind_is_covariant() {
+        fn shorten<'a>(kind: SubtableKind<'static>) -> SubtableKind<'a> {
+            kind
+        }
+        let _ = shorten;
     }
 
     #[test]
