@@ -2543,7 +2543,7 @@ pub(crate) mod test {
         add_wide_offset(&mut s, b);
         s.pop_pack(false).unwrap();
         s.end_serialize();
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
         // A later-created child models the forward edges introduced by
         // extension promotion or duplication during repacking.
         graph
@@ -2573,7 +2573,7 @@ pub(crate) mod test {
         add_wide_offset(&mut s, b);
         s.pop_pack(false).unwrap();
         s.end_serialize();
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
         graph.update_parents().unwrap();
         graph.vertices[a].space = 1;
         graph.vertices[b].space = 1;
@@ -2626,7 +2626,7 @@ pub(crate) mod test {
             add_wide_offset(&mut s, list);
             s.pop_pack(false).unwrap();
             s.end_serialize();
-            let mut graph = Graph::from_serializer(&s).unwrap();
+            let mut graph = Graph::from_serializer(s).unwrap();
             // The list stands in for a GSUB/GPOS LookupList2.
             graph.set_wide_lookup_list(Some(list));
             let (roots, _) = graph.find_space_roots().unwrap();
