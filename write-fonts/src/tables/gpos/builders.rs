@@ -20,6 +20,10 @@ use super::{
     PairSet, PairValueRecord, SinglePos, ValueFormat, ValueRecord,
 };
 
+mod optimize;
+
+pub use optimize::optimize_pairpos;
+
 type GlyphSet = IntSet<GlyphId16>;
 
 /// A builder for [`ValueRecord`]s, which may contain raw deltas or device tables.
@@ -588,6 +592,14 @@ impl PairPosBuilder {
                     .map(move |(class2, (record1, record2))| (class1, class2, record1, record2))
             })
         })
+    }
+
+    /// Build the subtables, optimized for size.
+    ///
+    /// This is [`optimize_pairpos`] for a lookup with no explicit subtable
+    /// breaks; see there for details.
+    pub fn build_optimized(self, var_store: &mut VariationStoreBuilder) -> Vec<PairPos> {
+        optimize_pairpos([self], var_store)
     }
 }
 
