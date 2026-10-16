@@ -75,18 +75,11 @@ impl Selection {
 }
 
 impl PatchGroup<'_> {
-    /// Intersect the available and unapplied patches in ift_font against subset_definition
-    ///
-    /// patch_data provides any patch data that has been previously loaded, keyed by patch url.
-    /// May be empty if no patch data is loaded yet.
-    ///
-    /// Returns a group of patches which would be applied next.
-    pub fn select_next_patches<'b>(
+    pub fn new<'b>(
         ift_font: FontRef<'b>,
         patch_data: &HashMap<PatchUrl, UrlStatus>,
-        subset_definition: &SubsetDefinition,
+        candidates: Vec<PatchMapEntry>,
     ) -> Result<PatchGroup<'b>, ReadError> {
-        let candidates = PatchMap::new(&ift_font)?.intersecting_patches(subset_definition)?;
         if candidates.is_empty() {
             return Ok(PatchGroup {
                 font: ift_font,
@@ -115,6 +108,21 @@ impl PatchGroup<'_> {
             patches: Some(compat_group),
             preload_urls,
         })
+    }
+
+    /// Intersect the available and unapplied patches in ift_font against subset_definition
+    ///
+    /// patch_data provides any patch data that has been previously loaded, keyed by patch url.
+    /// May be empty if no patch data is loaded yet.
+    ///
+    /// Returns a group of patches which would be applied next.
+    pub fn select_next_patches<'b>(
+        ift_font: FontRef<'b>,
+        patch_data: &HashMap<PatchUrl, UrlStatus>,
+        subset_definition: &SubsetDefinition,
+    ) -> Result<PatchGroup<'b>, ReadError> {
+        let candidates = PatchMap::new(&ift_font)?.intersecting_patches(subset_definition)?;
+        Self::new(ift_font, patch_data, candidates)
     }
 
     /// Returns an iterator over URLs in this group.
