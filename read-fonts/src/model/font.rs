@@ -40,7 +40,7 @@ use crate::{
     },
     TableProvider,
 };
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use cache::{
     CffFont, GlyfLoca, GvarTable, HvarTable, MetricsTable, TableCache, VorgTable, VvarTable,
 };
