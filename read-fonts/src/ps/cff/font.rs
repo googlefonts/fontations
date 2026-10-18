@@ -36,6 +36,18 @@ pub struct CffFontRef<'a> {
 }
 
 impl<'a> CffFontRef<'a> {
+    /// The byte range of an SID font's private dict, for tests that damage
+    /// it.
+    #[cfg(test)]
+    pub(crate) fn sid_private_dict_range(&self) -> Option<Range<usize>> {
+        match &self.top_dict.kind {
+            CffFontKind::Sid { private_dict, .. } => {
+                Some(private_dict.start as usize..private_dict.end as usize)
+            }
+            _ => None,
+        }
+    }
+
     /// Creates a new font for the given CFF or CFF2 data.
     ///
     /// Tries to determine the CFF version by reading the first word of the

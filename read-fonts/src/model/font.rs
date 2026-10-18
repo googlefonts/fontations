@@ -357,7 +357,9 @@ impl Font {
         self.shared().cff()
     }
 
-    pub(crate) fn bare_cff_subfonts(&self) -> Option<&[Subfont]> {
+    /// Returns the subfonts of a standalone CFF font, `None` in each slot
+    /// whose private dict could not be read.
+    pub(crate) fn bare_cff_subfonts(&self) -> Option<&[Option<Subfont>]> {
         self.shared().bare_cff_subfonts()
     }
 
@@ -807,10 +809,11 @@ impl SharedFont {
                         |blob| CffFontRef::new_cff(blob, index, None),
                     )
                     .ok()?;
+                    // A subfont that cannot be read fails only its own
+                    // glyphs, not the font.
                     let subfonts = (0..font.get().num_subfonts())
-                        .map(|index| font.get().subfont(index, &[]))
-                        .collect::<Result<Vec<_>, _>>()
-                        .ok()?;
+                        .map(|index| font.get().subfont(index, &[]).ok())
+                        .collect();
                     Some(KindRepr::BareCff(Box::new(BareCffData {
                         font,
                         subfonts,
@@ -1085,7 +1088,7 @@ impl SharedFont {
             .as_ref()
     }
 
-    fn bare_cff_subfonts(&self) -> Option<&[Subfont]> {
+    fn bare_cff_subfonts(&self) -> Option<&[Option<Subfont>]> {
         match &self.0.kind {
             KindRepr::BareCff(cff) => Some(&cff.subfonts),
             _ => None,
@@ -1167,7 +1170,9 @@ enum KindRepr {
 
 struct BareCffData {
     font: Yoke<CffFontRef<'static>, Arc<Blob>>,
-    subfonts: Vec<Subfont>,
+    /// Every subfont, parsed when the font is read; `None` where its private
+    /// dict could not be.
+    subfonts: Box<[Option<Subfont>]>,
     index: u32,
     unicode_charmap: Once<crate::ps::charmap::Charmap>,
 }
@@ -1177,6 +1182,32 @@ mod tests {
     use super::*;
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
+
+    // A private dict that cannot be read fails the glyphs of its subfont,
+    // not the whole font.
+    #[test]
+    fn standalone_cff_with_a_bad_private_dict_still_opens() {
+        let sfnt = crate::FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let mut raw = sfnt.cff().unwrap().offset_data().as_bytes().to_vec();
+        let private = CffFontRef::new_cff(&raw, 0, None)
+            .unwrap()
+            .sid_private_dict_range()
+            .unwrap();
+        // A Subrs offset of -1, which no private dict can resolve.
+        let damage = [29u8, 0xff, 0xff, 0xff, 0xff, 19];
+        assert!(private.len() >= damage.len());
+        raw[private.start..private.start + damage.len()].copy_from_slice(&damage);
+        let font = Font::new(raw, 0).unwrap();
+        let subfonts = font.bare_cff_subfonts().unwrap();
+        assert!(subfonts.len() == 1 && subfonts[0].is_none());
+        assert!(font.num_glyphs() > 1);
+        // Every glyph of the font is in that one subfont, so none measures.
+        for glyph in 0..font.num_glyphs() {
+            let glyph = GlyphId::new(glyph);
+            assert_eq!(font.glyph_metrics().h_advance(glyph), 0.0);
+            assert!(font.glyph_metrics().extents(glyph).is_none());
+        }
+    }
 
     #[test]
     fn standalone_cff_uses_selected_font_data() {

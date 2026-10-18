@@ -491,7 +491,7 @@ impl<'a> GlyphMetrics<'a> {
                     let subfont = self
                         .font
                         .bare_cff_subfonts()
-                        .and_then(|subfonts| subfonts.get(index as usize).copied())
+                        .and_then(|subfonts| subfonts.get(index as usize).copied().flatten())
                         .or_else(|| cff.subfont(index, self.coords).ok())?;
                     last = Some((index, subfont));
                     Some(subfont)
@@ -650,7 +650,7 @@ impl<'a> GlyphMetrics<'a> {
             let width = (glyph.to_u32() < self.num_glyphs)
                 .then(|| cff.subfont_index(glyph))
                 .flatten()
-                .and_then(|index| subfonts.get(index as usize))
+                .and_then(|index| subfonts.get(index as usize)?.as_ref())
                 .and_then(|subfont| {
                     cff.evaluate_width(subfont, glyph, self.coords)
                         .ok()
