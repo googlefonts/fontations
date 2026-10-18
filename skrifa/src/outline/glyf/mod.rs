@@ -979,16 +979,16 @@ impl Scaler for FreeTypeScaler<'_> {
                     }
                 }
                 Anchor::Point { base, component } => {
-                    let (base_offset, component_offset) = (base as usize, component as usize);
-                    let base_point = self
-                        .memory
-                        .scaled
-                        .get(point_base + base_offset)
+                    // The base point comes from a component loaded earlier in
+                    // this composite and the matched point from the one just
+                    // loaded, as in FreeType. A slot past either range can
+                    // still be inside the buffer without having been written
+                    // for this glyph.
+                    let base_point = self.memory.scaled[point_base..start_point]
+                        .get(base as usize)
                         .ok_or(DrawError::InvalidAnchorPoint(glyph_id, base))?;
-                    let component_point = self
-                        .memory
-                        .scaled
-                        .get(start_point + component_offset)
+                    let component_point = self.memory.scaled[start_point..end_point]
+                        .get(component as usize)
                         .ok_or(DrawError::InvalidAnchorPoint(glyph_id, component))?;
                     *base_point - *component_point
                 }
@@ -1351,16 +1351,13 @@ impl Scaler for HarfBuzzScaler<'_> {
                         * scale
                 }
                 Anchor::Point { base, component } => {
-                    let (base_offset, component_offset) = (base as usize, component as usize);
-                    let base_point = self
-                        .memory
-                        .points
-                        .get(point_base + base_offset)
+                    // See the FreeType scaler: both indices are bounded by
+                    // the points loaded so far, not by the buffer.
+                    let base_point = self.memory.points[point_base..start_point]
+                        .get(base as usize)
                         .ok_or(DrawError::InvalidAnchorPoint(glyph_id, base))?;
-                    let component_point = self
-                        .memory
-                        .points
-                        .get(start_point + component_offset)
+                    let component_point = self.memory.points[start_point..end_point]
+                        .get(component as usize)
                         .ok_or(DrawError::InvalidAnchorPoint(glyph_id, component))?;
                     *base_point - *component_point
                 }
@@ -1573,6 +1570,107 @@ mod tests {
                 outlines.compute_hinted_scale(Some(size)).scale,
                 outlines.compute_hinted_scale(Some(size.round())).scale
             );
+        }
+    }
+
+    // A point anchor must name a point of a component loaded earlier in the
+    // composite and a point of the component just loaded. An index past
+    // either range can still land inside the point buffer: on a phantom
+    // point of the previous component, or, for a nested composite, on a
+    // slot the draw has not written yet, so the offset came from whatever
+    // the caller's memory held.
+    #[test]
+    fn composite_anchor_points_outside_loaded_components_are_rejected() {
+        use font_test_data::bebuffer::BeBuffer;
+        fn build(base: u16, component: u16) -> (BeBuffer, BeBuffer) {
+            let mut glyf = BeBuffer::new();
+            // glyph 0: a simple glyph with two points
+            glyf = glyf.push(1i16); // number of contours
+            glyf = glyf.extend([0i16, 0, 100, 100]); // bbox
+            glyf = glyf.push(1u16); // contour end
+            glyf = glyf.push(0u16); // instruction count
+            glyf = glyf.extend([SimpleGlyphFlags::ON_CURVE_POINT; 2]);
+            glyf = glyf.extend([10i16, 20]); // x deltas
+            glyf = glyf.extend([30i16, 40]); // y deltas
+            let glyph0_end = glyf.len();
+            // glyph 1: two copies of glyph 0, the second placed by anchor
+            glyf = glyf.push(-1i16);
+            glyf = glyf.extend([0i16, 0, 100, 100]);
+            glyf = glyf.push(
+                CompositeGlyphFlags::ARGS_ARE_XY_VALUES | CompositeGlyphFlags::MORE_COMPONENTS,
+            );
+            glyf = glyf.push(0u16);
+            glyf = glyf.extend([0u8; 2]);
+            glyf = glyf.push(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
+            glyf = glyf.push(0u16);
+            glyf = glyf.extend([base, component]);
+            let glyph1_end = glyf.len();
+            // glyph 2: glyph 1 followed by glyph 0, so that glyph 1 loads
+            // with unwritten slots after it
+            glyf = glyf.push(-1i16);
+            glyf = glyf.extend([0i16, 0, 100, 100]);
+            glyf = glyf.push(
+                CompositeGlyphFlags::ARGS_ARE_XY_VALUES | CompositeGlyphFlags::MORE_COMPONENTS,
+            );
+            glyf = glyf.push(1u16);
+            glyf = glyf.extend([0u8; 2]);
+            glyf = glyf.push(CompositeGlyphFlags::ARGS_ARE_XY_VALUES);
+            glyf = glyf.push(0u16);
+            glyf = glyf.extend([0u8; 2]);
+            let glyph2_end = glyf.len();
+            let mut loca = BeBuffer::new();
+            loca = loca.extend([
+                0u32,
+                glyph0_end as u32,
+                glyph1_end as u32,
+                glyph2_end as u32,
+            ]);
+            (glyf, loca)
+        }
+        fn scale(gid: u32, base: u16, component: u16) -> [Result<(), DrawError>; 2] {
+            let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+            let (glyf, loca) = build(base, component);
+            let mut outlines = Outlines::new(&font).unwrap();
+            outlines.glyf = Glyf::read(glyf.data().into()).unwrap();
+            outlines.loca = Loca::read(loca.data().into(), true).unwrap();
+            let gid = GlyphId::new(gid);
+            let outline = outlines.outline(gid).unwrap();
+            let mut buf = [0u8; 1024];
+            let freetype = FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, None, &[])
+                .unwrap()
+                .scale(&outline.glyph, gid)
+                .map(|_| ());
+            let harfbuzz = HarfBuzzScaler::unhinted(&outlines, &outline, &mut buf, None, &[])
+                .unwrap()
+                .scale(&outline.glyph, gid)
+                .map(|_| ());
+            [freetype, harfbuzz]
+        }
+        // Point 1 of the first component, point 0 of the second.
+        for result in scale(1, 1, 0) {
+            assert!(result.is_ok());
+        }
+        // The base point lies in the component being placed.
+        for result in scale(1, 2, 0) {
+            assert!(matches!(
+                result,
+                Err(DrawError::InvalidAnchorPoint(gid, 2)) if gid == GlyphId::new(1)
+            ));
+        }
+        // The matched point lies past the component, on a phantom point.
+        for result in scale(1, 0, 3) {
+            assert!(matches!(
+                result,
+                Err(DrawError::InvalidAnchorPoint(gid, 3)) if gid == GlyphId::new(1)
+            ));
+        }
+        // Nested: glyph 2 holds ten slots and glyph 1 names the last one
+        // while only its first component has been loaded.
+        for result in scale(2, 9, 0) {
+            assert!(matches!(
+                result,
+                Err(DrawError::InvalidAnchorPoint(gid, 9)) if gid == GlyphId::new(1)
+            ));
         }
     }
 }
