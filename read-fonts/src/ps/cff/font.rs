@@ -19,12 +19,13 @@ use crate::{
 };
 use core::ops::Range;
 use types::{BoundingBox, F2Dot14, Fixed, GlyphId};
+use yoke::Yokeable;
 
 /// A CFF or CFF2 font.
 ///
 /// The source data may be a raw CFF blob as embedded in a PDF or the content
 /// of a CFF or CFF2 table in an OpenType font.
-#[derive(Clone)]
+#[derive(Clone, Yokeable)]
 pub struct CffFontRef<'a> {
     data: &'a [u8],
     is_cff2: bool,
@@ -35,6 +36,18 @@ pub struct CffFontRef<'a> {
 }
 
 impl<'a> CffFontRef<'a> {
+    /// The byte range of an SID font's private dict, for tests that damage
+    /// it.
+    #[cfg(test)]
+    pub(crate) fn sid_private_dict_range(&self) -> Option<Range<usize>> {
+        match &self.top_dict.kind {
+            CffFontKind::Sid { private_dict, .. } => {
+                Some(private_dict.start as usize..private_dict.end as usize)
+            }
+            _ => None,
+        }
+    }
+
     /// Creates a new font for the given CFF or CFF2 data.
     ///
     /// Tries to determine the CFF version by reading the first word of the
@@ -878,6 +891,9 @@ impl FontDict {
 #[derive(Clone, Debug)]
 pub struct Metadata<'a> {
     name: Option<&'a str>,
+    version: Option<&'a str>,
+    notice: Option<&'a str>,
+    copyright: Option<&'a str>,
     full_name: Option<&'a str>,
     family_name: Option<&'a str>,
     weight: Option<&'a str>,
@@ -909,6 +925,9 @@ impl<'a> Metadata<'a> {
         };
         for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
             match entry {
+                dict::Entry::Version(sid) => meta.version = get_str(sid),
+                dict::Entry::Notice(sid) => meta.notice = get_str(sid),
+                dict::Entry::Copyright(sid) => meta.copyright = get_str(sid),
                 dict::Entry::FullName(sid) => meta.full_name = get_str(sid),
                 dict::Entry::FamilyName(sid) => meta.family_name = get_str(sid),
                 dict::Entry::Weight(sid) => meta.weight = get_str(sid),
@@ -933,6 +952,21 @@ impl<'a> Metadata<'a> {
     /// Returns the PostScript name.
     pub fn name(&self) -> Option<&'a str> {
         self.name
+    }
+
+    /// Returns the version string.
+    pub fn version(&self) -> Option<&'a str> {
+        self.version
+    }
+
+    /// Returns the notice, commonly a trademark statement.
+    pub fn notice(&self) -> Option<&'a str> {
+        self.notice
+    }
+
+    /// Returns the copyright statement.
+    pub fn copyright(&self) -> Option<&'a str> {
+        self.copyright
     }
 
     /// Returns the full font name.
@@ -980,6 +1014,9 @@ impl Default for Metadata<'_> {
     fn default() -> Self {
         Self {
             name: None,
+            version: None,
+            notice: None,
+            copyright: None,
             full_name: None,
             family_name: None,
             weight: None,
