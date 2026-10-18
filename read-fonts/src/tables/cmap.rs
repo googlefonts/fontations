@@ -5,7 +5,7 @@ include!("../../generated/generated_cmap.rs");
 #[cfg(feature = "std")]
 use crate::collections::IntSet;
 use crate::{FontRef, TableProvider};
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 
 // See <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3>
 const WINDOWS_SYMBOL_ENCODING: u16 = 0;
@@ -293,6 +293,16 @@ impl Iterator for Cmap0Iter<'_> {
     }
 }
 
+/// A format 4 segment a search found, for a batch to reuse.
+#[derive(Clone)]
+pub(crate) struct Cmap4Segment {
+    index: usize,
+    start_code: u16,
+    /// The codepoints of the segment the search reaches it for. Only these
+    /// may reuse it, so that a batch maps each codepoint as one lookup does.
+    reached: RangeInclusive<u16>,
+}
+
 impl<'a> Cmap4<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
@@ -301,41 +311,53 @@ impl<'a> Cmap4<'a> {
             return None;
         }
         let codepoint = codepoint as u16;
-        let (index, start_code, _) = self.find_segment(codepoint)?;
-        self.lookup_glyph_id(codepoint, index, start_code)
+        let segment = self.find_segment(codepoint)?;
+        self.lookup_glyph_id(codepoint, segment.index, segment.start_code)
     }
 
-    /// Reuses the segment of the preceding lookup when it covers `codepoint`.
+    /// Reuses the segment of the preceding lookup when the search would
+    /// find it for `codepoint` too.
     pub(crate) fn map_codepoint_cached(
         &self,
         codepoint: u32,
-        cached: &mut Option<(u16, u16, usize)>,
+        cached: &mut Option<Cmap4Segment>,
     ) -> Option<GlyphId> {
         let codepoint = u16::try_from(codepoint).ok()?;
-        let (index, start_code, end_code) = match *cached {
-            Some(segment @ (start, end, _)) if (start..=end).contains(&codepoint) => {
-                (segment.2, start, end)
-            }
+        let segment = match cached.as_ref() {
+            Some(segment) if segment.reached.contains(&codepoint) => segment.clone(),
             _ => self.find_segment(codepoint)?,
         };
-        *cached = Some((start_code, end_code, index));
-        self.lookup_glyph_id(codepoint, index, start_code)
+        let glyph = self.lookup_glyph_id(codepoint, segment.index, segment.start_code);
+        *cached = Some(segment);
+        glyph
     }
 
-    fn find_segment(&self, codepoint: u16) -> Option<(usize, u16, u16)> {
+    /// Finds the segment that maps `codepoint`, by binary search.
+    fn find_segment(&self, codepoint: u16) -> Option<Cmap4Segment> {
         let mut lo = 0;
         let mut hi = self.seg_count_x2() as usize / 2;
         let start_codes = self.start_code();
         let end_codes = self.end_code();
+        // The codepoints that take the same path down as `codepoint`. A
+        // valid table never narrows this inside the segment found; one with
+        // overlapping segments can.
+        let (mut first, mut last) = (u16::MIN, u16::MAX);
         while lo < hi {
             let i = (lo + hi) / 2;
             let start_code = start_codes.get(i)?.get();
+            let end_code = end_codes.get(i)?.get();
             if codepoint < start_code {
                 hi = i;
-            } else if codepoint > end_codes.get(i)?.get() {
+                last = last.min(start_code.saturating_sub(1));
+            } else if codepoint > end_code {
                 lo = i + 1;
+                first = first.max(end_code.saturating_add(1));
             } else {
-                return Some((i, start_code, end_codes.get(i)?.get()));
+                return Some(Cmap4Segment {
+                    index: i,
+                    start_code,
+                    reached: start_code.max(first)..=end_code.min(last),
+                });
             }
         }
         None
@@ -572,7 +594,7 @@ fn cmap1213_map_codepoint<T: AnyMapGroup>(
     codepoint: impl Into<u32>,
 ) -> Option<GlyphId> {
     let codepoint = codepoint.into();
-    let group = cmap1213_find_group(groups, codepoint)?;
+    let (group, _) = cmap1213_find_group(groups, codepoint)?;
     Some(T::compute_glyph_id(
         codepoint,
         group.start_char_code(),
@@ -580,18 +602,29 @@ fn cmap1213_map_codepoint<T: AnyMapGroup>(
     ))
 }
 
-fn cmap1213_find_group<T: AnyMapGroup>(groups: &[T], codepoint: u32) -> Option<&T> {
+/// Finds the group that maps `codepoint`, by binary search, with the
+/// codepoints of that group the search reaches it for.
+fn cmap1213_find_group<T: AnyMapGroup>(
+    groups: &[T],
+    codepoint: u32,
+) -> Option<(&T, RangeInclusive<u32>)> {
     let mut lo = 0;
     let mut hi = groups.len();
+    // The codepoints that take the same path down as `codepoint`. Valid
+    // groups never narrow this inside the group found; overlapping ones can.
+    let (mut first, mut last) = (u32::MIN, u32::MAX);
     while lo < hi {
         let i = (lo + hi) / 2;
         let group = groups.get(i)?;
-        if codepoint < group.start_char_code() {
+        let (start, end) = (group.start_char_code(), group.end_char_code());
+        if codepoint < start {
             hi = i;
-        } else if codepoint > group.end_char_code() {
+            last = last.min(start.saturating_sub(1));
+        } else if codepoint > end {
             lo = i + 1;
+            first = first.max(end.saturating_add(1));
         } else {
-            return Some(group);
+            return Some((group, start.max(first)..=end.min(last)));
         }
     }
     None
@@ -732,33 +765,45 @@ where
     }
 }
 
+/// A format 12 group a search found, for a batch to reuse.
+#[derive(Clone)]
+pub(crate) struct Cmap12Group {
+    start_code: u32,
+    start_glyph: u32,
+    /// The codepoints of the group the search reaches it for. Only these
+    /// may reuse it, so that a batch maps each codepoint as one lookup does.
+    reached: RangeInclusive<u32>,
+}
+
 impl<'a> Cmap12<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         cmap1213_map_codepoint(self.groups(), codepoint)
     }
 
-    /// Reuses the group of the preceding lookup when it covers `codepoint`.
+    /// Reuses the group of the preceding lookup when the search would find
+    /// it for `codepoint` too.
     pub(crate) fn map_codepoint_cached(
         &self,
         codepoint: u32,
-        cached: &mut Option<(u32, u32, u32)>,
+        cached: &mut Option<Cmap12Group>,
     ) -> Option<GlyphId> {
-        let (start, end, start_glyph) = match *cached {
-            Some(group @ (start, end, _)) if (start..=end).contains(&codepoint) => group,
+        let group = match cached.as_ref() {
+            Some(group) if group.reached.contains(&codepoint) => group.clone(),
             _ => {
-                let group = cmap1213_find_group(self.groups(), codepoint)?;
-                (
-                    group.start_char_code(),
-                    group.end_char_code(),
-                    group.start_glyph_id(),
-                )
+                let (group, reached) = cmap1213_find_group(self.groups(), codepoint)?;
+                Cmap12Group {
+                    start_code: group.start_char_code(),
+                    start_glyph: group.start_glyph_id(),
+                    reached,
+                }
             }
         };
-        *cached = Some((start, end, start_glyph));
-        Some(GlyphId::new(
-            start_glyph.wrapping_add(codepoint.wrapping_sub(start)),
-        ))
+        let glyph = group
+            .start_glyph
+            .wrapping_add(codepoint.wrapping_sub(group.start_code));
+        *cached = Some(group);
+        Some(GlyphId::new(glyph))
     }
 
     /// Returns an iterator over all (codepoint, glyph identifier) pairs
@@ -1239,6 +1284,84 @@ mod tests {
     use super::*;
     use crate::{types::Uint24, FontRef, GlyphId, TableProvider};
     use font_test_data::{be_buffer, bebuffer::BeBuffer};
+
+    // A malformed subtable with overlapping ranges must map the same glyphs
+    // in a batch as one lookup at a time.
+    // <https://github.com/googlefonts/fontations/pull/2261#discussion_r4305236270>
+    const OVERLAPPING_ORDERS: [&[u32]; 4] = [
+        &[65, 70],
+        &[70, 65, 71, 74],
+        &[65, 69, 70, 75, 76, 80, 81],
+        &[80, 75, 70, 65, 66, 74],
+    ];
+
+    #[test]
+    fn cached_format12_agrees_with_lookup_on_overlapping_groups() {
+        // Groups (65..=75 from glyph 1) and (70..=80 from glyph 100).
+        let mut data = alloc::vec![0, 12, 0, 0];
+        data.extend_from_slice(&(16u32 + 2 * 12).to_be_bytes());
+        data.extend_from_slice(&0u32.to_be_bytes());
+        data.extend_from_slice(&2u32.to_be_bytes());
+        for (start, end, glyph) in [(65u32, 75u32, 1u32), (70, 80, 100)] {
+            data.extend_from_slice(&start.to_be_bytes());
+            data.extend_from_slice(&end.to_be_bytes());
+            data.extend_from_slice(&glyph.to_be_bytes());
+        }
+        let cmap = Cmap12::read(FontData::new(&data)).unwrap();
+        // The search reaches the first group for 65 and the second for 70.
+        assert_eq!(cmap.map_codepoint(65u32), Some(GlyphId::new(1)));
+        assert_eq!(cmap.map_codepoint(70u32), Some(GlyphId::new(100)));
+        for order in OVERLAPPING_ORDERS {
+            let mut cached = None;
+            for &codepoint in order {
+                assert_eq!(
+                    cmap.map_codepoint_cached(codepoint, &mut cached),
+                    cmap.map_codepoint(codepoint),
+                    "{codepoint} in {order:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn cached_format4_agrees_with_lookup_on_overlapping_segments() {
+        // Segments 65..=75 to glyphs from 1 and 70..=80 to glyphs from 100,
+        // and the 0xFFFF segment every format 4 subtable ends with.
+        let segments: [(u16, u16, i16); 3] = [(65, 75, -64), (70, 80, 30), (0xFFFF, 0xFFFF, 1)];
+        let seg_count = segments.len() as u16;
+        let mut data = alloc::vec![0, 4];
+        data.extend_from_slice(&(16 + 8 * seg_count).to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&(2 * seg_count).to_be_bytes());
+        // Search range, entry selector and range shift, which lookups ignore.
+        data.extend_from_slice(&[0, 4, 0, 1, 0, 2]);
+        for (_, end, _) in segments {
+            data.extend_from_slice(&end.to_be_bytes());
+        }
+        data.extend_from_slice(&0u16.to_be_bytes());
+        for (start, _, _) in segments {
+            data.extend_from_slice(&start.to_be_bytes());
+        }
+        for (_, _, delta) in segments {
+            data.extend_from_slice(&delta.to_be_bytes());
+        }
+        for _ in segments {
+            data.extend_from_slice(&0u16.to_be_bytes());
+        }
+        let cmap = Cmap4::read(FontData::new(&data)).unwrap();
+        assert_eq!(cmap.map_codepoint(65u32), Some(GlyphId::new(1)));
+        assert_eq!(cmap.map_codepoint(70u32), Some(GlyphId::new(100)));
+        for order in OVERLAPPING_ORDERS {
+            let mut cached = None;
+            for &codepoint in order {
+                assert_eq!(
+                    cmap.map_codepoint_cached(codepoint, &mut cached),
+                    cmap.map_codepoint(codepoint),
+                    "{codepoint} in {order:?}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn cmap15_variants_and_iteration() {
