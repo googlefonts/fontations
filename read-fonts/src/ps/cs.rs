@@ -1,10 +1,10 @@
 //! Parsing and evaluation of charstrings.
 
+use crate::model::Error;
 use crate::{
     model::glyph::outline::OutlinePen,
     ps::{
         cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
-        error::Error,
         num,
         string::Sid,
         transform::{FontMatrix, Transform},
@@ -81,14 +81,14 @@ impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Inde
         let charset = cff
             .charset(0)
             .or_else(|| Charset::new(FontData::default(), 0, self.1.count()))
-            .ok_or(Error::MissingCharset)?;
+            .ok_or(Error::MissingResource)?;
         let seac_to_gid = |code: i32| {
             let code: u8 = code.try_into().ok()?;
             let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
             charset.glyph_id(Sid::new(sid as u16))
         };
-        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
-        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
+        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidOperation)?;
+        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidOperation)?;
         let accent_charstring = self
             .1
             .get(accent_gid.to_u32() as usize)
@@ -235,12 +235,12 @@ impl CommandSink for ControlBoundsSink {
 ///
 /// If the Private DICT associated with this charstring contains local
 /// subroutines, then the `subrs` index must be provided, otherwise
-/// `Error::MissingSubroutines` will be returned if a callsubr operator
+/// `Error::MissingResource` will be returned if a callsubr operator
 /// is present.
 ///
 /// If evaluating a CFF2 charstring and the top-level table contains an
 /// item variation store, then `blend_state` must be provided, otherwise
-/// `Error::MissingBlendState` will be returned if a blend operator is
+/// `Error::MissingResource` will be returned if a blend operator is
 /// present.
 pub fn evaluate<'a>(
     context: &'a impl CharstringContext,
@@ -370,14 +370,14 @@ impl<'a> Evaluator<'a> {
 
     fn evaluate_impl(&mut self, charstring_data: &[u8], nesting_depth: u32) -> Result<bool, Error> {
         if nesting_depth > NESTING_DEPTH_LIMIT {
-            return Err(Error::CharstringNestingDepthLimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         let mut cursor = crate::FontData::new(charstring_data).cursor();
         let mut seen_endchar = false;
         while cursor.remaining_bytes() != 0 {
             self.ops_done += 1;
             if self.ops_done > MAX_OPERATIONS {
-                return Err(Error::CharstringNestingDepthLimitExceeded);
+                return Err(Error::LimitExceeded);
             }
             let b0 = cursor.read::<u8>()?;
             match b0 {
@@ -468,7 +468,7 @@ impl<'a> Evaluator<'a> {
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
             VariationStoreIndex => {
                 if !self.is_type1 {
-                    let blend_state = self.blend_state.as_mut().ok_or(Error::MissingBlendState)?;
+                    let blend_state = self.blend_state.as_mut().ok_or(Error::MissingResource)?;
                     let store_index = self.stack.pop_i32()? as u16;
                     blend_state.set_store_index(store_index)?;
                 }
@@ -477,7 +477,7 @@ impl<'a> Evaluator<'a> {
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
             Blend => {
                 if !self.is_type1 {
-                    let blend_state = self.blend_state.as_ref().ok_or(Error::MissingBlendState)?;
+                    let blend_state = self.blend_state.as_ref().ok_or(Error::MissingResource)?;
                     self.stack.apply_blend(blend_state)?;
                 }
             }
@@ -887,7 +887,7 @@ impl<'a> Evaluator<'a> {
     fn handle_seac(&mut self, mode: SeacMode, nesting_depth: u32) -> Result<(), Error> {
         // handle seac operator
         if self.in_seac {
-            return Err(Error::CharstringNestingDepthLimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         self.in_seac = true;
         let accent_code = self.stack.pop_i32()?;
@@ -1046,7 +1046,7 @@ impl<'a> Evaluator<'a> {
             .stack
             .len()
             .checked_sub(num_args)
-            .ok_or(Error::StackUnderflow)?;
+            .ok_or(Error::InvalidOperation)?;
         let mut delta_idx = stack_base + num_points;
         for i in 0..num_points {
             let mut val = self.stack.get_fixed(stack_base + i)?;
@@ -2059,7 +2059,7 @@ mod tests {
             &mut commands,
         )
         .unwrap_err();
-        assert!(matches!(err, Error::CharstringNestingDepthLimitExceeded));
+        assert!(matches!(err, Error::LimitExceeded));
     }
 
     #[test]
@@ -2206,16 +2206,16 @@ mod tests {
             self.0
         }
 
-        fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
-            Err(Error::InvalidSeacCode(base_code))
+        fn seac_components(&self, _base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
+            Err(Error::InvalidOperation)
         }
 
         fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
 
         fn subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
     }
 
@@ -2368,16 +2368,16 @@ mod tests {
             CharstringKind::Type1
         }
 
-        fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
-            Err(Error::InvalidSeacCode(base_code))
+        fn seac_components(&self, _base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
+            Err(Error::InvalidOperation)
         }
 
         fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
 
         fn subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
 
         fn weight_vector(&self) -> &[Fixed] {

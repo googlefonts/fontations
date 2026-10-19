@@ -2,7 +2,7 @@
 
 use read_fonts::{
     tables::{
-        layout::{Condition, ConditionError},
+        layout::Condition,
         varc::{
             DecomposedTransform, MultiItemVariationStore, SparseVariationRegionList, Varc,
             VarcComponent, VarcFlags,
@@ -699,24 +699,38 @@ impl<'a> Outlines<'a> {
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
     ) -> Result<bool, DrawError> {
+        // The evaluator reports only a kind, so a delta failure is kept here.
+        let mut delta_error = None;
         condition
             .evaluate(coords, |var_idx| {
-                let (var_store, regions) = store_regions.ok_or(DrawError::Malformed)?;
-                compute_tuple_deltas(
-                    var_store,
-                    regions,
-                    var_idx,
-                    coords,
-                    1,
-                    scalar_cache,
-                    &mut scratch.deltas,
-                )?;
-                Ok(scratch.deltas.first().copied().unwrap_or(0.0))
+                let deltas =
+                    store_regions
+                        .ok_or(DrawError::Malformed)
+                        .and_then(|(var_store, regions)| {
+                            compute_tuple_deltas(
+                                var_store,
+                                regions,
+                                var_idx,
+                                coords,
+                                1,
+                                scalar_cache,
+                                &mut scratch.deltas,
+                            )
+                        });
+                match deltas {
+                    Ok(()) => Ok(scratch.deltas.first().copied().unwrap_or(0.0)),
+                    Err(error) => {
+                        delta_error = Some(error);
+                        Err(read_fonts::model::Error::Malformed)
+                    }
+                }
             })
-            .map_err(|error| match error {
-                ConditionError::Read(_) => DrawError::Malformed,
-                ConditionError::LimitExceeded => DrawError::RecursionLimitExceeded(GlyphId::NOTDEF),
-                ConditionError::Delta(error) => error,
+            .map_err(|error| match delta_error.take() {
+                Some(error) => error,
+                None if error == read_fonts::model::Error::LimitExceeded => {
+                    DrawError::RecursionLimitExceeded(GlyphId::NOTDEF)
+                }
+                None => DrawError::Malformed,
             })
     }
 

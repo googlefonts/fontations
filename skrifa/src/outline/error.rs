@@ -3,7 +3,7 @@
 use core::fmt;
 use read_fonts::types::GlyphId;
 
-pub use read_fonts::ps::error::Error as CffError;
+pub use read_fonts::model::Error as CffError;
 
 pub use super::glyf::HintError;
 

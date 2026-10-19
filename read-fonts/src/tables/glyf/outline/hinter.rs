@@ -14,9 +14,11 @@ pub trait Hinter<C: PointCoord> {
 
     /// Hints one glyph.
     ///
-    /// A failure stops the load and is reported as
-    /// [`OutlineError::Hinting`](super::OutlineError::Hinting). The caller
-    /// decides whether to treat it as fatal.
+    /// A failure stops the load, which reports it as
+    /// [`Error::InvalidOperation`](crate::model::Error::InvalidOperation). A hinter
+    /// that wants the detail keeps the [`HintError`] itself. The hinter
+    /// decides whether a failure is fatal: returning `Ok` carries on with the
+    /// points as the program left them.
     fn hint(&mut self, zone: &mut GlyphZone<'_, C>) -> Result<(), HintError>;
 }
 
@@ -51,8 +53,9 @@ mod tests {
     /// Any scaled size will do; the hook does not care which.
     const PPEM: f32 = 16.0;
 
-    use super::super::{Outline, OutlineError, OutlinePlan, OutlineTables, Scale26Dot6};
+    use super::super::{Outline, OutlinePlan, OutlineTables, Scale26Dot6};
     use super::*;
+    use crate::model::Error;
     use crate::tables::glyf::bytecode::{HintErrorKind, Opcode, Program};
     use crate::{
         types::{F26Dot6, GlyphId},
@@ -159,11 +162,7 @@ mod tests {
         let err = outline
             .load_hinted(&context, gid, Some(PPEM), &mut FailingHinter)
             .unwrap_err();
-        let OutlineError::Hinting(err) = err else {
-            panic!("expected a hinting error, got {err:?}");
-        };
-        assert_eq!(err.kind, HintErrorKind::ValueStackOverflow);
-        assert_eq!(err.glyph_id, Some(gid));
-        assert_eq!(err.pc, 3);
+        // The hinter keeps its own detail; the load reports the kind.
+        assert_eq!(err, Error::InvalidOperation);
     }
 }

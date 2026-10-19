@@ -6,8 +6,9 @@
 
 use super::{
     scale::{Scale, SimplePass},
-    Buffers, GlyphZone, Hinter, OutlineContext, OutlineError, OutlinePlan, OutlineRef,
+    Buffers, GlyphZone, Hinter, OutlineContext, OutlinePlan, OutlineRef,
 };
+use crate::model::Error;
 use crate::{
     limits::MAX_RECURSION_DEPTH,
     tables::{
@@ -30,7 +31,7 @@ pub(super) fn load<'a, 's, 'buf, S: Scale>(
     scale: &'s S,
     buffers: Buffers<'buf, S>,
     hinter: Option<&mut dyn Hinter<S::Coord>>,
-) -> Result<OutlineRef<'buf, S::Coord>, OutlineError> {
+) -> Result<OutlineRef<'buf, S::Coord>, Error> {
     let coords = context.coords();
     let varies = plan.applies_variations;
     let is_hinted = hinter.is_some() && scale.is_scaled();
@@ -56,28 +57,28 @@ pub(super) fn load<'a, 's, 'buf, S: Scale>(
 /// Slicing that reports a caller buffer sized too small, rather than panicking
 /// or silently truncating.
 trait TrySlice<T> {
-    fn try_mut<I>(&mut self, index: I) -> Result<&mut [T], OutlineError>
+    fn try_mut<I>(&mut self, index: I) -> Result<&mut [T], Error>
     where
         I: core::slice::SliceIndex<[T], Output = [T]>;
 
-    fn try_ref<I>(&self, index: I) -> Result<&[T], OutlineError>
+    fn try_ref<I>(&self, index: I) -> Result<&[T], Error>
     where
         I: core::slice::SliceIndex<[T], Output = [T]>;
 }
 
 impl<T> TrySlice<T> for [T] {
-    fn try_mut<I>(&mut self, index: I) -> Result<&mut [T], OutlineError>
+    fn try_mut<I>(&mut self, index: I) -> Result<&mut [T], Error>
     where
         I: core::slice::SliceIndex<[T], Output = [T]>,
     {
-        self.get_mut(index).ok_or(OutlineError::InsufficientMemory)
+        self.get_mut(index).ok_or(Error::InsufficientMemory)
     }
 
-    fn try_ref<I>(&self, index: I) -> Result<&[T], OutlineError>
+    fn try_ref<I>(&self, index: I) -> Result<&[T], Error>
     where
         I: core::slice::SliceIndex<[T], Output = [T]>,
     {
-        self.get(index).ok_or(OutlineError::InsufficientMemory)
+        self.get(index).ok_or(Error::InsufficientMemory)
     }
 }
 
@@ -127,11 +128,11 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         glyph: &Option<Glyph<'a>>,
         gid: GlyphId,
         recurse_depth: usize,
-    ) -> Result<(), OutlineError> {
+    ) -> Result<(), Error> {
         // `OutlinePlan::new` checks this too, but it is a separate argument
         // to `load`, so nothing makes the tree walked here the one surveyed.
         if recurse_depth > MAX_RECURSION_DEPTH {
-            return Err(OutlineError::RecursionLimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         self.setup_phantom_points(glyph, gid);
         match glyph {
@@ -165,7 +166,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         self.phantom[3] = Point::new(from(0), from(y_max + tsb - vadvance));
     }
 
-    fn load_empty(&mut self, gid: GlyphId) -> Result<(), OutlineError> {
+    fn load_empty(&mut self, gid: GlyphId) -> Result<(), Error> {
         let deltas = if self.varies {
             self.context.phantom_point_deltas(gid)
         } else {
@@ -180,10 +181,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
     ///
     /// They stay relative to the glyph until its points have been loaded; see
     /// the end of [`Self::load_simple`].
-    fn read_contours(
-        &mut self,
-        glyph: &SimpleGlyph<'a>,
-    ) -> Result<core::ops::Range<usize>, OutlineError> {
+    fn read_contours(&mut self, glyph: &SimpleGlyph<'a>) -> Result<core::ops::Range<usize>, Error> {
         let end_pts = glyph.end_pts_of_contours();
         let range = self.contour_count..self.contour_count + end_pts.len();
         let contours = self.buffers.contours.try_mut(range.clone())?;
@@ -192,7 +190,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
             let end_pt = end_pt.get();
             if end_pt < previous {
                 // Unordered contour end points.
-                return Err(OutlineError::Malformed);
+                return Err(Error::Malformed);
             }
             previous = end_pt;
             *contour = end_pt;
@@ -200,7 +198,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         Ok(range)
     }
 
-    fn load_simple(&mut self, glyph: &SimpleGlyph<'a>, gid: GlyphId) -> Result<(), OutlineError> {
+    fn load_simple(&mut self, glyph: &SimpleGlyph<'a>, gid: GlyphId) -> Result<(), Error> {
         let points_start = self.point_count;
         let point_count = glyph.num_points();
         let with_phantom = point_count + PHANTOM_POINT_COUNT;
@@ -298,7 +296,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         phantom_offset: usize,
         gid: GlyphId,
         is_composite: bool,
-    ) -> Result<(), OutlineError> {
+    ) -> Result<(), Error> {
         if !self.is_hinted {
             return Ok(());
         }
@@ -382,7 +380,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         glyph: &CompositeGlyph<'a>,
         gid: GlyphId,
         recurse_depth: usize,
-    ) -> Result<(), OutlineError> {
+    ) -> Result<(), Error> {
         let point_base = self.point_count;
         let contour_base = self.contour_count;
         let delta_base = self.component_delta_count;
@@ -427,7 +425,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
             let component_glyph = self
                 .context
                 .glyph(component.glyph)
-                .ok_or(OutlineError::MissingGlyph)?
+                .ok_or(Error::MissingResource)?
                 .into_glyph();
             self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
             let end_point = self.point_count;
@@ -473,12 +471,12 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
                         .buffers
                         .points
                         .get(point_base + base as usize)
-                        .ok_or(OutlineError::InvalidAnchorPoint)?;
+                        .ok_or(Error::Malformed)?;
                     let component_point = *self
                         .buffers
                         .points
                         .get(start_point + component as usize)
-                        .ok_or(OutlineError::InvalidAnchorPoint)?;
+                        .ok_or(Error::Malformed)?;
                     base_point - component_point
                 }
             };
@@ -723,7 +721,7 @@ mod tests {
         };
         assert_eq!(
             plan.load(&context, &scale, buffers, None).err(),
-            Some(OutlineError::InsufficientMemory)
+            Some(Error::InsufficientMemory)
         );
     }
 }

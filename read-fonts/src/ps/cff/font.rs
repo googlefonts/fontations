@@ -1,5 +1,6 @@
 //! Unified access to CFF/CFF2 fonts.
 
+use crate::model::Error;
 use crate::{
     model::glyph::outline::OutlinePen,
     ps::{
@@ -9,7 +10,6 @@ use crate::{
         },
         cs::{self, CommandSink, NopFilterSink, TransformSink},
         encoding::PredefinedEncoding,
-        error::Error,
         hinting::HintingParams,
         string::Sid,
         transform::{self, ScaledFontMatrix, Transform},
@@ -822,7 +822,7 @@ impl<'a> TopDict<'a> {
                 _ => {}
             }
         }
-        let charstrings = charstrings.ok_or(Error::MissingCharstrings)?;
+        let charstrings = charstrings.ok_or(Error::MissingResource)?;
         let kind = if let Some(fd_array) = fd_array {
             if is_cff2 {
                 CffFontKind::Cff2 {
@@ -838,7 +838,7 @@ impl<'a> TopDict<'a> {
         } else {
             if has_ros || is_cff2 {
                 // The font dict array is required for CID-keyed and CFF2 fonts
-                return Err(Error::MissingFdArray);
+                return Err(Error::MissingResource);
             }
             CffFontKind::Sid {
                 strings,
@@ -878,7 +878,7 @@ impl FontDict {
             }
         }
         Ok(Self {
-            private_dict_range: range.ok_or(Error::MissingPrivateDict)?,
+            private_dict_range: range.ok_or(Error::MissingResource)?,
             matrix,
         })
     }

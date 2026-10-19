@@ -13,7 +13,7 @@
 
 use bytemuck::NoUninit;
 
-use super::OutlineError;
+use crate::model::Error;
 use crate::{
     tables::{
         glyf::{PointCoord, PointFlags, SimpleGlyph, Transform, PHANTOM_POINT_COUNT},
@@ -93,7 +93,7 @@ pub trait Scale: Sized {
     fn load_simple_points(
         &self,
         pass: SimplePass<'_, '_, Self>,
-    ) -> Result<[Point<Self::Coord>; PHANTOM_POINT_COUNT], OutlineError>;
+    ) -> Result<[Point<Self::Coord>; PHANTOM_POINT_COUNT], Error>;
 
     // -- composite components ----------------------------------------------
 
@@ -277,7 +277,7 @@ impl Scale for Scale26Dot6 {
     fn load_simple_points(
         &self,
         pass: SimplePass<'_, '_, Self>,
-    ) -> Result<[Point<F26Dot6>; PHANTOM_POINT_COUNT], OutlineError> {
+    ) -> Result<[Point<F26Dot6>; PHANTOM_POINT_COUNT], Error> {
         let SimplePass {
             glyph,
             scaled,
@@ -483,7 +483,7 @@ impl Scale for ScaleF32 {
     fn load_simple_points(
         &self,
         pass: SimplePass<'_, '_, Self>,
-    ) -> Result<[Point<f32>; PHANTOM_POINT_COUNT], OutlineError> {
+    ) -> Result<[Point<f32>; PHANTOM_POINT_COUNT], Error> {
         let SimplePass {
             glyph,
             scaled,
@@ -638,7 +638,7 @@ impl Scale for Unscaled {
     fn load_simple_points(
         &self,
         pass: SimplePass<'_, '_, Self>,
-    ) -> Result<[Point<i32>; PHANTOM_POINT_COUNT], OutlineError> {
+    ) -> Result<[Point<i32>; PHANTOM_POINT_COUNT], Error> {
         let SimplePass {
             glyph,
             scaled,

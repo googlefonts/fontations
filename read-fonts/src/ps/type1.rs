@@ -4,9 +4,9 @@ use super::{
     charmap::Charmap,
     cs::{self, CharstringContext, CharstringKind, CommandSink, NopFilterSink, TransformSink},
     encoding::PredefinedEncoding,
-    error::Error,
     transform::{self, FontMatrix, ScaledFontMatrix, Transform},
 };
+use crate::model::Error;
 use crate::{
     model::glyph::outline::OutlinePen,
     types::{BoundingBox, Fixed, GlyphId},
@@ -435,11 +435,11 @@ impl CharstringContext for Type1Font {
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
         let decode = |code: i32| {
             let name = PredefinedEncoding::Standard
-                .name(code.try_into().map_err(|_| Error::InvalidSeacCode(code))?);
+                .name(code.try_into().map_err(|_| Error::InvalidOperation)?);
             self.charstrings
                 .index_for_name(name)
                 .and_then(|idx| self.charstrings.get(idx))
-                .ok_or(Error::InvalidSeacCode(code))
+                .ok_or(Error::InvalidOperation)
         };
         let base = decode(base_code)?;
         let accent = decode(accent_code)?;
@@ -452,7 +452,7 @@ impl CharstringContext for Type1Font {
 
     fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
         // Type1 fonts don't have global subroutines
-        Err(Error::MissingSubroutines)
+        Err(Error::MissingResource)
     }
 
     fn weight_vector(&self) -> &[Fixed] {

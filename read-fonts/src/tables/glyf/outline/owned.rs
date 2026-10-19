@@ -1,9 +1,10 @@
 //! An outline that owns the buffers it is loaded into.
 
 use super::{
-    outline_to_path, Buffers, Hinter, OutlineContext, OutlineError, OutlinePlan, OutlineRef,
-    PathContourStart, Scale, Scale26Dot6, ScaleF32, Unscaled,
+    outline_to_path, Buffers, Hinter, OutlineContext, OutlinePlan, OutlineRef, PathContourStart,
+    Scale, Scale26Dot6, ScaleF32, Unscaled,
 };
+use crate::model::Error;
 use crate::{
     model::glyph::outline::OutlinePen,
     tables::glyf::{PointFlags, PHANTOM_POINT_COUNT},
@@ -123,7 +124,7 @@ impl<S: Scale> Outline<S> {
         glyph: GlyphId,
         scale: &S,
         hinter: Option<&mut dyn Hinter<S::Coord>>,
-    ) -> Result<OutlineRef<'_, S::Coord>, OutlineError> {
+    ) -> Result<OutlineRef<'_, S::Coord>, Error> {
         let plan = OutlinePlan::new(context, glyph)?;
         let lengths = plan.buffer_lengths::<S>();
         grow(&mut self.points, lengths.points);
@@ -167,7 +168,7 @@ impl Outline<Scale26Dot6> {
         context: &'a dyn OutlineContext<'a>,
         glyph: GlyphId,
         ppem: Option<f32>,
-    ) -> Result<OutlineRef<'_, F26Dot6>, OutlineError> {
+    ) -> Result<OutlineRef<'_, F26Dot6>, Error> {
         let scale = Scale26Dot6::new(ppem, context.units_per_em());
         self.load_with(context, glyph, &scale, None)
     }
@@ -180,7 +181,7 @@ impl Outline<Scale26Dot6> {
         glyph: GlyphId,
         ppem: Option<f32>,
         hinter: &mut dyn Hinter<F26Dot6>,
-    ) -> Result<OutlineRef<'_, F26Dot6>, OutlineError> {
+    ) -> Result<OutlineRef<'_, F26Dot6>, Error> {
         let scale = Scale26Dot6::new(ppem, context.units_per_em());
         self.load_with(context, glyph, &scale, Some(hinter))
     }
@@ -196,7 +197,7 @@ impl Outline<ScaleF32> {
         context: &'a dyn OutlineContext<'a>,
         glyph: GlyphId,
         ppem: Option<f32>,
-    ) -> Result<OutlineRef<'_, f32>, OutlineError> {
+    ) -> Result<OutlineRef<'_, f32>, Error> {
         let scale = ScaleF32::new(ppem, context.units_per_em());
         self.load_with(context, glyph, &scale, None)
     }
@@ -211,7 +212,7 @@ impl Outline<Unscaled> {
         &mut self,
         context: &'a dyn OutlineContext<'a>,
         glyph: GlyphId,
-    ) -> Result<OutlineRef<'_, i32>, OutlineError> {
+    ) -> Result<OutlineRef<'_, i32>, Error> {
         self.load_with(context, glyph, &Unscaled, None)
     }
 }
