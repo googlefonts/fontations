@@ -10,7 +10,7 @@ use crate::tables::glyf::outline::{
 use crate::{
     mem::with_scratch,
     model::{
-        glyph::outline::OutlineSource,
+        glyph::{outline::OutlineSource, GlyphSource, GlyphSourceOrder},
         metrics::{LineExtents, Metrics, Scale, ScaledGlyphMetrics},
         Font, Kind,
     },
@@ -76,6 +76,7 @@ pub struct GlyphMetrics<'a> {
     coords: &'a [F2Dot14],
     num_glyphs: u32,
     units_per_em: u16,
+    order: GlyphSourceOrder,
 }
 
 impl<'a> GlyphMetrics<'a> {
@@ -89,6 +90,7 @@ impl<'a> GlyphMetrics<'a> {
             coords,
             num_glyphs: global.num_glyphs,
             units_per_em: global.units_per_em,
+            order: GlyphSourceOrder::DEFAULT,
         }
     }
 
@@ -96,6 +98,20 @@ impl<'a> GlyphMetrics<'a> {
     #[inline]
     pub fn scaled<S: Scale>(self, scale: S) -> ScaledGlyphMetrics<'a, 'static, S> {
         ScaledGlyphMetrics::new(self, scale)
+    }
+
+    /// Measures ink using the sources in `order`.
+    ///
+    /// Each source in the font is tried in turn until one provides extents
+    /// for the glyph. [`GlyphSourceOrder::DEFAULT`] tries the outline
+    /// sources.
+    pub fn with_extents_source_order(self, order: GlyphSourceOrder) -> Self {
+        Self { order, ..self }
+    }
+
+    /// Returns the order used to measure ink.
+    pub fn extents_source_order(&self) -> GlyphSourceOrder {
+        self.order
     }
 
     /// Returns the advance width of `glyph`, in font units.
@@ -295,28 +311,34 @@ impl<'a> GlyphMetrics<'a> {
         if let Some(base) = self.base_source() {
             return self.extents_batched_one(base, convert, glyphs);
         }
-        // A font with its glyphs in a form none of these read.
+        // A font with its glyphs in a form none of the order reads.
         for (_, out) in glyphs {
             *out = convert(None);
         }
     }
 
-    /// Returns the first of `glyf`, `CFF2`, `CFF` and Type 1 charstrings
-    /// that the font has.
+    /// Returns the first outline source in the order that the font has, as
+    /// [`OutlineGlyphs`](crate::model::glyph::outline::OutlineGlyphs) chooses it.
     fn base_source(&self) -> Option<ExtentsSource<'a>> {
         let font = self.font;
         if let Kind::Type1(type1) = font.kind() {
-            return Some(ExtentsSource::Type1(type1));
+            return self
+                .order
+                .contains(GlyphSource::Type1)
+                .then_some(ExtentsSource::Type1(type1));
         }
-        if let Some((glyf, loca)) = font.selected_glyf_loca() {
-            return Some(ExtentsSource::Glyf(glyf, loca));
-        }
-        [OutlineSource::Cff2, OutlineSource::Cff]
-            .into_iter()
-            .find_map(|source| {
-                font.charstrings(source)
-                    .map(|cff| ExtentsSource::Cff(cff, source))
-            })
+        self.order.iter().find_map(|source| match source {
+            GlyphSource::Glyf => font
+                .selected_glyf_loca()
+                .map(|(glyf, loca)| ExtentsSource::Glyf(glyf, loca)),
+            GlyphSource::Cff2 => font
+                .charstrings(OutlineSource::Cff2)
+                .map(|cff| ExtentsSource::Cff(cff, OutlineSource::Cff2)),
+            GlyphSource::Cff => font
+                .charstrings(OutlineSource::Cff)
+                .map(|cff| ExtentsSource::Cff(cff, OutlineSource::Cff)),
+            _ => None,
+        })
     }
 
     /// Measures every glyph from the one source that answers for them all.
@@ -1852,6 +1874,16 @@ mod tests {
                 assert_eq!(metrics.extents_exact(gid), batched, "glyph {gid}");
             }
         }
+    }
+
+    #[test]
+    fn an_empty_order_measures_nothing() {
+        let font = Font::new(STATIC, 0).unwrap();
+        let metrics = font
+            .glyph_metrics()
+            .with_extents_source_order(GlyphSourceOrder::EMPTY);
+        assert_eq!(metrics.extents_exact(GlyphId::new(1)), None);
+        assert_eq!(metrics.extents_source_order(), GlyphSourceOrder::EMPTY);
     }
 
     #[test]

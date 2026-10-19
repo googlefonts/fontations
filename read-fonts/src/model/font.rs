@@ -22,7 +22,10 @@ pub mod interop;
 
 use super::attribute::Attributes;
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
-use super::glyph::outline::OutlineSource;
+use super::glyph::{
+    outline::{OutlineGlyphs, OutlineSource},
+    GlyphSourceOrder,
+};
 use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, StyleMetrics};
 use super::name::{self, GlyphName, Names};
 use super::once::Once;
@@ -306,6 +309,21 @@ impl Font {
     #[inline]
     pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
         GlyphMetrics::new(self, self.metrics(), self.normalized_coords())
+    }
+
+    /// Returns the font's outlines, using the source order in
+    /// [`GlyphSourceOrder::DEFAULT`].
+    pub fn outline_glyphs(&self) -> OutlineGlyphs<'_> {
+        OutlineGlyphs::new(self, GlyphSourceOrder::DEFAULT)
+    }
+
+    /// Returns the font's outlines, using the source order in `order`.
+    ///
+    /// The first of `Glyf`, `Cff2`, `Cff` and `Type1` that the font has
+    /// becomes the source for every glyph. Sources that are not outlines are
+    /// ignored.
+    pub fn outline_glyphs_with(&self, order: GlyphSourceOrder) -> OutlineGlyphs<'_> {
+        OutlineGlyphs::new(self, order)
     }
 
     /// Returns the underlying source of font data.
@@ -1589,9 +1607,13 @@ mod tests {
         let subfonts = font.shared().standalone_cff_subfonts().unwrap();
         assert!(subfonts.len() == 1 && subfonts[0].is_none());
         assert!(font.num_glyphs() > 1);
-        // Every glyph of the font is in that one subfont, so none measures.
+        // Every glyph of the font is in that one subfont, so none draws or
+        // measures.
+        let outlines = font.outline_glyphs();
+        assert_eq!(outlines.source(), Some(OutlineSource::Cff));
         for glyph in 0..font.num_glyphs() {
             let glyph = GlyphId::new(glyph);
+            assert!(outlines.get(glyph).is_none());
             assert_eq!(font.glyph_metrics().h_advance(glyph), 0.0);
             assert!(font.glyph_metrics().extents(glyph).is_none());
         }

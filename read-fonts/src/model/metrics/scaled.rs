@@ -4,6 +4,7 @@ use super::{
     Decoration, GlyphExtents, GlyphMetrics, LineBox, LineExtents, Metrics, ScriptMetrics,
     StyleMetrics,
 };
+use crate::model::glyph::GlyphSourceOrder;
 use types::{BoundingBox, F26Dot6, F48Dot16, Fixed, GlyphId};
 
 /// Converts a measurement in font units into a caller's own units.
@@ -479,6 +480,16 @@ impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
     /// whatever it happens to have without first checking.
     pub fn with_line_extents(self, line: Option<LineExtents<S::Value>>) -> Self {
         Self { line, ..self }
+    }
+
+    /// Measures ink using the sources in `order`.
+    ///
+    /// See [`GlyphMetrics::with_extents_source_order`].
+    pub fn with_extents_source_order(self, order: GlyphSourceOrder) -> Self {
+        Self {
+            metrics: self.metrics.with_extents_source_order(order),
+            ..self
+        }
     }
 
     /// Measures ink by a function the caller supplies rather than the font.
