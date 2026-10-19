@@ -6,23 +6,19 @@ use super::{
 };
 use types::{BoundingBox, F26Dot6, F48Dot16, Fixed, GlyphId};
 
-/// Converts a measurement in design units into a caller's own units.
+/// Converts a measurement in font units into a caller's own units.
 ///
 /// Written by whatever owns scaling in a text stack: a shaper, or the bridge
-/// between one and this crate. Callers that want design units read them from
+/// between one and this crate. Callers that want font units read them from
 /// [`GlyphMetrics`], [`Metrics`] and [`StyleMetrics`] and never implement this.
 ///
-/// Scaling is more than a multiplication, which is why it is a trait rather
-/// than a factor this crate would apply. HarfBuzz scales each axis by its own
-/// fixed point number, in a format the caller picks, and is particular about
-/// how it rounds and in what order it applies things. An implementation keeps
-/// all of that, while the rules for combining several measurements into one
-/// metric stay here.
+/// An implementation chooses the number format, the rounding, and the order
+/// of operations for each axis. This crate defines how measurements combine
+/// into a metric.
 ///
-/// The arithmetic is on this trait rather than bounds on
-/// [`Value`](Self::Value) for the same reason: an implementation decides what
-/// an overflowing sum does, and which way a halved odd number goes. HarfBuzz
-/// halves two ways within one function, so neither is safe to assume.
+/// The arithmetic is part of the trait for the same reason: an
+/// implementation decides what an overflowing sum does and which way a
+/// halved odd number rounds.
 pub trait Scale {
     /// What a scaled measurement is expressed as.
     type Value: Copy;
@@ -65,14 +61,12 @@ pub trait Scale {
     fn scale_rect(&self, bounds: BoundingBox<F48Dot16>) -> BoundingBox<Self::Value>;
 }
 
-/// Scales design-unit metrics to 26.6 pixels with FreeType-style arithmetic.
+/// Scales design-unit metrics to 26.6 pixels with 16.16 fixed-point
+/// arithmetic.
 ///
-/// Sums saturate and halves round toward negative infinity.
-///
-/// FreeType scales whole design units, so a measurement carrying a fraction
-/// is rounded to a unit before it is scaled. [`ScaleF32`] keeps the
-/// fraction. Outline loading is chosen by the metrics implementation; this
-/// scale alone does not reproduce the bounds returned by `skrifa`.
+/// Sums saturate and halves round toward negative infinity. A measurement
+/// with a fraction is rounded to a whole unit before it is scaled;
+/// [`ScaleF32`] keeps the fraction.
 #[derive(Copy, Clone, Debug)]
 pub struct Scale26Dot6 {
     x: Fixed,
@@ -80,7 +74,7 @@ pub struct Scale26Dot6 {
 }
 
 impl Scale26Dot6 {
-    /// A scale with a size for each axis, which HarfBuzz keeps apart.
+    /// Creates a scale with a separate size for each axis.
     pub fn new(x_ppem: f32, y_ppem: f32, units_per_em: u16) -> Self {
         Self {
             x: Self::factor(x_ppem, units_per_em),
@@ -88,17 +82,15 @@ impl Scale26Dot6 {
         }
     }
 
-    /// A scale mapping `units_per_em` design units onto `ppem` pixels.
+    /// Creates a scale that maps `units_per_em` font units to `ppem` pixels.
     pub fn from_ppem(ppem: f32, units_per_em: u16) -> Self {
         Self::new(ppem, ppem, units_per_em)
     }
 
-    /// The factor FreeType multiplies whole design units by.
+    /// Returns the factor that converts whole font units to 26.6 pixels.
     ///
-    /// It folds the conversion to 1/64 pixel into itself, so that a
-    /// 16.16 multiply against a whole design unit lands with 26.6 in its
-    /// bits. That is a trick rather than a type, and it is the one FreeType
-    /// plays.
+    /// The factor includes the conversion to 1/64 pixel, so a 16.16 multiply
+    /// of a whole design unit produces 26.6 bits.
     fn factor(ppem: f32, units_per_em: u16) -> Fixed {
         Fixed::from_bits((ppem * 64.0) as i32) / Fixed::from_bits(units_per_em.max(1) as i32)
     }
@@ -162,7 +154,7 @@ impl Scale for Scale26Dot6 {
     }
 }
 
-/// Scales design units to `f32` pixels.
+/// Scales font units to `f32` pixels.
 ///
 /// Nothing here rounds, so a measurement carrying a fraction keeps it, which
 /// [`Scale26Dot6`] does not.
@@ -173,7 +165,7 @@ pub struct ScaleF32 {
 }
 
 impl ScaleF32 {
-    /// A scale with a size for each axis, which HarfBuzz keeps apart.
+    /// Creates a scale with a separate size for each axis.
     pub fn new(x_ppem: f32, y_ppem: f32, units_per_em: u16) -> Self {
         let per_unit = |ppem: f32| ppem / units_per_em.max(1) as f32;
         Self {
@@ -182,7 +174,7 @@ impl ScaleF32 {
         }
     }
 
-    /// A scale mapping `units_per_em` design units onto `ppem` pixels.
+    /// Creates a scale that maps `units_per_em` font units to `ppem` pixels.
     pub fn from_ppem(ppem: f32, units_per_em: u16) -> Self {
         Self::new(ppem, ppem, units_per_em)
     }
@@ -319,16 +311,16 @@ impl<'a, S: Scale> ScaledMetrics<'a, S> {
 
     /// Returns the widest advance in the font, where it provides one.
     #[inline]
-    pub fn max_advance_width(&self) -> Option<S::Value> {
+    pub fn max_h_advance(&self) -> Option<S::Value> {
         self.metrics
-            .max_advance_width
+            .max_h_advance
             .map(|value| self.scale.scale_x(value))
     }
 
     /// Returns the tallest advance in the font, where it provides one.
     #[inline]
-    pub fn max_advance_height(&self) -> Option<S::Value> {
-        self.scaled_y(self.metrics.max_advance_height)
+    pub fn max_v_advance(&self) -> Option<S::Value> {
+        self.scaled_y(self.metrics.max_v_advance)
     }
 
     /// Returns the average advance in the font, where it provides one.
@@ -412,10 +404,10 @@ impl<'a, S: Scale> ScaledStyleMetrics<'a, S> {
             .map(|decoration| self.scale_decoration(decoration))
     }
 
-    /// Returns the suggested strikeout position and thickness.
-    pub fn strikethrough(&self) -> Option<Decoration<S::Value>> {
+    /// Returns the suggested strikethrough position and thickness.
+    pub fn strike_through(&self) -> Option<Decoration<S::Value>> {
         self.metrics
-            .strikethrough
+            .strike_through
             .map(|decoration| self.scale_decoration(decoration))
     }
 
@@ -481,7 +473,7 @@ impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
     /// A caller that reads its line from elsewhere supplies it here, so the
     /// metrics built on it agree with the rest of its layout. The line is in
     /// the same units as everything else this type reports, so nothing is
-    /// converted back into design units.
+    /// converted back into font units.
     ///
     /// `None` leaves the font's own line in place, so a caller can pass
     /// whatever it happens to have without first checking.
@@ -494,7 +486,7 @@ impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
     /// A caller that measures glyphs elsewhere supplies that here, so the
     /// metrics built on ink agree with the rest of what it reports. The
     /// function answers in the same units as everything else this type
-    /// reports, so nothing is converted back into design units. `None` from
+    /// reports, so nothing is converted back into font units. `None` from
     /// the function means extents are unavailable; return
     /// `Some(GlyphExtents::default())` for a present glyph with no ink.
     ///
@@ -569,15 +561,13 @@ impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
 
     /// Returns the y coordinate of `glyph`'s vertical origin.
     ///
-    /// Where the glyph sits relative to the pen when text runs down the page.
-    /// Only y: the x coordinate is half the advance width, which a caller
-    /// already holds, and deriving it here would hand back half of what it
-    /// passed in.
+    /// This places the glyph relative to the pen in vertical text. The x
+    /// coordinate is half the advance width, so only y is returned.
     ///
-    /// Four things can answer, in the order HarfBuzz asks them: `VORG`, then
-    /// the glyf top phantom point where the font has vertical metrics, then
-    /// the ink centered in the line, then the ascender alone. A supplied
-    /// measurement of ink is read by the last two.
+    /// The origin comes from the first available of: `VORG`, the `glyf` top
+    /// phantom point when the font has vertical metrics, the ink centered in
+    /// the line, and the ascender. The last two use the supplied ink
+    /// measurement.
     pub fn v_origin_y(&self, glyph: GlyphId) -> S::Value {
         let mut origin = self.scale.scale_y(F48Dot16::ZERO);
         self.v_origin_y_batched(|value| value, core::iter::once((glyph, &mut origin)));
@@ -594,7 +584,7 @@ impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
         let mut line = None;
-        self.metrics.v_origins_batched(
+        self.metrics.v_origin_y_batched_with(
             |glyph, origin| {
                 let value = match origin {
                     Some(origin) => self.scale.scale_y(origin),
@@ -677,9 +667,8 @@ impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
 
     /// The line a glyph stacks by, in the units this type reports.
     ///
-    /// The supplied line where there is one, and the font's otherwise. A font
-    /// that states no line at all is given one proportioned to its em, as
-    /// HarfBuzz gives a font it can read no extents from.
+    /// The supplied line if there is one, and the font's otherwise. A font
+    /// with no line metrics gets one proportioned to its em.
     fn origin_line(&self) -> LineExtents<S::Value> {
         // A supplied line is reported as it was given: a caller stating its
         // own has already decided which way its ends run.
@@ -725,7 +714,7 @@ mod tests {
     use alloc::sync::Arc;
     use types::{GlyphId, Tag};
 
-    /// Scales design units to pixels at a size, halving toward zero.
+    /// Scales font units to pixels at a size, halving toward zero.
     #[derive(Clone, Copy)]
     struct Ppem {
         ppem: f32,
@@ -933,12 +922,12 @@ mod tests {
             global.cap_height.map(|v| scale.scale_y(v))
         );
         assert_eq!(
-            scaled.max_advance_width(),
-            global.max_advance_width.map(|v| scale.scale_x(v))
+            scaled.max_h_advance(),
+            global.max_h_advance.map(|v| scale.scale_x(v))
         );
         assert_eq!(
-            scaled.max_advance_height(),
-            global.max_advance_height.map(|v| scale.scale_y(v))
+            scaled.max_v_advance(),
+            global.max_v_advance.map(|v| scale.scale_y(v))
         );
         assert_eq!(
             scaled.average_char_width(),

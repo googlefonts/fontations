@@ -17,8 +17,14 @@ use crate::tables::{
     vvar::Vvar,
 };
 use crate::TableProvider;
+
 use alloc::sync::Arc;
 use yoke::{Yoke, Yokeable};
+
+/// Returns the design units per em that the font's metrics use.
+fn units_per_em<'a>(tables: &impl TableProvider<'a>) -> u16 {
+    crate::model::metrics::units_per_em(tables.head().map_or(0, |head| head.units_per_em()))
+}
 
 /// A parsed table held beside the tables it borrows.
 pub(crate) struct TableCache<Y: for<'a> Yokeable<'a>>(Yoke<Y, Arc<Tables>>);
@@ -41,8 +47,8 @@ impl<Y: for<'a> Yokeable<'a>> TableCache<Y> {
 
 /// The outline tables.
 ///
-/// These are read as a pair because neither is usable alone: `loca` states
-/// where in `glyf` a glyph begins.
+/// These are read as a pair because neither is usable alone: `loca` gives
+/// the offset of each glyph in `glyf`.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct GlyfLoca<'a>(pub(crate) Option<(Glyf<'a>, Loca<'a>)>);
 
@@ -56,7 +62,7 @@ impl<'a> GlyfLoca<'a> {
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct MetricsTable<'a>(pub(crate) GlyphMetricRecords<'a>);
 
-/// The table stating how a location changes horizontal metrics.
+/// The table of horizontal metric variations.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct HvarTable<'a>(pub(crate) Option<Hvar<'a>>);
 
@@ -66,7 +72,7 @@ impl<'a> HvarTable<'a> {
     }
 }
 
-/// The table stating how a location changes vertical metrics.
+/// The table of vertical metric variations.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct VvarTable<'a>(pub(crate) Option<Vvar<'a>>);
 
@@ -76,10 +82,10 @@ impl<'a> VvarTable<'a> {
     }
 }
 
-/// The table stating how a location changes outlines.
+/// The table that varies `glyf` outlines.
 ///
-/// Metrics read this only where `HVAR` is absent, recovering the answer from
-/// the phantom points it carries alongside each glyph.
+/// Outlines read it at a location away from the default. Metrics read it
+/// where `HVAR` or `VVAR` is absent, from the phantom points of each glyph.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct GvarTable<'a>(pub(crate) Option<SelectedGvar<'a>>);
 
@@ -89,29 +95,45 @@ impl<'a> GvarTable<'a> {
     }
 }
 
-/// The outlines of a font that states them as charstrings.
+/// Charstring outlines from the `CFF2` table.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct Cff2Font<'a>(pub(crate) Option<CffFontRef<'a>>);
+
+impl<'a> Cff2Font<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        let upem = Some(units_per_em(tables) as i32);
+        Self(
+            tables
+                .cff2()
+                .ok()
+                .and_then(|cff2| CffFontRef::new(cff2.offset_data().as_bytes(), 0, upem).ok()),
+        )
+    }
+}
+
+/// Charstring outlines from the `CFF` table.
 ///
-/// `CFF2` first, as HarfBuzz reads them: a font carrying both states its
-/// variable outlines there.
+/// This is separate from [`Cff2Font`] so that a caller can choose either
+/// table when a font has both.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct CffFont<'a>(pub(crate) Option<CffFontRef<'a>>);
 
 impl<'a> CffFont<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
-        let upem = tables.head().ok().map(|head| head.units_per_em() as i32);
-        let data = tables
-            .cff2()
-            .ok()
-            .map(|cff2| cff2.offset_data().as_bytes())
-            .or_else(|| tables.cff().ok().map(|cff| cff.offset_data().as_bytes()));
-        Self(data.and_then(|data| CffFontRef::new(data, 0, upem).ok()))
+        let upem = Some(units_per_em(tables) as i32);
+        Self(
+            tables
+                .cff()
+                .ok()
+                .and_then(|cff| CffFontRef::new(cff.offset_data().as_bytes(), 0, upem).ok()),
+        )
     }
 }
 
-/// The table stating where a glyph's vertical origin sits.
+/// The table of glyph vertical origins.
 ///
-/// Read only by vertical text, and only ahead of everything else that could
-/// answer: a font stating this states it outright.
+/// Used only for vertical text, where it takes precedence over every other
+/// source of the origin.
 #[derive(Clone, Default, Yokeable)]
 pub(crate) struct VorgTable<'a>(pub(crate) Option<Vorg<'a>>);
 

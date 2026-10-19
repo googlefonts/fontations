@@ -18,7 +18,8 @@ use crate::{
 /// `glyf` nor a `GLYF` table returns `false`.
 ///
 /// This reads the family name and the hinting tables. A caller that checks
-/// more than once should cache the result.
+/// more than once should cache the result, as
+/// [`Font::is_hint_reliant`](crate::model::Font::is_hint_reliant) does.
 pub fn is_hint_reliant<'a>(font: &impl TableProvider<'a>) -> bool {
     if font.glyf().is_err() && font.glyf_extended().is_err() {
         return false;
@@ -483,12 +484,13 @@ mod tests {
         );
     }
 
-    // The font model's tables answer the same as a FontRef.
+    // The font model answers the same as a FontRef, through its own tables.
     #[test]
     fn font_model_agrees_with_font_ref() {
         for data in [font_test_data::TINOS_SUBSET, font_test_data::VAZIRMATN_VAR] {
             let font = FontRef::new(data).unwrap();
             let model = crate::model::Font::new(data.to_vec(), 0).unwrap();
+            assert_eq!(model.is_hint_reliant(), is_hint_reliant(&font));
             assert_eq!(is_hint_reliant(&model.tables()), is_hint_reliant(&font));
         }
     }

@@ -124,11 +124,14 @@ pub struct Tables(TableSource);
 
 impl Tables {
     /// Creates a new set of font tables for the given source.
-    pub fn new(source: impl Into<Source>, index: u32) -> Result<Self, ReadError> {
+    ///
+    /// The index selects a font in a collection. Returns `None` if a blob
+    /// holds no SFNT font at that index.
+    pub fn new(source: impl Into<Source>, index: u32) -> Option<Self> {
         let source = source.into();
         match source {
             Source::Blob(blob) => {
-                let font_ref = crate::FontRef::from_index(&blob, index)?;
+                let font_ref = crate::FontRef::from_index(&blob, index).ok()?;
                 let mut tables = PerTableData::default();
                 let directory = font_ref.table_directory();
                 let table_records = directory.table_records();
@@ -163,12 +166,12 @@ impl Tables {
                         end,
                     };
                 });
-                Ok(Self(TableSource::Blob(BlobTables {
+                Some(Self(TableSource::Blob(BlobTables {
                     blob,
                     tables: Box::new(tables),
                 })))
             }
-            Source::TableFunction(func) => Ok(Self(TableSource::Function(func))),
+            Source::TableFunction(func) => Some(Self(TableSource::Function(func))),
         }
     }
 }
@@ -361,6 +364,16 @@ impl<'a> TableProvider<'a> for &'a Tables {
                 .ok_or(ReadError::TableIsMissing(Tag::new(b"cvt ")))?,
         );
         table_data.read_array(0..table_data.len())
+    }
+
+    fn fpgm(&self) -> Result<&'a [u8], ReadError> {
+        self.fpgm_data()
+            .ok_or(ReadError::TableIsMissing(Tag::new(b"fpgm")))
+    }
+
+    fn prep(&self) -> Result<&'a [u8], ReadError> {
+        self.prep_data()
+            .ok_or(ReadError::TableIsMissing(Tag::new(b"prep")))
     }
 
     fn cvar(&self) -> Result<tables::cvar::Cvar<'a>, ReadError> {

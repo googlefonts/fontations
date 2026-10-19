@@ -888,7 +888,7 @@ impl FontDict {
 ///
 /// This is accessed separately because this information is redundant when a
 /// CFF blob is used in an OpenType font.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Metadata<'a> {
     name: Option<&'a str>,
     version: Option<&'a str>,
