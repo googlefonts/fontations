@@ -6,20 +6,21 @@ mod widths;
 
 use super::{
     super::Target,
+    context::AutohintContext,
     shape::{Shaper, ShaperMode},
     style::{GlyphStyleMap, ScriptGroup, StyleClass},
     topo::Dimension,
     QuirksMode,
 };
-use crate::{attribute::Style, FontRef};
+use crate::attribute::Style;
 use alloc::vec::Vec;
-use raw::types::{F2Dot14, Fixed, GlyphId};
+use raw::types::{Fixed, GlyphId};
 use smallvec::SmallVec;
 #[cfg(feature = "std")]
 use std::sync::{Arc, RwLock};
 
+pub(crate) use blues::{BlueOutlineBuf, ScaledBlues, UnscaledBlues};
 pub use blues::{BlueZones, ScaledBlue, UnscaledBlue};
-pub(crate) use blues::{ScaledBlues, UnscaledBlues};
 pub(crate) use scale::{compute_unscaled_style_metrics, scale_style_metrics};
 
 /// Maximum number of widths, same for Latin and CJK.
@@ -137,19 +138,20 @@ impl UnscaledStyleMetricsSet {
     /// Creates a precomputed style metrics set containing all metrics
     /// required by the glyph map.
     pub fn precomputed(
-        font: &FontRef,
-        coords: &[F2Dot14],
+        context: &dyn AutohintContext,
         shaper_mode: ShaperMode,
         style_map: &GlyphStyleMap,
     ) -> Self {
         // The metrics_styles() iterator does not report exact size so we
         // preallocate and extend here rather than collect to avoid
         // over allocating memory.
-        let shaper = Shaper::new(font, shaper_mode).with_coords(coords);
+        let shaper = Shaper::new(context, shaper_mode);
         let mut vec = Vec::with_capacity(style_map.metrics_count());
-        vec.extend(style_map.metrics_styles().map(|style| {
-            compute_unscaled_style_metrics(&shaper, coords, style, QuirksMode::default())
-        }));
+        vec.extend(
+            style_map
+                .metrics_styles()
+                .map(|style| compute_unscaled_style_metrics(&shaper, style, QuirksMode::default())),
+        );
         Self::Precomputed(vec)
     }
 
@@ -163,10 +165,13 @@ impl UnscaledStyleMetricsSet {
 
     /// Returns the unscaled style metrics for the given style map and glyph
     /// identifier.
+    ///
+    /// A lazy set computes missing metrics using a context from
+    /// `make_context`. It calls `make_context` only in that case.
+    #[cfg_attr(not(feature = "std"), allow(unused_variables))]
     pub fn get(
         &self,
-        font: &FontRef,
-        coords: &[F2Dot14],
+        make_context: impl FnOnce(&mut dyn FnMut(&dyn AutohintContext)),
         shaper_mode: ShaperMode,
         style_map: &GlyphStyleMap,
         glyph_id: GlyphId,
@@ -186,14 +191,17 @@ impl UnscaledStyleMetricsSet {
                 // The std RwLock doesn't support upgrading and contention is
                 // expected to be low, so let's just race to compute the new
                 // metrics.
-                let shaper = Shaper::new(font, shaper_mode).with_coords(coords);
                 let style_class = style.style_class()?;
-                let metrics = compute_unscaled_style_metrics(
-                    &shaper,
-                    coords,
-                    style_class,
-                    QuirksMode::default(),
-                );
+                let mut metrics = None;
+                make_context(&mut |context| {
+                    let shaper = Shaper::new(context, shaper_mode);
+                    metrics = Some(compute_unscaled_style_metrics(
+                        &shaper,
+                        style_class,
+                        QuirksMode::default(),
+                    ));
+                });
+                let metrics = metrics?;
                 let mut entry = lazy.write().unwrap();
                 *entry.get_mut(index)? = Some(metrics.clone());
                 Some(metrics)
@@ -487,6 +495,8 @@ mod tests {
         },
         *,
     };
+    use crate::outline::autohint::context::FontRefContext;
+    use crate::FontRef;
     use raw::TableProvider;
 
     #[test]
@@ -511,12 +521,12 @@ mod tests {
     #[test]
     fn precomputed_style_set() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let coords = &[];
-        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::Nominal);
         let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
         let style_map = GlyphStyleMap::new(glyph_count, &shaper);
         let style_set =
-            UnscaledStyleMetricsSet::precomputed(&font, coords, ShaperMode::Nominal, &style_map);
+            UnscaledStyleMetricsSet::precomputed(&context, ShaperMode::Nominal, &style_map);
         let UnscaledStyleMetricsSet::Precomputed(set) = &style_set else {
             panic!("we definitely made a precomputed style set");
         };
@@ -533,8 +543,8 @@ mod tests {
     #[test]
     fn lazy_style_set() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let coords = &[];
-        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::Nominal);
         let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
         let style_map = GlyphStyleMap::new(glyph_count, &shaper);
         let style_set = UnscaledStyleMetricsSet::lazy(&style_map);
@@ -544,8 +554,7 @@ mod tests {
         // First load a CJK glyph
         let metrics2 = style_set
             .get(
-                &font,
-                coords,
+                |compute| compute(&context),
                 ShaperMode::Nominal,
                 &style_map,
                 GlyphId::new(0),
@@ -560,8 +569,7 @@ mod tests {
         // Then a Hebrew glyph
         let metrics1 = style_set
             .get(
-                &font,
-                coords,
+                |compute| compute(&context),
                 ShaperMode::Nominal,
                 &style_map,
                 GlyphId::new(1),
@@ -573,8 +581,7 @@ mod tests {
         // And finally a Latin glyph
         let metrics0 = style_set
             .get(
-                &font,
-                coords,
+                |compute| compute(&context),
                 ShaperMode::Nominal,
                 &style_map,
                 GlyphId::new(15),

@@ -1060,6 +1060,7 @@ mod tests {
         },
         *,
     };
+    use crate::outline::autohint::context::FontRefContext;
     use crate::{attribute::Style, MetadataProvider};
     use raw::{types::GlyphId, FontRef, TableProvider};
 
@@ -1127,10 +1128,11 @@ mod tests {
         expected_v_edges: &[(i32, TopoFlags)],
     ) {
         let font = FontRef::new(font_data).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::Nominal);
         let class = &style::STYLE_CLASSES[class];
         let unscaled_metrics =
-            metrics::compute_unscaled_style_metrics(&shaper, &[], class, Default::default());
+            metrics::compute_unscaled_style_metrics(&shaper, class, Default::default());
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,

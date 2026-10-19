@@ -2,21 +2,18 @@
 
 use super::{
     super::{
-        pen::PathStyle, AdjustedMetrics, DrawError, OutlineGlyph, OutlineGlyphCollection,
-        OutlinePen, Target,
+        pen::PathStyle, AdjustedMetrics, DrawError, OutlineGlyphCollection, OutlinePen, Target,
     },
+    context::{AutohintContext, FontRefContext},
     metrics::{fixed_mul, pix_round, Scale, UnscaledStyleMetricsSet},
     outline::Outline,
     shape::{Shaper, ShaperMode},
     style::{GlyphStyle, GlyphStyleMap},
     ScaleFlags,
 };
-use crate::{attribute::Style, prelude::Size, MetadataProvider};
+use crate::{attribute::Style, prelude::Size};
 use alloc::sync::Arc;
-use raw::{
-    types::{F26Dot6, F2Dot14, GlyphId},
-    FontRef, TableProvider,
-};
+use raw::types::{F26Dot6, GlyphId};
 
 /// We enable "best effort" mode by default but allow it to be disabled with
 /// a feature for testing.
@@ -39,16 +36,17 @@ impl GlyphStyles {
         if let Some(font) = outlines.font() {
             // The style table is sized by the glyph count, which a font can
             // overstate; it never needs more entries than there are outlines.
-            let glyph_count = font
-                .selected_maxp()
-                .map(|maxp| maxp.num_glyphs())
-                .unwrap_or_default()
-                .min(outlines.stored_glyph_count());
-            let shaper = Shaper::new(font, SHAPER_MODE);
-            Self(Arc::new(GlyphStyleMap::new(glyph_count, &shaper)))
+            Self::from_context(&FontRefContext::with_outlines(font, outlines, &[]))
         } else {
             Self(Default::default())
         }
+    }
+
+    /// Precomputes the full set of glyph styles for the font behind
+    /// `context`.
+    pub(crate) fn from_context(context: &dyn AutohintContext) -> Self {
+        let shaper = Shaper::new(context, SHAPER_MODE);
+        Self(Arc::new(GlyphStyleMap::new(context.glyph_count(), &shaper)))
     }
 
     /// Returns the style for the given glyph.
@@ -57,76 +55,93 @@ impl GlyphStyles {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct Instance {
+/// The data the automatic hinter derives from a font at one location.
+///
+/// It does not depend on the hinting target.
+pub(crate) struct LocatedState {
     styles: GlyphStyles,
+    /// Measured from the outlines at the location. Each style is measured
+    /// when first drawn, or all at once without `std`.
     metrics: UnscaledStyleMetricsSet,
-    target: Target,
     is_fixed_width: bool,
     style: Style,
 }
 
-impl Instance {
-    pub fn new(
-        font: &FontRef,
-        outlines: &OutlineGlyphCollection,
-        coords: &[F2Dot14],
-        target: Target,
-        styles: Option<GlyphStyles>,
-        lazy_metrics: bool,
-    ) -> Self {
-        let styles = styles.unwrap_or_else(|| GlyphStyles::new(outlines));
+impl LocatedState {
+    #[cfg_attr(not(feature = "std"), allow(unused_variables))]
+    fn new(context: &dyn AutohintContext, styles: GlyphStyles, lazy_metrics: bool) -> Self {
         #[cfg(feature = "std")]
         let metrics = if lazy_metrics {
             UnscaledStyleMetricsSet::lazy(&styles.0)
         } else {
-            UnscaledStyleMetricsSet::precomputed(font, coords, SHAPER_MODE, &styles.0)
+            UnscaledStyleMetricsSet::precomputed(context, SHAPER_MODE, &styles.0)
         };
         #[cfg(not(feature = "std"))]
-        let metrics = UnscaledStyleMetricsSet::precomputed(font, coords, SHAPER_MODE, &styles.0);
-        let is_fixed_width = font
-            .post()
-            .map(|post| post.is_fixed_pitch() != 0)
-            .unwrap_or_default();
-        let style = font.attributes().style;
+        let metrics = UnscaledStyleMetricsSet::precomputed(context, SHAPER_MODE, &styles.0);
         Self {
             styles,
             metrics,
+            is_fixed_width: context.is_fixed_pitch(),
+            style: context.style(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Instance {
+    state: Arc<LocatedState>,
+    target: Target,
+}
+
+impl Instance {
+    pub fn new(
+        context: &dyn AutohintContext,
+        target: Target,
+        styles: Option<GlyphStyles>,
+        lazy_metrics: bool,
+    ) -> Self {
+        let styles = styles.unwrap_or_else(|| GlyphStyles::from_context(context));
+        Self {
+            state: Arc::new(LocatedState::new(context, styles, lazy_metrics)),
             target,
-            is_fixed_width,
-            style,
         }
     }
 
     pub fn draw(
         &self,
+        context: &dyn AutohintContext,
         size: Size,
-        coords: &[F2Dot14],
-        glyph: &OutlineGlyph,
+        glyph_id: GlyphId,
         path_style: PathStyle,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
-        let font = glyph.font();
-        let glyph_id = glyph.glyph_id();
-        let style = self
+        let state = &*self.state;
+        let style = state
             .styles
             .0
             .style(glyph_id)
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
-        let metrics = self
+        let metrics = state
             .metrics
-            .get(font, coords, SHAPER_MODE, &self.styles.0, glyph_id)
+            .get(
+                |compute| compute(context),
+                SHAPER_MODE,
+                &state.styles.0,
+                glyph_id,
+            )
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
-        let units_per_em = glyph.units_per_em() as i32;
+        let mut outline = Outline::default();
+        let has_overlaps = context
+            .fill_outline(glyph_id, &mut outline, super::QuirksMode::default())
+            .ok_or(DrawError::GlyphNotFound(glyph_id))??;
+        let units_per_em = outline.units_per_em;
         let scale = Scale::new(
             size.ppem().unwrap_or(units_per_em as f32),
             units_per_em,
-            self.style,
+            state.style,
             self.target,
             metrics.style_class().script.group,
         );
-        let mut outline = Outline::default();
-        outline.fill(glyph, coords, super::QuirksMode::default())?;
         let hinted_metrics = super::hint::hint_outline(&mut outline, &metrics, &scale, Some(style));
         let h_advance = outline.advance;
         let mut pp1x = 0;
@@ -171,7 +186,7 @@ impl Instance {
             }
         }
         let advance = if !is_light
-            && (self.is_fixed_width || (metrics.digits_have_same_width && style.is_digit()))
+            && (state.is_fixed_width || (metrics.digits_have_same_width && style.is_digit()))
         {
             fixed_mul(h_advance, scale.x_scale)
         } else if h_advance != 0 {
@@ -181,7 +196,7 @@ impl Instance {
         };
         outline.to_path(path_style, pen)?;
         Ok(AdjustedMetrics {
-            has_overlaps: glyph.has_overlaps().unwrap_or_default(),
+            has_overlaps,
             lsb: None,
             advance_width: Some(F26Dot6::from_bits(pix_round(advance)).to_f32()),
         })

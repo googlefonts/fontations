@@ -38,6 +38,8 @@ pub enum DrawError {
     HarfBuzzHintingUnsupported,
 }
 
+impl DrawError {}
+
 impl From<HintError> for DrawError {
     fn from(value: HintError) -> Self {
         Self::HintingFailed(value)

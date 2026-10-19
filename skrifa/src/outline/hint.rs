@@ -387,14 +387,8 @@ impl HintingInstance {
                 let Some(font) = outlines.font() else {
                     return Ok(());
                 };
-                let instance = autohint::Instance::new(
-                    font,
-                    outlines,
-                    &self.coords,
-                    self.target,
-                    styles,
-                    true,
-                );
+                let context = autohint::FontRefContext::with_outlines(font, outlines, &self.coords);
+                let instance = autohint::Instance::new(&context, self.target, styles, true);
                 self.kind = HinterKind::Auto(instance);
             }
             _ => {}
@@ -426,7 +420,8 @@ impl HintingInstance {
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
             (HinterKind::Auto(instance), _) => {
-                instance.draw(self.size, coords, glyph, path_style, pen)
+                let context = autohint::FontRefContext::for_glyph(glyph, coords);
+                instance.draw(&context, self.size, glyph.glyph_id(), path_style, pen)
             }
             (HinterKind::Glyf(instance), OutlineKind::Glyf(glyf, outline)) => {
                 if matches!(path_style, PathStyle::HarfBuzz) {
