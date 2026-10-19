@@ -469,15 +469,16 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
                     )
                 }
                 Anchor::Point { base, component } => {
-                    let base_point = *self
-                        .buffers
-                        .points
-                        .get(point_base + base as usize)
+                    // The base point comes from a component loaded earlier in
+                    // this composite and the matched point from the one just
+                    // loaded, as in FreeType. A slot past either range can
+                    // still be inside the buffer without having been written
+                    // for this glyph.
+                    let base_point = *self.buffers.points[point_base..start_point]
+                        .get(base as usize)
                         .ok_or(OutlineError::InvalidAnchorPoint)?;
-                    let component_point = *self
-                        .buffers
-                        .points
-                        .get(start_point + component as usize)
+                    let component_point = *self.buffers.points[start_point..end_point]
+                        .get(component as usize)
                         .ok_or(OutlineError::InvalidAnchorPoint)?;
                     base_point - component_point
                 }
@@ -724,6 +725,85 @@ mod tests {
         assert_eq!(
             plan.load(&context, &scale, buffers, None).err(),
             Some(OutlineError::InsufficientMemory)
+        );
+    }
+
+    /// A point anchor names a point of a component loaded earlier in the
+    /// composite and a point of the component just loaded. An index past
+    /// either range can still land inside the point buffer, on a slot the
+    /// load has not written for this glyph, so it is an error rather than
+    /// an offset.
+    #[test]
+    fn anchor_points_outside_the_loaded_components_are_rejected() {
+        fn simple() -> Vec<u8> {
+            let mut out = vec![];
+            out.extend_from_slice(&1i16.to_be_bytes()); // numberOfContours
+            out.extend_from_slice(&[0u8; 8]); // bounding box
+            out.extend_from_slice(&1u16.to_be_bytes()); // endPtsOfContours
+            out.extend_from_slice(&0u16.to_be_bytes()); // instructionLength
+            out.extend_from_slice(&[1u8, 1]); // ON_CURVE_POINT, word coordinates
+            out.extend_from_slice(&10i16.to_be_bytes());
+            out.extend_from_slice(&20i16.to_be_bytes());
+            out.extend_from_slice(&30i16.to_be_bytes());
+            out.extend_from_slice(&40i16.to_be_bytes());
+            out
+        }
+        // Two copies of `first`, the second placed by anchor points.
+        fn anchored(first: u16, base: u16, component: u16) -> Vec<u8> {
+            let mut out = vec![];
+            out.extend_from_slice(&(-1i16).to_be_bytes()); // numberOfContours
+            out.extend_from_slice(&[0u8; 8]); // bounding box
+                                              // ARG_1_AND_2_ARE_WORDS | ARGS_ARE_XY_VALUES | MORE_COMPONENTS
+            out.extend_from_slice(&0x0023u16.to_be_bytes());
+            out.extend_from_slice(&first.to_be_bytes());
+            out.extend_from_slice(&[0u8; 4]);
+            // ARG_1_AND_2_ARE_WORDS
+            out.extend_from_slice(&0x0001u16.to_be_bytes());
+            out.extend_from_slice(&0u16.to_be_bytes());
+            out.extend_from_slice(&base.to_be_bytes());
+            out.extend_from_slice(&component.to_be_bytes());
+            out
+        }
+        fn load(glyphs: &[Vec<u8>], gid: u32) -> Result<(), OutlineError> {
+            let mut glyf = vec![];
+            let mut loca = vec![];
+            for glyph in glyphs {
+                loca.extend_from_slice(&(glyf.len() as u32).to_be_bytes());
+                glyf.extend_from_slice(glyph);
+            }
+            loca.extend_from_slice(&(glyf.len() as u32).to_be_bytes());
+            let context = OutlineTables {
+                glyf: Glyf::read(FontData::new(&glyf)).unwrap(),
+                loca: Loca::read(FontData::new(&loca), true).unwrap(),
+                gvar: None,
+                hmtx: None,
+                os2: None,
+                hvar: None,
+                units_per_em: 1000,
+                coords: &[],
+                gvar_scalars: &[],
+            };
+            Outline::<Unscaled>::new()
+                .load(&context, GlyphId::new(gid))
+                .map(|_| ())
+        }
+        // Point 1 of the first component, point 0 of the second.
+        assert_eq!(load(&[simple(), anchored(0, 1, 0)], 1), Ok(()));
+        // The base point lies in the component being placed.
+        assert_eq!(
+            load(&[simple(), anchored(0, 2, 0)], 1),
+            Err(OutlineError::InvalidAnchorPoint)
+        );
+        // The matched point lies past the component, on a phantom point.
+        assert_eq!(
+            load(&[simple(), anchored(0, 0, 3)], 1),
+            Err(OutlineError::InvalidAnchorPoint)
+        );
+        // Nested: gid 2 holds ten slots and gid 1 names the last one while
+        // only its first component has been loaded.
+        assert_eq!(
+            load(&[simple(), anchored(0, 9, 0), anchored(1, 1, 0)], 2),
+            Err(OutlineError::InvalidAnchorPoint)
         );
     }
 }
