@@ -5,7 +5,7 @@
 //! [`Scale`]; the structure lives here and is shared by every scale.
 
 use super::{
-    scale::{Scale, SimplePass},
+    scale::{OffsetRounding, Scale, SimplePass},
     Buffers, GlyphZone, Hinter, OutlineContext, OutlinePlan, OutlineRef,
 };
 use crate::model::Error;
@@ -263,14 +263,16 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         self.point_count += point_count;
         self.contour_count += contours_range.len();
 
-        self.hint_glyph(
-            glyph.instructions(),
-            points_start,
-            contours_range.clone(),
-            point_count,
-            gid,
-            false,
-        )?;
+        if self.is_hinted {
+            self.hint_glyph(
+                glyph.instructions(),
+                points_start,
+                contours_range.clone(),
+                point_count,
+                gid,
+                false,
+            )?;
+        }
 
         if points_start != 0 {
             // Contour end points are read relative to this glyph, so shift
@@ -385,16 +387,18 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         let contour_base = self.contour_count;
         let delta_base = self.component_delta_count;
         let mut have_deltas = false;
-        // One parse of the component list gives both the count the delta stack
-        // needs and the instructions used at the end.
-        let (component_count, instructions) = glyph.count_and_instructions();
+        // Instructions found while counting the components, so a varied
+        // glyph parses its component list once.
+        let mut counted_instructions = None;
         let var_data = if self.varies {
             self.context.glyph_variation_data(gid)
         } else {
             None
         };
         if let Some(var_data) = var_data {
-            let count = component_count + PHANTOM_POINT_COUNT;
+            let (count, instructions) = glyph.count_and_instructions();
+            counted_instructions = Some(instructions);
+            let count = count + PHANTOM_POINT_COUNT;
             let deltas = self
                 .buffers
                 .composite_deltas
@@ -454,16 +458,29 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
                     let delta = have_deltas
                         .then(|| self.buffers.composite_deltas.get(delta_base + i).copied())
                         .flatten();
-                    let round_y = self.is_hinted
+                    // Only a hinted outline lands on the grid, and the hinter
+                    // decides whether both axes do.
+                    let rounding = if self.is_hinted
                         && component
                             .flags
-                            .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID);
+                            .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
+                    {
+                        OffsetRounding {
+                            x: self
+                                .hinter
+                                .as_deref()
+                                .is_some_and(|hinter| hinter.round_composite_x_offset()),
+                            y: true,
+                        }
+                    } else {
+                        OffsetRounding::default()
+                    };
                     self.scale.component_offset(
                         Point::new(x as i32, y as i32),
                         &component.transform,
                         scale_offset,
                         delta,
-                        round_y,
+                        rounding,
                     )
                 }
                 Anchor::Point { base, component } => {
@@ -491,16 +508,19 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
         // succeeded. Guarding the restore leaks the reservation on malformed
         // data, and a later composite then starts from a higher base.
         self.component_delta_count = delta_base;
-        // The hook decides whether there is anything to do; a composite with
-        // no instructions, or a draw with no hinter, costs nothing here.
-        self.hint_glyph(
-            instructions.unwrap_or_default(),
-            point_base,
-            contour_base..self.contour_count,
-            self.point_count - point_base,
-            gid,
-            true,
-        )?;
+        // The hook decides whether there is anything to do for a composite
+        // with no instructions.
+        if self.is_hinted {
+            let instructions = counted_instructions.unwrap_or_else(|| glyph.instructions());
+            self.hint_glyph(
+                instructions.unwrap_or_default(),
+                point_base,
+                contour_base..self.contour_count,
+                self.point_count - point_base,
+                gid,
+                true,
+            )?;
+        }
         Ok(())
     }
 }
@@ -510,10 +530,8 @@ mod tests {
     use super::super::testing::build;
     use super::*;
     use crate::{
-        tables::glyf::{
-            outline::{Outline, OutlineTables, Scale26Dot6, Unscaled},
-            PointFlags,
-        },
+        tables::glyf::outline::{Outline, OutlineTables, Scale26Dot6, Unscaled},
+        tables::glyf::PointFlags,
         tables::{glyf::Glyf, gvar::Gvar, loca::Loca},
         types::{F26Dot6, Fixed},
         FontData, FontRead, FontRef,

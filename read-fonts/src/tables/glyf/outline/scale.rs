@@ -11,9 +11,9 @@
 //! - [`Unscaled`] stays in font units, which is what an autohinter needs. It
 //!   matches [`Scale26Dot6`] at no size, without the round trip through 26.6.
 
+use crate::model::Error;
 use bytemuck::NoUninit;
 
-use crate::model::Error;
 use crate::{
     tables::{
         glyf::{PointCoord, PointFlags, SimpleGlyph, Transform, PHANTOM_POINT_COUNT},
@@ -109,16 +109,29 @@ pub trait Scale: Sized {
     /// `scale_offset` is set when the component carries
     /// `SCALED_COMPONENT_OFFSET` without `UNSCALED_COMPONENT_OFFSET`,
     /// `delta` is the component's variation delta if there is one, and
-    /// `round_y` when the component carries `ROUND_XY_TO_GRID` and the outline
-    /// is being hinted.
+    /// `rounding` selects the axes that are rounded to the pixel grid. No
+    /// axis is rounded unless the component carries `ROUND_XY_TO_GRID` and
+    /// the outline is being hinted.
     fn component_offset(
         &self,
         offset: Point<i32>,
         transform: &Transform,
         scale_offset: bool,
         delta: Option<Point<Self::Delta>>,
-        round_y: bool,
+        rounding: OffsetRounding,
     ) -> Point<Self::Coord>;
+}
+
+/// The axes of a composite component's offset that are rounded to the pixel
+/// grid.
+///
+/// This applies when the component has the `ROUND_XY_TO_GRID` flag. The
+/// hinter selects the axes through
+/// [`Hinter::round_composite_x_offset`](super::Hinter::round_composite_x_offset).
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub struct OffsetRounding {
+    pub x: bool,
+    pub y: bool,
 }
 
 /// Everything [`Scale::load_simple_points`] needs beyond the glyph itself.
@@ -297,15 +310,15 @@ impl Scale for Scale26Dot6 {
         // Phantom points hold font units in the low bits until they are scaled.
         let raw_phantom = phantom.map(|point| point.map(|v| v.to_bits()));
         read_points_and_phantom(glyph, unscaled, flags, &raw_phantom)?;
-        let have_deltas = simple_deltas(
-            var_data,
-            varies,
-            (coords, gvar_scalars),
-            unscaled,
-            flags,
-            contours,
-            &mut deltas,
-        );
+        let have_deltas = varies
+            && simple_deltas(
+                var_data,
+                (coords, gvar_scalars),
+                unscaled,
+                flags,
+                contours,
+                &mut deltas,
+            );
         if self.is_scaled {
             if have_deltas {
                 for ((point, unscaled), delta) in scaled
@@ -378,7 +391,7 @@ impl Scale for Scale26Dot6 {
         transform: &Transform,
         scale_offset: bool,
         delta: Option<Point<Fixed>>,
-        round_y: bool,
+        rounding: OffsetRounding,
     ) -> Point<F26Dot6> {
         let (mut x, mut y) = (offset.x, offset.y);
         if scale_offset {
@@ -396,8 +409,10 @@ impl Scale for Scale26Dot6 {
         }
         if self.is_scaled {
             let mut offset = self.mul_point(Point::new(x, y));
-            if round_y {
-                // Only round the y-coordinate, per FreeType.
+            if rounding.x {
+                offset.x = offset.x.round();
+            }
+            if rounding.y {
                 offset.y = offset.y.round();
             }
             offset
@@ -501,15 +516,16 @@ impl Scale for ScaleF32 {
         // units and are scaled at the end.
         let phantom_start = glyph.num_points();
         read_points_and_phantom(glyph, scaled, flags, &phantom)?;
-        if simple_deltas(
-            var_data,
-            varies,
-            (coords, gvar_scalars),
-            scaled,
-            flags,
-            contours,
-            &mut deltas,
-        ) {
+        if varies
+            && simple_deltas(
+                var_data,
+                (coords, gvar_scalars),
+                scaled,
+                flags,
+                contours,
+                &mut deltas,
+            )
+        {
             for (point, delta) in scaled.iter_mut().zip(deltas.deltas.iter()) {
                 *point += *delta;
             }
@@ -542,7 +558,7 @@ impl Scale for ScaleF32 {
         transform: &Transform,
         scale_offset: bool,
         delta: Option<Point<f32>>,
-        _round_y: bool,
+        _rounding: OffsetRounding,
     ) -> Point<f32> {
         let (mut x, mut y) = (offset.x as f32, offset.y as f32);
         if scale_offset {
@@ -655,15 +671,15 @@ impl Scale for Unscaled {
         // The points are their own font unit copy, so this works in place.
         let phantom_start = glyph.num_points();
         read_points_and_phantom(glyph, scaled, flags, &phantom)?;
-        let have_deltas = simple_deltas(
-            var_data,
-            varies,
-            (coords, gvar_scalars),
-            scaled,
-            flags,
-            contours,
-            &mut deltas,
-        );
+        let have_deltas = varies
+            && simple_deltas(
+                var_data,
+                (coords, gvar_scalars),
+                scaled,
+                flags,
+                contours,
+                &mut deltas,
+            );
         if have_deltas {
             fold_deltas_into_font_units(scaled, deltas.deltas);
         }
@@ -689,7 +705,7 @@ impl Scale for Unscaled {
         transform: &Transform,
         scale_offset: bool,
         delta: Option<Point<Fixed>>,
-        _round_y: bool,
+        _rounding: OffsetRounding,
     ) -> Point<i32> {
         let mut offset = offset;
         if scale_offset {
@@ -779,17 +795,16 @@ fn hypot_fixed(a: Fixed, b: Fixed) -> Fixed {
     })
 }
 
-/// Computes the deltas for a simple glyph, and reports whether the caller
-/// should take its delta path.
+/// Computes the deltas for a simple glyph of a varying font, and reports
+/// whether the caller should take its delta path.
 ///
-/// A glyph of a varying font takes that path even with no variation data of
-/// its own, on zeroed deltas. That looks wasteful and is not: [`Scale26Dot6`]
+/// The glyph takes that path even with no variation data of its own, on
+/// zeroed deltas. That looks wasteful and is not: [`Scale26Dot6`]
 /// scales `(font units + delta)` and shifts back down, which does not round
 /// the same way as scaling the font units alone, so a whole 26.6 unit rides on
 /// which path runs. FreeType makes the same distinction.
 fn simple_deltas<C, D>(
     var_data: Option<GlyphVariationData<'_>>,
-    varies: bool,
     (coords, gvar_scalars): (&[F2Dot14], &[Fixed]),
     points: &[Point<C>],
     flags: &mut [PointFlags],
@@ -804,13 +819,12 @@ where
         Some(var_data) => var_data
             .simple_deltas_with_scalars(coords, gvar_scalars, points, flags, contours, buffers)
             .is_some(),
-        None if varies => {
+        None => {
             for delta in buffers.deltas.iter_mut() {
                 *delta = Default::default();
             }
             true
         }
-        None => false,
     }
 }
 
@@ -932,7 +946,7 @@ mod tests {
                             &transform,
                             scale_offset,
                             Some(delta),
-                            false,
+                            OffsetRounding::default(),
                         );
                         worst = worst.max(raw.x.abs()).max(raw.y.abs());
                         // The scaled modes run the same sum before scaling it.
@@ -941,7 +955,7 @@ mod tests {
                             &transform,
                             scale_offset,
                             Some(delta),
-                            true,
+                            OffsetRounding { x: true, y: true },
                         );
                         assert!(fixed.x.to_bits().abs() < i32::MAX / 2);
                         assert!(fixed.y.to_bits().abs() < i32::MAX / 2);
@@ -950,7 +964,7 @@ mod tests {
                             &transform,
                             scale_offset,
                             Some(Point::new(f32::from(i16::MAX), f32::from(i16::MIN))),
-                            false,
+                            OffsetRounding::default(),
                         );
                         assert!(float.x.is_finite() && float.y.is_finite());
                     }

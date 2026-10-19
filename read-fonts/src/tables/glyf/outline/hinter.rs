@@ -1,6 +1,6 @@
 //! The hook for a TrueType interpreter.
 
-use super::super::{bytecode::HintError, PointCoord, PointFlags, PHANTOM_POINT_COUNT};
+use crate::tables::glyf::{bytecode::HintError, PointCoord, PointFlags, PHANTOM_POINT_COUNT};
 use crate::types::{F2Dot14, GlyphId, Point};
 
 /// Receives each instructed glyph from
@@ -10,6 +10,17 @@ pub trait Hinter<C: PointCoord> {
     /// point rounding even for a glyph with no instructions.
     fn backward_compatibility(&self) -> bool {
         true
+    }
+
+    /// Returns whether to round the horizontal offset of a component to the
+    /// pixel grid.
+    ///
+    /// This applies to composite components with the `ROUND_XY_TO_GRID`
+    /// flag. If true, the horizontal offset is rounded along with the
+    /// vertical one. Otherwise, only the vertical offset is rounded. Defaults
+    /// to false.
+    fn round_composite_x_offset(&self) -> bool {
+        false
     }
 
     /// Hints one glyph.
