@@ -8,7 +8,7 @@ mod outline;
 #[allow(unused_imports)]
 use core_maths::CoreFloat;
 
-pub use hint::{HintError, HintInstance, HintOutline};
+pub use hint::{ClearTypeState, DropoutControl, HintError, HintInstance, HintOutline, HintTables};
 pub use outline::{Outline, ScaledOutline};
 
 use super::{DrawError, GlyphHMetrics, Hinting};
@@ -17,6 +17,7 @@ use raw::FontRef;
 use read_fonts::limits::{MAX_COMPOSITE_EDGES, MAX_OUTLINE_POINTS, MAX_RECURSION_DEPTH};
 use read_fonts::{
     tables::{
+        cvar::Cvar,
         glyf::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
@@ -24,7 +25,7 @@ use read_fonts::{
         hdmx::Hdmx,
         loca::Loca,
     },
-    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
+    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
     TableProvider,
 };
 
@@ -42,7 +43,8 @@ pub struct Outlines<'a> {
     hdmx: Option<Hdmx<'a>>,
     fpgm: &'a [u8],
     prep: &'a [u8],
-    cvt_len: u32,
+    cvt: &'a [BigEndian<i16>],
+    cvar: Option<Cvar<'a>>,
     max_function_defs: u16,
     max_instruction_defs: u16,
     max_twilight_points: u16,
@@ -112,7 +114,7 @@ impl<'a> Outlines<'a> {
         // Copy FreeType's logic on whether to use the interpreter:
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L1001>
         let prefer_interpreter = !(max_instructions == 0 && fpgm.is_empty() && prep.is_empty());
-        let cvt_len = font.cvt().map(|cvt| cvt.len() as u32).unwrap_or_default();
+        let cvt = font.cvt().unwrap_or_default();
         Some(Self {
             font: font.clone(),
             glyph_metrics,
@@ -122,7 +124,8 @@ impl<'a> Outlines<'a> {
             hdmx: font.hdmx().ok(),
             fpgm,
             prep,
-            cvt_len,
+            cvt,
+            cvar: font.cvar().ok(),
             max_function_defs,
             max_instruction_defs,
             max_twilight_points,
@@ -161,6 +164,22 @@ impl<'a> Outlines<'a> {
         self.prefer_interpreter
     }
 
+    /// Returns the tables the TrueType interpreter reads.
+    pub(crate) fn hint_tables(&self) -> HintTables<'a> {
+        HintTables {
+            fpgm: self.fpgm,
+            prep: self.prep,
+            cvt: self.cvt,
+            cvar: self.cvar.clone(),
+            max_function_defs: self.max_function_defs,
+            max_instruction_defs: self.max_instruction_defs,
+            max_twilight_points: self.max_twilight_points,
+            max_stack_elements: self.max_stack_elements,
+            max_storage: self.max_storage,
+            axis_count: self.variation_axis_count() as u16,
+        }
+    }
+
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, DrawError> {
         let mut outline = Outline {
             glyph_id,
@@ -176,7 +195,7 @@ impl<'a> Outlines<'a> {
         }
         outline.points += PHANTOM_POINT_COUNT;
         outline.max_stack = self.max_stack_elements as usize;
-        outline.cvt_count = self.cvt_len as usize;
+        outline.cvt_count = self.cvt.len();
         outline.storage_count = self.max_storage as usize;
         outline.max_twilight_points = self.max_twilight_points as usize;
         outline.glyph = glyph.into_glyph();
@@ -394,6 +413,7 @@ impl<'a> HarfBuzzScaler<'a> {
             &mut self.memory.flags[..self.point_count],
             &mut self.memory.contours[..self.contour_count],
             self.outlines.hdmx_width(self.ppem, glyph_id),
+            DropoutControl::default(),
         ))
     }
 }
@@ -463,6 +483,9 @@ pub(crate) struct FreeTypeScaler<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points>
     phantom: [Point<F26Dot6>; PHANTOM_POINT_COUNT],
     hinter: Option<&'a HintInstance>,
+    /// The dropout control requested by the most recently hinted glyph
+    /// program.
+    dropout_control: DropoutControl,
 }
 
 impl<'a> FreeTypeScaler<'a> {
@@ -490,6 +513,7 @@ impl<'a> FreeTypeScaler<'a> {
             pedantic_hinting: false,
             phantom: Default::default(),
             hinter: None,
+            dropout_control: DropoutControl::default(),
         })
     }
 
@@ -520,6 +544,9 @@ impl<'a> FreeTypeScaler<'a> {
             pedantic_hinting,
             phantom: Default::default(),
             hinter: Some(hinter),
+            // A glyph with no instructions of its own keeps what the control
+            // value program chose.
+            dropout_control: hinter.dropout_control(),
         })
     }
 
@@ -549,6 +576,7 @@ impl<'a> FreeTypeScaler<'a> {
             &mut self.memory.flags[..self.point_count],
             &mut self.memory.contours[..self.contour_count],
             hdmx_width,
+            self.dropout_control,
         ))
     }
 }
@@ -794,10 +822,12 @@ impl Scaler for FreeTypeScaler<'_> {
                     is_composite: false,
                     coords: self.coords,
                 };
-                let hint_res = hinter.hint(self.outlines, &mut input, self.pedantic_hinting);
-                if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
-                    return Err(e)?;
-                }
+                let hint_res = hinter.hint(
+                    &self.outlines.hint_tables(),
+                    &mut input,
+                    self.pedantic_hinting,
+                );
+                self.dropout_control = hint_res?;
             } else if !hinter.backward_compatibility() {
                 // Even when missing instructions, FreeType uses rounded
                 // phantom points when hinting is requested and backward
@@ -970,7 +1000,16 @@ impl Scaler for FreeTypeScaler<'_> {
                                 .flags
                                 .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
                         {
-                            // Only round the y-coordinate, per FreeType.
+                            // The horizontal offset only lands on the pixel
+                            // grid when the target is too coarse to place it
+                            // more precisely.
+                            if self
+                                .hinter
+                                .map(|hinter| hinter.round_composite_x_offset())
+                                .unwrap_or_default()
+                            {
+                                offset.x = offset.x.round();
+                            }
                             offset.y = offset.y.round();
                         }
                         offset
@@ -1077,10 +1116,12 @@ impl Scaler for FreeTypeScaler<'_> {
                     is_composite: true,
                     coords: self.coords,
                 };
-                let hint_res = hinter.hint(self.outlines, &mut input, self.pedantic_hinting);
-                if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
-                    return Err(e)?;
-                }
+                let hint_res = hinter.hint(
+                    &self.outlines.hint_tables(),
+                    &mut input,
+                    self.pedantic_hinting,
+                );
+                self.dropout_control = hint_res?;
                 // Undo the contour shifts if we applied them above.
                 if point_base != 0 {
                     let delta = point_base as u16;

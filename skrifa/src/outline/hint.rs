@@ -2,7 +2,7 @@
 
 use super::{
     autohint, cff,
-    glyf::{self, FreeTypeScaler},
+    glyf::{self, ClearTypeState, FreeTypeScaler},
     pen::PathStyle,
     AdjustedMetrics, DrawError, GlyphStyles, Hinting, LocationRef, NormalizedCoord,
     OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
@@ -354,12 +354,15 @@ impl HintingInstance {
                     .to_bits()
                         + 32)
                         >> 6;
+                    // This instance keeps the classic ClearType behavior; the
+                    // scaler is where the newer one is chosen.
                     hint_instance.reconfigure(
-                        glyf,
+                        &glyf.hint_tables(),
                         scale,
                         rounded_ppem,
                         self.target,
                         &self.coords,
+                        ClearTypeState::default(),
                     )?;
                     self.kind = HinterKind::Glyf(hint_instance);
                 }

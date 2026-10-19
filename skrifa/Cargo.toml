@@ -31,6 +31,7 @@ smallvec = { workspace = true }
 read-fonts = { workspace = true, default-features = false }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
+yoke = { workspace = true }
 
 [dev-dependencies]
 font-test-data = { workspace = true }
