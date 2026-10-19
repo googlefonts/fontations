@@ -11,7 +11,7 @@ mod style;
 mod topo;
 
 pub use instance::GlyphStyles;
-pub(crate) use instance::Instance;
+pub(crate) use instance::{Instance, LocatedState};
 pub use metrics::{
     BlueZones, Scale, ScaleFlags, ScaledAxisMetrics, ScaledBlue, ScaledStyleMetrics, ScaledWidth,
     UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics, WidthMetrics,
@@ -25,7 +25,7 @@ pub use topo::{Axis, BlueProvenance, Dimension, Edge, Segment, TopoFlags};
 use crate::outline::{DrawError, Target};
 use crate::FontRef;
 use alloc::vec::Vec;
-pub(crate) use context::{AutohintContext, FontRefContext};
+pub(crate) use context::{AutohintContext, FontContext, FontRefContext};
 use raw::types::{F2Dot14, GlyphId};
 
 /// Controls quirks for the different autohinters.

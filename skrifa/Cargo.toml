@@ -25,6 +25,11 @@ autohint_shaping = []
 # Does nothing. The cubic outlines it once enabled are now always read.
 spec_next = ["read-fonts/spec_next"]
 libm = ["dep:core_maths", "read-fonts/libm"]
+# Maps characters to the glyphs of Type 1 and standalone CFF fonts through
+# their glyph names, as FreeType does, at the cost of the Adobe Glyph List's
+# size. Without it those fonts map no characters, so the automatic hinter
+# finds no blue zones in them.
+agl = ["read-fonts/agl"]
 
 [dependencies]
 smallvec = { workspace = true }
@@ -32,6 +37,7 @@ read-fonts = { workspace = true, default-features = false }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 yoke = { workspace = true }
+once_cell = { workspace = true }
 
 [dev-dependencies]
 font-test-data = { workspace = true }

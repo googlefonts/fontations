@@ -19,7 +19,7 @@ mod zone;
 
 use super::super::Target;
 
-pub use cleartype::ClearTypeState;
+pub use cleartype::{ClearType, ClearTypeState, RasterPolicy};
 pub use read_fonts::model::glyph::outline::DropoutControl;
 
 use read_fonts::{

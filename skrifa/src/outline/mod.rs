@@ -79,8 +79,8 @@
 //! ```
 
 pub mod autohint;
-mod cff;
-mod glyf;
+pub(crate) mod cff;
+pub(crate) mod glyf;
 mod hint;
 mod metrics;
 mod unscaled;

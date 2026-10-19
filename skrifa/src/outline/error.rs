@@ -38,7 +38,24 @@ pub enum DrawError {
     HarfBuzzHintingUnsupported,
 }
 
-impl DrawError {}
+impl DrawError {
+    /// Converts an error from loading `glyph` through read-fonts.
+    ///
+    /// read-fonts errors do not include the glyph, since the caller already
+    /// has it. This adds the glyph to the error.
+    pub(crate) fn from_outline_error(error: read_fonts::model::Error, glyph: GlyphId) -> Self {
+        use read_fonts::model::Error;
+        match error {
+            Error::MissingResource => Self::GlyphNotFound(glyph),
+            Error::LimitExceeded => Self::RecursionLimitExceeded(glyph),
+            Error::InsufficientMemory => Self::InsufficientMemory,
+            // Only a charstring fails this way; a TrueType hinter reports its
+            // own error.
+            Error::InvalidOperation => Self::PostScript(error),
+            _ => Self::Malformed,
+        }
+    }
+}
 
 impl From<HintError> for DrawError {
     fn from(value: HintError) -> Self {

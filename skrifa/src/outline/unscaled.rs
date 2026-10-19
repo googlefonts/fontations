@@ -7,6 +7,19 @@ pub(super) use read_fonts::model::glyph::outline::UnscaledOutlineSink;
 use read_fonts::{model::glyph::outline::PathSink, tables::glyf::PointFlags};
 use smallvec::SmallVec;
 
+/// The largest coordinate magnitude, in font units, that the autohinter
+/// takes.
+///
+/// Its analysis subtracts points and scales the differences in `i32`, which
+/// overflows near `1 << 27`. Only a transformed component far outside the em
+/// reaches this bound.
+const MAX_COORD: i32 = 1 << 24;
+
+/// Clamps a coordinate in font units to the range the autohinter takes.
+pub(crate) fn clamp_coord(value: i32) -> i32 {
+    value.clamp(-MAX_COORD, MAX_COORD)
+}
+
 /// A point of an outline in font units, with a contour start flag.
 #[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct UnscaledPoint {
@@ -56,8 +69,8 @@ impl<const INLINE_CAP: usize> UnscaledOutlineSink for UnscaledOutlineBuf<INLINE_
 
     fn point(&mut self, x: i32, y: i32, flags: PointFlags) {
         self.points.push(UnscaledPoint {
-            x,
-            y,
+            x: clamp_coord(x),
+            y: clamp_coord(y),
             flags,
             is_contour_start: self.starting,
         });

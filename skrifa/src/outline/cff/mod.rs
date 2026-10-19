@@ -3,7 +3,7 @@
 mod hint;
 
 use super::{GlyphHMetrics, OutlinePen};
-use hint::{HintParams, HintState, HintingSink};
+pub(crate) use hint::{HintParams, HintState, HintingSink};
 use read_fonts::{
     model::Error,
     ps::{
@@ -366,7 +366,7 @@ impl<'a> Outlines<'a> {
 /// When hinting, use a modified scale factor.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
-fn scale_for_hinting(scale: Option<Fixed>) -> Fixed {
+pub(crate) fn scale_for_hinting(scale: Option<Fixed>) -> Fixed {
     Fixed::from_bits((scale.unwrap_or(Fixed::ONE).to_bits().saturating_add(32)) / 64)
 }
 
@@ -605,13 +605,13 @@ where
 }
 
 /// Command sink adapter that applies a transform to hinted coordinates.
-struct HintedTransformingSink<'a, S> {
+pub(crate) struct HintedTransformingSink<'a, S> {
     inner: &'a mut S,
     matrix: FontMatrix,
 }
 
 impl<'a, S> HintedTransformingSink<'a, S> {
-    fn new(sink: &'a mut S, matrix: FontMatrix) -> Self {
+    pub(crate) fn new(sink: &'a mut S, matrix: FontMatrix) -> Self {
         Self {
             inner: sink,
             matrix,

@@ -2,8 +2,9 @@
 
 use super::{
     super::{
-        pen::PathStyle, unscaled::UnscaledOutlineSink, DrawError, LocationRef, OutlineGlyph,
-        OutlinePen,
+        pen::PathStyle,
+        unscaled::{clamp_coord, UnscaledOutlineSink},
+        DrawError, LocationRef, OutlineGlyph, OutlinePen,
     },
     metrics::Scale,
     QuirksMode,
@@ -573,8 +574,8 @@ impl UnscaledOutlineSink for Outline {
         }
         self.points.push(Point {
             flags,
-            fx: x,
-            fy: y,
+            fx: clamp_coord(x),
+            fy: clamp_coord(y),
             ..Default::default()
         });
     }
@@ -596,6 +597,33 @@ mod tests {
     use super::*;
     use crate::{prelude::Size, MetadataProvider};
     use raw::{types::GlyphId, FontRef, TableProvider};
+
+    // Points far outside the em, as transformed components can place them,
+    // are analyzed without overflow.
+    #[test]
+    fn distant_points_are_analyzed() {
+        let mut outline = Outline::default();
+        for far in [1 << 26, i32::MAX] {
+            outline
+                .fill_with(GlyphId::new(0), 1000, QuirksMode::default(), |outline| {
+                    outline.start_contour();
+                    for (x, y) in [(-far, -far), (far, -far), (far, far), (i32::MIN, far)] {
+                        outline.point(x, y, PointFlags::on_curve());
+                    }
+                    outline.end_contour();
+                    Ok(far)
+                })
+                .unwrap();
+            let scale = Scale::new(
+                16.0,
+                1000,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            );
+            outline.scale(&scale);
+        }
+    }
 
     #[test]
     fn direction_from_vectors() {

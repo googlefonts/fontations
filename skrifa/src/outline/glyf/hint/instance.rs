@@ -2,7 +2,7 @@
 
 use super::cleartype::ClearType;
 use super::{
-    cleartype::ClearTypeState,
+    cleartype::{ClearTypeState, RasterPolicy},
     cow_slice::CowSlice,
     definition::{Definition, DefinitionMap, DefinitionState},
     dropout,
@@ -118,6 +118,11 @@ impl HintInstance {
     /// It applies to any glyph that does not set its own.
     pub fn dropout_control(&self) -> DropoutControl {
         dropout::from_scan_state(self.graphics.scan_control, self.graphics.scan_type)
+    }
+
+    /// Returns the smoothing and grid fitting the font requests at this size.
+    pub fn raster_policy(&self) -> RasterPolicy {
+        self.cleartype.policy
     }
 
     /// Returns true if the horizontal offset of a composite component with

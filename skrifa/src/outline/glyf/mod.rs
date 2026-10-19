@@ -8,7 +8,10 @@ mod outline;
 #[allow(unused_imports)]
 use core_maths::CoreFloat;
 
-pub use hint::{ClearTypeState, DropoutControl, HintError, HintInstance, HintOutline, HintTables};
+pub use hint::{
+    ClearType, ClearTypeState, DropoutControl, HintError, HintInstance, HintOutline, HintTables,
+    RasterPolicy,
+};
 pub use outline::{Outline, ScaledOutline};
 
 use super::{DrawError, GlyphHMetrics, Hinting};

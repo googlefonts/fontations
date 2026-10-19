@@ -36,6 +36,7 @@ pub mod font;
 pub mod instance;
 pub mod metrics;
 pub mod outline;
+pub mod scaler;
 
 pub mod setting;
 pub mod string;
@@ -48,6 +49,8 @@ mod variation;
 pub use glyph_name::{GlyphName, GlyphNameSource, GlyphNames};
 #[doc(inline)]
 pub use outline::{OutlineGlyph, OutlineGlyphCollection};
+#[doc(inline)]
+pub use scaler::ScalerFont;
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.
