@@ -76,6 +76,7 @@ impl TryFrom<GlyphSource> for OutlineSource {
             GlyphSource::Cff2 => Self::Cff2,
             GlyphSource::Cff => Self::Cff,
             GlyphSource::Type1 => Self::Type1,
+            _ => return Err(source),
         })
     }
 }

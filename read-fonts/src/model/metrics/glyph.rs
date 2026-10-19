@@ -11,6 +11,7 @@ use crate::{
     mem::with_scratch,
     model::{
         glyph::{
+            bitmap::BitmapStrikes,
             outline::{OutlineGlyphs, OutlineSource},
             GlyphSource, GlyphSourceOrder,
         },
@@ -80,6 +81,7 @@ pub struct GlyphMetrics<'a> {
     num_glyphs: u32,
     units_per_em: u16,
     order: GlyphSourceOrder,
+    bitmap_ppem: Option<f32>,
 }
 
 impl<'a> GlyphMetrics<'a> {
@@ -94,6 +96,7 @@ impl<'a> GlyphMetrics<'a> {
             num_glyphs: global.num_glyphs,
             units_per_em: global.units_per_em,
             order: GlyphSourceOrder::DEFAULT,
+            bitmap_ppem: None,
         }
     }
 
@@ -106,10 +109,24 @@ impl<'a> GlyphMetrics<'a> {
     /// Measures ink using the sources in `order`.
     ///
     /// Each source in the font is tried in turn until one provides extents
-    /// for the glyph. [`GlyphSourceOrder::DEFAULT`] tries the outline
-    /// sources.
+    /// for the glyph. [`GlyphSourceOrder::DEFAULT`] tries bitmaps, then
+    /// outlines.
     pub fn with_extents_source_order(self, order: GlyphSourceOrder) -> Self {
         Self { order, ..self }
+    }
+
+    /// Measures bitmaps using the strike for `ppem`.
+    ///
+    /// This selects the smallest strike that is at least `ppem`, or the
+    /// largest strike if none is that large. `None` (the default) or a size
+    /// that is not positive selects the largest strike. A glyph missing from
+    /// that strike is measured by the next source in the order, even if
+    /// another strike contains it. No other metric depends on the size.
+    pub(crate) fn with_bitmap_ppem(self, ppem: Option<f32>) -> Self {
+        Self {
+            bitmap_ppem: ppem,
+            ..self
+        }
     }
 
     /// Returns the order used to measure ink.
@@ -273,7 +290,9 @@ impl<'a> GlyphMetrics<'a> {
     /// Returns where `glyph`'s ink sits, in font units.
     ///
     /// An empty glyph has zero extents. `None` means the glyph is unavailable
-    /// or its extents could not be read.
+    /// or its extents could not be read. A bitmap is measured from the font's
+    /// largest strike; [`scaled`](Self::scaled) metrics use the strike for
+    /// the scale's size.
     ///
     /// See [`extents_exact`](Self::extents_exact) for the values before they
     /// are narrowed to `f32`.
@@ -333,8 +352,8 @@ impl<'a> GlyphMetrics<'a> {
     /// Returns the base outline source, where it is the only source in the
     /// order that the font has.
     ///
-    /// This needs no list of sources: the font's answer about its composite
-    /// table is kept, and the base is chosen as
+    /// This needs no list of sources: the font's answers about its bitmap
+    /// and composite tables are kept, and the base is chosen as
     /// [`OutlineGlyphs`] chooses it.
     fn only_base_source(&self) -> Option<ExtentsSource<'a>> {
         let font = self.font;
@@ -451,6 +470,13 @@ impl<'a> GlyphMetrics<'a> {
         glyph: GlyphId,
     ) -> Option<GlyphExtents<F48Dot16>> {
         match *source {
+            ExtentsSource::Bitmap(strikes) => {
+                // As in HarfBuzz, the strike selected for the size answers
+                // for every glyph, and a glyph it lacks is measured by the
+                // next source.
+                let bitmap = strikes.select(self.bitmap_ppem)?.get(glyph)?;
+                Some(exact_extents(bitmap.extents()))
+            }
             ExtentsSource::Varc(outlines) => {
                 // Only the composites: the outlines underneath them answer
                 // for themselves, through their own source.
@@ -477,7 +503,7 @@ impl<'a> GlyphMetrics<'a> {
     /// Runs [`extents_batched`](Self::extents_batched) over more than one
     /// source.
     ///
-    /// Marked `#[inline(never)]` because fonts with composites are
+    /// Marked `#[inline(never)]` because fonts with bitmaps are
     /// uncommon, and the loop over outlines alone should not include this
     /// code.
     #[inline(never)]
@@ -969,6 +995,8 @@ impl<'a> GlyphMetricRecords<'a> {
 /// A table that can measure a glyph's ink.
 #[derive(Clone, Copy)]
 enum ExtentsSource<'a> {
+    /// A bitmap table. The strike selected for the size measures every glyph.
+    Bitmap(BitmapStrikes<'a>),
     /// A `VARC` table, used for the glyphs it covers.
     Varc(OutlineGlyphs<'a>),
     Glyf(&'a Glyf<'a>, &'a Loca<'a>),
@@ -978,15 +1006,15 @@ enum ExtentsSource<'a> {
 
 /// The sources available in a font, in the order they are tried.
 ///
-/// `VARC` takes an entry, and the four outline sources share one, so two
-/// entries always suffice.
+/// The three bitmap tables and `VARC` take an entry each, and the four
+/// outline sources share one, so five entries always suffice.
 struct ExtentsSources<'a> {
     items: [Option<ExtentsSource<'a>>; MAX_EXTENTS_SOURCES],
     len: usize,
 }
 
 /// The most entries [`ExtentsSources`] holds.
-const MAX_EXTENTS_SOURCES: usize = 2;
+const MAX_EXTENTS_SOURCES: usize = 5;
 
 impl<'a> ExtentsSources<'a> {
     fn new(metrics: &GlyphMetrics<'a>) -> Self {
@@ -1001,6 +1029,10 @@ impl<'a> ExtentsSources<'a> {
         let mut base_taken = false;
         for format in metrics.order.iter() {
             let source = match format {
+                GlyphSource::Sbix | GlyphSource::Cbdt | GlyphSource::Ebdt => {
+                    let bitmaps = font.bitmap_strikes_with(GlyphSourceOrder::new(&[format]));
+                    (!bitmaps.is_empty()).then_some(ExtentsSource::Bitmap(bitmaps))
+                }
                 GlyphSource::Varc => outlines.has_varc().then_some(ExtentsSource::Varc(outlines)),
                 GlyphSource::Glyf | GlyphSource::Cff2 | GlyphSource::Cff | GlyphSource::Type1 => {
                     // Only the base the outlines chose answers, at its own
@@ -2033,6 +2065,95 @@ mod tests {
     }
 
     #[test]
+    fn bitmaps_answer_before_outlines_in_the_default_order() {
+        let font = Font::new(font_test_data::CBDT, 0).unwrap();
+        let gid = GlyphId::new(2);
+        let bitmaps = font.bitmap_strikes();
+        let from_strike = |ppem| exact_extents(bitmaps.select_bitmap(gid, ppem).unwrap().extents());
+        // No size picks the largest strike, as HarfBuzz does for a font
+        // with no size set.
+        let metrics = font.glyph_metrics();
+        assert_eq!(metrics.extents_exact(gid), Some(from_strike(None)));
+        // A size picks the smallest strike that covers it.
+        let at_16 = metrics.with_bitmap_ppem(Some(12.0));
+        assert_eq!(at_16.extents_exact(gid), Some(from_strike(Some(12.0))));
+        assert_ne!(from_strike(None), from_strike(Some(12.0)));
+        // Leaving the bitmaps out of the order measures the outlines.
+        let outlines_only = metrics.with_extents_source_order(GlyphSourceOrder::OUTLINES);
+        let expected = font
+            .outline_glyphs()
+            .get(gid)
+            .map(|glyph| exact_extents(glyph.extents().unwrap()));
+        assert_eq!(outlines_only.extents_exact(gid), expected);
+        assert_ne!(outlines_only.extents_exact(gid), metrics.extents_exact(gid));
+        // And a glyph the strike lacks falls through to the next source.
+        let past = GlyphId::new(font.num_glyphs());
+        assert_eq!(metrics.extents_exact(past), None);
+    }
+
+    /// Returns the `CBDT` test font with glyph 2 left out of its 16 ppem
+    /// strike, so that only the larger strikes have it.
+    fn cbdt_without_glyph_2_at_16() -> alloc::vec::Vec<u8> {
+        let source = crate::FontRef::new(font_test_data::CBDT).unwrap();
+        let cblc_start = source
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == crate::types::Tag::new(b"CBLC"))
+            .unwrap()
+            .offset() as usize;
+        let cblc = source.cblc().unwrap();
+        let size = cblc
+            .bitmap_sizes()
+            .iter()
+            .find(|size| size.ppem_x() == 16)
+            .unwrap();
+        let mut data = font_test_data::CBDT.to_vec();
+        let list = cblc_start + size.index_subtable_list_offset() as usize;
+        for index in 0..size.number_of_index_subtables() as usize {
+            let record = list + index * 8;
+            let read = |at: usize| u16::from_be_bytes([data[at], data[at + 1]]);
+            let (first, last) = (read(record), read(record + 2));
+            if (first..=last).contains(&2) {
+                // End the range before the glyph, or start it after.
+                let (at, value) = if first < 2 {
+                    (record + 2, 1u16)
+                } else {
+                    (record, 3u16)
+                };
+                data[at..at + 2].copy_from_slice(&value.to_be_bytes());
+            }
+        }
+        data
+    }
+
+    // A glyph missing from the strike for the size is measured by the next
+    // source, as in HarfBuzz, though drawing still finds a larger strike.
+    #[test]
+    fn a_bitmap_the_selected_strike_lacks_is_measured_by_the_next_source() {
+        let font = Font::new(cbdt_without_glyph_2_at_16(), 0).unwrap();
+        let gid = GlyphId::new(2);
+        let strikes = font.bitmap_strikes();
+        let selected = strikes.select(Some(12.0)).unwrap();
+        assert_eq!(selected.ppem(), 16);
+        assert!(selected.get(gid).is_none());
+        let larger = strikes.select_bitmap(gid, Some(12.0)).unwrap();
+        assert_eq!(larger.ppem(), 64);
+        let larger = Some(exact_extents(larger.extents()));
+        // The font has no outline for the glyph, so nothing measures it.
+        let outline = font
+            .outline_glyphs()
+            .get(gid)
+            .and_then(|glyph| glyph.extents().ok().map(exact_extents));
+        let at_12 = font.glyph_metrics().with_bitmap_ppem(Some(12.0));
+        assert_eq!(at_12.extents_exact(gid), outline);
+        assert_ne!(at_12.extents_exact(gid), larger);
+        // At 64 ppem the selected strike has it.
+        let at_64 = font.glyph_metrics().with_bitmap_ppem(Some(64.0));
+        assert_eq!(at_64.extents_exact(gid), larger);
+    }
+
+    #[test]
     fn a_varc_composite_measures_by_what_it_draws() {
         let font = Font::new(font_test_data::varc::CJK_6868, 0).unwrap();
         let outlines = font.outline_glyphs();
@@ -2130,6 +2251,7 @@ mod tests {
             GlyphSourceOrder::DEFAULT,
             GlyphSourceOrder::OUTLINES,
             GlyphSourceOrder::BASE_OUTLINES,
+            GlyphSourceOrder::BITMAPS,
             GlyphSourceOrder::new(&[GlyphSource::Cff, GlyphSource::Glyf]),
             GlyphSourceOrder::EMPTY,
         ];
@@ -2145,6 +2267,23 @@ mod tests {
                 }
             }
         }
+    }
+
+    // An order without bitmap or composite sources probes none of
+    // those tables.
+    #[test]
+    fn an_outline_order_probes_no_other_tables() {
+        let font = Font::new(font_test_data::CBDT, 0).unwrap();
+        let probed = |font: &Font| font.probed_glyph_sources();
+        let base = font
+            .glyph_metrics()
+            .with_extents_source_order(GlyphSourceOrder::BASE_OUTLINES);
+        base.extents_exact(GlyphId::new(1));
+        assert_eq!(probed(&font), 0);
+        // The default order asks for the bitmaps, and the answer is kept.
+        font.glyph_metrics().extents_exact(GlyphId::new(1));
+        assert_ne!(probed(&font), 0);
+        assert!(font.has_layered_source(GlyphSource::Cbdt));
     }
 
     #[test]

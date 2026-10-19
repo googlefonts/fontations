@@ -60,6 +60,14 @@ pub trait Scale {
     /// a scale running the other way up decides here which corner ends up
     /// least.
     fn scale_rect(&self, bounds: BoundingBox<F48Dot16>) -> BoundingBox<Self::Value>;
+
+    /// Returns the size in pixels per em, if the scale has one.
+    ///
+    /// Embedded bitmaps are measured from the strike selected for this size.
+    /// `None`, the default, selects the largest strike.
+    fn ppem(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// Scales design-unit metrics to 26.6 pixels with 16.16 fixed-point
@@ -72,6 +80,7 @@ pub trait Scale {
 pub struct Scale26Dot6 {
     x: Fixed,
     y: Fixed,
+    ppem: f32,
 }
 
 impl Scale26Dot6 {
@@ -80,6 +89,7 @@ impl Scale26Dot6 {
         Self {
             x: Self::factor(x_ppem, units_per_em),
             y: Self::factor(y_ppem, units_per_em),
+            ppem: x_ppem.max(y_ppem),
         }
     }
 
@@ -153,6 +163,10 @@ impl Scale for Scale26Dot6 {
             y_max: self.scale_y(b.y_max),
         }
     }
+
+    fn ppem(&self) -> Option<f32> {
+        Some(self.ppem)
+    }
 }
 
 /// Scales font units to `f32` pixels.
@@ -163,6 +177,7 @@ impl Scale for Scale26Dot6 {
 pub struct ScaleF32 {
     x: f32,
     y: f32,
+    ppem: f32,
 }
 
 impl ScaleF32 {
@@ -172,6 +187,7 @@ impl ScaleF32 {
         Self {
             x: per_unit(x_ppem),
             y: per_unit(y_ppem),
+            ppem: x_ppem.max(y_ppem),
         }
     }
 
@@ -220,6 +236,10 @@ impl Scale for ScaleF32 {
             x_max: self.scale_x(b.x_max),
             y_max: self.scale_y(b.y_max),
         }
+    }
+
+    fn ppem(&self) -> Option<f32> {
+        Some(self.ppem)
     }
 }
 
@@ -462,7 +482,7 @@ pub struct ScaledGlyphMetrics<'a, 'extents, S: Scale> {
 impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
     pub(crate) fn new(metrics: GlyphMetrics<'a>, scale: S) -> Self {
         Self {
-            metrics,
+            metrics: metrics.with_bitmap_ppem(scale.ppem()),
             scale,
             line: None,
             extents: None,
@@ -1520,6 +1540,65 @@ mod tests {
             expected.v_origin_y(empty),
             scale.scale_y(F48Dot16::from_i32(1000))
         );
+    }
+
+    // A bitmap is measured from the strike for the scale's size, and a scale
+    // with no size measures from the largest strike.
+    #[test]
+    fn the_scale_chooses_the_bitmap_strike() {
+        let font = Font::new(font_test_data::CBDT, 0).unwrap();
+        let glyph = GlyphId::new(2);
+        let upem = font.units_per_em();
+        let metrics = font.glyph_metrics();
+        for scale in [
+            ScaleF32::from_ppem(12.0, upem),
+            ScaleF32::new(12.0, 10.0, upem),
+        ] {
+            assert_eq!(scale.ppem(), Some(12.0));
+            let expected = metrics
+                .with_bitmap_ppem(Some(12.0))
+                .extents_exact(glyph)
+                .map(|extents| scale.scale_glyph_extents(extents));
+            assert_eq!(metrics.scaled(scale).extents(glyph), expected);
+        }
+        assert_eq!(Scale26Dot6::new(10.0, 14.0, upem).ppem(), Some(14.0));
+        // The 12 ppem strike and the largest measure the glyph differently.
+        assert_ne!(
+            metrics.with_bitmap_ppem(Some(12.0)).extents_exact(glyph),
+            metrics.with_bitmap_ppem(None).extents_exact(glyph)
+        );
+        // A scale of its own with no size gets the largest strike.
+        struct NoSize(ScaleF32);
+        impl Scale for NoSize {
+            type Value = f32;
+            fn add(a: f32, b: f32) -> f32 {
+                ScaleF32::add(a, b)
+            }
+            fn sub(a: f32, b: f32) -> f32 {
+                ScaleF32::sub(a, b)
+            }
+            fn half(value: f32) -> f32 {
+                ScaleF32::half(value)
+            }
+            fn scale_x(&self, value: F48Dot16) -> f32 {
+                self.0.scale_x(value)
+            }
+            fn scale_y(&self, value: F48Dot16) -> f32 {
+                self.0.scale_y(value)
+            }
+            fn scale_glyph_extents(&self, extents: GlyphExtents<F48Dot16>) -> GlyphExtents<f32> {
+                self.0.scale_glyph_extents(extents)
+            }
+            fn scale_rect(&self, bounds: BoundingBox<F48Dot16>) -> BoundingBox<f32> {
+                self.0.scale_rect(bounds)
+            }
+        }
+        let no_size = NoSize(ScaleF32::from_ppem(12.0, upem));
+        let largest = metrics
+            .with_bitmap_ppem(None)
+            .extents_exact(glyph)
+            .map(|extents| no_size.scale_glyph_extents(extents));
+        assert_eq!(metrics.scaled(no_size).extents(glyph), largest);
     }
 
     #[test]

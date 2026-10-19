@@ -14,8 +14,8 @@ use super::Tables;
 use crate::model::glyph::outline::varc;
 use crate::ps::cff::CffFontRef;
 use crate::tables::{
-    glyf::Glyf, gvar::SelectedGvar, hmtx::GlyphMetricRecords, hvar::Hvar, loca::Loca, vorg::Vorg,
-    vvar::Vvar,
+    cbdt::Cbdt, cblc::Cblc, ebdt::Ebdt, eblc::Eblc, glyf::Glyf, gvar::SelectedGvar,
+    hmtx::GlyphMetricRecords, hvar::Hvar, loca::Loca, sbix::Sbix, vorg::Vorg, vvar::Vvar,
 };
 use crate::TableProvider;
 
@@ -174,5 +174,36 @@ impl<'a> varc::Outlines<'a> {
             axis_count = axis_count.max(count);
         }
         varc::Outlines::new(varc, upem, axis_count).ok()
+    }
+}
+
+/// PNG bitmaps in `sbix`.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct SbixTable<'a>(pub(crate) Option<Sbix<'a>>);
+
+impl<'a> SbixTable<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.sbix().ok())
+    }
+}
+
+/// Color bitmaps in `CBDT`, with the `CBLC` that locates them.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct CbdtTables<'a>(pub(crate) Option<(Cblc<'a>, Cbdt<'a>)>);
+
+impl<'a> CbdtTables<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.cblc().ok().zip(tables.cbdt().ok()))
+    }
+}
+
+/// Monochrome and grayscale bitmaps in `EBDT`, with the `EBLC` that locates
+/// them.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct EbdtTables<'a>(pub(crate) Option<(Eblc<'a>, Ebdt<'a>)>);
+
+impl<'a> EbdtTables<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.eblc().ok().zip(tables.ebdt().ok()))
     }
 }

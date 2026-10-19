@@ -1,23 +1,32 @@
-//! Glyph representations.
+//! Glyph representations: outlines and bitmaps.
 //!
 //! A font can contain a glyph in several forms. [`GlyphSource`] identifies
 //! the tables that provide them, and [`GlyphSourceOrder`] sets which ones to
-//! prefer. Outlines report a narrower type, [`outline::OutlineSource`], which
-//! converts into a [`GlyphSource`].
+//! prefer. Collections and glyphs report a narrower type,
+//! [`outline::OutlineSource`] or [`bitmap::BitmapSource`], and each converts
+//! into a [`GlyphSource`].
 //!
-//! [`outline::OutlineGlyphs`] resolves an order against a font once. Glyph
-//! metrics use an order to measure ink.
+//! The collections [`outline::OutlineGlyphs`] and [`bitmap::BitmapStrikes`]
+//! resolve an order against a font once. Glyph metrics use an order to
+//! measure ink.
 
+pub mod bitmap;
 pub mod outline;
 
 /// A table that can provide a glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 #[repr(u8)]
 pub enum GlyphSource {
+    /// PNG bitmaps in `sbix`.
+    Sbix = 1,
+    /// Color bitmaps in `CBDT`.
+    Cbdt,
+    /// Monochrome and grayscale bitmaps in `EBDT`.
+    Ebdt,
     /// Variable composites in `VARC`.
     ///
     /// The components are drawn from one of the outline sources below.
-    Varc = 1,
+    Varc,
     /// TrueType outlines in `glyf`.
     Glyf,
     /// Variable PostScript outlines in `CFF2`.
@@ -29,7 +38,16 @@ pub enum GlyphSource {
 }
 
 impl GlyphSource {
-    const ALL: [Self; 5] = [Self::Varc, Self::Glyf, Self::Cff2, Self::Cff, Self::Type1];
+    const ALL: [Self; 8] = [
+        Self::Sbix,
+        Self::Cbdt,
+        Self::Ebdt,
+        Self::Varc,
+        Self::Glyf,
+        Self::Cff2,
+        Self::Cff,
+        Self::Type1,
+    ];
 
     /// Returns the source for a packed nibble.
     const fn from_nibble(nibble: u8) -> Option<Self> {
@@ -54,6 +72,8 @@ impl GlyphSource {
 ///   `Cff2`, `Cff` and `Type1` that the font contains. If `Varc` comes before
 ///   the base source, it applies to the glyphs it covers, and its components
 ///   are drawn from the base source.
+/// - Bitmaps use the first of `Sbix`, `Cbdt` and `Ebdt` that the font
+///   contains.
 /// - Glyph extents try each source in the font, in order, until one provides
 ///   extents for the glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -62,8 +82,12 @@ pub struct GlyphSourceOrder(u64);
 impl GlyphSourceOrder {
     /// The default order for measuring glyphs.
     ///
-    /// Outlines, with `VARC` before its base source.
+    /// Bitmaps come first, then outlines with `VARC` before its base
+    /// source. `Ebdt` is not included, so monochrome and grayscale
+    /// bitmaps are used only when a caller adds it to the order.
     pub const DEFAULT: Self = Self::new(&[
+        GlyphSource::Sbix,
+        GlyphSource::Cbdt,
         GlyphSource::Varc,
         GlyphSource::Glyf,
         GlyphSource::Cff2,
@@ -89,6 +113,9 @@ impl GlyphSourceOrder {
         GlyphSource::Cff,
         GlyphSource::Type1,
     ]);
+
+    /// Only the bitmap sources.
+    pub const BITMAPS: Self = Self::new(&[GlyphSource::Sbix, GlyphSource::Cbdt, GlyphSource::Ebdt]);
 
     /// No sources.
     pub const EMPTY: Self = Self(0);
@@ -159,14 +186,20 @@ impl core::fmt::Debug for GlyphSourceOrder {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
+    use bitmap::BitmapSource;
     use outline::OutlineSource;
 
-    // Each source converts to an outline source and back.
+    // Each source converts to the narrow type of its kind and back, and to
+    // no other.
     #[test]
     fn narrow_sources_round_trip() {
         for source in GlyphSource::ALL {
-            let outline = OutlineSource::try_from(source).unwrap();
-            assert_eq!(GlyphSource::from(outline), source);
+            let outline = OutlineSource::try_from(source);
+            let bitmap = BitmapSource::try_from(source);
+            assert_eq!(outline.map(GlyphSource::from).unwrap_or(source), source);
+            assert_eq!(bitmap.map(GlyphSource::from).unwrap_or(source), source);
+            let kinds = usize::from(outline.is_ok()) + usize::from(bitmap.is_ok());
+            assert_eq!(kinds, 1, "{source:?}");
         }
     }
 
@@ -193,6 +226,8 @@ mod tests {
         assert_eq!(
             sources,
             [
+                GlyphSource::Sbix,
+                GlyphSource::Cbdt,
                 GlyphSource::Varc,
                 GlyphSource::Glyf,
                 GlyphSource::Cff2,
@@ -200,6 +235,7 @@ mod tests {
                 GlyphSource::Type1,
             ]
         );
+        assert!(!GlyphSourceOrder::DEFAULT.contains(GlyphSource::Ebdt));
     }
 
     #[test]

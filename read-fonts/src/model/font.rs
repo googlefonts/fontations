@@ -23,6 +23,7 @@ pub mod interop;
 use super::attribute::Attributes;
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::glyph::{
+    bitmap::BitmapStrikes,
     outline::{varc, OutlineGlyphs, OutlineSource},
     GlyphSource, GlyphSourceOrder,
 };
@@ -49,12 +50,13 @@ use crate::{
         cff::{CffFontRef, Subfont},
         type1::Type1Font,
     },
+    tables::{cbdt::Cbdt, cblc::Cblc, ebdt::Ebdt, eblc::Eblc, sbix::Sbix},
     TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc};
 use cache::{
-    Cff2Font, CffFont, GlyfLoca, GvarTable, HvarTable, MetricsTable, TableCache, VorgTable,
-    VvarTable,
+    CbdtTables, Cff2Font, CffFont, EbdtTables, GlyfLoca, GvarTable, HvarTable, MetricsTable,
+    SbixTable, TableCache, VorgTable, VvarTable,
 };
 use core::{
     any::Any,
@@ -328,6 +330,20 @@ impl Font {
         OutlineGlyphs::new(self, order)
     }
 
+    /// Returns the font's bitmaps, from the first of `sbix`, `CBDT` and
+    /// `EBDT` that the font has.
+    pub fn bitmap_strikes(&self) -> BitmapStrikes<'_> {
+        BitmapStrikes::new(self, GlyphSourceOrder::BITMAPS)
+    }
+
+    /// Returns the font's bitmaps, using the source order in `order`.
+    ///
+    /// The bitmaps come from the first of `Sbix`, `Cbdt` and `Ebdt` in
+    /// `order` that the font has. Sources that are not bitmaps are ignored.
+    pub fn bitmap_strikes_with(&self, order: GlyphSourceOrder) -> BitmapStrikes<'_> {
+        BitmapStrikes::new(self, order)
+    }
+
     /// Returns the underlying source of font data.
     #[inline]
     pub fn source(&self) -> &Source {
@@ -536,8 +552,8 @@ impl Font {
         }
     }
 
-    /// Returns `true` if the font has glyphs from `source`, which is
-    /// `VARC`.
+    /// Returns `true` if the font has glyphs from `source`, one of the
+    /// bitmap tables or `VARC`.
     ///
     /// Each source is probed the first time it is asked about and the answer
     /// kept, so asking loads no table that measuring with it would not.
@@ -553,6 +569,9 @@ impl Font {
             _ => {}
         }
         let present = match source {
+            GlyphSource::Sbix | GlyphSource::Cbdt | GlyphSource::Ebdt => !self
+                .bitmap_strikes_with(GlyphSourceOrder::new(&[source]))
+                .is_empty(),
             GlyphSource::Varc => self.varc_outlines().is_some(),
             _ => return false,
         };
@@ -566,8 +585,8 @@ impl Font {
         present
     }
 
-    /// Returns `true` if the font has `VARC` glyphs and `order` lists
-    /// `VARC`.
+    /// Returns `true` if the font has glyphs from any bitmap table or
+    /// `VARC` that `order` lists.
     ///
     /// Reads the cached results once and probes only the sources not yet
     /// checked.
@@ -579,7 +598,10 @@ impl Font {
             .glyph_sources
             .load(core::sync::atomic::Ordering::Relaxed);
         order.iter().any(|source| {
-            if !matches!(source, GlyphSource::Varc) {
+            if !matches!(
+                source,
+                GlyphSource::Sbix | GlyphSource::Cbdt | GlyphSource::Ebdt | GlyphSource::Varc
+            ) {
                 return false;
             }
             match (known >> (2 * (source as u32 - 1))) & 3 {
@@ -590,10 +612,37 @@ impl Font {
         })
     }
 
+    /// Returns the probed state of the bitmap and composite sources.
+    #[cfg(test)]
+    pub(crate) fn probed_glyph_sources(&self) -> u32 {
+        self.shared().sfnt().map_or(0, |sfnt| {
+            sfnt.glyph_sources
+                .load(core::sync::atomic::Ordering::Relaxed)
+        })
+    }
+
     /// Returns the variable composites, read once for the font.
     #[inline]
     pub(crate) fn varc_outlines(&self) -> Option<&varc::Outlines<'_>> {
         self.shared().varc_outlines()
+    }
+
+    /// Returns `sbix`, read once for the font.
+    #[inline]
+    pub(crate) fn sbix(&self) -> Option<&Sbix<'_>> {
+        self.shared().sbix()
+    }
+
+    /// Returns `CBLC` and `CBDT`, read once for the font.
+    #[inline]
+    pub(crate) fn cbdt(&self) -> Option<&(Cblc<'_>, Cbdt<'_>)> {
+        self.shared().cbdt()
+    }
+
+    /// Returns `EBLC` and `EBDT`, read once for the font.
+    #[inline]
+    pub(crate) fn ebdt(&self) -> Option<&(Eblc<'_>, Ebdt<'_>)> {
+        self.shared().ebdt()
     }
 
     /// Returns `VORG`.
@@ -1253,6 +1302,48 @@ impl SharedFont {
             .as_ref()
     }
 
+    /// Returns `sbix`, read once for the font.
+    fn sbix(&self) -> Option<&Sbix<'_>> {
+        let sfnt = self.sfnt()?;
+        sfnt.sbix
+            .get_or_init(|| {
+                Box::new(TableCache::read(sfnt.tables.clone(), |tables| {
+                    SbixTable::read(&tables)
+                }))
+            })
+            .get()
+            .0
+            .as_ref()
+    }
+
+    /// Returns `CBLC` and `CBDT`, read once for the font.
+    fn cbdt(&self) -> Option<&(Cblc<'_>, Cbdt<'_>)> {
+        let sfnt = self.sfnt()?;
+        sfnt.cbdt
+            .get_or_init(|| {
+                Box::new(TableCache::read(sfnt.tables.clone(), |tables| {
+                    CbdtTables::read(&tables)
+                }))
+            })
+            .get()
+            .0
+            .as_ref()
+    }
+
+    /// Returns `EBLC` and `EBDT`, read once for the font.
+    fn ebdt(&self) -> Option<&(Eblc<'_>, Ebdt<'_>)> {
+        let sfnt = self.sfnt()?;
+        sfnt.ebdt
+            .get_or_init(|| {
+                Box::new(TableCache::read(sfnt.tables.clone(), |tables| {
+                    EbdtTables::read(&tables)
+                }))
+            })
+            .get()
+            .0
+            .as_ref()
+    }
+
     /// Returns an object that provides access to individual font tables.
     ///
     /// For non-SFNT fonts, this will return an empty set of tables.
@@ -1316,7 +1407,7 @@ pub(super) struct SfntCaches {
     // Whether the font needs its instructions for correct contours: zero
     // until asked, then one more than the answer.
     hint_reliant: core::sync::atomic::AtomicU8,
-    // Which of the composite sources the font has: two
+    // Which of the bitmap and composite sources the font has: two
     // bits per source, zero until asked, then absent or present. They are
     // probed one at a time, as something asks for each.
     glyph_sources: core::sync::atomic::AtomicU32,
@@ -1345,6 +1436,9 @@ pub(super) struct SfntCaches {
     // Tables that draw glyphs in other ways, read only when something asks
     // for that way. Boxed, so a font without them pays a pointer each.
     varc: Once<Box<TableCache<Option<varc::Outlines<'static>>>>>,
+    sbix: Once<Box<TableCache<SbixTable<'static>>>>,
+    cbdt: Once<Box<TableCache<CbdtTables<'static>>>>,
+    ebdt: Once<Box<TableCache<EbdtTables<'static>>>>,
     // Where a glyph's vertical origin sits, read only by vertical text.
     vorg: Once<TableCache<VorgTable<'static>>>,
     // Selected Unicode cmap subtables and their encoding metadata.
@@ -1370,6 +1464,9 @@ impl SfntCaches {
             cff2: Once::new(),
             cff: Once::new(),
             varc: Once::new(),
+            sbix: Once::new(),
+            cbdt: Once::new(),
+            ebdt: Once::new(),
             vorg: Once::new(),
             charmap: Once::new(),
             encodings: Once::new(),
