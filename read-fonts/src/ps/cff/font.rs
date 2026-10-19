@@ -2,7 +2,7 @@
 
 use crate::model::Error;
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
@@ -541,9 +541,9 @@ impl<'a> CffFontRef<'a> {
         gid: GlyphId,
         coords: &[F2Dot14],
         ppem: Option<f32>,
-        pen: &mut impl OutlinePen,
+        sink: &mut impl PathSink,
     ) -> Result<Option<f32>, Error> {
-        let mut nop_filter = NopFilterSink::new(pen);
+        let mut nop_filter = NopFilterSink::new(sink);
         let transform = self.transform(subfont, ppem);
         let mut transformer = TransformSink::new(&mut nop_filter, transform);
         let width = self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
@@ -1425,7 +1425,7 @@ mod tests {
 #[cfg(test)]
 mod width_only_tests {
     use super::*;
-    use crate::{model::glyph::outline::NullPen, FontRef, TableProvider};
+    use crate::{model::glyph::outline::NullSink, FontRef, TableProvider};
 
     const FONTS: [&[u8]; 3] = [
         font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
@@ -1488,7 +1488,7 @@ mod width_only_tests {
         for data in FONTS {
             for ppem in [None, Some(16.0), Some(72.0)] {
                 for_each_glyph(data, |cff, subfont, gid| {
-                    let drawn = cff.draw(subfont, gid, &[], ppem, &mut NullPen).unwrap();
+                    let drawn = cff.draw(subfont, gid, &[], ppem, &mut NullSink).unwrap();
                     let quick = cff.advance(subfont, gid, &[], ppem).unwrap();
                     assert_eq!(drawn, quick, "glyph {gid} at {ppem:?}");
                 });
@@ -1500,7 +1500,7 @@ mod width_only_tests {
 #[cfg(test)]
 mod extents_tests {
     use super::*;
-    use crate::{model::glyph::outline::OutlinePen, FontRef, TableProvider};
+    use crate::{model::glyph::outline::PathSink, FontRef, TableProvider};
 
     /// Has a sheared top level matrix over a scaled one, so where the box is
     /// measured is observable.
@@ -1518,7 +1518,7 @@ mod extents_tests {
         }
     }
 
-    impl OutlinePen for BoundsPen {
+    impl PathSink for BoundsPen {
         fn move_to(&mut self, x: f32, y: f32) {
             self.add(x, y);
         }

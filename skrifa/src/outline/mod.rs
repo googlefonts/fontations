@@ -811,9 +811,9 @@ pub(super) fn with_temporary_memory<R>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::outline::pen::NullPen;
     use crate::{instance::Location, outline::pen::SvgPen, MetadataProvider};
     use kurbo::{Affine, BezPath, PathEl, Point};
-    use raw::model::glyph::outline::NullPen;
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     use pretty_assertions::assert_eq;

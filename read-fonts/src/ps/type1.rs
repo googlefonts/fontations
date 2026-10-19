@@ -8,7 +8,7 @@ use super::{
 };
 use crate::model::Error;
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     types::{BoundingBox, Fixed, GlyphId},
 };
 use alloc::{borrow::Cow, string::String, vec::Vec};
@@ -417,9 +417,9 @@ impl Type1Font {
         &self,
         gid: GlyphId,
         ppem: Option<f32>,
-        pen: &mut impl OutlinePen,
+        sink: &mut impl PathSink,
     ) -> Result<Option<f32>, Error> {
-        let mut nop_filter = NopFilterSink::new(pen);
+        let mut nop_filter = NopFilterSink::new(sink);
         let transform = self.transform(ppem);
         let mut transformer = TransformSink::new(&mut nop_filter, transform);
         let width = self.evaluate_charstring(gid, &mut transformer)?;
@@ -2449,7 +2449,7 @@ mod tests {
 #[cfg(test)]
 mod width_only_tests {
     use super::*;
-    use crate::model::glyph::outline::NullPen;
+    use crate::model::glyph::outline::NullSink;
 
     const FONTS: [&[u8]; 2] = [
         font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
@@ -2487,7 +2487,7 @@ mod width_only_tests {
             let font = Type1Font::new(data).unwrap();
             for ppem in [None, Some(16.0), Some(72.0)] {
                 for gid in (0..font.num_glyphs()).map(GlyphId::new) {
-                    let drawn = font.draw(gid, ppem, &mut NullPen).unwrap();
+                    let drawn = font.draw(gid, ppem, &mut NullSink).unwrap();
                     let quick = font.advance(gid, ppem).unwrap();
                     assert_eq!(drawn, quick, "glyph {gid} at {ppem:?}");
                 }
@@ -2509,7 +2509,7 @@ mod width_only_tests {
 #[cfg(test)]
 mod extents_tests {
     use super::*;
-    use crate::model::glyph::outline::OutlinePen;
+    use crate::model::glyph::outline::PathSink;
 
     const FONTS: [&[u8]; 2] = [
         font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
@@ -2529,7 +2529,7 @@ mod extents_tests {
         }
     }
 
-    impl OutlinePen for BoundsPen {
+    impl PathSink for BoundsPen {
         fn move_to(&mut self, x: f32, y: f32) {
             self.add(x, y);
         }

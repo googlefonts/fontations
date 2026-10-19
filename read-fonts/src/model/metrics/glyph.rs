@@ -912,7 +912,7 @@ mod tests {
     use super::*;
     use crate::{
         model::{
-            glyph::outline::{ControlBoundsPen, NullPen},
+            glyph::outline::{ControlBoundsSink, NullSink},
             Blob, NormalizedCoord,
         },
         tables::glyf::outline::{Outline, OutlineTables, PathContourStart, Unscaled},
@@ -1466,7 +1466,7 @@ mod tests {
         let direct = crate::ps::type1::Type1Font::new(data).unwrap();
         let metrics = font.glyph_metrics();
         for gid in (0..font.num_glyphs()).map(GlyphId::new) {
-            let expected = direct.draw(gid, None, &mut NullPen).ok().flatten();
+            let expected = direct.draw(gid, None, &mut NullSink).ok().flatten();
             assert_eq!(
                 metrics.h_advance(gid),
                 expected.unwrap_or(0.0),
@@ -1663,7 +1663,7 @@ mod tests {
             let Ok(loaded) = outline.load(&tables, gid, None) else {
                 continue;
             };
-            let mut pen = ControlBoundsPen::new();
+            let mut pen = ControlBoundsSink::new();
             let _ = loaded.to_path(PathContourStart::ScanBackward, &mut pen);
             let expected = pen
                 .bounding_box()
@@ -1709,7 +1709,7 @@ mod tests {
                 let subfont = cff
                     .subfont(cff.subfont_index(gid).unwrap(), &[])
                     .expect("no subfont");
-                let mut pen = ControlBoundsPen::new();
+                let mut pen = ControlBoundsSink::new();
                 cff.draw(&subfont, gid, &[], None, &mut pen).unwrap();
                 let expected = pen
                     .bounding_box()
@@ -1735,7 +1735,7 @@ mod tests {
         let direct = crate::ps::type1::Type1Font::new(data).unwrap();
         let mut checked = 0;
         for gid in (0..font.num_glyphs()).map(GlyphId::new) {
-            let mut pen = ControlBoundsPen::new();
+            let mut pen = ControlBoundsSink::new();
             direct.draw(gid, None, &mut pen).unwrap();
             let expected = pen
                 .bounding_box()

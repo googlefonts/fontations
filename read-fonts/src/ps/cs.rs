@@ -2,7 +2,7 @@
 
 use crate::model::Error;
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     ps::{
         cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
         num,
@@ -177,7 +177,7 @@ impl CommandSink for NullSink {
 /// Nothing drawn leaves [`bounding_box`](Self::bounding_box) empty, which is
 /// the answer for a glyph with no ink rather than a box of no size at the
 /// origin. The pen that measures a drawn outline the same way is
-/// [`ControlBoundsPen`](crate::model::glyph::outline::ControlBoundsPen).
+/// [`ControlBoundsSink`](crate::model::glyph::outline::ControlBoundsSink).
 #[derive(Clone, Default, Debug)]
 pub struct ControlBoundsSink {
     bounds: Option<BoundingBox<Fixed>>,
@@ -1542,7 +1542,7 @@ where
     }
 }
 
-impl<P: OutlinePen> CommandSink for P {
+impl<P: PathSink> CommandSink for P {
     fn move_to(&mut self, x: Fixed, y: Fixed) {
         self.move_to(x.to_f32(), y.to_f32());
     }

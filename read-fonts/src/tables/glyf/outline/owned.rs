@@ -6,7 +6,7 @@ use super::{
 };
 use crate::model::Error;
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     tables::glyf::{PointFlags, PHANTOM_POINT_COUNT},
     types::{F26Dot6, GlyphId, Point},
 };
@@ -105,13 +105,13 @@ impl<S: Scale> Outline<S> {
         self.phantom[1].x - self.phantom[0].x
     }
 
-    /// Converts the outline to path commands, calling `pen` for each.
+    /// Converts the outline to path commands, calling `sink` for each.
     ///
     /// See [`OutlineRef::to_path`] for what `start` decides and when this
     /// returns `false`.
     #[must_use]
-    pub fn to_path(&self, start: PathContourStart, pen: &mut impl OutlinePen) -> bool {
-        outline_to_path(self.points(), self.flags(), self.contours(), start, pen)
+    pub fn to_path(&self, start: PathContourStart, sink: &mut impl PathSink) -> bool {
+        outline_to_path(self.points(), self.flags(), self.contours(), start, sink)
     }
 
     /// Loads `glyph` at `scale`, replacing any previous contents.

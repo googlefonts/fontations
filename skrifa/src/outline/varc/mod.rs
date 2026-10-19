@@ -1327,7 +1327,7 @@ mod tests {
 
     #[test]
     fn large_deltas_preserve_conditions_transforms_and_axis_values() {
-        use read_fonts::model::glyph::outline::SvgPen;
+        use crate::outline::pen::SvgPen;
 
         let font = FontRef::new(font_test_data::varc::DELTA_PRECISION).unwrap();
         let outlines = font.outline_glyphs();
