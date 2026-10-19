@@ -2,8 +2,8 @@
 //!
 //! [`OutlineGlyphs`] loads outlines from the source selected by a
 //! [`GlyphSourceOrder`]. Each [`OutlineGlyph`] identifies its source: a
-//! [`glyf::GlyfGlyph`], [`cff::CffGlyph`] or [`type1::Type1Glyph`]. Each of
-//! these provides access to the source's own
+//! [`glyf::GlyfGlyph`], [`cff::CffGlyph`], [`type1::Type1Glyph`] or
+//! [`varc::VarcGlyph`]. Each of these provides access to the source's own
 //! types, which are needed for hinting. These are the `glyf` loader in
 //! [`tables::glyf::outline`] and the charstrings in [`ps`].
 //!
@@ -22,6 +22,7 @@ mod glyphs;
 mod path;
 pub mod type1;
 mod unscaled;
+pub mod varc;
 
 #[doc(inline)]
 pub use crate::tables::glyf::outline::PathContourStart;
@@ -38,6 +39,10 @@ use super::GlyphSource;
 /// A table that provides outlines.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum OutlineSource {
+    /// Variable composites in `VARC`.
+    ///
+    /// The components are drawn from one of the other outline sources.
+    Varc,
     /// TrueType outlines in `glyf`.
     Glyf,
     /// Variable PostScript outlines in `CFF2`.
@@ -51,6 +56,7 @@ pub enum OutlineSource {
 impl From<OutlineSource> for GlyphSource {
     fn from(source: OutlineSource) -> Self {
         match source {
+            OutlineSource::Varc => Self::Varc,
             OutlineSource::Glyf => Self::Glyf,
             OutlineSource::Cff2 => Self::Cff2,
             OutlineSource::Cff => Self::Cff,
@@ -65,6 +71,7 @@ impl TryFrom<GlyphSource> for OutlineSource {
 
     fn try_from(source: GlyphSource) -> Result<Self, GlyphSource> {
         Ok(match source {
+            GlyphSource::Varc => Self::Varc,
             GlyphSource::Glyf => Self::Glyf,
             GlyphSource::Cff2 => Self::Cff2,
             GlyphSource::Cff => Self::Cff,
@@ -111,7 +118,7 @@ impl DrawOptions {
 
 /// Working memory for drawing an outline.
 ///
-/// A `glyf` outline needs working memory to draw; a
+/// A `glyf` outline and a `VARC` composite need working memory to draw; a
 /// charstring needs none. The size an outline needs is given by its
 /// `required_memory_size`.
 #[derive(Debug, Default)]
@@ -151,7 +158,8 @@ pub struct ComputedMetrics {
     /// The horizontal advance, if the outline provides one.
     ///
     /// A `glyf` outline provides it through its phantom points, with
-    /// variations applied. A charstring provides it directly.
+    /// variations applied. A charstring provides it directly. A `VARC`
+    /// composite has none.
     pub h_advance: Option<f32>,
     /// The left side bearing, if the outline provides one.
     ///

@@ -14,8 +14,12 @@ pub mod outline;
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 #[repr(u8)]
 pub enum GlyphSource {
+    /// Variable composites in `VARC`.
+    ///
+    /// The components are drawn from one of the outline sources below.
+    Varc = 1,
     /// TrueType outlines in `glyf`.
-    Glyf = 1,
+    Glyf,
     /// Variable PostScript outlines in `CFF2`.
     Cff2,
     /// PostScript outlines in `CFF`.
@@ -25,7 +29,7 @@ pub enum GlyphSource {
 }
 
 impl GlyphSource {
-    const ALL: [Self; 4] = [Self::Glyf, Self::Cff2, Self::Cff, Self::Type1];
+    const ALL: [Self; 5] = [Self::Varc, Self::Glyf, Self::Cff2, Self::Cff, Self::Type1];
 
     /// Returns the source for a packed nibble.
     const fn from_nibble(nibble: u8) -> Option<Self> {
@@ -46,23 +50,40 @@ impl GlyphSource {
 ///
 /// How an order is used depends on the consumer:
 ///
-/// - Outlines use one source per font. This is the first of `Glyf`, `Cff2`,
-///   `Cff` and `Type1` that the font contains.
-/// - Glyph extents use the same source.
+/// - Outlines use one base source per font. This is the first of `Glyf`,
+///   `Cff2`, `Cff` and `Type1` that the font contains. If `Varc` comes before
+///   the base source, it applies to the glyphs it covers, and its components
+///   are drawn from the base source.
+/// - Glyph extents try each source in the font, in order, until one provides
+///   extents for the glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct GlyphSourceOrder(u64);
 
 impl GlyphSourceOrder {
-    /// The default order for measuring glyphs: every outline source.
+    /// The default order for measuring glyphs.
+    ///
+    /// Outlines, with `VARC` before its base source.
     pub const DEFAULT: Self = Self::new(&[
+        GlyphSource::Varc,
         GlyphSource::Glyf,
         GlyphSource::Cff2,
         GlyphSource::Cff,
         GlyphSource::Type1,
     ]);
 
-    /// Only the outline sources.
+    /// Only the outline sources, with `VARC` first.
     pub const OUTLINES: Self = Self::new(&[
+        GlyphSource::Varc,
+        GlyphSource::Glyf,
+        GlyphSource::Cff2,
+        GlyphSource::Cff,
+        GlyphSource::Type1,
+    ]);
+
+    /// The outline sources without `VARC`.
+    ///
+    /// Every glyph is drawn from the base source.
+    pub const BASE_OUTLINES: Self = Self::new(&[
         GlyphSource::Glyf,
         GlyphSource::Cff2,
         GlyphSource::Cff,
@@ -153,14 +174,14 @@ mod tests {
     fn order_keeps_first_position_of_each_source() {
         let order = GlyphSourceOrder::new(&[
             GlyphSource::Glyf,
-            GlyphSource::Type1,
+            GlyphSource::Varc,
             GlyphSource::Glyf,
             GlyphSource::Cff,
         ]);
         let sources: Vec<_> = order.iter().collect();
         assert_eq!(
             sources,
-            [GlyphSource::Glyf, GlyphSource::Type1, GlyphSource::Cff]
+            [GlyphSource::Glyf, GlyphSource::Varc, GlyphSource::Cff]
         );
         assert!(order.contains(GlyphSource::Cff));
         assert!(!order.contains(GlyphSource::Cff2));
@@ -172,6 +193,7 @@ mod tests {
         assert_eq!(
             sources,
             [
+                GlyphSource::Varc,
                 GlyphSource::Glyf,
                 GlyphSource::Cff2,
                 GlyphSource::Cff,

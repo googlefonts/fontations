@@ -23,8 +23,8 @@ pub mod interop;
 use super::attribute::Attributes;
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::glyph::{
-    outline::{OutlineGlyphs, OutlineSource},
-    GlyphSourceOrder,
+    outline::{varc, OutlineGlyphs, OutlineSource},
+    GlyphSource, GlyphSourceOrder,
 };
 use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, StyleMetrics};
 use super::name::{self, GlyphName, Names};
@@ -320,7 +320,9 @@ impl Font {
     /// Returns the font's outlines, using the source order in `order`.
     ///
     /// The first of `Glyf`, `Cff2`, `Cff` and `Type1` that the font has
-    /// becomes the source for every glyph. Sources that are not outlines are
+    /// becomes the base source for every glyph. If `Varc` comes before the
+    /// base source, it applies to the glyphs it covers, and their components
+    /// are drawn from the base source. Sources that are not outlines are
     /// ignored.
     pub fn outline_glyphs_with(&self, order: GlyphSourceOrder) -> OutlineGlyphs<'_> {
         OutlineGlyphs::new(self, order)
@@ -532,6 +534,66 @@ impl Font {
             Some(subfont) => *subfont.get_or_init(|| cff.subfont(index, coords).ok()),
             None => cff.subfont(index, coords).ok(),
         }
+    }
+
+    /// Returns `true` if the font has glyphs from `source`, which is
+    /// `VARC`.
+    ///
+    /// Each source is probed the first time it is asked about and the answer
+    /// kept, so asking loads no table that measuring with it would not.
+    pub(crate) fn has_layered_source(&self, source: GlyphSource) -> bool {
+        use core::sync::atomic::Ordering;
+        let Some(sfnt) = self.shared().sfnt() else {
+            return false;
+        };
+        let shift = 2 * (source as u32 - 1);
+        match (sfnt.glyph_sources.load(Ordering::Relaxed) >> shift) & 3 {
+            SOURCE_ABSENT => return false,
+            SOURCE_PRESENT => return true,
+            _ => {}
+        }
+        let present = match source {
+            GlyphSource::Varc => self.varc_outlines().is_some(),
+            _ => return false,
+        };
+        let state = if present {
+            SOURCE_PRESENT
+        } else {
+            SOURCE_ABSENT
+        };
+        sfnt.glyph_sources
+            .fetch_or(state << shift, Ordering::Relaxed);
+        present
+    }
+
+    /// Returns `true` if the font has `VARC` glyphs and `order` lists
+    /// `VARC`.
+    ///
+    /// Reads the cached results once and probes only the sources not yet
+    /// checked.
+    pub(crate) fn has_layered_source_in(&self, order: GlyphSourceOrder) -> bool {
+        let Some(sfnt) = self.shared().sfnt() else {
+            return false;
+        };
+        let known = sfnt
+            .glyph_sources
+            .load(core::sync::atomic::Ordering::Relaxed);
+        order.iter().any(|source| {
+            if !matches!(source, GlyphSource::Varc) {
+                return false;
+            }
+            match (known >> (2 * (source as u32 - 1))) & 3 {
+                SOURCE_ABSENT => false,
+                SOURCE_PRESENT => true,
+                _ => self.has_layered_source(source),
+            }
+        })
+    }
+
+    /// Returns the variable composites, read once for the font.
+    #[inline]
+    pub(crate) fn varc_outlines(&self) -> Option<&varc::Outlines<'_>> {
+        self.shared().varc_outlines()
     }
 
     /// Returns `VORG`.
@@ -1178,6 +1240,19 @@ impl SharedFont {
         }
     }
 
+    /// Returns the variable composites, read once for the font.
+    fn varc_outlines(&self) -> Option<&varc::Outlines<'_>> {
+        let sfnt = self.sfnt()?;
+        sfnt.varc
+            .get_or_init(|| {
+                Box::new(TableCache::read(sfnt.tables.clone(), |tables| {
+                    varc::Outlines::read(&tables)
+                }))
+            })
+            .get()
+            .as_ref()
+    }
+
     /// Returns an object that provides access to individual font tables.
     ///
     /// For non-SFNT fonts, this will return an empty set of tables.
@@ -1241,6 +1316,10 @@ pub(super) struct SfntCaches {
     // Whether the font needs its instructions for correct contours: zero
     // until asked, then one more than the answer.
     hint_reliant: core::sync::atomic::AtomicU8,
+    // Which of the composite sources the font has: two
+    // bits per source, zero until asked, then absent or present. They are
+    // probed one at a time, as something asks for each.
+    glyph_sources: core::sync::atomic::AtomicU32,
     // The default location's own SFNT caches. A varied instance keeps its
     // own.
     default_location: SfntLocation,
@@ -1263,6 +1342,9 @@ pub(super) struct SfntCaches {
     // cell of its own, so an order can prefer either of a font with both.
     cff2: Once<TableCache<Cff2Font<'static>>>,
     cff: Once<TableCache<CffFont<'static>>>,
+    // Tables that draw glyphs in other ways, read only when something asks
+    // for that way. Boxed, so a font without them pays a pointer each.
+    varc: Once<Box<TableCache<Option<varc::Outlines<'static>>>>>,
     // Where a glyph's vertical origin sits, read only by vertical text.
     vorg: Once<TableCache<VorgTable<'static>>>,
     // Selected Unicode cmap subtables and their encoding metadata.
@@ -1277,6 +1359,7 @@ impl SfntCaches {
             tables,
             index,
             hint_reliant: core::sync::atomic::AtomicU8::new(0),
+            glyph_sources: core::sync::atomic::AtomicU32::new(0),
             default_location: SfntLocation::new(),
             h_metrics: Once::new(),
             v_metrics: Once::new(),
@@ -1286,6 +1369,7 @@ impl SfntCaches {
             gvar: Once::new(),
             cff2: Once::new(),
             cff: Once::new(),
+            varc: Once::new(),
             vorg: Once::new(),
             charmap: Once::new(),
             encodings: Once::new(),
@@ -1373,6 +1457,11 @@ struct VariedSfnt {
 }
 
 const MAX_PRECOMPUTED_SCALARS: usize = 128;
+
+/// The kept answer for a glyph source the font does not have.
+const SOURCE_ABSENT: u32 = 1;
+/// The kept answer for a glyph source the font has.
+const SOURCE_PRESENT: u32 = 2;
 
 /// Returns up to [`MAX_PRECOMPUTED_SCALARS`] scalars from `count`, filled by
 /// `compute`, which returns how many it wrote.

@@ -2,8 +2,9 @@
 
 use super::{
     cff::CffGlyph,
-    glyf::{GlyfContext, GlyfGlyph, Precision},
+    glyf::{draw_plan, plan_buffer_size, FontAt, GlyfContext, GlyfGlyph, Precision},
     type1::Type1Glyph,
+    varc::{self, VarcGlyph},
     ComputedMetrics, ControlBoundsSink, DrawMemory, DrawOptions, PathSink, PointsFromPath,
     UnscaledOutlineSink,
 };
@@ -16,7 +17,8 @@ use crate::{
         Font, Kind,
     },
     ps::{cff::CffFontRef, type1::Type1Font},
-    types::{BoundingBox, GlyphId},
+    tables::glyf::outline::{OutlineContext, OutlinePlan},
+    types::{BoundingBox, F2Dot14, GlyphId},
 };
 use yoke::Yokeable;
 
@@ -29,9 +31,10 @@ use yoke::Yokeable;
 pub struct OutlineGlyphs<'a> {
     font: &'a Font,
     base: Base<'a>,
+    varc: Option<&'a varc::Outlines<'a>>,
 }
 
-/// The source used to draw glyphs.
+/// The source used to draw glyphs that are not `VARC` composites.
 #[derive(Clone, Copy)]
 enum Base<'a> {
     None,
@@ -43,19 +46,23 @@ enum Base<'a> {
 impl<'a> OutlineGlyphs<'a> {
     pub(crate) fn new(font: &'a Font, order: GlyphSourceOrder) -> Self {
         let mut base = Base::None;
+        let mut varc = None;
         if let Kind::Type1(type1) = font.kind() {
             if order.contains(GlyphSource::Type1) {
                 base = Base::Type1(type1);
             }
-            return Self { font, base };
+            return Self { font, base, varc };
         }
-        // A standalone CFF font has no tables, so it finds no `glyf` here,
-        // only its charstrings as `CFF`.
+        // A standalone CFF font has no tables, so it finds no composites or
+        // `glyf` here, only its charstrings as `CFF`.
         for source in order
             .iter()
             .filter_map(|source| OutlineSource::try_from(source).ok())
         {
             match source {
+                // Covers only some glyphs, so it layers over a base that
+                // comes after it rather than replacing one.
+                OutlineSource::Varc if varc.is_none() => varc = font.varc_outlines(),
                 OutlineSource::Glyf => {
                     if let Some(context) = GlyfContext::new(font) {
                         base = Base::Glyf(context);
@@ -71,7 +78,12 @@ impl<'a> OutlineGlyphs<'a> {
                 _ => {}
             }
         }
-        Self { font, base }
+        // The components of a composite come from the base, so without one
+        // there is nothing to draw.
+        if matches!(base, Base::None) {
+            varc = None;
+        }
+        Self { font, base, varc }
     }
 
     /// Returns the font that contains these outlines.
@@ -81,8 +93,24 @@ impl<'a> OutlineGlyphs<'a> {
 
     /// Returns the table that provides the outlines.
     ///
-    /// Returns `None` if the font has no outlines from the requested sources.
+    /// This is [`OutlineSource::Varc`] if `VARC` composites are drawn. The
+    /// composites cover only some glyphs, and the rest come from the
+    /// [`underlying_source`](Self::underlying_source). Returns `None` if the
+    /// font has no outlines from the requested sources.
     pub fn source(&self) -> Option<OutlineSource> {
+        if self.varc.is_some() {
+            return Some(OutlineSource::Varc);
+        }
+        self.underlying_source()
+    }
+
+    /// Returns the table that draws the glyphs `VARC` does not cover and the
+    /// components of those it does.
+    ///
+    /// This is the same as [`source`](Self::source) unless `VARC`
+    /// composites are drawn, and is never [`OutlineSource::Varc`]. Returns
+    /// `None` if the font has no outlines from the requested sources.
+    pub fn underlying_source(&self) -> Option<OutlineSource> {
         match self.base {
             Base::None => None,
             Base::Glyf(_) => Some(OutlineSource::Glyf),
@@ -91,7 +119,17 @@ impl<'a> OutlineGlyphs<'a> {
         }
     }
 
-    /// Returns the `CFF` or `CFF2` font used to draw the glyphs.
+    /// Returns true if `VARC` composites are drawn.
+    pub(crate) fn has_varc(&self) -> bool {
+        self.varc.is_some()
+    }
+
+    /// Returns true if `glyph` is drawn as a `VARC` composite.
+    pub(crate) fn varc_covers(&self, glyph: GlyphId) -> bool {
+        self.varc.is_some_and(|varc| varc.covers(glyph))
+    }
+
+    /// Returns the `CFF` or `CFF2` font used to draw the base glyphs.
     ///
     /// Returns `None` if the base source is not `CFF` or `CFF2`.
     #[doc(hidden)]
@@ -119,14 +157,30 @@ impl<'a> OutlineGlyphs<'a> {
     }
 
     /// Returns the outline for `glyph`, or `None` if it has no outline or
-    /// its data cannot be read.
+    /// its data in the base source cannot be read.
     ///
+    /// If `VARC` is enabled and the table covers the glyph, this returns a
+    /// `VARC` composite. Otherwise, the outline comes from the base source.
     /// A composite that is malformed or nests past the recursion or edge
     /// limits returns an error when it is drawn.
     pub fn get(&self, glyph: GlyphId) -> Option<OutlineGlyph<'a>> {
         if glyph.to_u32() >= self.len() {
             return None;
         }
+        if let Some(varc) = self.varc {
+            if let Some(outline) = varc.outline(glyph) {
+                return Some(OutlineGlyph::Varc(VarcGlyph {
+                    outlines: varc,
+                    outline,
+                    base: *self,
+                }));
+            }
+        }
+        self.get_base(glyph)
+    }
+
+    /// Returns the outline for `glyph` from the base source only.
+    fn get_base(&self, glyph: GlyphId) -> Option<OutlineGlyph<'a>> {
         match self.base {
             Base::None => None,
             Base::Glyf(context) => GlyfGlyph::new(context, glyph).map(OutlineGlyph::Glyf),
@@ -154,12 +208,82 @@ impl<'a> OutlineGlyphs<'a> {
             .map(GlyphId::new)
             .filter_map(move |glyph_id| this.get(glyph_id).map(|glyph| (glyph_id, glyph)))
     }
+
+    /// Draws `glyph` from the base source at `coords`.
+    ///
+    /// This is used for the components of a composite. The `coords` may
+    /// differ from the font's location.
+    pub(super) fn draw_base(
+        &self,
+        glyph: GlyphId,
+        coords: &[F2Dot14],
+        options: &DrawOptions,
+        precision: Precision,
+        buf: &mut [u8],
+        mut sink: &mut dyn PathSink,
+    ) -> Result<(), Error> {
+        let font = self.font;
+        let at_own_location = same_location(coords, font.normalized_coords());
+        match self.base {
+            Base::None => Err(Error::MissingResource),
+            Base::Glyf(context) => {
+                if at_own_location {
+                    let plan = OutlinePlan::new(&context, glyph)?;
+                    draw_plan(&plan, &context, options, precision, buf, sink)?;
+                } else {
+                    let at = FontAt { context, coords };
+                    let plan = OutlinePlan::new(&at, glyph)?;
+                    draw_plan(&plan, &at, options, precision, buf, sink)?;
+                }
+                Ok(())
+            }
+            Base::Cff(cff, source) => {
+                let index = cff.subfont_index(glyph).ok_or(Error::MissingResource)?;
+                let subfont = if at_own_location {
+                    font.cff_subfont(source, index).ok_or(Error::Malformed)?
+                } else {
+                    cff.subfont(index, coords)?
+                };
+                cff.draw(&subfont, glyph, coords, options.ppem, &mut sink)?;
+                Ok(())
+            }
+            Base::Type1(type1) => {
+                type1.draw(glyph, options.ppem, &mut sink)?;
+                Ok(())
+            }
+        }
+    }
+
+    /// Returns the size in bytes of the working memory needed to draw
+    /// `glyph` from the base source.
+    pub(super) fn base_buffer_size(&self, glyph: GlyphId) -> usize {
+        match self.base {
+            Base::Glyf(context) => {
+                let Ok(mut plan) = OutlinePlan::new(&context, glyph) else {
+                    return 0;
+                };
+                // A component may be drawn away from the font's location, so
+                // the deltas need room whenever the font has any.
+                plan.applies_variations = context.has_gvar();
+                plan_buffer_size(&plan)
+            }
+            _ => 0,
+        }
+    }
+}
+
+/// Returns true if two coordinate lists define the same location.
+///
+/// A missing axis is treated as its default value.
+fn same_location(a: &[F2Dot14], b: &[F2Dot14]) -> bool {
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    short == &long[..short.len()] && long[short.len()..].iter().all(|c| *c == F2Dot14::ZERO)
 }
 
 /// A glyph outline from a specific source.
 ///
 /// Each variant contains the data needed to draw that source: a `glyf`
-/// plan or a CFF subfont. To hint an outline, match on
+/// plan, a CFF subfont, or a composite tree. To hint an outline, match on
 /// the variant and use the source's own types.
 #[non_exhaustive]
 #[derive(Clone)]
@@ -170,6 +294,8 @@ pub enum OutlineGlyph<'a> {
     Cff(CffGlyph<'a>),
     /// A Type 1 charstring.
     Type1(Type1Glyph<'a>),
+    /// A `VARC` composite.
+    Varc(VarcGlyph<'a>),
 }
 
 impl OutlineGlyph<'_> {
@@ -179,6 +305,7 @@ impl OutlineGlyph<'_> {
             Self::Glyf(glyph) => glyph.glyph(),
             Self::Cff(glyph) => glyph.glyph(),
             Self::Type1(glyph) => glyph.glyph(),
+            Self::Varc(glyph) => glyph.glyph(),
         }
     }
 
@@ -188,6 +315,7 @@ impl OutlineGlyph<'_> {
             Self::Glyf(_) => OutlineSource::Glyf,
             Self::Cff(glyph) => glyph.source(),
             Self::Type1(_) => OutlineSource::Type1,
+            Self::Varc(_) => OutlineSource::Varc,
         }
     }
 
@@ -199,6 +327,7 @@ impl OutlineGlyph<'_> {
         match self {
             Self::Glyf(glyph) => glyph.required_memory_size(),
             Self::Cff(_) | Self::Type1(_) => 0,
+            Self::Varc(glyph) => glyph.required_memory_size(),
         }
     }
 
@@ -237,6 +366,11 @@ impl OutlineGlyph<'_> {
                 || glyph.required_memory_size(),
                 |buf| glyph.draw(options, precision, buf, sink),
             ),
+            Self::Varc(glyph) => with_memory(
+                memory,
+                || glyph.required_memory_size(),
+                |buf| glyph.draw(options, precision, buf, sink),
+            ),
         }
     }
 
@@ -246,6 +380,7 @@ impl OutlineGlyph<'_> {
         match self {
             Self::Glyf(glyph) => glyph.required_memory_size_unscaled(),
             Self::Cff(_) | Self::Type1(_) => 0,
+            Self::Varc(glyph) => glyph.required_memory_size(),
         }
     }
 
@@ -258,6 +393,10 @@ impl OutlineGlyph<'_> {
     ///
     /// `memory` works as in [`draw`](Self::draw), with a size given by
     /// [`required_memory_size_unscaled`](Self::required_memory_size_unscaled).
+    ///
+    /// A `VARC` composite has no advance of its own, so the returned metrics
+    /// have none. Its advance is the one in the font's metrics tables, from
+    /// [`GlyphMetrics::h_advance`](crate::model::metrics::GlyphMetrics::h_advance).
     pub fn draw_unscaled(
         &self,
         memory: DrawMemory<'_>,
@@ -288,6 +427,17 @@ impl OutlineGlyph<'_> {
             Self::Type1(glyph) => {
                 let mut pen = PointsFromPath::new(sink);
                 let metrics = glyph.draw(&options, &mut pen)?;
+                pen.finish();
+                Ok(metrics)
+            }
+            Self::Varc(glyph) => {
+                let mut pen = PointsFromPath::new(sink);
+                let metrics = match memory {
+                    Some(buf) => glyph.draw(&options, Precision::Fixed, buf, &mut pen)?,
+                    None => with_scratch(glyph.required_memory_size(), |buf| {
+                        glyph.draw(&options, Precision::Fixed, buf, &mut pen)
+                    })?,
+                };
                 pen.finish();
                 Ok(metrics)
             }
@@ -348,6 +498,7 @@ mod tests {
         let font = font(font_test_data::VAZIRMATN_VAR);
         let glyphs = font.outline_glyphs();
         assert_eq!(glyphs.source(), Some(OutlineSource::Glyf));
+        assert!(!glyphs.has_varc());
         let glyph = glyphs.get(GlyphId::new(1)).unwrap();
         assert!(matches!(glyph, OutlineGlyph::Glyf(_)));
         let mut pen = SvgSink::new();
@@ -430,6 +581,7 @@ mod tests {
         let (theirs, ours) = (sfnt.outline_glyphs(), bare.outline_glyphs());
         assert_eq!(ours.source(), Some(OutlineSource::Cff));
         assert!(ours.cff_font().is_some());
+        assert!(!ours.has_varc());
         assert_eq!(ours.len(), theirs.len());
         // An order without CFF finds nothing to draw.
         assert!(bare
@@ -479,6 +631,138 @@ mod tests {
         assert_eq!(glyphs.len(), 0);
         assert!(glyphs.get(GlyphId::new(1)).is_none());
         assert_eq!(glyphs.iter().count(), 0);
+    }
+
+    #[test]
+    fn varc_covers_its_glyphs_and_falls_back_to_the_base() {
+        let font = font(font_test_data::varc::CJK_6868);
+        let glyphs = font.outline_glyphs();
+        assert!(glyphs.has_varc());
+        assert_eq!(glyphs.source(), Some(OutlineSource::Varc));
+        assert_eq!(glyphs.underlying_source(), Some(OutlineSource::Glyf));
+        let gid = font.charmap().map_unicode(0x6868_u32).unwrap();
+        let glyph = glyphs.get(gid).unwrap();
+        assert_eq!(glyph.source(), OutlineSource::Varc);
+        // Glyph zero is a plain outline.
+        assert_eq!(
+            glyphs.get(GlyphId::new(0)).unwrap().source(),
+            OutlineSource::Glyf
+        );
+        // Without VARC in the order, the composite's base glyph is drawn.
+        let base_only = font.outline_glyphs_with(GlyphSourceOrder::BASE_OUTLINES);
+        assert!(!base_only.has_varc());
+        assert_eq!(base_only.source(), Some(OutlineSource::Glyf));
+        assert_eq!(base_only.underlying_source(), Some(OutlineSource::Glyf));
+        assert_eq!(base_only.get(gid).unwrap().source(), OutlineSource::Glyf);
+    }
+
+    #[test]
+    fn varc_draws_in_the_memory_it_was_sized_for() {
+        let font = font(font_test_data::varc::CJK_6868);
+        let glyphs = font.outline_glyphs();
+        let mut composites = 0;
+        for (glyph_id, glyph) in glyphs.iter() {
+            let OutlineGlyph::Varc(_) = &glyph else {
+                continue;
+            };
+            composites += 1;
+            let needed = glyph.required_memory_size();
+            assert!(needed > 0, "glyph {glyph_id}");
+            let options = DrawOptions::default();
+            let mut enough = alloc::vec![0u8; needed];
+            glyph
+                .draw(&options, DrawMemory::Buffer(&mut enough), &mut NullSink)
+                .unwrap_or_else(|error| panic!("glyph {glyph_id}: {error}"));
+            // Half the block is short for the walk or for a leaf, and either
+            // is refused rather than drawn into.
+            let mut short = alloc::vec![0u8; needed / 2];
+            assert!(
+                matches!(
+                    glyph.draw(&options, DrawMemory::Buffer(&mut short), &mut NullSink),
+                    Err(Error::InsufficientMemory)
+                ),
+                "glyph {glyph_id}"
+            );
+        }
+        assert!(composites > 0);
+    }
+
+    #[test]
+    fn varc_draws_the_freetype_path_head() {
+        let font = font(font_test_data::varc::CJK_6868);
+        let gid = font.charmap().map_unicode(0x6868_u32).unwrap();
+        let glyph = font.outline_glyphs().get(gid).unwrap();
+        let mut pen = Vec::<PathElement>::new();
+        glyph
+            .draw(&DrawOptions::default(), DrawMemory::Scratch, &mut pen)
+            .unwrap();
+        let head: Vec<_> = pen
+            .iter()
+            .take(3)
+            .map(|el| match *el {
+                PathElement::MoveTo { x, y } => alloc::format!("M{x:.2},{y:.2}"),
+                PathElement::QuadTo { cx0, cy0, x, y } => {
+                    alloc::format!("Q{cx0:.2},{cy0:.2} {x:.2},{y:.2}")
+                }
+                _ => panic!("unexpected element"),
+            })
+            .collect();
+        assert_eq!(
+            head,
+            [
+                "M454.56,574.77",
+                "Q477.58,585.56 499.80,598.25",
+                "Q522.02,610.95 543.36,625.16"
+            ]
+        );
+    }
+
+    #[test]
+    fn varc_at_a_location_draws_with_its_deltas() {
+        let font = font(font_test_data::varc::DELTA_PRECISION);
+        let instance = font
+            .instance_builder()
+            .normalized_coords([F2Dot14::ONE, F2Dot14::ZERO])
+            .build();
+        let glyphs = instance.outline_glyphs();
+        for (gid, expected) in [
+            (2, "M600,0 L800,0 L600,200 Z"),
+            (3, "M664,0 L864,0 L664,200 Z"),
+            (4, "M101,0 L201,0 L101,100 Z"),
+        ] {
+            let glyph = glyphs.get(GlyphId::new(gid)).unwrap();
+            let mut pen = SvgSink::new();
+            glyph
+                .draw(&DrawOptions::default(), DrawMemory::Scratch, &mut pen)
+                .unwrap();
+            assert_eq!(pen.as_ref(), expected, "glyph {gid}");
+        }
+    }
+
+    #[test]
+    fn varc_without_a_variation_store_does_not_panic() {
+        use crate::types::Tag;
+
+        let mut bytes = font_test_data::varc::CJK_6868.to_vec();
+        let varc_off = {
+            let font = FontRef::new(&bytes).unwrap();
+            font.table_directory()
+                .table_records()
+                .iter()
+                .find(|rec| rec.tag() == Tag::new(b"VARC"))
+                .expect("VARC table present")
+                .offset() as usize
+        };
+        // Null the nullable multi_var_store_offset.
+        for b in &mut bytes[varc_off + 8..varc_off + 12] {
+            *b = 0;
+        }
+        let font = font(&bytes);
+        let gid = font.charmap().map_unicode(0x6868_u32).unwrap();
+        let glyph = font.outline_glyphs().get(gid).expect("covered VARC glyph");
+        let mut pen = NullSink;
+        // Must complete without panicking (Ok, or a graceful error).
+        let _ = glyph.draw(&DrawOptions::default(), DrawMemory::Scratch, &mut pen);
     }
 
     #[test]

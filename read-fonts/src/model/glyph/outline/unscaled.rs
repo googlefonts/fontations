@@ -3,8 +3,8 @@
 //! An autohinter needs outline points in the form the `glyf` table stores
 //! them: whole font units, marked on-curve or off-curve, and grouped by
 //! contour. [`UnscaledOutlineSink`] receives these points. A `glyf` outline
-//! provides its points directly. A charstring is drawn as a path and
-//! converted to points.
+//! provides its points directly. A charstring or a `VARC` composite is drawn
+//! as a path and converted to points.
 
 use super::PathSink;
 use crate::tables::glyf::PointFlags;
@@ -283,6 +283,30 @@ mod tests {
         assert_eq!(recorded.starts, [0, 4]);
     }
 
+    #[test]
+    fn a_varc_composite_rebuilds_from_its_path() {
+        let font = Font::new(font_test_data::varc::CJK_6868.to_vec(), 0).unwrap();
+        let outlines = font.outline_glyphs();
+        let gid = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .find(|gid| {
+                matches!(
+                    outlines.get(*gid),
+                    Some(crate::model::glyph::outline::OutlineGlyph::Varc(_))
+                )
+            })
+            .unwrap();
+        let mut recorded = Recorded::default();
+        outlines
+            .get(gid)
+            .unwrap()
+            .draw_unscaled(DrawMemory::Scratch, &mut recorded)
+            .unwrap();
+        assert!(recorded.points.len() > 2);
+        assert_eq!(recorded.starts.first(), Some(&0));
+        assert!(!recorded.open);
+    }
+
     // A contour that closes with a quad does not repeat its start point.
     #[test]
     fn a_closing_quad_does_not_repeat_the_start() {
@@ -296,6 +320,39 @@ mod tests {
         let on = PointFlags::on_curve().to_bits();
         let off = PointFlags::off_curve_quad().to_bits();
         assert_eq!(recorded.points, [(0, 0, on), (10, 0, on), (10, 10, off)]);
+    }
+
+    // No contour of a VARC composite, whose glyf components draw as quads,
+    // repeats its start point.
+    #[test]
+    fn varc_contours_do_not_repeat_their_start() {
+        let font = Font::new(font_test_data::varc::CJK_6868.to_vec(), 0).unwrap();
+        let outlines = font.outline_glyphs();
+        let mut contours = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let Some(glyph @ crate::model::glyph::outline::OutlineGlyph::Varc(_)) =
+                outlines.get(gid)
+            else {
+                continue;
+            };
+            let mut recorded = Recorded::default();
+            glyph
+                .draw_unscaled(DrawMemory::Scratch, &mut recorded)
+                .unwrap();
+            let ends = recorded.starts[1..]
+                .iter()
+                .copied()
+                .chain([recorded.points.len()]);
+            for (start, end) in recorded.starts.iter().copied().zip(ends) {
+                let (first, last) = (recorded.points[start], recorded.points[end - 1]);
+                assert!(
+                    end - start < 2 || (first.0, first.1) != (last.0, last.1),
+                    "glyph {gid} contour at {start}"
+                );
+                contours += 1;
+            }
+        }
+        assert!(contours > 0);
     }
 
     /// When a contour ends with a line or cubic whose end matches the start

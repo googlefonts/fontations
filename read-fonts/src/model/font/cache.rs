@@ -11,6 +11,7 @@
 //! variable font and must not be read to answer what another table can.
 
 use super::Tables;
+use crate::model::glyph::outline::varc;
 use crate::ps::cff::CffFontRef;
 use crate::tables::{
     glyf::Glyf, gvar::SelectedGvar, hmtx::GlyphMetricRecords, hvar::Hvar, loca::Loca, vorg::Vorg,
@@ -140,5 +141,38 @@ pub(crate) struct VorgTable<'a>(pub(crate) Option<Vorg<'a>>);
 impl<'a> VorgTable<'a> {
     pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
         Self(tables.vorg().ok())
+    }
+}
+
+impl<'a> varc::Outlines<'a> {
+    /// Reads the variable composites, with their coverage and variation
+    /// store resolved.
+    ///
+    /// Returns `None` if the font has no `VARC` table.
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Option<Self> {
+        let varc = tables.varc().ok()?;
+        let upem = units_per_em(tables);
+        // A static VARC font may omit fvar and use the axes retained in gvar
+        // or the CFF2 variation store for component-internal coordinates.
+        let mut axis_count = tables
+            .fvar()
+            .map(|fvar| fvar.axis_count() as usize)
+            .unwrap_or_default();
+        if let Ok(gvar) = tables.gvar() {
+            axis_count = axis_count.max(gvar.axis_count() as usize);
+        }
+        if let Ok(gvar) = tables.gvar_extended() {
+            axis_count = axis_count.max(gvar.axis_count() as usize);
+        }
+        if let Some(count) = tables
+            .cff2()
+            .ok()
+            .and_then(|cff2| CffFontRef::new(cff2.offset_data().as_bytes(), 0, None).ok())
+            .and_then(|cff| cff.var_store()?.variation_region_list().ok())
+            .map(|regions| regions.axis_count() as usize)
+        {
+            axis_count = axis_count.max(count);
+        }
+        varc::Outlines::new(varc, upem, axis_count).ok()
     }
 }

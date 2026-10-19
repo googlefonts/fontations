@@ -10,7 +10,10 @@ use crate::tables::glyf::outline::{
 use crate::{
     mem::with_scratch,
     model::{
-        glyph::{outline::OutlineSource, GlyphSource, GlyphSourceOrder},
+        glyph::{
+            outline::{OutlineGlyphs, OutlineSource},
+            GlyphSource, GlyphSourceOrder,
+        },
         metrics::{LineExtents, Metrics, Scale, ScaledGlyphMetrics},
         Font, Kind,
     },
@@ -308,19 +311,36 @@ impl<'a> GlyphMetrics<'a> {
         convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
-        if let Some(base) = self.base_source() {
+        // Nearly every font has one source, its outlines, and a run over
+        // them is kept free of the per-glyph dispatch below.
+        if let Some(base) = self.only_base_source() {
             return self.extents_batched_one(base, convert, glyphs);
         }
-        // A font with its glyphs in a form none of the order reads.
-        for (_, out) in glyphs {
-            *out = convert(None);
+        let sources = ExtentsSources::new(self);
+        if let Some(only) = sources.only() {
+            return self.extents_batched_one(only, convert, glyphs);
         }
+        if sources.is_empty() {
+            // A font stating its glyphs in a way none of the order reads.
+            for (_, out) in glyphs {
+                *out = convert(None);
+            }
+            return;
+        }
+        self.extents_batched_mixed(&sources, convert, glyphs);
     }
 
-    /// Returns the first outline source in the order that the font has, as
-    /// [`OutlineGlyphs`](crate::model::glyph::outline::OutlineGlyphs) chooses it.
-    fn base_source(&self) -> Option<ExtentsSource<'a>> {
+    /// Returns the base outline source, where it is the only source in the
+    /// order that the font has.
+    ///
+    /// This needs no list of sources: the font's answer about its composite
+    /// table is kept, and the base is chosen as
+    /// [`OutlineGlyphs`] chooses it.
+    fn only_base_source(&self) -> Option<ExtentsSource<'a>> {
         let font = self.font;
+        if font.has_layered_source_in(self.order) {
+            return None;
+        }
         if let Kind::Type1(type1) = font.kind() {
             return self
                 .order
@@ -362,6 +382,11 @@ impl<'a> GlyphMetrics<'a> {
                 self.extents_batched_cff(cff, source, convert, glyphs)
             }
             ExtentsSource::Type1(font) => self.extents_batched_type1(font, convert, glyphs),
+            source => {
+                for (glyph, out) in glyphs {
+                    *out = convert(self.extents_from_source(&source, glyph));
+                }
+            }
         }
     }
 
@@ -416,6 +441,62 @@ impl<'a> GlyphMetrics<'a> {
     fn type1_extents(&self, font: &Type1Font, glyph: GlyphId) -> Option<GlyphExtents<F48Dot16>> {
         let bounds = font.evaluate_extents(glyph).ok()?;
         Some(bounds.map(extents_from_bounds).unwrap_or_default())
+    }
+
+    /// Returns the box that `source` measures for `glyph`, or `None` if the
+    /// source does not contain the glyph.
+    fn extents_from_source(
+        &self,
+        source: &ExtentsSource<'_>,
+        glyph: GlyphId,
+    ) -> Option<GlyphExtents<F48Dot16>> {
+        match *source {
+            ExtentsSource::Varc(outlines) => {
+                // Only the composites: the outlines underneath them answer
+                // for themselves, through their own source.
+                if !outlines.varc_covers(glyph) {
+                    return None;
+                }
+                Some(exact_extents(outlines.get(glyph)?.extents().ok()?))
+            }
+            ExtentsSource::Glyf(glyf, loca) => {
+                if self.coords.is_empty() {
+                    return self.stated_glyf_extents(glyf, loca, glyph);
+                }
+                if glyph.to_u32() >= self.num_glyphs {
+                    return None;
+                }
+                let context = self.font;
+                varied_control_box(&context, glyph)
+            }
+            ExtentsSource::Cff(cff, source) => self.cff_extents(cff, source, glyph),
+            ExtentsSource::Type1(font) => self.type1_extents(font, glyph),
+        }
+    }
+
+    /// Runs [`extents_batched`](Self::extents_batched) over more than one
+    /// source.
+    ///
+    /// Marked `#[inline(never)]` because fonts with composites are
+    /// uncommon, and the loop over outlines alone should not include this
+    /// code.
+    #[inline(never)]
+    fn extents_batched_mixed<'o, V: 'o>(
+        &self,
+        sources: &ExtentsSources<'_>,
+        convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        for (glyph, out) in glyphs {
+            let extents = if glyph.to_u32() < self.num_glyphs {
+                sources
+                    .iter()
+                    .find_map(|source| self.extents_from_source(source, glyph))
+            } else {
+                None
+            };
+            *out = convert(extents);
+        }
     }
 
     /// Returns the line this font's glyphs stack by, where it provides one.
@@ -888,9 +969,101 @@ impl<'a> GlyphMetricRecords<'a> {
 /// A table that can measure a glyph's ink.
 #[derive(Clone, Copy)]
 enum ExtentsSource<'a> {
+    /// A `VARC` table, used for the glyphs it covers.
+    Varc(OutlineGlyphs<'a>),
     Glyf(&'a Glyf<'a>, &'a Loca<'a>),
     Cff(&'a CffFontRef<'a>, OutlineSource),
     Type1(&'a Type1Font),
+}
+
+/// The sources available in a font, in the order they are tried.
+///
+/// `VARC` takes an entry, and the four outline sources share one, so two
+/// entries always suffice.
+struct ExtentsSources<'a> {
+    items: [Option<ExtentsSource<'a>>; MAX_EXTENTS_SOURCES],
+    len: usize,
+}
+
+/// The most entries [`ExtentsSources`] holds.
+const MAX_EXTENTS_SOURCES: usize = 2;
+
+impl<'a> ExtentsSources<'a> {
+    fn new(metrics: &GlyphMetrics<'a>) -> Self {
+        let font = metrics.font;
+        let mut sources = Self {
+            items: [None; MAX_EXTENTS_SOURCES],
+            len: 0,
+        };
+        // `VARC` composites are drawn over the base the order chooses, so
+        // both come from one view of the outlines.
+        let outlines = font.outline_glyphs_with(metrics.order);
+        let mut base_taken = false;
+        for format in metrics.order.iter() {
+            let source = match format {
+                GlyphSource::Varc => outlines.has_varc().then_some(ExtentsSource::Varc(outlines)),
+                GlyphSource::Glyf | GlyphSource::Cff2 | GlyphSource::Cff | GlyphSource::Type1 => {
+                    // Only the base the outlines chose answers, at its own
+                    // place in the order.
+                    let base = outlines
+                        .underlying_source()
+                        .filter(|base| !base_taken && GlyphSource::from(*base) == format);
+                    let Some(base) = base else {
+                        continue;
+                    };
+                    base_taken = true;
+                    match base {
+                        OutlineSource::Glyf => font
+                            .selected_glyf_loca()
+                            .map(|(glyf, loca)| ExtentsSource::Glyf(glyf, loca)),
+                        // The outlines found the charstrings, in the tables
+                        // or standing alone.
+                        OutlineSource::Cff2 | OutlineSource::Cff => {
+                            outlines.cff_font().map(|cff| ExtentsSource::Cff(cff, base))
+                        }
+                        OutlineSource::Type1 => match font.kind() {
+                            Kind::Type1(type1) => Some(ExtentsSource::Type1(type1)),
+                            _ => None,
+                        },
+                        OutlineSource::Varc => None,
+                    }
+                }
+            };
+            if let Some(source) = source {
+                sources.items[sources.len] = Some(source);
+                sources.len += 1;
+            }
+        }
+        sources
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Returns the source if there is exactly one.
+    fn only(&self) -> Option<ExtentsSource<'a>> {
+        if self.len == 1 {
+            self.items[0]
+        } else {
+            None
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &ExtentsSource<'a>> {
+        self.items[..self.len].iter().flatten()
+    }
+}
+
+/// Widens floating-point extents to the fixed-point type the metrics report.
+fn exact_extents(extents: GlyphExtents<f32>) -> GlyphExtents<F48Dot16> {
+    let exact = |value: f32| F48Dot16::from_f64(value as f64);
+    GlyphExtents {
+        x_bearing: exact(extents.x_bearing),
+        y_bearing: exact(extents.y_bearing),
+        width: exact(extents.width),
+        height: exact(extents.height),
+    }
 }
 
 /// Returns the metrics of a font that states none.
@@ -1860,8 +2033,52 @@ mod tests {
     }
 
     #[test]
+    fn a_varc_composite_measures_by_what_it_draws() {
+        let font = Font::new(font_test_data::varc::CJK_6868, 0).unwrap();
+        let outlines = font.outline_glyphs();
+        assert!(outlines.has_varc(), "the fixture has VARC");
+        let metrics = font.glyph_metrics();
+        let base_only = metrics.with_extents_source_order(GlyphSourceOrder::BASE_OUTLINES);
+        let mut composites = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let glyph = outlines.get(gid).unwrap();
+            let expected = exact_extents(glyph.extents().unwrap());
+            if outlines.varc_covers(gid) {
+                assert!(matches!(
+                    glyph,
+                    crate::model::glyph::outline::OutlineGlyph::Varc(_)
+                ));
+                assert_eq!(metrics.extents_exact(gid), Some(expected), "glyph {gid}");
+                composites += 1;
+            } else {
+                // The base measures it either way.
+                assert_eq!(
+                    metrics.extents_exact(gid),
+                    base_only.extents_exact(gid),
+                    "glyph {gid}"
+                );
+            }
+        }
+        assert!(composites > 0);
+        // Without VARC in the order, a composite is measured by the empty
+        // base glyph beneath it.
+        let composite = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .find(|gid| outlines.varc_covers(*gid))
+            .unwrap();
+        assert_ne!(
+            base_only.extents_exact(composite),
+            metrics.extents_exact(composite)
+        );
+    }
+
+    #[test]
     fn mixed_sources_measure_a_run_as_they_measure_one() {
-        for data in [font_test_data::CBDT, font_test_data::COLRV0V1_VARIABLE] {
+        for data in [
+            font_test_data::CBDT,
+            font_test_data::COLRV0V1_VARIABLE,
+            font_test_data::varc::CJK_6868,
+        ] {
             let font = Font::new(data, 0).unwrap();
             let metrics = font.glyph_metrics();
             let glyphs: Vec<_> = (0..font.num_glyphs()).map(GlyphId::new).collect();
@@ -1872,6 +2089,60 @@ mod tests {
             );
             for (gid, batched) in glyphs.iter().copied().zip(batched) {
                 assert_eq!(metrics.extents_exact(gid), batched, "glyph {gid}");
+            }
+        }
+    }
+
+    /// Measures `glyph` by trying every source the order finds, as the
+    /// general path does.
+    fn extents_through_every_source(
+        metrics: &GlyphMetrics<'_>,
+        glyph: GlyphId,
+    ) -> Option<GlyphExtents<F48Dot16>> {
+        let sources = ExtentsSources::new(metrics);
+        let extents = sources
+            .iter()
+            .find_map(|source| metrics.extents_from_source(source, glyph));
+        extents
+    }
+
+    // Skipping the list of sources when only a base outline can answer gives
+    // the same extents as trying every source.
+    #[test]
+    fn the_base_outline_shortcut_matches_every_source() {
+        let mut fonts = alloc::vec![
+            Font::new(STATIC, 0).unwrap(),
+            Font::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED, 0).unwrap(),
+            Font::new(font_test_data::CBDT, 0).unwrap(),
+            Font::new(font_test_data::COLRV0V1_VARIABLE, 0).unwrap(),
+            Font::new(font_test_data::varc::CJK_6868, 0).unwrap(),
+            Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap(),
+        ];
+        let cantarell = Font::new(font_test_data::CANTARELL_VF_TRIMMED, 0).unwrap();
+        fonts.push(
+            cantarell
+                .instance_builder()
+                .variations([("wght", 650.0)])
+                .build(),
+        );
+        fonts.push(cantarell);
+        let orders = [
+            GlyphSourceOrder::DEFAULT,
+            GlyphSourceOrder::OUTLINES,
+            GlyphSourceOrder::BASE_OUTLINES,
+            GlyphSourceOrder::new(&[GlyphSource::Cff, GlyphSource::Glyf]),
+            GlyphSourceOrder::EMPTY,
+        ];
+        for (index, font) in fonts.iter().enumerate() {
+            for order in orders {
+                let metrics = font.glyph_metrics().with_extents_source_order(order);
+                for glyph in (0..font.num_glyphs() + 1).map(GlyphId::new) {
+                    assert_eq!(
+                        metrics.extents_exact(glyph),
+                        extents_through_every_source(&metrics, glyph),
+                        "font {index} order {order:?} glyph {glyph}"
+                    );
+                }
             }
         }
     }

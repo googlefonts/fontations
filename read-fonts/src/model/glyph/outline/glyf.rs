@@ -304,3 +304,59 @@ impl<'a> OutlineContext<'a> for GlyfContext<'a> {
         self.has_hvar
     }
 }
+
+/// A font read at a location other than its own.
+///
+/// A `VARC` component defines its own coordinates, so its glyph is loaded
+/// through this type rather than the font. The font's cached scalars only
+/// apply to its own location, so this type does not provide them.
+#[derive(Clone, Copy)]
+pub(crate) struct FontAt<'a> {
+    pub(crate) context: GlyfContext<'a>,
+    pub(crate) coords: &'a [F2Dot14],
+}
+
+impl<'a> OutlineContext<'a> for FontAt<'a> {
+    fn glyph(&self, glyph: GlyphId) -> Option<LocaGlyph<'a>> {
+        self.context.glyph(glyph)
+    }
+
+    fn glyph_variation_data(&self, glyph: GlyphId) -> Option<GlyphVariationData<'a>> {
+        self.context.glyph_variation_data(glyph)
+    }
+
+    fn has_gvar(&self) -> bool {
+        self.context.has_gvar()
+    }
+
+    fn phantom_point_deltas(&self, glyph: GlyphId) -> Option<[Point<Fixed>; PHANTOM_POINT_COUNT]> {
+        let (glyf, loca) = self.context.tables;
+        self.context
+            .gvar?
+            .phantom_point_deltas_with_scalars(glyf, loca, self.coords, &[], glyph)
+    }
+
+    fn coords(&self) -> &[F2Dot14] {
+        self.coords
+    }
+
+    fn units_per_em(&self) -> u16 {
+        self.context.units_per_em
+    }
+
+    fn h_metrics(&self, glyph: GlyphId) -> (i32, i32) {
+        self.context.h_metrics(glyph)
+    }
+
+    fn v_metrics(&self, glyph: GlyphId) -> Option<(i32, i32)> {
+        self.context.v_metrics(glyph)
+    }
+
+    fn h_line_metrics(&self) -> (i32, i32) {
+        self.context.h_line
+    }
+
+    fn has_hvar(&self) -> bool {
+        self.context.has_hvar
+    }
+}
