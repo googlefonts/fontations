@@ -1,9 +1,11 @@
 //! Higher level interface for accessing font data.
 
+pub mod attribute;
 pub mod charmap;
 pub mod glyph;
 pub mod metrics;
 pub mod name;
+pub mod variation;
 
 mod error;
 mod font;
@@ -15,7 +17,6 @@ pub use error::Error;
 #[doc(hidden)]
 pub use font::interop as _font_interop;
 #[doc(inline)]
-pub use font::{
-    Blob, Font, Format, InstanceBuilder, Kind, NormalizedCoord, Source, TableFunction, Tables,
-    Variation,
-};
+pub use font::{Blob, Font, Format, InstanceBuilder, Kind, Source, TableFunction, Tables};
+#[doc(inline)]
+pub use variation::{NormalizedCoord, Variation};

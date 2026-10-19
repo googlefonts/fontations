@@ -20,11 +20,13 @@ pub use tables::{TableFunction, Tables};
 #[rust_analyzer::completions(hidden_from_completion)]
 pub mod interop;
 
+use super::attribute::Attributes;
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::glyph::outline::OutlineSource;
 use super::metrics::{empty_glyph_metrics, GlyphMetrics, Metrics, StyleMetrics};
 use super::name::{self, GlyphName, Names};
 use super::once::Once;
+use super::variation::{Axes, NamedInstances, NormalizedCoord, Variation};
 use crate::tables::glyf::outline::OutlineContext;
 use crate::tables::loca::LocaGlyph;
 use crate::tables::{
@@ -51,13 +53,12 @@ use cache::{
     Cff2Font, CffFont, GlyfLoca, GvarTable, HvarTable, MetricsTable, TableCache, VorgTable,
     VvarTable,
 };
-use core::str::FromStr;
 use core::{
     any::Any,
     sync::atomic::{self, AtomicBool, AtomicU32},
 };
 use smallvec::SmallVec;
-use types::{F2Dot14, Fixed, GlyphId, Point, Tag};
+use types::{F2Dot14, Fixed, GlyphId, Point};
 use yoke::Yoke;
 
 /// A font at one location in its design space.
@@ -88,6 +89,17 @@ impl Font {
     /// none at `index`.
     pub fn new(source: impl Into<Source>, index: u32) -> Option<Self> {
         Some(Font(Repr::Default(SharedFont::new(source, index)?)))
+    }
+
+    /// Returns the font's variation axes, which are empty if the font is not
+    /// variable.
+    pub fn axes(&self) -> Axes<'_> {
+        Axes::new(self)
+    }
+
+    /// Returns the named instances defined by the font.
+    pub fn named_instances(&self) -> NamedInstances<'_> {
+        NamedInstances::new(self)
     }
 
     /// Returns a builder for another instance of the same font.
@@ -140,6 +152,20 @@ impl Font {
     #[inline]
     pub fn units_per_em(&self) -> u16 {
         self.shared().units_per_em()
+    }
+
+    /// Returns the width, style and weight of the default instance.
+    ///
+    /// For an SFNT font, these come from the OS/2 table, with the `post`
+    /// italic angle for an oblique style. If there is no OS/2 table, they
+    /// come from `head`. These tables do not vary, so every instance of a
+    /// variable font returns the same values. To get the attributes at a
+    /// location, use [`Attributes::from_variations`].
+    ///
+    /// For a Type 1 or standalone CFF font, these come from the `Weight` name
+    /// and `ItalicAngle`.
+    pub fn default_attributes(&self) -> Attributes {
+        Attributes::from_font(self)
     }
 
     /// Returns `true` if the font needs its TrueType instructions to draw
@@ -1432,64 +1458,6 @@ type SubfontCache = Once<Box<[Once<Option<Subfont>>]>>;
 /// The number of CFF subfonts a font keeps once parsed. A subfont past them
 /// is parsed again whenever a glyph needs it.
 const CACHED_SUBFONTS: usize = 8;
-
-/// A normalized variation coordinate in 2.14 fixed point in the range
-/// [-1.0, 1.0].
-pub type NormalizedCoord = types::F2Dot14;
-
-/// A variation setting for a font instance.
-///
-/// The tag identifies the axis, and the value is the desired value for that
-/// axis in user space.
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub struct Variation {
-    /// The tag that identifies the axis.
-    pub tag: Tag,
-    /// The value for the axis in user space.
-    pub value: f32,
-}
-
-impl Variation {
-    /// Creates a new font variation with the given tag and value.
-    pub fn new(tag: Tag, value: f32) -> Self {
-        Self { tag, value }
-    }
-}
-
-// Various conversions for Variation that have proven to be ergonomically
-// useful in practice. These allow, for example, passing &[("wght", 700.0)]
-// directly to the variations() method of InstanceBuilder without needing
-//to manually construct Variation objects or tags.
-
-impl From<&'_ Variation> for Variation {
-    fn from(value: &'_ Variation) -> Self {
-        *value
-    }
-}
-
-impl From<(Tag, f32)> for Variation {
-    fn from(value: (Tag, f32)) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-impl From<&(Tag, f32)> for Variation {
-    fn from(value: &(Tag, f32)) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-impl From<(&str, f32)> for Variation {
-    fn from(value: (&str, f32)) -> Self {
-        Self::new(Tag::from_str(value.0).unwrap_or_default(), value.1)
-    }
-}
-
-impl From<&(&str, f32)> for Variation {
-    fn from(value: &(&str, f32)) -> Self {
-        Self::new(Tag::from_str(value.0).unwrap_or_default(), value.1)
-    }
-}
 
 /// Maximum number of coordinates we store inline. Chosen to maximize the
 /// number of coords without growing the storage: a `SmallVec` is a capacity

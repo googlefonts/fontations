@@ -1,7 +1,7 @@
 //! Metrics used to style text and decorations.
 
 use super::metric;
-use crate::model::NormalizedCoord;
+use crate::model::variation::NormalizedCoord;
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
     tables::mvar::tags,

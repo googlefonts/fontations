@@ -1,7 +1,7 @@
 //! Font-wide metrics.
 
 use super::metric;
-use crate::model::NormalizedCoord;
+use crate::model::variation::NormalizedCoord;
 
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
