@@ -20,7 +20,8 @@ pub enum Error {
     /// something that is not valid, such as popping an empty stack.
     InvalidOperation,
     /// The font exceeds a limit this crate sets, such as a nesting depth or a
-    /// count of points, components or paints.
+    /// count of points, components or paints. A cycle in a color glyph's
+    /// paint graph exceeds the nesting depth.
     ///
     /// The limits are in [`limits`](crate::limits).
     LimitExceeded,

@@ -14,8 +14,21 @@ use super::Tables;
 use crate::model::glyph::outline::varc;
 use crate::ps::cff::CffFontRef;
 use crate::tables::{
-    cbdt::Cbdt, cblc::Cblc, ebdt::Ebdt, eblc::Eblc, glyf::Glyf, gvar::SelectedGvar,
-    hmtx::GlyphMetricRecords, hvar::Hvar, loca::Loca, sbix::Sbix, vorg::Vorg, vvar::Vvar,
+    cbdt::Cbdt,
+    cblc::Cblc,
+    colr::Colr,
+    cpal::Cpal,
+    ebdt::Ebdt,
+    eblc::Eblc,
+    glyf::Glyf,
+    gvar::SelectedGvar,
+    hmtx::GlyphMetricRecords,
+    hvar::Hvar,
+    loca::Loca,
+    sbix::Sbix,
+    variations::{DeltaSetIndexMap, ItemVariationStore},
+    vorg::Vorg,
+    vvar::Vvar,
 };
 use crate::TableProvider;
 
@@ -174,6 +187,39 @@ impl<'a> varc::Outlines<'a> {
             axis_count = axis_count.max(count);
         }
         varc::Outlines::new(varc, upem, axis_count).ok()
+    }
+}
+
+/// The `COLR` table and the variation tables its paints use.
+#[derive(Clone, Yokeable)]
+pub(crate) struct ColrTables<'a> {
+    pub(crate) colr: Colr<'a>,
+    pub(crate) index_map: Option<DeltaSetIndexMap<'a>>,
+    pub(crate) var_store: Option<ItemVariationStore<'a>>,
+}
+
+impl<'a> ColrTables<'a> {
+    /// Reads the tables, or returns `None` if the font has no `COLR` table.
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Option<Self> {
+        tables.colr().ok().map(Self::new)
+    }
+
+    pub(crate) fn new(colr: Colr<'a>) -> Self {
+        Self {
+            index_map: colr.var_index_map().and_then(|map| map.ok()),
+            var_store: colr.item_variation_store().and_then(|store| store.ok()),
+            colr,
+        }
+    }
+}
+
+/// The color palettes in `CPAL`.
+#[derive(Clone, Default, Yokeable)]
+pub(crate) struct CpalTable<'a>(pub(crate) Option<Cpal<'a>>);
+
+impl<'a> CpalTable<'a> {
+    pub(crate) fn read(tables: &impl TableProvider<'a>) -> Self {
+        Self(tables.cpal().ok())
     }
 }
 

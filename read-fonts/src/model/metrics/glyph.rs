@@ -12,6 +12,7 @@ use crate::{
     model::{
         glyph::{
             bitmap::BitmapStrikes,
+            color::ColorGlyphs,
             outline::{OutlineGlyphs, OutlineSource},
             GlyphSource, GlyphSourceOrder,
         },
@@ -109,8 +110,8 @@ impl<'a> GlyphMetrics<'a> {
     /// Measures ink using the sources in `order`.
     ///
     /// Each source in the font is tried in turn until one provides extents
-    /// for the glyph. [`GlyphSourceOrder::DEFAULT`] tries bitmaps, then
-    /// outlines.
+    /// for the glyph. [`GlyphSourceOrder::DEFAULT`] tries bitmaps, then color,
+    /// then outlines.
     pub fn with_extents_source_order(self, order: GlyphSourceOrder) -> Self {
         Self { order, ..self }
     }
@@ -352,8 +353,8 @@ impl<'a> GlyphMetrics<'a> {
     /// Returns the base outline source, where it is the only source in the
     /// order that the font has.
     ///
-    /// This needs no list of sources: the font's answers about its bitmap
-    /// and composite tables are kept, and the base is chosen as
+    /// This needs no list of sources: the font's answers about its bitmap,
+    /// color and composite tables are kept, and the base is chosen as
     /// [`OutlineGlyphs`] chooses it.
     fn only_base_source(&self) -> Option<ExtentsSource<'a>> {
         let font = self.font;
@@ -477,6 +478,9 @@ impl<'a> GlyphMetrics<'a> {
                 let bitmap = strikes.select(self.bitmap_ppem)?.get(glyph)?;
                 Some(exact_extents(bitmap.extents()))
             }
+            ExtentsSource::Color(colors, outlines) => {
+                colors.extents(glyph, outlines).map(exact_extents)
+            }
             ExtentsSource::Varc(outlines) => {
                 // Only the composites: the outlines underneath them answer
                 // for themselves, through their own source.
@@ -503,7 +507,7 @@ impl<'a> GlyphMetrics<'a> {
     /// Runs [`extents_batched`](Self::extents_batched) over more than one
     /// source.
     ///
-    /// Marked `#[inline(never)]` because fonts with bitmaps are
+    /// Marked `#[inline(never)]` because fonts with bitmaps or color are
     /// uncommon, and the loop over outlines alone should not include this
     /// code.
     #[inline(never)]
@@ -997,6 +1001,9 @@ impl<'a> GlyphMetricRecords<'a> {
 enum ExtentsSource<'a> {
     /// A bitmap table. The strike selected for the size measures every glyph.
     Bitmap(BitmapStrikes<'a>),
+    /// A `COLR` table of either version.
+    /// The outlines provide the clip glyphs.
+    Color(ColorGlyphs<'a>, OutlineGlyphs<'a>),
     /// A `VARC` table, used for the glyphs it covers.
     Varc(OutlineGlyphs<'a>),
     Glyf(&'a Glyf<'a>, &'a Loca<'a>),
@@ -1006,15 +1013,15 @@ enum ExtentsSource<'a> {
 
 /// The sources available in a font, in the order they are tried.
 ///
-/// The three bitmap tables and `VARC` take an entry each, and the four
-/// outline sources share one, so five entries always suffice.
+/// The three bitmap tables, `COLR` and `VARC` take an entry each, and the
+/// four outline sources share one, so six entries always suffice.
 struct ExtentsSources<'a> {
     items: [Option<ExtentsSource<'a>>; MAX_EXTENTS_SOURCES],
     len: usize,
 }
 
 /// The most entries [`ExtentsSources`] holds.
-const MAX_EXTENTS_SOURCES: usize = 5;
+const MAX_EXTENTS_SOURCES: usize = 6;
 
 impl<'a> ExtentsSources<'a> {
     fn new(metrics: &GlyphMetrics<'a>) -> Self {
@@ -1032,6 +1039,18 @@ impl<'a> ExtentsSources<'a> {
                 GlyphSource::Sbix | GlyphSource::Cbdt | GlyphSource::Ebdt => {
                     let bitmaps = font.bitmap_strikes_with(GlyphSourceOrder::new(&[format]));
                     (!bitmaps.is_empty()).then_some(ExtentsSource::Bitmap(bitmaps))
+                }
+                GlyphSource::Colr => {
+                    let colors = font.color_glyphs();
+                    // Clips are outlines whatever the order says, so an
+                    // order with no outline source clips with the font's
+                    // default outlines, as `ColorGlyph::extents` does.
+                    let clips = if outlines.is_empty() {
+                        font.outline_glyphs()
+                    } else {
+                        outlines
+                    };
+                    (!colors.is_empty()).then_some(ExtentsSource::Color(colors, clips))
                 }
                 GlyphSource::Varc => outlines.has_varc().then_some(ExtentsSource::Varc(outlines)),
                 GlyphSource::Glyf | GlyphSource::Cff2 | GlyphSource::Cff | GlyphSource::Type1 => {
@@ -2064,6 +2083,11 @@ mod tests {
         }
     }
 
+    /// Converts a box in font units the same way the sources do.
+    fn extents_of(bounds: BoundingBox<f32>) -> GlyphExtents<F48Dot16> {
+        exact_extents(bounds.into())
+    }
+
     #[test]
     fn bitmaps_answer_before_outlines_in_the_default_order() {
         let font = Font::new(font_test_data::CBDT, 0).unwrap();
@@ -2151,6 +2175,128 @@ mod tests {
         // At 64 ppem the selected strike has it.
         let at_64 = font.glyph_metrics().with_bitmap_ppem(Some(64.0));
         assert_eq!(at_64.extents_exact(gid), larger);
+    }
+
+    #[test]
+    fn a_color_glyph_measures_by_its_clip_box_or_its_paint() {
+        use crate::model::glyph::color::test_glyph_defs::{CLIPBOX, COLORED_CIRCLES_V0};
+        let font = Font::new(font_test_data::COLRV0V1_VARIABLE, 0).unwrap();
+        let metrics = font.glyph_metrics();
+        let colors = font.color_glyphs();
+        let map = |ch: char| font.charmap().map_unicode(ch).unwrap();
+        // A glyph with a clip box is measured by it.
+        let clipped = map(CLIPBOX[0]);
+        let clip_box = colors.get(clipped).unwrap().clip_box().unwrap();
+        assert_eq!(metrics.extents_exact(clipped), Some(extents_of(clip_box)));
+        // One without is measured by what it paints, which here is a set of
+        // layered outlines and so the union of their boxes.
+        let painted = map(COLORED_CIRCLES_V0[0]);
+        let glyph = colors.get(painted).unwrap();
+        assert!(glyph.clip_box().is_none());
+        assert_eq!(
+            metrics.extents_exact(painted),
+            Some(exact_extents(glyph.extents().unwrap()))
+        );
+        // The base glyph of a color glyph is usually empty, so taking color
+        // out of the order measures something else.
+        let outlines_only = metrics.with_extents_source_order(GlyphSourceOrder::OUTLINES);
+        assert_ne!(
+            outlines_only.extents_exact(clipped),
+            metrics.extents_exact(clipped)
+        );
+        // A glyph the table does not paint is measured by its outline.
+        let plain = GlyphId::new(1);
+        assert!(colors.get(plain).is_none());
+        assert_eq!(
+            metrics.extents_exact(plain),
+            outlines_only.extents_exact(plain)
+        );
+    }
+
+    // HarfBuzz measures a version 0 table's layered glyphs too.
+    // A color-only order still clips with outlines, so a painted glyph
+    // measures as it does on its own.
+    #[test]
+    fn a_color_only_order_keeps_the_clips() {
+        let font = Font::new(font_test_data::COLRV0V1_VARIABLE, 0).unwrap();
+        let metrics = font
+            .glyph_metrics()
+            .with_extents_source_order(GlyphSourceOrder::COLOR);
+        let mut measured = 0;
+        for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+            let Some(color) = font.color_glyphs().get(gid) else {
+                continue;
+            };
+            let Ok(direct) = color.extents() else {
+                continue;
+            };
+            if color.clip_box().is_some() || direct.width == 0.0 || direct.height == 0.0 {
+                continue;
+            }
+            assert_eq!(metrics.extents(gid), Some(direct), "glyph {gid}");
+            measured += 1;
+        }
+        assert!(measured > 0);
+    }
+
+    #[test]
+    fn a_version_0_color_glyph_measures_by_its_layers() {
+        use crate::model::glyph::color::test_glyph_defs::COLORED_CIRCLES_V0;
+        let mut data = font_test_data::COLRV0V1.to_vec();
+        let colr = crate::FontRef::new(&data)
+            .unwrap()
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == Tag::new(b"COLR"))
+            .unwrap()
+            .offset() as usize;
+        // A version 0 reader stops before the version 1 fields, so this is a
+        // valid version 0 table holding the same layer records.
+        data[colr..colr + 2].copy_from_slice(&0u16.to_be_bytes());
+        let font = Font::new(data, 0).unwrap();
+        let colors = font.color_glyphs();
+        assert_eq!(colors.version(), Some(0));
+        let metrics = font.glyph_metrics();
+        let outlines_only = metrics.with_extents_source_order(GlyphSourceOrder::OUTLINES);
+        let glyph = font.charmap().map_unicode(COLORED_CIRCLES_V0[0]).unwrap();
+        let layers = exact_extents(colors.get(glyph).unwrap().extents().unwrap());
+        assert_eq!(metrics.extents_exact(glyph), Some(layers));
+        assert_ne!(outlines_only.extents_exact(glyph), Some(layers));
+        // A glyph without layers is measured by its outline.
+        let plain = GlyphId::new(1);
+        assert!(colors.get(plain).is_none());
+        assert_eq!(
+            metrics.extents_exact(plain),
+            outlines_only.extents_exact(plain)
+        );
+    }
+
+    #[test]
+    fn a_color_glyph_at_a_location_moves_its_clip_box() {
+        use crate::model::glyph::color::test_glyph_defs::CLIPBOX;
+        let font = Font::new(font_test_data::COLRV0V1_VARIABLE, 0).unwrap();
+        let gid = font.charmap().map_unicode(CLIPBOX[0]).unwrap();
+        let moved = font
+            .instance_builder()
+            .variations([("CLXI", 200.0)])
+            .build();
+        let (at_default, at_moved) = (
+            font.glyph_metrics().extents_exact(gid).unwrap(),
+            moved.glyph_metrics().extents_exact(gid).unwrap(),
+        );
+        assert_ne!(at_default.x_bearing, at_moved.x_bearing);
+        // The clip box moves by a fraction of a unit, and the extents by the
+        // whole units HarfBuzz rounds each delta to.
+        let clip_box = moved.color_glyphs().get(gid).unwrap().clip_box().unwrap();
+        assert_ne!(clip_box.x_min, clip_box.x_min.round());
+        let rounded = BoundingBox {
+            x_min: clip_box.x_min.round(),
+            y_min: clip_box.y_min.round(),
+            x_max: clip_box.x_max.round(),
+            y_max: clip_box.y_max.round(),
+        };
+        assert_eq!(at_moved, extents_of(rounded));
     }
 
     #[test]
@@ -2252,7 +2398,8 @@ mod tests {
             GlyphSourceOrder::OUTLINES,
             GlyphSourceOrder::BASE_OUTLINES,
             GlyphSourceOrder::BITMAPS,
-            GlyphSourceOrder::new(&[GlyphSource::Cff, GlyphSource::Glyf]),
+            GlyphSourceOrder::COLOR,
+            GlyphSourceOrder::new(&[GlyphSource::Cff, GlyphSource::Glyf, GlyphSource::Colr]),
             GlyphSourceOrder::EMPTY,
         ];
         for (index, font) in fonts.iter().enumerate() {
@@ -2269,7 +2416,7 @@ mod tests {
         }
     }
 
-    // An order without bitmap or composite sources probes none of
+    // An order without bitmap, color or composite sources probes none of
     // those tables.
     #[test]
     fn an_outline_order_probes_no_other_tables() {
@@ -2284,6 +2431,7 @@ mod tests {
         font.glyph_metrics().extents_exact(GlyphId::new(1));
         assert_ne!(probed(&font), 0);
         assert!(font.has_layered_source(GlyphSource::Cbdt));
+        assert!(!font.has_layered_source(GlyphSource::Colr));
     }
 
     #[test]

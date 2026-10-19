@@ -24,6 +24,7 @@ use super::attribute::Attributes;
 use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
 use super::glyph::{
     bitmap::BitmapStrikes,
+    color::{ColorGlyphs, Palettes},
     outline::{varc, OutlineGlyphs, OutlineSource},
     GlyphSource, GlyphSourceOrder,
 };
@@ -50,13 +51,14 @@ use crate::{
         cff::{CffFontRef, Subfont},
         type1::Type1Font,
     },
-    tables::{cbdt::Cbdt, cblc::Cblc, ebdt::Ebdt, eblc::Eblc, sbix::Sbix},
+    tables::{cbdt::Cbdt, cblc::Cblc, cpal::Cpal, ebdt::Ebdt, eblc::Eblc, sbix::Sbix},
     TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc};
+pub(crate) use cache::ColrTables;
 use cache::{
-    CbdtTables, Cff2Font, CffFont, EbdtTables, GlyfLoca, GvarTable, HvarTable, MetricsTable,
-    SbixTable, TableCache, VorgTable, VvarTable,
+    CbdtTables, Cff2Font, CffFont, CpalTable, EbdtTables, GlyfLoca, GvarTable, HvarTable,
+    MetricsTable, SbixTable, TableCache, VorgTable, VvarTable,
 };
 use core::{
     any::Any,
@@ -344,6 +346,16 @@ impl Font {
         BitmapStrikes::new(self, order)
     }
 
+    /// Returns the font's color glyphs.
+    pub fn color_glyphs(&self) -> ColorGlyphs<'_> {
+        ColorGlyphs::new(self)
+    }
+
+    /// Returns the font's color palettes.
+    pub fn palettes(&self) -> Palettes<'_> {
+        Palettes::new(self)
+    }
+
     /// Returns the underlying source of font data.
     #[inline]
     pub fn source(&self) -> &Source {
@@ -484,6 +496,20 @@ impl Font {
         )
     }
 
+    /// Returns the `COLR` region scalars at this location, computed once.
+    pub(crate) fn colr_scalars(&self) -> &[Fixed] {
+        self.location_scalars(
+            |sfnt| &sfnt.colr_scalars,
+            |varied| {
+                let store = varied
+                    .font
+                    .colr_tables()
+                    .and_then(|tables| tables.var_store.as_ref());
+                store_scalars(store, varied.coords.as_slice())
+            },
+        )
+    }
+
     /// Returns the scalars `cache` selects for this location, filling it
     /// with `compute` the first time. The default location needs none.
     fn location_scalars(
@@ -553,7 +579,7 @@ impl Font {
     }
 
     /// Returns `true` if the font has glyphs from `source`, one of the
-    /// bitmap tables or `VARC`.
+    /// bitmap tables, `COLR` or `VARC`.
     ///
     /// Each source is probed the first time it is asked about and the answer
     /// kept, so asking loads no table that measuring with it would not.
@@ -572,6 +598,7 @@ impl Font {
             GlyphSource::Sbix | GlyphSource::Cbdt | GlyphSource::Ebdt => !self
                 .bitmap_strikes_with(GlyphSourceOrder::new(&[source]))
                 .is_empty(),
+            GlyphSource::Colr => !self.color_glyphs().is_empty(),
             GlyphSource::Varc => self.varc_outlines().is_some(),
             _ => return false,
         };
@@ -585,8 +612,8 @@ impl Font {
         present
     }
 
-    /// Returns `true` if the font has glyphs from any bitmap table or
-    /// `VARC` that `order` lists.
+    /// Returns `true` if the font has glyphs from any bitmap table, `COLR`
+    /// or `VARC` that `order` lists.
     ///
     /// Reads the cached results once and probes only the sources not yet
     /// checked.
@@ -600,7 +627,11 @@ impl Font {
         order.iter().any(|source| {
             if !matches!(
                 source,
-                GlyphSource::Sbix | GlyphSource::Cbdt | GlyphSource::Ebdt | GlyphSource::Varc
+                GlyphSource::Sbix
+                    | GlyphSource::Cbdt
+                    | GlyphSource::Ebdt
+                    | GlyphSource::Colr
+                    | GlyphSource::Varc
             ) {
                 return false;
             }
@@ -612,7 +643,7 @@ impl Font {
         })
     }
 
-    /// Returns the probed state of the bitmap and composite sources.
+    /// Returns the probed state of the bitmap, color and composite sources.
     #[cfg(test)]
     pub(crate) fn probed_glyph_sources(&self) -> u32 {
         self.shared().sfnt().map_or(0, |sfnt| {
@@ -625,6 +656,18 @@ impl Font {
     #[inline]
     pub(crate) fn varc_outlines(&self) -> Option<&varc::Outlines<'_>> {
         self.shared().varc_outlines()
+    }
+
+    /// Returns `COLR` with its variation tables, read once for the font.
+    #[inline]
+    pub(crate) fn colr_tables(&self) -> Option<&ColrTables<'_>> {
+        self.shared().colr_tables()
+    }
+
+    /// Returns `CPAL`, read once for the font.
+    #[inline]
+    pub(crate) fn cpal(&self) -> Option<&Cpal<'_>> {
+        self.shared().cpal()
     }
 
     /// Returns `sbix`, read once for the font.
@@ -812,6 +855,7 @@ impl InstanceBuilder {
                 location: SfntLocation::new(),
                 gvar_scalars: Once::new(),
                 hvar_scalars: Once::new(),
+                colr_scalars: Once::new(),
                 vvar_scalars: Once::new(),
             }),
             // A font of another kind has no axes, so no coordinates reach
@@ -1302,6 +1346,33 @@ impl SharedFont {
             .as_ref()
     }
 
+    /// Returns `COLR` with its variation tables, read once for the font.
+    fn colr_tables(&self) -> Option<&ColrTables<'_>> {
+        let sfnt = self.sfnt()?;
+        sfnt.colr
+            .get_or_init(|| {
+                Box::new(TableCache::read(sfnt.tables.clone(), |tables| {
+                    ColrTables::read(&tables)
+                }))
+            })
+            .get()
+            .as_ref()
+    }
+
+    /// Returns `CPAL`, read once for the font.
+    fn cpal(&self) -> Option<&Cpal<'_>> {
+        let sfnt = self.sfnt()?;
+        sfnt.cpal
+            .get_or_init(|| {
+                Box::new(TableCache::read(sfnt.tables.clone(), |tables| {
+                    CpalTable::read(&tables)
+                }))
+            })
+            .get()
+            .0
+            .as_ref()
+    }
+
     /// Returns `sbix`, read once for the font.
     fn sbix(&self) -> Option<&Sbix<'_>> {
         let sfnt = self.sfnt()?;
@@ -1407,7 +1478,7 @@ pub(super) struct SfntCaches {
     // Whether the font needs its instructions for correct contours: zero
     // until asked, then one more than the answer.
     hint_reliant: core::sync::atomic::AtomicU8,
-    // Which of the bitmap and composite sources the font has: two
+    // Which of the bitmap, color and composite sources the font has: two
     // bits per source, zero until asked, then absent or present. They are
     // probed one at a time, as something asks for each.
     glyph_sources: core::sync::atomic::AtomicU32,
@@ -1436,6 +1507,8 @@ pub(super) struct SfntCaches {
     // Tables that draw glyphs in other ways, read only when something asks
     // for that way. Boxed, so a font without them pays a pointer each.
     varc: Once<Box<TableCache<Option<varc::Outlines<'static>>>>>,
+    colr: Once<Box<TableCache<Option<ColrTables<'static>>>>>,
+    cpal: Once<Box<TableCache<CpalTable<'static>>>>,
     sbix: Once<Box<TableCache<SbixTable<'static>>>>,
     cbdt: Once<Box<TableCache<CbdtTables<'static>>>>,
     ebdt: Once<Box<TableCache<EbdtTables<'static>>>>,
@@ -1464,6 +1537,8 @@ impl SfntCaches {
             cff2: Once::new(),
             cff: Once::new(),
             varc: Once::new(),
+            colr: Once::new(),
+            cpal: Once::new(),
             sbix: Once::new(),
             cbdt: Once::new(),
             ebdt: Once::new(),
@@ -1551,6 +1626,7 @@ struct VariedSfnt {
     gvar_scalars: Once<Box<[Fixed]>>,
     hvar_scalars: Once<Box<[Fixed]>>,
     vvar_scalars: Once<Box<[Fixed]>>,
+    colr_scalars: Once<Box<[Fixed]>>,
 }
 
 const MAX_PRECOMPUTED_SCALARS: usize = 128;
