@@ -82,7 +82,6 @@ pub mod autohint;
 mod cff;
 mod glyf;
 mod hint;
-mod hint_reliant;
 mod metrics;
 mod unscaled;
 mod varc;
@@ -735,7 +734,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     /// possible.
     pub fn require_interpreter(&self) -> bool {
         self.font()
-            .map(|font| hint_reliant::require_interpreter(font))
+            .map(raw::tables::glyf::is_hint_reliant)
             .unwrap_or_default()
     }
 
