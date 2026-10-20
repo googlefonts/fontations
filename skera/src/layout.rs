@@ -492,6 +492,12 @@ fn for_each_intersection<E>(
 /// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
 /// returned glyphs are mapped into new glyph ids
 ///
+/// The two Vecs are parallel: `indices[i]` is the coverage index of `glyphs[i]`.
+/// Prefer [`for_each_intersected_glyph_and_index`] when the glyphs can be
+/// consumed directly; use this only when the glyph list has to be serialized
+/// before the array it indexes into (e.g. a mark Coverage table that must be
+/// written before its MarkArray to keep the packing order).
+///
 /// See [`for_each_intersected_glyph_and_index`] for how `array_len` bounds the
 /// coverage indices.
 pub(crate) fn intersected_glyphs_and_indices(
@@ -499,14 +505,14 @@ pub(crate) fn intersected_glyphs_and_indices(
     glyph_set: &IntSet<GlyphId>,
     glyph_map: &[GlyphId],
     array_len: impl Into<u32>,
-) -> (Vec<GlyphId>, IntSet<u32>) {
+) -> (Vec<GlyphId>, Vec<u32>) {
     let array_len = array_len.into();
     let cap = coverage
         .population()
         .min(glyph_set.len() as usize)
         .min(array_len as usize);
     let mut glyphs = Vec::with_capacity(cap);
-    let mut indices = IntSet::empty();
+    let mut indices = Vec::with_capacity(cap);
 
     let _ = for_each_intersected_glyph_and_index::<()>(
         coverage,
@@ -515,7 +521,7 @@ pub(crate) fn intersected_glyphs_and_indices(
         array_len,
         |idx, g| {
             glyphs.push(g);
-            indices.insert(idx);
+            indices.push(idx);
             Ok(())
         },
     );
