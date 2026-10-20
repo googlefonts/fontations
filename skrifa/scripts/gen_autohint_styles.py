@@ -60,7 +60,7 @@ SCRIPTS_WITH_FEATURES = ["CYRL", "GREK", "LATN"]
 # In relation to FreeType, this combines the AF_ScriptClass,
 # AF_Script_UniRangeRec and AF_BlueStringset.
 # Script definitions: https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afscript.h
-# Unicode ranges: https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afranges.c
+# Unicode ranges: https://gitlab.freedesktop.org/freetype/freetype/-/blob/VER-2-15-0/src/autofit/afranges.c
 # Blues: https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afblue.h
 SCRIPT_CLASSES = [
     {
@@ -89,9 +89,11 @@ SCRIPT_CLASSES = [
         "base_ranges": [
             (0x0600, 0x06FF), # Arabic
             (0x0750, 0x07FF), # Arabic Supplement
+            (0x0870, 0x089F), # Arabic Extended-B
             (0x08A0, 0x08FF), # Arabic Extended-A
             (0xFB50, 0xFDFF), # Arabic Presentation Forms-A
             (0xFE70, 0xFEFF), # Arabic Presentation Forms-B
+            (0x10EC0, 0x10EFF), # Arabic Extended-C
             (0x1EE00, 0x1EEFF), # Arabic Mathematical Alphabetic Symbols
         ],
         "non_base_ranges": [
@@ -103,8 +105,9 @@ SCRIPT_CLASSES = [
             (0x06DF, 0x06E4),
             (0x06E7, 0x06E8),
             (0x06EA, 0x06ED),
-            (0x08D4, 0x08E1),
-            (0x08D3, 0x08FF),
+            (0x0897, 0x089F),
+            (0x08CA, 0x08E1),
+            (0x08E3, 0x08FF),
             (0xFBB2, 0xFBC1),
             (0xFE70, 0xFE70),
             (0xFE72, 0xFE72),
@@ -114,6 +117,8 @@ SCRIPT_CLASSES = [
             (0xFE7A, 0xFE7A),
             (0xFE7C, 0xFE7C),
             (0xFE7E, 0xFE7E),
+            (0x10ECB, 0x10ECF),
+            (0x10EF0, 0x10EFF),
         ],
         "blues": [
             ("ا إ ل ك ط ظ", "TOP"),
@@ -131,7 +136,8 @@ SCRIPT_CLASSES = [
             (0xFB13, 0xFB17), # Alphab. Present. Forms (Armenian)
         ],
         "non_base_ranges": [
-            (0x0559, 0x055F),
+            (0x0558, 0x055F),
+            (0x058B, 0x058C),
         ],
         "blues": [
             ("Ա Մ Ւ Ս Բ Գ Դ Օ", "TOP"),
@@ -183,6 +189,7 @@ SCRIPT_CLASSES = [
         "std_chars": "০ ৪", # ০ ৪
         "base_ranges": [
             (0x0980, 0x09FF), # Bengali
+            (0x11DF0, 0x11DFF), # Bengali Supplement
         ],
         "non_base_ranges": [
             (0x0981, 0x0981),
@@ -191,6 +198,7 @@ SCRIPT_CLASSES = [
             (0x09CD, 0x09CD),
             (0x09E2, 0x09E3),
             (0x09FE, 0x09FE),
+            (0x11DF0, 0x11DF0),
         ],
         "blues": [
             ("ই ট ঠ ি ী ৈ ৗ", "TOP"),
@@ -244,6 +252,7 @@ SCRIPT_CLASSES = [
         "base_ranges": [
             (0x1400, 0x167F), # Unified Canadian Aboriginal Syllabics
             (0x18B0, 0x18FF), # Unified Canadian Aboriginal Syllabics Extended
+            (0x11AB0, 0x11ABF), # Unified Canadian Aboriginal Syllabics Extended-A
         ],
         "non_base_ranges": [
         ],
@@ -337,6 +346,7 @@ SCRIPT_CLASSES = [
             (0x2DE0, 0x2DFF), # Cyrillic Extended-A
             (0xA640, 0xA69F), # Cyrillic Extended-B
             (0x1C80, 0x1C8F), # Cyrillic Extended-C
+            (0x1E030, 0x1E08F), # Cyrillic Extended-D
         ],
         "non_base_ranges": [
             (0x0483, 0x0489),
@@ -359,11 +369,12 @@ SCRIPT_CLASSES = [
         "std_chars": "ठ व ट", # ठ व ट
         "base_ranges": [
             (0x0900, 0x093B), # Devanagari
-            (0x093D, 0x0950), # ... continued
-            (0x0953, 0x0963), # ... continued
-            (0x0966, 0x097F), # ... continued
+            (0x093D, 0x0950),
+            (0x0953, 0x0963),
+            (0x0966, 0x097F),
             (0x20B9, 0x20B9), # (new) Rupee sign
             (0xA8E0, 0xA8FF), # Devanagari Extended
+            (0x11B00, 0x11B5F), # Devanagari Extended-A
         ],
         "non_base_ranges": [
             (0x0900, 0x0902),
@@ -410,6 +421,7 @@ SCRIPT_CLASSES = [
             (0x1380, 0x139F), # Ethiopic Supplement
             (0x2D80, 0x2DDF), # Ethiopic Extended
             (0xAB00, 0xAB2F), # Ethiopic Extended-A
+            (0x1E7E0, 0x1E7FF), # Ethiopic Extended-B
         ],
         "non_base_ranges": [
             (0x135D, 0x135F),
@@ -580,7 +592,7 @@ SCRIPT_CLASSES = [
             (0x0591, 0x05BF),
             (0x05C1, 0x05C2),
             (0x05C4, 0x05C5),
-            (0x05C7, 0x05C7),
+            (0x05C7, 0x05C9),
             (0xFB1E, 0xFB1E),
         ],
         "blues": [
@@ -691,7 +703,7 @@ SCRIPT_CLASSES = [
         "non_base_ranges": [
             (0x0EB1, 0x0EB1),
             (0x0EB4, 0x0EBC),
-            (0x0EC8, 0x0ECD),
+            (0x0EC8, 0x0ECE),
         ],
         "blues": [
             ("າ ດ ອ ມ ລ ວ ຣ ງ", "TOP | X_HEIGHT"),
@@ -709,36 +721,39 @@ SCRIPT_CLASSES = [
         "base_ranges": [
             (0x0020, 0x007F), # Basic Latin (no control chars)
             (0x00A0, 0x00A9), # Latin-1 Supplement (no control chars)
-            (0x00AB, 0x00B1), # ... continued
-            (0x00B4, 0x00B8), # ... continued
-            (0x00BB, 0x00FF), # ... continued
+            (0x00AB, 0x00B1),
+            (0x00B4, 0x00B8),
+            (0x00BB, 0x00FF),
             (0x0100, 0x017F), # Latin Extended-A
             (0x0180, 0x024F), # Latin Extended-B
             (0x0250, 0x02AF), # IPA Extensions
             (0x02B9, 0x02DF), # Spacing Modifier Letters
-            (0x02E5, 0x02FF), # ... continued
+            (0x02E5, 0x02FF),
             (0x0300, 0x036F), # Combining Diacritical Marks
             (0x1AB0, 0x1ABE), # Combining Diacritical Marks Extended
             (0x1D00, 0x1D2B), # Phonetic Extensions
-            (0x1D6B, 0x1D77), # ... continued
-            (0x1D79, 0x1D7F), # ... continued
+            (0x1D6B, 0x1D77),
+            (0x1D79, 0x1D7F),
             (0x1D80, 0x1D9A), # Phonetic Extensions Supplement
             (0x1DC0, 0x1DFF), # Combining Diacritical Marks Supplement
             (0x1E00, 0x1EFF), # Latin Extended Additional
             (0x2000, 0x206F), # General Punctuation
             (0x20A0, 0x20B8), # Currency Symbols ...
-            (0x20BA, 0x20CF), # ... except new Rupee sign
+            (0x20BA, 0x20CF),
             (0x2150, 0x218F), # Number Forms
             (0x2C60, 0x2C7B), # Latin Extended-C
-            (0x2C7E, 0x2C7F), # ... continued
+            (0x2C7E, 0x2C7F),
             (0x2E00, 0x2E7F), # Supplemental Punctuation
             (0xA720, 0xA76F), # Latin Extended-D
-            (0xA771, 0xA7F7), # ... continued
-            (0xA7FA, 0xA7FF), # ... continued
+            (0xA771, 0xA7F0),
+            (0xA7F2, 0xA7F7),
+            (0xA7FA, 0xA7FF),
             (0xAB30, 0xAB5B), # Latin Extended-E
-            (0xAB60, 0xAB6F), # ... continued
+            (0xAB60, 0xAB68),
+            (0xAB6A, 0xAB6F),
             (0xFB00, 0xFB06), # Alphab. Present. Forms (Latin Ligs)
             (0x1D400, 0x1D7FF), # Mathematical Alphanumeric Symbols
+            (0x1DF00, 0x1DFCC), # Latin Extended-G
         ],
         "non_base_ranges": [
             (0x005E, 0x0060),
@@ -751,7 +766,7 @@ SCRIPT_CLASSES = [
             (0x02B9, 0x02DF),
             (0x02E5, 0x02FF),
             (0x0300, 0x036F),
-            (0x1AB0, 0x1ABE),
+            (0x1AB0, 0x1AEB),
             (0x1DC0, 0x1DFF),
             (0x2017, 0x2017),
             (0x203E, 0x203E),
@@ -805,8 +820,12 @@ SCRIPT_CLASSES = [
             (0x2070, 0x207F), # superscript digits and letters
             (0x2C7D, 0x2C7D), # modifier letter capital v
             (0xA770, 0xA770), # modifier letter us
+            (0xA7F1, 0xA7F1), # modifier letter capital s
             (0xA7F8, 0xA7F9), # more modifier letters
             (0xAB5C, 0xAB5F), # more modifier letters
+            (0xAB69, 0xAB69), # modifier letter small turned w
+            (0x10780, 0x107BF), # Latin Extended-F
+            (0x1DFCD, 0x1DFFF), # Latin Extended-G (subset)
         ],
         "non_base_ranges": [
         ],
@@ -826,6 +845,7 @@ SCRIPT_CLASSES = [
         "std_chars": "ꓳ", # ꓳ
         "base_ranges": [
             (0xA4D0, 0xA4FF), # Lisu
+            (0x11FB0, 0x11FBF), # Lisu Supplement
         ],
         "non_base_ranges": [
         ],
@@ -902,6 +922,7 @@ SCRIPT_CLASSES = [
             (0x1000, 0x109F), # Myanmar
             (0xA9E0, 0xA9FF), # Myanmar Extended-B
             (0xAA60, 0xAA7F), # Myanmar Extended-A
+            (0x116D0, 0x116FF), # Myanmar Extended-C
         ],
         "non_base_ranges": [
             (0x102D, 0x1030),
@@ -1080,6 +1101,7 @@ SCRIPT_CLASSES = [
             (0x0D80, 0x0DFF), # Sinhala
         ],
         "non_base_ranges": [
+            (0x0D81, 0x0D81),
             (0x0DCA, 0x0DCA),
             (0x0DD2, 0x0DD6),
         ],
@@ -1115,6 +1137,7 @@ SCRIPT_CLASSES = [
         "std_chars": "௦", # ௦
         "base_ranges": [
             (0x0B80, 0x0BFF), # Tamil
+            (0x11FC0, 0x11FFF), # Tamil Supplement
         ],
         "non_base_ranges": [
             (0x0B82, 0x0B82),
@@ -1157,6 +1180,7 @@ SCRIPT_CLASSES = [
         "non_base_ranges": [
             (0x0C00, 0x0C00),
             (0x0C04, 0x0C04),
+            (0x0C3C, 0x0C3C),
             (0x0C3E, 0x0C40),
             (0x0C46, 0x0C56),
             (0x0C62, 0x0C63),
@@ -1265,6 +1289,7 @@ SCRIPT_CLASSES = [
             (0xA806, 0xA806),
             (0xA80B, 0xA80B),
             (0xA825, 0xA826),
+            (0xA82C, 0xA82C),
         ],
         "blues": [],
     },
@@ -1319,15 +1344,21 @@ SCRIPT_CLASSES = [
             (0xFE10, 0xFE1F), # Vertical forms
             (0xFE30, 0xFE4F), # CJK Compatibility Forms
             (0xFF00, 0xFFEF), # Halfwidth and Fullwidth Forms
+            (0x1AFF0, 0x1AFFF), # Kana Extended-B
             (0x1B000, 0x1B0FF), # Kana Supplement
             (0x1B100, 0x1B12F), # Kana Extended-A
+            (0x1B130, 0x1B16F), # Small Kana Extension
             (0x1D300, 0x1D35F), # Tai Xuan Hing Symbols
             (0x20000, 0x2A6DF), # CJK Unified Ideographs Extension B
             (0x2A700, 0x2B73F), # CJK Unified Ideographs Extension C
             (0x2B740, 0x2B81F), # CJK Unified Ideographs Extension D
             (0x2B820, 0x2CEAF), # CJK Unified Ideographs Extension E
             (0x2CEB0, 0x2EBEF), # CJK Unified Ideographs Extension F
+            (0x2EBF0, 0x2EE5D), # CJK Unified Ideographs Extension I
             (0x2F800, 0x2FA1F), # CJK Compatibility Ideographs Supplement
+            (0x30000, 0x3134A), # CJK Unified Ideographs Extension G
+            (0x31350, 0x323AF), # CJK Unified Ideographs Extension H
+            (0x323B0, 0x33479), # CJK Unified Ideographs Extension J
         ],
         "non_base_ranges": [
             (0x302A, 0x302F),
