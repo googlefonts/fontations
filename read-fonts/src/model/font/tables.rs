@@ -130,12 +130,23 @@ impl Tables {
             Source::Blob(blob) => {
                 let font_ref = crate::FontRef::from_index(&blob, index)?;
                 let mut tables = PerTableData::default();
-                let table_records = font_ref.table_directory().table_records();
+                let directory = font_ref.table_directory();
+                let table_records = directory.table_records();
+                // Some fonts leave the directory unsorted, which rules out a
+                // binary search.
+                let sorted = directory.is_sorted();
                 tables.init_all(|tag, entry: &mut BlobTableEntry| {
                     // Ensure missing entries report as a missing table rather
                     // than returning an empty slice
                     entry.start = u32::MAX;
-                    let Ok(idx) = table_records.binary_search_by_key(&tag, |rec| rec.tag()) else {
+                    let found = if sorted {
+                        table_records
+                            .binary_search_by_key(&tag, |rec| rec.tag())
+                            .ok()
+                    } else {
+                        table_records.iter().position(|rec| rec.tag() == tag)
+                    };
+                    let Some(idx) = found else {
                         return;
                     };
                     let record = &table_records[idx];
@@ -490,6 +501,31 @@ mod tests {
     use crate::FontRef;
 
     use super::*;
+
+    // A font whose directory is out of order still finds its tables.
+    #[test]
+    fn unsorted_directory_finds_tables() {
+        let data = font_test_data::TINOS_SUBSET;
+        let count = u16::from_be_bytes([data[4], data[5]]) as usize;
+        let mut unsorted = data[..12].to_vec();
+        for record in data[12..12 + 16 * count].chunks_exact(16).rev() {
+            unsorted.extend_from_slice(record);
+        }
+        unsorted.extend_from_slice(&data[12 + 16 * count..]);
+        let font = FontRef::new(&unsorted).unwrap();
+        assert!(!font.table_directory().is_sorted());
+        let tables = &Tables::new(unsorted.clone(), 0).unwrap();
+        let bytes = |data: Option<crate::FontData>| data.map(|data| data.as_bytes().to_vec());
+        assert_eq!(
+            bytes(tables.head().ok().map(|t| t.offset_data())),
+            bytes(font.head().ok().map(|t| t.offset_data()))
+        );
+        assert!(tables.cmap().is_ok());
+        assert!(tables.hmtx().is_ok());
+        assert!(tables.name().is_ok());
+        assert!(tables.glyf().is_ok());
+        assert!(tables.loca(None).is_ok());
+    }
 
     #[test]
     fn missing_tables_are_missing() {
