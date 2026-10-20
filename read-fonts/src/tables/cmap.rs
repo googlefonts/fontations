@@ -380,8 +380,9 @@ impl<'a> Cmap4<'a> {
         if range_offset == 0 {
             return Some(GlyphId::from((codepoint as i32 + delta) as u16));
         }
-        let mut offset = range_offset / 2 + (codepoint - start_code) as usize;
-        offset = offset.saturating_sub(range_offsets.len() - index);
+        // An offset that lands before the glyph id array maps nothing
+        let offset = (range_offset / 2 + (codepoint - start_code) as usize)
+            .checked_sub(range_offsets.len() - index)?;
         let gid = self.glyph_id_array().get(offset)?.get();
         (gid != 0).then_some(GlyphId::from((gid as i32 + delta) as u16))
     }
@@ -1719,6 +1720,41 @@ mod tests {
                 (65535, 0),
             ]
         );
+    }
+
+    // An idRangeOffset that points before the glyph id array must leave the
+    // codepoint unmapped rather than fall back to the first entry of the
+    // array, as in HarfBuzz and FreeType.
+    #[test]
+    fn cmap4_range_offset_before_glyph_id_array() {
+        #[rustfmt::skip]
+        let cmap4_data: &[u16] = &[
+            // format, length, lang
+            4, 0, 0,
+            // segCountX2
+            4,
+            // bin search data
+            0, 0, 0,
+            // end code
+            0x41, 0xFFFF,
+            // reserved pad
+            0,
+            // start code
+            0x41, 0xFFFF,
+            // id delta
+            0, 1,
+            // id range offset (2 / 2 + 0 - 2 is before the glyph id array)
+            2, 0,
+            // glyph ids
+            5,
+        ];
+        let mut buf = BeBuffer::new();
+        for &word in cmap4_data {
+            buf = buf.push(word);
+        }
+        let cmap4 = Cmap4::read(FontData::new(&buf)).unwrap();
+        assert_eq!(cmap4.map_codepoint(0x41u32), None);
+        assert!(cmap4.iter().all(|(ch, _)| ch != 0x41));
     }
 
     const CMAP6_PAIRS: &[(u32, u32)] = &[
