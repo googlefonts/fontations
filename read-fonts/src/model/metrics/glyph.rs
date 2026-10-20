@@ -19,7 +19,7 @@ use crate::{
         metrics::{LineExtents, Metrics, Scale, Scale26Dot6, ScaleF32, ScaledGlyphMetrics},
         Font, Kind,
     },
-    ps::{cff::CffFontRef, charstring::CommandSink, type1::Type1Font},
+    ps::{cff::CffFontRef, charstring::CommandSink, type1::Type1Instance},
     tables::{glyf::Glyf, hmtx::GlyphMetricRecords, loca::Loca},
 };
 use types::{BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
@@ -187,7 +187,11 @@ impl<'a> GlyphMetrics<'a> {
             // test sits inside this branch so that a font with `hmtx`, which
             // is nearly all of them, never makes it.
             match self.font.kind() {
-                Kind::Type1(font) => return self.h_advance_batched_type1(font, convert, glyphs),
+                Kind::Type1(_) => {
+                    if let Some(font) = self.font.type1_instance() {
+                        return self.h_advance_batched_type1(font, convert, glyphs);
+                    }
+                }
                 Kind::Cff(cff, _) => {
                     return self.h_advance_batched_standalone_cff(&cff, convert, glyphs)
                 }
@@ -375,7 +379,7 @@ impl<'a> GlyphMetrics<'a> {
         if font.has_layered_source_in(self.order) {
             return None;
         }
-        if let Kind::Type1(type1) = font.kind() {
+        if let Some(type1) = font.type1_instance() {
             return self
                 .order
                 .contains(GlyphSource::Type1)
@@ -472,7 +476,11 @@ impl<'a> GlyphMetrics<'a> {
     }
 
     /// Returns the bounding box of a Type 1 charstring.
-    fn type1_extents(&self, font: &Type1Font, glyph: GlyphId) -> Option<GlyphExtents<F48Dot16>> {
+    fn type1_extents(
+        &self,
+        font: Type1Instance<'_>,
+        glyph: GlyphId,
+    ) -> Option<GlyphExtents<F48Dot16>> {
         let bounds = font.evaluate_extents(glyph).ok()?;
         Some(bounds.map(extents_from_bounds).unwrap_or_default())
     }
@@ -721,7 +729,7 @@ impl<'a> GlyphMetrics<'a> {
     #[inline(never)]
     fn extents_batched_type1<'o, V: 'o>(
         &self,
-        font: &Type1Font,
+        font: Type1Instance<'_>,
         convert: impl Fn(Option<GlyphExtents<F48Dot16>>) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
@@ -875,7 +883,7 @@ impl<'a> GlyphMetrics<'a> {
     #[inline(never)]
     fn h_advance_batched_type1<'o, V: 'o>(
         &self,
-        font: &Type1Font,
+        font: Type1Instance<'_>,
         convert: impl Fn(F48Dot16) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
@@ -901,7 +909,7 @@ impl<'a> GlyphMetrics<'a> {
         // A charstring states its width in its own space, which the font
         // matrix maps to design units. No size is applied: that is the
         // caller's to do.
-        let transform = font.transform(None);
+        let transform = font.font().transform(None);
         for (gid, out) in glyphs {
             // A charstring states its width before it draws anything, so one
             // that states none is malformed and measures as nothing.
@@ -1018,7 +1026,7 @@ enum ExtentsSource<'a> {
     Varc(OutlineGlyphs<'a>),
     Glyf(&'a Glyf<'a>, &'a Loca<'a>),
     Cff(&'a CffFontRef<'a>, OutlineSource),
-    Type1(&'a Type1Font),
+    Type1(Type1Instance<'a>),
 }
 
 /// The sources available in a font, in the order they are tried.
@@ -1083,7 +1091,7 @@ impl<'a> ExtentsSources<'a> {
                             outlines.cff_font().map(|cff| ExtentsSource::Cff(cff, base))
                         }
                         OutlineSource::Type1 => match font.kind() {
-                            Kind::Type1(type1) => Some(ExtentsSource::Type1(type1)),
+                            Kind::Type1(_) => font.type1_instance().map(ExtentsSource::Type1),
                             _ => None,
                         },
                         OutlineSource::Varc => None,

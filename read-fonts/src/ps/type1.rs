@@ -464,6 +464,16 @@ impl Type1Font {
 }
 
 impl<'a> Type1Instance<'a> {
+    /// Returns the font.
+    pub fn font(&self) -> &'a Type1Font {
+        self.font
+    }
+
+    /// Returns the weight of each master.
+    pub fn weights(&self) -> &'a [Fixed] {
+        self.weights
+    }
+
     /// As [`Type1Font::evaluate_width`], with this instance's blend.
     pub fn evaluate_width(&self, gid: GlyphId) -> Result<Option<Fixed>, Error> {
         let charstring_data = self
@@ -3251,7 +3261,7 @@ mod extents_tests {
 }
 
 #[cfg(test)]
-mod multiple_master_tests {
+pub(crate) mod multiple_master_tests {
     use super::*;
     use crate::model::glyph::outline::PathElement;
     use alloc::{format, vec};
@@ -3298,14 +3308,22 @@ mod multiple_master_tests {
     const CALLOTHERSUBR: &[i32] = &[12, -16];
     const POP: &[i32] = &[12, -17];
 
-    /// A font with one weight axis and two masters, given as its base and
-    /// private dictionaries, with `blend` in place of the blend entries.
+    /// Reads the font that [`pfa_with_blend`] makes.
+    fn font_with_blend(blend: &str) -> Option<Type1Font> {
+        Type1Font::new(&pfa_with_blend(blend)).ok()
+    }
+
+    /// Returns a PFA font with `blend` in place of the blend entries of its
+    /// font dictionary.
     ///
     /// Glyph 1 moves to x = 100 + 200 * w1, where w1 is the weight of the
     /// second master, then draws a triangle.
-    fn font_with_blend(blend: &str) -> Option<Type1Font> {
-        let base =
-            format!("/FontName /Test def /FontMatrix [0.001 0 0 0.001 0 0] readonly def {blend}");
+    pub(crate) fn pfa_with_blend(blend: &str) -> Vec<u8> {
+        let base = format!(
+            "%!PS-AdobeFont-1.0: Test\n/FontName /Test def \
+             /FontMatrix [0.001 0 0 0.001 0 0] readonly def {blend}\n\
+             currentfile eexec\n"
+        );
         let notdef = charstring(&[&[0, 500], HSBW, ENDCHAR]);
         let glyph = charstring(&[
             &[0, 500],
@@ -3329,10 +3347,23 @@ mod multiple_master_tests {
             private.extend_from_slice(b" ND\n");
         }
         private.extend_from_slice(b"end");
-        Type1Font::from_dicts(base.as_bytes(), &private)
+        // Encrypted as eexec data, after four bytes of padding, and written
+        // as hex.
+        let mut seed = EEXEC_SEED;
+        let mut pfa = base.into_bytes();
+        for plain in [0u8; 4].iter().chain(&private) {
+            let cipher = (*plain as u32 ^ (seed >> 8)) as u8;
+            seed = (cipher as u32)
+                .wrapping_add(seed)
+                .wrapping_mul(52845)
+                .wrapping_add(22719)
+                & 0xFFFF;
+            pfa.extend_from_slice(format!("{cipher:02x}").as_bytes());
+        }
+        pfa
     }
 
-    const ONE_AXIS: &str = "/BlendAxisTypes [/Weight] def \
+    pub(crate) const ONE_AXIS: &str = "/BlendAxisTypes [/Weight] def \
         /BlendDesignPositions [[0] [1]] def \
         /BlendDesignMap [[[100 0] [900 1]]] def \
         /WeightVector [0.75 0.25] def";

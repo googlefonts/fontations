@@ -49,9 +49,12 @@ use crate::tables::{
 use crate::{
     ps::{
         cff::{CffFontRef, Subfont},
-        type1::Type1Font,
+        type1::{MultipleMaster, Type1Font, Type1Instance},
     },
-    tables::{cbdt::Cbdt, cblc::Cblc, cpal::Cpal, ebdt::Ebdt, eblc::Eblc, sbix::Sbix},
+    tables::{
+        cbdt::Cbdt, cblc::Cblc, cpal::Cpal, ebdt::Ebdt, eblc::Eblc, fvar::VariationAxisRecord,
+        sbix::Sbix,
+    },
     TableProvider,
 };
 use alloc::{boxed::Box, sync::Arc};
@@ -117,6 +120,7 @@ impl Font {
         InstanceBuilder {
             font: self.shared().clone(),
             coords: CoordStorage::default(),
+            type1_blend: SmallVec::new(),
         }
     }
 
@@ -282,6 +286,11 @@ impl Font {
         match &self.0 {
             // Nothing varies there, so the font already holds the answer.
             Repr::Default(font) => font.metrics(),
+            // A Type 1 font's metrics come from dictionaries that no
+            // location changes.
+            Repr::Varied(varied) if matches!(varied.kind, VariedKind::Type1(_)) => {
+                varied.font.metrics()
+            }
             Repr::Varied(varied) => varied.location.metrics.get_or_init(|| {
                 debug_assert!(!varied.coords.as_slice().is_empty());
                 Metrics::from_sfnt(&varied.font.tables(), varied.coords.as_slice())
@@ -295,6 +304,9 @@ impl Font {
     pub fn style_metrics(&self) -> &StyleMetrics {
         match &self.0 {
             Repr::Default(font) => font.style_metrics(),
+            Repr::Varied(varied) if matches!(varied.kind, VariedKind::Type1(_)) => {
+                varied.font.style_metrics()
+            }
             Repr::Varied(varied) => varied
                 .location
                 .style_metrics
@@ -403,10 +415,10 @@ impl Font {
     fn sfnt_location(&self) -> Option<&SfntLocation> {
         match &self.0 {
             Repr::Default(font) => font.sfnt().map(|sfnt| &sfnt.default_location),
-            Repr::Varied(varied) => {
-                let VariedKind::Sfnt(sfnt) = &varied.kind;
-                Some(&sfnt.location)
-            }
+            Repr::Varied(varied) => match &varied.kind {
+                VariedKind::Sfnt(sfnt) => Some(&sfnt.location),
+                VariedKind::Type1(_) => None,
+            },
         }
     }
 
@@ -416,6 +428,27 @@ impl Font {
             Repr::Default(font) => font,
             Repr::Varied(varied) => &varied.font,
         }
+    }
+
+    /// Returns the axes of a Type 1 multiple master font, or `None` for any
+    /// other font.
+    pub(crate) fn type1_axes(&self) -> Option<&[VariationAxisRecord]> {
+        self.shared().multiple_master()?;
+        Some(self.shared().type1_axes())
+    }
+
+    /// Returns a Type 1 font drawn at this instance's location.
+    pub(crate) fn type1_instance(&self) -> Option<Type1Instance<'_>> {
+        let Kind::Type1(font) = self.shared().kind() else {
+            return None;
+        };
+        Some(match &self.0 {
+            Repr::Varied(varied) => match &varied.kind {
+                VariedKind::Type1(type1) => font.instance(&type1.weights),
+                VariedKind::Sfnt(_) => font.default_instance(),
+            },
+            Repr::Default(_) => font.default_instance(),
+        })
     }
 
     /// Returns the horizontal glyph metrics, from `HMTX` or `hmtx`.
@@ -519,10 +552,10 @@ impl Font {
     ) -> &[Fixed] {
         match &self.0 {
             Repr::Default(_) => &[],
-            Repr::Varied(varied) => {
-                let VariedKind::Sfnt(sfnt) = &varied.kind;
-                cache(sfnt).get_or_init(|| compute(varied))
-            }
+            Repr::Varied(varied) => match &varied.kind {
+                VariedKind::Sfnt(sfnt) => cache(sfnt).get_or_init(|| compute(varied)),
+                VariedKind::Type1(_) => &[],
+            },
         }
     }
 
@@ -783,6 +816,9 @@ pub enum Kind<'a> {
 pub struct InstanceBuilder {
     font: SharedFont,
     coords: CoordStorage,
+    /// The blend coordinates of a Type 1 multiple master location, which
+    /// `coords` holds rounded to 2.14. The weights are computed from these.
+    type1_blend: SmallVec<[Fixed; 4]>,
 }
 
 impl InstanceBuilder {
@@ -858,11 +894,17 @@ impl InstanceBuilder {
                 colr_scalars: Once::new(),
                 vvar_scalars: Once::new(),
             }),
-            // A font of another kind has no axes, so no coordinates reach
-            // here; it is at its default location.
-            KindRepr::Type1(_) | KindRepr::StandaloneCff(_) => {
-                return Font(Repr::Default(self.font))
+            KindRepr::Type1(type1) => {
+                let Some(mm) = type1.font.multiple_master() else {
+                    return Font(Repr::Default(self.font));
+                };
+                let mut weights = SmallVec::from_elem(Fixed::ZERO, mm.num_masters());
+                mm.blend_to_weights(&self.type1_blend, &mut weights);
+                VariedKind::Type1(VariedType1 { weights })
             }
+            // A standalone CFF font has no axes, so no coordinates reach
+            // here; it is at its default location.
+            KindRepr::StandaloneCff(_) => return Font(Repr::Default(self.font)),
         };
         Font(Repr::Varied(Arc::new(VariedInstance {
             font: self.font,
@@ -879,6 +921,35 @@ impl InstanceBuilder {
         V: IntoIterator,
         V::Item: Into<Variation>,
     {
+        if let Some(mm) = self.font.multiple_master() {
+            // Design coordinates, starting from each axis's default.
+            let axes = self.font.type1_axes();
+            let mut design: SmallVec<[Fixed; 4]> =
+                axes.iter().map(|axis| axis.default_value()).collect();
+            let mut named: SmallVec<[bool; 4]> = SmallVec::from_elem(false, design.len());
+            for variation in variations {
+                let variation = variation.into();
+                for ((axis, value), named) in axes.iter().zip(design.iter_mut()).zip(&mut named) {
+                    if axis.axis_tag() == variation.tag {
+                        *value = Fixed::from_f64(variation.value as f64);
+                        *named = true;
+                    }
+                }
+            }
+            let mut blend = SmallVec::from_elem(Fixed::ZERO, design.len());
+            mm.design_to_blend(&design, &mut blend);
+            // An axis no variation names keeps the default blend. Its
+            // default design coordinate doesn't always map back to it.
+            let mut default = SmallVec::<[Fixed; 4]>::from_elem(Fixed::ZERO, design.len());
+            mm.default_blend(&mut default);
+            for ((value, default), named) in blend.iter_mut().zip(default).zip(named) {
+                if !named {
+                    *value = default;
+                }
+            }
+            self.set_type1_blend(blend);
+            return;
+        }
         let tables = self.font.tables();
         if let Ok(fvar) = tables.fvar() {
             set_variations(&fvar, tables.avar().ok(), &mut self.coords, variations);
@@ -888,6 +959,16 @@ impl InstanceBuilder {
     }
 
     fn set_coords(&mut self, coords: impl IntoIterator<Item = NormalizedCoord>) {
+        if let Some(mm) = self.font.multiple_master() {
+            // Blend coordinates, with the default blend for any not given.
+            let mut blend: SmallVec<[Fixed; 4]> = SmallVec::from_elem(Fixed::ZERO, mm.axes().len());
+            mm.default_blend(&mut blend);
+            for (dst, src) in blend.iter_mut().zip(coords) {
+                *dst = src.to_fixed();
+            }
+            self.set_type1_blend(blend);
+            return;
+        }
         if let Ok(fvar) = self.font.tables().fvar() {
             let count = fvar.axis_count() as usize;
             self.coords.resize(count, NormalizedCoord::ZERO);
@@ -902,6 +983,27 @@ impl InstanceBuilder {
         } else {
             self.coords.clear();
         }
+    }
+
+    /// Sets the location of a Type 1 multiple master font.
+    ///
+    /// Every blend is kept, even all zeros, which is a master rather than
+    /// the font's default.
+    ///
+    /// The weights are computed from `blend` itself. The coordinates are
+    /// those the weights give back, which rounding in the weights can move
+    /// from `blend` by the smallest step, as FreeType reports them.
+    fn set_type1_blend(&mut self, blend: SmallVec<[Fixed; 4]>) {
+        let font = self.font.clone();
+        let Some(mm) = font.multiple_master() else {
+            return;
+        };
+        let mut weights: SmallVec<[Fixed; 16]> = SmallVec::from_elem(Fixed::ZERO, mm.num_masters());
+        mm.blend_to_weights(&blend, &mut weights);
+        let mut reported: SmallVec<[Fixed; 4]> = SmallVec::from_elem(Fixed::ZERO, blend.len());
+        mm.weights_to_blend(&weights, &mut reported);
+        self.coords = reported.iter().map(|value| value.to_f2dot14()).collect();
+        self.type1_blend = blend;
     }
 
     fn set_named_instance(&mut self, index: u32) {
@@ -923,6 +1025,12 @@ impl InstanceBuilder {
         V: IntoIterator,
         V::Item: Into<Variation>,
     {
+        // A Type 1 multiple master font has no named instances, so only the
+        // overrides apply.
+        if self.font.multiple_master().is_some() {
+            self.set_variations(overrides);
+            return;
+        }
         let tables = self.font.tables();
         if let Ok(fvar) = tables.fvar() {
             set_variations(
@@ -994,7 +1102,13 @@ impl SharedFont {
             Some(KindRepr::Sfnt(SfntCaches::new(Arc::new(tables), index)))
         } else if let Source::Blob(blob) = &source {
             match Format::new(blob) {
-                Some(Format::Type1) => Type1Font::new(blob).ok().map(KindRepr::Type1),
+                Some(Format::Type1) => Type1Font::new(blob).ok().map(|font| {
+                    let axes = font
+                        .multiple_master()
+                        .map(super::variation::type1_axis_records)
+                        .unwrap_or_default();
+                    KindRepr::Type1(Type1Data { font, axes })
+                }),
                 Some(Format::Cff(count)) if index < count => {
                     let font = Yoke::<CffFontRef<'static>, Arc<Blob>>::try_attach_to_cart(
                         Arc::new(blob.clone()),
@@ -1040,8 +1154,25 @@ impl SharedFont {
     pub(super) fn kind(&self) -> Kind<'_> {
         match &self.0.kind {
             KindRepr::Sfnt(sfnt) => Kind::Sfnt(&sfnt.tables, sfnt.index),
-            KindRepr::Type1(font) => Kind::Type1(font),
+            KindRepr::Type1(type1) => Kind::Type1(&type1.font),
             KindRepr::StandaloneCff(cff) => Kind::Cff(cff.font.get().clone(), cff.index),
+        }
+    }
+
+    /// Returns the design space of a Type 1 multiple master font.
+    fn multiple_master(&self) -> Option<&MultipleMaster> {
+        match &self.0.kind {
+            KindRepr::Type1(type1) => type1.font.multiple_master(),
+            _ => None,
+        }
+    }
+
+    /// Returns the axes of a Type 1 multiple master font, which is empty
+    /// for any other font.
+    fn type1_axes(&self) -> &[VariationAxisRecord] {
+        match &self.0.kind {
+            KindRepr::Type1(type1) => &type1.axes,
+            _ => &[],
         }
     }
 
@@ -1469,8 +1600,14 @@ struct SharedFontRepr {
 )]
 enum KindRepr {
     Sfnt(SfntCaches),
-    Type1(Type1Font),
+    Type1(Type1Data),
     StandaloneCff(StandaloneCffData),
+}
+
+/// A Type 1 font and the axes of its design space, if it has one.
+struct Type1Data {
+    font: Type1Font,
+    axes: Box<[VariationAxisRecord]>,
 }
 
 /// Caches for an SFNT font, with each table parsed once per font.
@@ -1615,9 +1752,16 @@ struct VariedInstance {
 
 /// Caches for a varied instance, by font kind.
 ///
-/// Only SFNT fonts have variation axes.
+/// SFNT fonts and Type 1 multiple master fonts have variation axes.
 enum VariedKind {
     Sfnt(VariedSfnt),
+    Type1(VariedType1),
+}
+
+/// A Type 1 multiple master font at a location.
+struct VariedType1 {
+    /// The weight of each master.
+    weights: SmallVec<[Fixed; 16]>,
 }
 
 /// Caches for a varied SFNT instance.
@@ -1772,8 +1916,10 @@ impl Font {
 impl VariedInstance {
     /// Returns the SFNT caches of the instance, for the cache tests.
     fn sfnt(&self) -> &VariedSfnt {
-        let VariedKind::Sfnt(sfnt) = &self.kind;
-        sfnt
+        match &self.kind {
+            VariedKind::Sfnt(sfnt) => sfnt,
+            VariedKind::Type1(_) => panic!("not an SFNT instance"),
+        }
     }
 }
 
@@ -1784,6 +1930,144 @@ mod tests {
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
     use types::Tag;
+
+    /// Returns where glyph 1 of the synthetic multiple master font starts
+    /// drawing, which moves with the weight of its second master.
+    fn type1_mm_start(font: &Font) -> f32 {
+        use crate::model::glyph::outline::{DrawMemory, DrawOptions, PathElement};
+        let mut path = alloc::vec::Vec::<PathElement>::new();
+        font.outline_glyphs()
+            .get(GlyphId::new(1))
+            .unwrap()
+            .draw(&DrawOptions::default(), DrawMemory::Scratch, &mut path)
+            .unwrap();
+        match path[0] {
+            PathElement::MoveTo { x, .. } => x,
+            _ => panic!("expected a move"),
+        }
+    }
+
+    // A Type 1 multiple master font has an axis per blend axis, and draws
+    // and measures at the location an instance is built for.
+    #[test]
+    fn type1_multiple_master_instances() {
+        use crate::ps::type1::multiple_master_tests::{pfa_with_blend, ONE_AXIS};
+        let font = Font::new(pfa_with_blend(ONE_AXIS), 0).unwrap();
+        let axes = font.axes();
+        assert_eq!(axes.len(), 1);
+        let axis = axes.get(0).unwrap();
+        assert_eq!(axis.tag(), Tag::new(b"wght"));
+        // The default is the font's own blend: a weight of 0.25 on the
+        // second master, at design 300.
+        assert_eq!(
+            (axis.min_value(), axis.default_value(), axis.max_value()),
+            (100.0, 300.0, 900.0)
+        );
+        let name = font.names().get(axis.name()).unwrap();
+        assert_eq!(name.english_or_first().unwrap().name(), "Weight");
+        assert!(font.named_instances().is_empty());
+        assert!(font.normalized_coords().is_empty());
+        assert_eq!(type1_mm_start(&font), 150.0);
+        // The normalized coordinates are the blend, from 0 to 1. The first
+        // master is all zeros, and stays a location of its own.
+        for (design, blend, start) in [
+            (900.0, 1.0, 300.0),
+            (500.0, 0.5, 200.0),
+            (100.0, 0.0, 100.0),
+        ] {
+            let instance = font
+                .instance_builder()
+                .variations([("wght", design)])
+                .build();
+            assert_eq!(
+                instance.normalized_coords(),
+                [NormalizedCoord::from_f32(blend)],
+                "{design}"
+            );
+            assert_eq!(type1_mm_start(&instance), start, "{design}");
+            let extents = instance.glyph_metrics().extents(GlyphId::new(1)).unwrap();
+            assert_eq!(extents.x_bearing, start, "{design}");
+            let by_blend = font
+                .instance_builder()
+                .normalized_coords([NormalizedCoord::from_f32(blend)])
+                .build();
+            assert_eq!(type1_mm_start(&by_blend), start, "{design}");
+        }
+    }
+
+    // A variation naming no axis leaves the default instance alone, even
+    // where the default design coordinate doesn't map back to the default
+    // blend.
+    #[test]
+    fn type1_multiple_master_ignores_unknown_axes() {
+        use crate::ps::type1::multiple_master_tests::pfa_with_blend;
+        let font = Font::new(
+            pfa_with_blend(
+                "/BlendAxisTypes [/Weight] def /BlendDesignPositions [[0] [1]] def                  /BlendDesignMap [[[0 0] [500 0.5] [1000 1]]] def                  /WeightVector [0.25 0.75] def",
+            ),
+            0,
+        )
+        .unwrap();
+        assert_eq!(type1_mm_start(&font), 250.0);
+        let instance = font.instance_builder().variations([("XXXX", 42.0)]).build();
+        assert_eq!(type1_mm_start(&instance), 250.0);
+    }
+
+    // Design maps spanning every design coordinate give axes whose values
+    // saturate.
+    #[test]
+    fn type1_multiple_master_widest_axes() {
+        use crate::ps::type1::multiple_master_tests::pfa_with_blend;
+        let font = Font::new(
+            pfa_with_blend(
+                "/BlendAxisTypes [/Weight] def /BlendDesignPositions [[0] [1]] def                  /BlendDesignMap [[[-2147483648 0] [2147483647 1]]] def                  /WeightVector [0.5 0.5] def",
+            ),
+            0,
+        )
+        .unwrap();
+        let axis = font.axes().get(0).unwrap();
+        assert_eq!(
+            (axis.min_value(), axis.default_value(), axis.max_value()),
+            (-32768.0, 0.0, 32767.0)
+        );
+    }
+
+    // A Type 1 font's metrics don't vary, so an instance reports the
+    // font's own.
+    #[test]
+    fn type1_multiple_master_instances_keep_metrics() {
+        use crate::ps::type1::multiple_master_tests::{pfa_with_blend, ONE_AXIS};
+        let font = Font::new(
+            pfa_with_blend(&format!(
+                "{ONE_AXIS} /FontBBox [-10 -200 600 800] def \
+                 /ItalicAngle -12 def /UnderlinePosition -100 def \
+                 /UnderlineThickness 50 def"
+            )),
+            0,
+        )
+        .unwrap();
+        let instance = font
+            .instance_builder()
+            .variations([("wght", 900.0)])
+            .build();
+        assert!(!instance.normalized_coords().is_empty());
+        assert_eq!(instance.metrics().num_glyphs, 2);
+        assert_eq!(instance.metrics(), font.metrics());
+        assert!(instance.style_metrics().underline.is_some());
+        assert_eq!(instance.style_metrics(), font.style_metrics());
+    }
+
+    // Type 1 has no named instances, but the overrides still apply.
+    #[test]
+    fn type1_multiple_master_named_instance_overrides() {
+        use crate::ps::type1::multiple_master_tests::{pfa_with_blend, ONE_AXIS};
+        let font = Font::new(pfa_with_blend(ONE_AXIS), 0).unwrap();
+        let instance = font
+            .instance_builder()
+            .named_instance_with_overrides(0, [("wght", 900.0)])
+            .build();
+        assert_eq!(type1_mm_start(&instance), 300.0);
+    }
 
     // The index selects a font where the data can hold several, and is
     // ignored where it cannot.

@@ -7,10 +7,12 @@
 
 use super::Font;
 use crate::{
+    ps::type1::MultipleMaster,
     tables::fvar::{Fvar, VariationAxisRecord},
     types::{BigEndian, Fixed, NameId, Tag},
     FontData, FontRead, TableProvider,
 };
+use alloc::boxed::Box;
 use core::str::FromStr;
 use smallvec::SmallVec;
 
@@ -139,11 +141,13 @@ pub struct Axes<'a> {
 
 impl<'a> Axes<'a> {
     pub(crate) fn new(font: &'a Font) -> Self {
-        Self {
-            records: fvar(font)
+        let records = match font.type1_axes() {
+            Some(records) => records,
+            None => fvar(font)
                 .and_then(|fvar| fvar.axes().ok())
                 .unwrap_or_default(),
-        }
+        };
+        Self { records }
     }
 
     /// The number of axes.
@@ -321,9 +325,47 @@ impl<'a> NamedInstances<'a> {
 
 /// Returns the `fvar` table of an SFNT font.
 ///
-/// Fonts of other kinds have no axes.
+/// Fonts of other kinds have no `fvar` table.
 fn fvar(font: &Font) -> Option<Fvar<'_>> {
     font.tables().fvar().ok()
+}
+
+/// Returns axis records for the axes of a Type 1 multiple master font.
+///
+/// The values are design coordinates. An axis named `Weight`, `Width`,
+/// `OpticalSize`, `Slant` or `Italic` takes the registered tag, as in
+/// FreeType, and any other the tag `MMA` followed by its index. The axes
+/// take name IDs from 256, which the font's names resolve to the axis names
+/// in its dictionary.
+pub(crate) fn type1_axis_records(mm: &MultipleMaster) -> Box<[VariationAxisRecord]> {
+    let mut default = [Fixed::ZERO; 4];
+    mm.default_blend(&mut default);
+    mm.axes()
+        .iter()
+        .enumerate()
+        .map(|(index, axis)| {
+            let tag = match axis.name() {
+                Some("Weight") => Tag::new(b"wght"),
+                Some("Width") => Tag::new(b"wdth"),
+                Some("OpticalSize") => Tag::new(b"opsz"),
+                Some("Slant") => Tag::new(b"slnt"),
+                Some("Italic") => Tag::new(b"ital"),
+                _ => Tag::new(&[b'M', b'M', b'A', b'0' + index as u8]),
+            };
+            // Design coordinates beyond what a `Fixed` holds saturate.
+            let design = |value: i32| BigEndian::from(Fixed::from_i32(value.clamp(-32768, 32767)));
+            VariationAxisRecord {
+                axis_tag: BigEndian::from(tag),
+                min_value: design(axis.min_design()),
+                default_value: design(axis.blend_to_design(default[index])),
+                max_value: design(axis.max_design()),
+                flags: BigEndian::from(0),
+                axis_name_id: BigEndian::from(NameId::new(
+                    super::name::TYPE1_AXIS_NAMES + index as u16,
+                )),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

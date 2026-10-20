@@ -25,7 +25,9 @@ pub use crate::types::NameId;
 /// SFNT names come from the `name` table. For Type 1 fonts, the available
 /// notice, family, weight, full, version, and PostScript names are exposed as
 /// name IDs 0, 1, 2, 4, 5, and 6, respectively. A Type 1 `Notice` may contain
-/// either copyright or trademark text; it is exposed as ID 0. Standalone CFF
+/// either copyright or trademark text; it is exposed as ID 0. The axes of a
+/// multiple master font are named by IDs from 256, one per axis, which
+/// [`Axis::name`](super::variation::Axis::name) returns. Standalone CFF
 /// fonts expose family, weight, full, and PostScript names as IDs 1, 2, 4,
 /// and 6, and copyright, version, and notice as IDs 0, 5, and 7.
 #[derive(Clone, Copy)]
@@ -101,9 +103,16 @@ fn type1_name(font: &Type1Font, id: NameId) -> Option<&str> {
         NameId::FULL_NAME => font.full_name(),
         NameId::VERSION_STRING => font.version(),
         NameId::POSTSCRIPT_NAME => font.name(),
-        _ => None,
+        id => {
+            let index = id.to_u16().checked_sub(TYPE1_AXIS_NAMES)?;
+            font.multiple_master()?.axes().get(index as usize)?.name()
+        }
     }
 }
+
+/// The name ID of the first axis of a Type 1 multiple master font. Each
+/// later axis takes the next.
+pub(crate) const TYPE1_AXIS_NAMES: u16 = 256;
 
 /// Returns the standalone CFF string for a name identifier.
 fn standalone_cff_name<'a>(meta: &CffMetadata<'a>, id: NameId) -> Option<&'a str> {
