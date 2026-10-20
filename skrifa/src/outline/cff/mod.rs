@@ -5,10 +5,10 @@ mod hint;
 use super::{GlyphHMetrics, OutlinePen};
 use hint::{HintParams, HintState, HintingSink};
 use read_fonts::{
+    model::Error,
     ps::{
         cff::{blend::BlendState, dict, fd_select::FdSelect, index::Index},
         cs::{self, CommandSink, NopFilterSink, TransformSink},
-        error::Error,
         transform::{self, FontMatrix, ScaledFontMatrix, Transform},
     },
     tables::variations::ItemVariationStore,
@@ -507,7 +507,7 @@ impl FontDict {
             }
         }
         Ok(Self {
-            private_dict_range: range.ok_or(Error::MissingPrivateDict)?,
+            private_dict_range: range.ok_or(Error::MissingResource)?,
             font_matrix,
         })
     }

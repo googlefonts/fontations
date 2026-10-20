@@ -1,8 +1,7 @@
 //! The survey that sizes an outline before it is built.
 
-use super::{
-    load, BufferLengths, Buffers, Hinter, OutlineContext, OutlineError, OutlineRef, Scale,
-};
+use super::{load, BufferLengths, Buffers, Hinter, OutlineContext, OutlineRef, Scale};
+use crate::model::Error;
 use crate::{
     limits::{MAX_COMPOSITE_EDGES, MAX_OUTLINE_POINTS, MAX_RECURSION_DEPTH},
     tables::glyf::{CompositeGlyphFlags, Glyph, PHANTOM_POINT_COUNT},
@@ -80,7 +79,7 @@ impl core::fmt::Debug for OutlinePlan<'_> {
 impl<'a> OutlinePlan<'a> {
     /// Walks the glyph, and the tree below a composite, collecting what
     /// building its outline requires.
-    pub fn new(context: &dyn OutlineContext<'a>, glyph: GlyphId) -> Result<Self, OutlineError> {
+    pub fn new(context: &dyn OutlineContext<'a>, glyph: GlyphId) -> Result<Self, Error> {
         let mut plan = Self {
             glyph,
             applies_variations: context.has_gvar() && !context.coords().is_empty(),
@@ -88,7 +87,7 @@ impl<'a> OutlinePlan<'a> {
         };
         let glyph_data = context
             .glyph(glyph)
-            .ok_or(OutlineError::MissingGlyph)?
+            .ok_or(Error::MissingResource)?
             .into_glyph();
         if let Some(data) = glyph_data.as_ref() {
             let mut components = 0;
@@ -179,7 +178,7 @@ impl<'a> OutlinePlan<'a> {
         scale: &'s S,
         buffers: Buffers<'buf, S>,
         hinter: Option<&mut dyn Hinter<S::Coord>>,
-    ) -> Result<OutlineRef<'buf, S::Coord>, OutlineError> {
+    ) -> Result<OutlineRef<'buf, S::Coord>, Error> {
         load::load(self, context, scale, buffers, hinter)
     }
 
@@ -190,9 +189,9 @@ impl<'a> OutlinePlan<'a> {
         component_depth: u32,
         recurse_depth: usize,
         components: &mut usize,
-    ) -> Result<(), OutlineError> {
+    ) -> Result<(), Error> {
         if recurse_depth > MAX_RECURSION_DEPTH {
-            return Err(OutlineError::RecursionLimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         match glyph {
             Glyph::Simple(simple) => {
@@ -201,7 +200,7 @@ impl<'a> OutlinePlan<'a> {
                 self.max_simple_points = self.max_simple_points.max(with_phantom);
                 self.num_points += point_count;
                 if self.num_points as usize > MAX_OUTLINE_POINTS {
-                    return Err(OutlineError::TooManyPoints);
+                    return Err(Error::LimitExceeded);
                 }
                 self.num_contours += simple.end_pts_of_contours().len() as u32;
                 self.has_hinting |= simple.instruction_length() != 0;
@@ -217,14 +216,14 @@ impl<'a> OutlinePlan<'a> {
                     self.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
                     let Some(component_glyph) = context
                         .glyph(component)
-                        .ok_or(OutlineError::MissingGlyph)?
+                        .ok_or(Error::MissingResource)?
                         .into_glyph()
                     else {
                         continue;
                     };
                     *components += 1;
                     if *components > MAX_COMPOSITE_EDGES {
-                        return Err(OutlineError::TooManyComponents);
+                        return Err(Error::LimitExceeded);
                     }
                     self.walk(
                         context,
@@ -461,7 +460,7 @@ mod tests {
         out
     }
 
-    fn info_from_raw(glyf_bytes: &[u8], loca_bytes: &[u8], gid: u32) -> Result<(), OutlineError> {
+    fn info_from_raw(glyf_bytes: &[u8], loca_bytes: &[u8], gid: u32) -> Result<(), Error> {
         let glyf = Glyf::read(FontData::new(glyf_bytes)).unwrap();
         let loca = Loca::read(FontData::new(loca_bytes), true).unwrap();
         let context = OutlineTables {
@@ -483,10 +482,7 @@ mod tests {
     #[test]
     fn self_referencing_composite_hits_the_recursion_limit() {
         let (glyf, loca) = tables_from_glyphs(&[composite(&[0])]);
-        assert_eq!(
-            info_from_raw(&glyf, &loca, 0),
-            Err(OutlineError::RecursionLimitExceeded)
-        );
+        assert_eq!(info_from_raw(&glyf, &loca, 0), Err(Error::LimitExceeded));
     }
 
     /// A chain shorter than the limit is fine, and one past it is not.
@@ -503,10 +499,7 @@ mod tests {
         let (glyf, loca) = chain(MAX_RECURSION_DEPTH);
         assert!(info_from_raw(&glyf, &loca, 0).is_ok());
         let (glyf, loca) = chain(MAX_RECURSION_DEPTH + 2);
-        assert_eq!(
-            info_from_raw(&glyf, &loca, 0),
-            Err(OutlineError::RecursionLimitExceeded)
-        );
+        assert_eq!(info_from_raw(&glyf, &loca, 0), Err(Error::LimitExceeded));
     }
 
     /// Fanning out wide stays shallow, so only the component limit catches it.
@@ -518,10 +511,7 @@ mod tests {
 
         let beyond: Vec<u16> = vec![1; MAX_COMPOSITE_EDGES + 1];
         let (glyf, loca) = tables_from_glyphs(&[composite(&beyond), empty_simple()]);
-        assert_eq!(
-            info_from_raw(&glyf, &loca, 0),
-            Err(OutlineError::TooManyComponents)
-        );
+        assert_eq!(info_from_raw(&glyf, &loca, 0), Err(Error::LimitExceeded));
     }
 
     /// A component pointing at an empty glyph is skipped rather than counted

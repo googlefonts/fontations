@@ -1,13 +1,14 @@
 //! Font-wide metrics.
 
 use super::metric;
+use crate::model::variation::NormalizedCoord;
 
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
     tables::{mvar::tags, os2::SelectionFlags},
     TableProvider,
 };
-use types::{BoundingBox, F2Dot14, F48Dot16};
+use types::{BoundingBox, F48Dot16};
 
 /// The two ends of a line, in whatever unit a caller uses.
 ///
@@ -22,9 +23,9 @@ pub struct LineExtents<T> {
     pub descender: T,
 }
 
-/// Ascender, descender and line gap, as one table states them.
+/// Ascender, descender and line gap from one table.
 ///
-/// In design units unless a caller names another unit.
+/// In font units unless a caller names another unit.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct LineBox<T = F48Dot16> {
     /// Distance from the baseline to the top of the line.
@@ -51,26 +52,25 @@ impl<T: Copy> LineBox<T> {
 impl LineBox {
     /// Returns `true` if either end of the line is away from the baseline.
     ///
-    /// A font that leaves both at zero has filled the field in without
-    /// saying anything with it, which the choice of line has to account for.
+    /// Some fonts leave both ends at zero, and the line is then not used.
     pub(crate) fn has_nonzero_extent(&self) -> bool {
         self.ascender != F48Dot16::ZERO || self.descender != F48Dot16::ZERO
     }
 }
 
-/// Metrics that describe a font rather than any glyph in it.
+/// Font-wide metrics.
 ///
 /// Read from `head`, `maxp`, `hhea`, `vhea` and `OS/2`, which together are a
 /// few hundred bytes.
 ///
-/// A font states its line metrics three times and the three disagree.
+/// A font has three sets of line metrics, and they often differ.
 /// [`hhea_line`](Self::hhea_line) is what macOS reads,
 /// [`win_line`](Self::win_line) is what Windows reads, and [`typo_line`](Self::typo_line) is what the
 /// font asks for when [`use_typo_metrics`](Self::use_typo_metrics) is set.
 /// Choosing between them is left to the caller.
 ///
-/// A field the font does not state is `None`, which is distinct from a stated
-/// zero.
+/// A field missing from the font is `None`, which is distinct from a zero
+/// value.
 ///
 /// `MVAR` varies most of these, so a set belongs to the location it was read
 /// at. The units per em, the counts, the bounding box, the widest and tallest
@@ -78,7 +78,7 @@ impl LineBox {
 ///
 /// # Units
 ///
-/// Measurements are unscaled design units. They are [`F48Dot16`] because a
+/// Measurements are in font units. They are [`F48Dot16`] because a
 /// location can move them off a whole unit, and rounding here would decide
 /// for every caller how that fraction is spent.
 ///
@@ -87,8 +87,17 @@ impl LineBox {
 /// on x where the horizontal sets scale on y.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct Metrics {
-    /// Design units per em.
+    /// Design units per em, which every measurement of the font uses.
+    ///
+    /// Always between 16 and 16384. A font with a value outside that range,
+    /// or with no `head`, uses 1000.
     pub units_per_em: u16,
+    /// Design units per em as written in `head`, or zero if the font has no
+    /// `head`.
+    ///
+    /// Differs from [`units_per_em`](Self::units_per_em) only for a font with
+    /// an unusable value, which a caller may choose to reject.
+    pub raw_units_per_em: u16,
     /// Number of glyphs in the font.
     pub num_glyphs: u32,
     /// Box enclosing every glyph in the font.
@@ -96,11 +105,11 @@ pub struct Metrics {
     /// Line metrics from `hhea`.
     pub hhea_line: Option<LineBox>,
     /// Widest advance of any glyph.
-    pub max_advance_width: Option<F48Dot16>,
+    pub max_h_advance: Option<F48Dot16>,
     /// Line metrics from `vhea`, measured across the vertical baseline.
     pub vhea_line: Option<LineBox>,
     /// Tallest advance of any glyph.
-    pub max_advance_height: Option<F48Dot16>,
+    pub max_v_advance: Option<F48Dot16>,
     /// Typographic line metrics, from `OS/2`.
     pub typo_line: Option<LineBox>,
     /// Whether the font asks for [`typo_line`](Self::typo_line) to be used
@@ -121,22 +130,28 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    /// Reads the metrics from `tables` at the given location.
+    /// Reads the metrics from `tables` at `normalized_coords`.
     ///
     /// A missing or unreadable table leaves the metrics that come from it
     /// unset rather than failing.
     ///
     /// Pass an empty location for the font's defaults. At any other location
     /// `MVAR` is read and its deltas applied.
-    pub fn from_sfnt<'a>(tables: &impl TableProvider<'a>, coords: &[F2Dot14]) -> Self {
+    pub fn from_sfnt<'a>(
+        tables: &impl TableProvider<'a>,
+        normalized_coords: &[NormalizedCoord],
+    ) -> Self {
+        let coords = normalized_coords;
         // Only at a location, so that the common case does not reach for a
         // table it has nothing to ask.
         let mvar = (!coords.is_empty()).then(|| tables.mvar().ok()).flatten();
         let deltas = mvar.as_ref().and_then(|mvar| mvar.at(coords));
         let deltas = deltas.as_ref();
         let mut metrics = Self::default();
-        if let Ok(head) = tables.head() {
-            metrics.units_per_em = head.units_per_em();
+        let head = tables.head();
+        metrics.raw_units_per_em = head.as_ref().map_or(0, |head| head.units_per_em());
+        metrics.units_per_em = units_per_em(metrics.raw_units_per_em);
+        if let Ok(head) = head {
             metrics.bounds = BoundingBox {
                 x_min: F48Dot16::from_i32(head.x_min() as i32),
                 y_min: F48Dot16::from_i32(head.y_min() as i32),
@@ -156,7 +171,7 @@ impl Metrics {
                 descender: metric(hhea.descender().to_i16() as i32, deltas, tags::HDSC),
                 line_gap: metric(hhea.line_gap().to_i16() as i32, deltas, tags::HLGP),
             });
-            metrics.max_advance_width =
+            metrics.max_h_advance =
                 Some(F48Dot16::from_i32(hhea.advance_width_max().to_u16() as i32));
         }
         if let Ok(vhea) = tables.selected_vhea() {
@@ -165,7 +180,7 @@ impl Metrics {
                 descender: metric(vhea.descender().to_i16() as i32, deltas, tags::VDSC),
                 line_gap: metric(vhea.line_gap().to_i16() as i32, deltas, tags::VLGP),
             });
-            metrics.max_advance_height =
+            metrics.max_v_advance =
                 Some(F48Dot16::from_i32(vhea.advance_height_max().to_u16() as i32));
         }
         if let Ok(os2) = tables.os2() {
@@ -194,21 +209,14 @@ impl Metrics {
 
     /// Returns the ascender, descender and gap for horizontal text.
     ///
-    /// A font states this line up to three times and the three disagree, so
-    /// the choice follows FreeType:
+    /// The line is the first of these that applies:
     ///
-    /// 1. The typographic line, if `OS/2` asks for it through
-    ///    `USE_TYPO_METRICS`.
-    /// 2. Otherwise `hhea`.
-    /// 3. If `hhea` is zero, the typographic line if it is not, and the
-    ///    clipping line otherwise.
+    /// 1. The typographic line, if `OS/2` sets `USE_TYPO_METRICS`.
+    /// 2. The `hhea` line, if either end is nonzero.
+    /// 3. The typographic line, if either end is nonzero.
+    /// 4. The `OS/2` clipping line, with no gap.
     ///
-    /// HarfBuzz stops at the second. The third matters because Arial Narrow
-    /// Bold zeroes its typographic metrics where its siblings do not, and
-    /// stopping early would lay it out differently from the rest of the
-    /// family.
-    ///
-    /// Returns `None` if the font states no line at all.
+    /// Returns `None` if the font has no line metrics.
     pub fn h_line(&self) -> Option<LineBox> {
         match (self.hhea_line, self.typo_line) {
             (_, Some(typo)) if self.use_typo_metrics => Some(typo),
@@ -227,12 +235,11 @@ impl Metrics {
         }
     }
 
-    /// Reads the metrics a Type1 font states.
+    /// Reads the metrics from a Type 1 font.
     ///
     /// Such a font has only a bounding box, a glyph count and a matrix. The
-    /// ascender and descender are the top and bottom of that box, as FreeType
-    /// takes them, since the font states none of its own. Everything else is
-    /// unset.
+    /// ascender and descender are the top and bottom of that box. Everything
+    /// else is unset.
     pub fn from_type1(font: &Type1Font) -> Self {
         let bbox = font.bbox();
         let bounds = BoundingBox {
@@ -241,8 +248,10 @@ impl Metrics {
             x_max: bbox.x_max.to_f48dot16(),
             y_max: bbox.y_max.to_f48dot16(),
         };
+        let raw_units_per_em = font.upem().clamp(0, u16::MAX as i32) as u16;
         Self {
-            units_per_em: font.upem().clamp(0, u16::MAX as i32) as u16,
+            units_per_em: units_per_em(raw_units_per_em),
+            raw_units_per_em,
             num_glyphs: font.num_glyphs(),
             bounds,
             hhea_line: Some(LineBox {
@@ -254,10 +263,12 @@ impl Metrics {
         }
     }
 
-    /// Reads the metrics a standalone CFF font states.
+    /// Reads the metrics from a standalone CFF font.
     pub fn from_cff(font: &CffFontRef<'_>) -> Self {
+        let raw_units_per_em = font.upem().clamp(0, u16::MAX as i32) as u16;
         let mut metrics = Self {
-            units_per_em: font.upem().clamp(0, u16::MAX as i32) as u16,
+            units_per_em: units_per_em(raw_units_per_em),
+            raw_units_per_em,
             num_glyphs: font.num_glyphs(),
             ..Default::default()
         };
@@ -276,6 +287,19 @@ impl Metrics {
             });
         }
         metrics
+    }
+}
+
+/// Returns the design units per em to use for a font whose `head` holds
+/// `stated`.
+///
+/// This is `stated` if it is between 16 and 16384, and 1000 otherwise, which
+/// matches HarfBuzz.
+pub(crate) fn units_per_em(stated: u16) -> u16 {
+    if (16..=16384).contains(&stated) {
+        stated
+    } else {
+        1000
     }
 }
 
@@ -365,8 +389,8 @@ mod tests {
     }
 
     /// The far end of every one of that font's twelve axes.
-    fn far() -> [F2Dot14; 12] {
-        [F2Dot14::from_f32(1.0); 12]
+    fn far() -> [NormalizedCoord; 12] {
+        [NormalizedCoord::from_f32(1.0); 12]
     }
 
     #[test]
@@ -391,17 +415,50 @@ mod tests {
         // A font with no `vhea`, which most horizontal fonts are.
         let metrics = Metrics::from_sfnt(&horizontal(), &[]);
         assert!(metrics.vhea_line.is_none());
-        assert!(metrics.max_advance_height.is_none());
+        assert!(metrics.max_v_advance.is_none());
         // And one that has it.
         let metrics = Metrics::from_sfnt(&vertical(), &[]);
         assert!(metrics.vhea_line.is_some());
-        assert!(metrics.max_advance_height.unwrap() > F48Dot16::ZERO);
+        assert!(metrics.max_v_advance.unwrap() > F48Dot16::ZERO);
     }
 
     #[test]
     fn a_font_with_nothing_to_read_gives_up_rather_than_failing() {
         let metrics = Metrics::from_sfnt(&FontRef::new(font_test_data::NAMES_ONLY).unwrap(), &[]);
-        assert_eq!(metrics, Metrics::default());
+        // The font has no `head`, so only the em is set.
+        assert_eq!(
+            metrics,
+            Metrics {
+                units_per_em: 1000,
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn a_font_stating_an_unusable_em_is_measured_on_a_thousand_units() {
+        let data = font_test_data::TINOS_SUBSET;
+        let reference = FontRef::new(data).unwrap();
+        let head = reference
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == types::Tag::new(b"head"))
+            .unwrap()
+            .offset() as usize;
+        assert_eq!(Metrics::from_sfnt(&reference, &[]).units_per_em, 2048);
+        for stated in [0u16, 15, 16385, u16::MAX] {
+            let mut data = data.to_vec();
+            // The em follows the version, revision, checksum, magic and flags.
+            data[head + 18..head + 20].copy_from_slice(&stated.to_be_bytes());
+            let font = FontRef::new(&data).unwrap();
+            let metrics = Metrics::from_sfnt(&font, &[]);
+            assert_eq!(metrics.units_per_em, 1000, "stated {stated}");
+            assert_eq!(metrics.raw_units_per_em, stated, "stated {stated}");
+        }
+        for stated in [16u16, 16384] {
+            assert_eq!(units_per_em(stated), stated);
+        }
     }
 
     #[test]
@@ -448,7 +505,7 @@ mod tests {
         // Part way along the axes, where the region scalars are fractions;
         // at the far end of every one they are exactly one and the deltas
         // land on whole units by luck rather than by design.
-        let far = Metrics::from_sfnt(&variable(), &[F2Dot14::from_f32(0.4); 12]);
+        let far = Metrics::from_sfnt(&variable(), &[NormalizedCoord::from_f32(0.4); 12]);
         let moved = [
             far.hhea_line.unwrap().ascender,
             far.hhea_line.unwrap().descender,
@@ -470,7 +527,7 @@ mod tests {
         assert_eq!(default.units_per_em, far.units_per_em);
         assert_eq!(default.num_glyphs, far.num_glyphs);
         assert_eq!(default.bounds, far.bounds);
-        assert_eq!(default.max_advance_width, far.max_advance_width);
+        assert_eq!(default.max_h_advance, far.max_h_advance);
         assert_eq!(default.average_char_width, far.average_char_width);
     }
 

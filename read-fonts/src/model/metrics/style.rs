@@ -1,16 +1,17 @@
 //! Metrics used to style text and decorations.
 
 use super::metric;
+use crate::model::variation::NormalizedCoord;
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
     tables::mvar::tags,
     TableProvider,
 };
-use types::{F2Dot14, F48Dot16, Fixed};
+use types::{F48Dot16, Fixed};
 
 /// The size and placement of a subscript or superscript em box.
 ///
-/// Values are in design units unless a caller names another unit.
+/// Values are in font units unless a caller names another unit.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct ScriptMetrics<T = F48Dot16> {
     /// Suggested width of the script em box.
@@ -20,14 +21,14 @@ pub struct ScriptMetrics<T = F48Dot16> {
     /// Horizontal offset from the base glyph.
     pub x_offset: T,
     /// Vertical offset from the baseline. A positive subscript offset is below
-    /// it; a positive superscript offset is above it, as `OS/2` states them.
+    /// it; a positive superscript offset is above it, as in `OS/2`.
     pub y_offset: T,
 }
 
-/// The position and thickness of an underline or strikeout.
+/// The position and thickness of an underline or strikethrough.
 ///
 /// Position is measured from the baseline to the top of the stroke.
-/// Values are in design units unless a caller names another unit.
+/// Values are in font units unless a caller names another unit.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct Decoration<T = F48Dot16> {
     /// Position of the top of the stroke relative to the baseline.
@@ -51,8 +52,8 @@ pub struct StyleMetrics {
     pub superscript: Option<ScriptMetrics>,
     /// Suggested underline, from `post`.
     pub underline: Option<Decoration>,
-    /// Suggested strikeout, from `OS/2`.
-    pub strikethrough: Option<Decoration>,
+    /// Suggested strikethrough, from `OS/2`.
+    pub strike_through: Option<Decoration>,
     /// Italic angle in degrees, from `post`. This is not a length.
     pub italic_angle: Option<Fixed>,
     /// Whether `post` reports a fixed pitch.
@@ -60,11 +61,15 @@ pub struct StyleMetrics {
 }
 
 impl StyleMetrics {
-    /// Reads style measurements from `tables` at a normalized location.
+    /// Reads style measurements from `tables` at `normalized_coords`.
     ///
     /// Pass an empty location for the font's defaults. Missing or unreadable
     /// tables leave their measurements unset.
-    pub fn from_sfnt<'a>(tables: &impl TableProvider<'a>, coords: &[F2Dot14]) -> Self {
+    pub fn from_sfnt<'a>(
+        tables: &impl TableProvider<'a>,
+        normalized_coords: &[NormalizedCoord],
+    ) -> Self {
+        let coords = normalized_coords;
         let mvar = (!coords.is_empty()).then(|| tables.mvar().ok()).flatten();
         let deltas = mvar.as_ref().and_then(|mvar| mvar.at(coords));
         let deltas = deltas.as_ref();
@@ -82,7 +87,7 @@ impl StyleMetrics {
                 x_offset: metric(os2.y_superscript_x_offset() as i32, deltas, tags::SPXO),
                 y_offset: metric(os2.y_superscript_y_offset() as i32, deltas, tags::SPYO),
             });
-            metrics.strikethrough = Some(Decoration {
+            metrics.strike_through = Some(Decoration {
                 position: metric(os2.y_strikeout_position() as i32, deltas, tags::STRO),
                 thickness: metric(os2.y_strikeout_size() as i32, deltas, tags::STRS),
             });
@@ -106,10 +111,10 @@ impl StyleMetrics {
         metrics
     }
 
-    /// Reads the style measurements a Type 1 font states.
+    /// Reads the style measurements from a Type 1 font.
     ///
     /// Its underline center is converted to the top edge used by
-    /// [`Decoration`]. Type 1 states no subscript, superscript or strikeout.
+    /// [`Decoration`]. Type 1 has no subscript, superscript or strikethrough.
     pub fn from_type1(font: &Type1Font) -> Self {
         // Type 1 locates the underline by its center, whereas `post` locates
         // its top edge. Keep the public decoration convention consistent.
@@ -191,11 +196,11 @@ mod tests {
             F48Dot16::from_i32(os2.y_superscript_y_offset() as i32)
         );
         assert_eq!(
-            metrics.strikethrough.unwrap().position,
+            metrics.strike_through.unwrap().position,
             F48Dot16::from_i32(os2.y_strikeout_position() as i32)
         );
         assert_eq!(
-            metrics.strikethrough.unwrap().thickness,
+            metrics.strike_through.unwrap().thickness,
             F48Dot16::from_i32(os2.y_strikeout_size() as i32)
         );
         assert_eq!(
@@ -217,9 +222,9 @@ mod tests {
     }
 
     #[test]
-    fn mvar_moves_the_strikeout_position() {
+    fn mvar_moves_the_strikethrough_position() {
         let font = FontRef::new(font_test_data::AMSTELVAR_AVAR2_A).unwrap();
-        let coords = [F2Dot14::from_f32(1.0); 12];
+        let coords = [NormalizedCoord::from_f32(1.0); 12];
         let default = StyleMetrics::from_sfnt(&font, &[]);
         let varied = StyleMetrics::from_sfnt(&font, &coords);
         let delta = font
@@ -231,7 +236,7 @@ mod tests {
             .unwrap();
         assert_ne!(delta, F48Dot16::ZERO);
         assert_eq!(
-            varied.strikethrough.unwrap().position - default.strikethrough.unwrap().position,
+            varied.strike_through.unwrap().position - default.strike_through.unwrap().position,
             delta
         );
         assert_eq!(varied.italic_angle, default.italic_angle);

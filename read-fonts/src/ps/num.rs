@@ -1,6 +1,6 @@
 //! Various types of number parsers.
 
-use super::error::Error;
+use crate::model::Error;
 use crate::Cursor;
 use types::Fixed;
 
@@ -21,7 +21,7 @@ pub(crate) fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
         28 => cursor.read::<i16>()? as i32,
         29 => cursor.read::<i32>()?,
         _ => {
-            return Err(Error::InvalidNumber);
+            return Err(Error::Malformed);
         }
     })
 }
@@ -324,7 +324,7 @@ pub(crate) fn parse_fixed_dynamic(cursor: &mut Cursor) -> Result<(Fixed, i32), E
                 Ok((Fixed::from_bits(num << 16), 0))
             }
         }
-        _ => Err(Error::InvalidNumber),
+        _ => Err(Error::Malformed),
     }
 }
 

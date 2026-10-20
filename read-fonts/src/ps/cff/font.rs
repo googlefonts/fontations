@@ -1,7 +1,8 @@
 //! Unified access to CFF/CFF2 fonts.
 
+use crate::model::Error;
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
@@ -9,7 +10,6 @@ use crate::{
         },
         cs::{self, CommandSink, NopFilterSink, TransformSink},
         encoding::PredefinedEncoding,
-        error::Error,
         hinting::HintingParams,
         string::Sid,
         transform::{self, ScaledFontMatrix, Transform},
@@ -541,9 +541,9 @@ impl<'a> CffFontRef<'a> {
         gid: GlyphId,
         coords: &[F2Dot14],
         ppem: Option<f32>,
-        pen: &mut impl OutlinePen,
+        sink: &mut impl PathSink,
     ) -> Result<Option<f32>, Error> {
-        let mut nop_filter = NopFilterSink::new(pen);
+        let mut nop_filter = NopFilterSink::new(sink);
         let transform = self.transform(subfont, ppem);
         let mut transformer = TransformSink::new(&mut nop_filter, transform);
         let width = self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
@@ -822,7 +822,7 @@ impl<'a> TopDict<'a> {
                 _ => {}
             }
         }
-        let charstrings = charstrings.ok_or(Error::MissingCharstrings)?;
+        let charstrings = charstrings.ok_or(Error::MissingResource)?;
         let kind = if let Some(fd_array) = fd_array {
             if is_cff2 {
                 CffFontKind::Cff2 {
@@ -838,7 +838,7 @@ impl<'a> TopDict<'a> {
         } else {
             if has_ros || is_cff2 {
                 // The font dict array is required for CID-keyed and CFF2 fonts
-                return Err(Error::MissingFdArray);
+                return Err(Error::MissingResource);
             }
             CffFontKind::Sid {
                 strings,
@@ -878,7 +878,7 @@ impl FontDict {
             }
         }
         Ok(Self {
-            private_dict_range: range.ok_or(Error::MissingPrivateDict)?,
+            private_dict_range: range.ok_or(Error::MissingResource)?,
             matrix,
         })
     }
@@ -888,7 +888,7 @@ impl FontDict {
 ///
 /// This is accessed separately because this information is redundant when a
 /// CFF blob is used in an OpenType font.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Metadata<'a> {
     name: Option<&'a str>,
     version: Option<&'a str>,
@@ -1425,7 +1425,7 @@ mod tests {
 #[cfg(test)]
 mod width_only_tests {
     use super::*;
-    use crate::{model::glyph::outline::NullPen, FontRef, TableProvider};
+    use crate::{model::glyph::outline::NullSink, FontRef, TableProvider};
 
     const FONTS: [&[u8]; 3] = [
         font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
@@ -1488,7 +1488,7 @@ mod width_only_tests {
         for data in FONTS {
             for ppem in [None, Some(16.0), Some(72.0)] {
                 for_each_glyph(data, |cff, subfont, gid| {
-                    let drawn = cff.draw(subfont, gid, &[], ppem, &mut NullPen).unwrap();
+                    let drawn = cff.draw(subfont, gid, &[], ppem, &mut NullSink).unwrap();
                     let quick = cff.advance(subfont, gid, &[], ppem).unwrap();
                     assert_eq!(drawn, quick, "glyph {gid} at {ppem:?}");
                 });
@@ -1500,7 +1500,7 @@ mod width_only_tests {
 #[cfg(test)]
 mod extents_tests {
     use super::*;
-    use crate::{model::glyph::outline::OutlinePen, FontRef, TableProvider};
+    use crate::{model::glyph::outline::PathSink, FontRef, TableProvider};
 
     /// Has a sheared top level matrix over a scaled one, so where the box is
     /// measured is observable.
@@ -1518,7 +1518,7 @@ mod extents_tests {
         }
     }
 
-    impl OutlinePen for BoundsPen {
+    impl PathSink for BoundsPen {
         fn move_to(&mut self, x: f32, y: f32) {
             self.add(x, y);
         }

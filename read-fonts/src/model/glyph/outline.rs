@@ -1,281 +1,244 @@
 //! Scalable glyph outlines.
+//!
+//! [`OutlineGlyphs`] loads outlines from the source selected by a
+//! [`GlyphSourceOrder`]. Each [`OutlineGlyph`] identifies its source: a
+//! [`glyf::GlyfGlyph`], [`cff::CffGlyph`], [`type1::Type1Glyph`] or
+//! [`varc::VarcGlyph`]. Each of these provides access to the source's own
+//! types, which are needed for hinting. These are the `glyf` loader in
+//! [`tables::glyf::outline`] and the charstrings in [`ps`].
+//!
+//! Outlines are drawn as paths into a [`PathSink`]. A `Vec` of
+//! [`PathElement`] collects a path, [`ControlBoundsSink`] measures it,
+//! [`TransformSink`] transforms it, [`SvgSink`] writes it as SVG path data,
+//! and [`NullSink`] discards it.
+//!
+//! [`GlyphSourceOrder`]: crate::model::glyph::GlyphSourceOrder
+//! [`tables::glyf::outline`]: crate::tables::glyf::outline
+//! [`ps`]: crate::ps
 
-use alloc::{string::String, vec::Vec};
-use core::fmt::{self, Write};
-use types::BoundingBox;
+pub mod cff;
+pub mod glyf;
+mod glyphs;
+mod path;
+pub mod type1;
+mod unscaled;
+pub mod varc;
 
-/// Interface for accepting a sequence of path commands.
-pub trait OutlinePen {
-    /// Emit a command to begin a new subpath at (x, y).
-    fn move_to(&mut self, x: f32, y: f32);
+#[doc(inline)]
+pub use crate::tables::glyf::outline::PathContourStart;
+#[doc(inline)]
+pub use glyphs::{OutlineGlyph, OutlineGlyphs};
+#[doc(inline)]
+pub use path::{ControlBoundsSink, NullSink, PathElement, PathSink, SvgSink, TransformSink};
+pub(crate) use unscaled::PointsFromPath;
+#[doc(inline)]
+pub use unscaled::UnscaledOutlineSink;
 
-    /// Emit a line segment from the current point to (x, y).
-    fn line_to(&mut self, x: f32, y: f32);
+use super::GlyphSource;
 
-    /// Emit a quadratic bezier segment from the current point with a control
-    /// point at (cx0, cy0) and ending at (x, y).
-    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32);
-
-    /// Emit a cubic bezier segment from the current point with control
-    /// points at (cx0, cy0) and (cx1, cy1) and ending at (x, y).
-    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32);
-
-    /// Emit a command to close the current subpath.
-    fn close(&mut self);
+/// A table that provides outlines.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub enum OutlineSource {
+    /// Variable composites in `VARC`.
+    ///
+    /// The components are drawn from one of the other outline sources.
+    Varc,
+    /// TrueType outlines in `glyf`.
+    Glyf,
+    /// Variable PostScript outlines in `CFF2`.
+    Cff2,
+    /// PostScript outlines in a `CFF` table or a standalone CFF font.
+    Cff,
+    /// Charstrings of a Type 1 font.
+    Type1,
 }
 
-/// Single element of a path.
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub enum PathElement {
-    /// Begin a new subpath at (x, y).
-    MoveTo { x: f32, y: f32 },
-    /// Draw a line from the current point to (x, y).
-    LineTo { x: f32, y: f32 },
-    /// Draw a quadratic bezier from the current point with a control point at
-    /// (cx0, cy0) and ending at (x, y).
-    QuadTo { cx0: f32, cy0: f32, x: f32, y: f32 },
-    /// Draw a cubic bezier from the current point with control points at
-    /// (cx0, cy0) and (cx1, cy1) and ending at (x, y).
-    CurveTo {
-        cx0: f32,
-        cy0: f32,
-        cx1: f32,
-        cy1: f32,
-        x: f32,
-        y: f32,
-    },
-    /// Close the current subpath.
-    Close,
+impl From<OutlineSource> for GlyphSource {
+    fn from(source: OutlineSource) -> Self {
+        match source {
+            OutlineSource::Varc => Self::Varc,
+            OutlineSource::Glyf => Self::Glyf,
+            OutlineSource::Cff2 => Self::Cff2,
+            OutlineSource::Cff => Self::Cff,
+            OutlineSource::Type1 => Self::Type1,
+        }
+    }
 }
 
-impl OutlinePen for Vec<PathElement> {
-    fn move_to(&mut self, x: f32, y: f32) {
-        self.push(PathElement::MoveTo { x, y })
-    }
+impl TryFrom<GlyphSource> for OutlineSource {
+    /// The original source, which contains no outlines.
+    type Error = GlyphSource;
 
-    fn line_to(&mut self, x: f32, y: f32) {
-        self.push(PathElement::LineTo { x, y })
-    }
-
-    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.push(PathElement::QuadTo { cx0, cy0, x, y })
-    }
-
-    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.push(PathElement::CurveTo {
-            cx0,
-            cy0,
-            cx1,
-            cy1,
-            x,
-            y,
+    fn try_from(source: GlyphSource) -> Result<Self, GlyphSource> {
+        Ok(match source {
+            GlyphSource::Varc => Self::Varc,
+            GlyphSource::Glyf => Self::Glyf,
+            GlyphSource::Cff2 => Self::Cff2,
+            GlyphSource::Cff => Self::Cff,
+            GlyphSource::Type1 => Self::Type1,
+            _ => return Err(source),
         })
     }
-
-    fn close(&mut self) {
-        self.push(PathElement::Close)
-    }
 }
 
-/// Pen that drops all drawing output into the ether.
-pub struct NullPen;
-
-impl OutlinePen for NullPen {
-    fn move_to(&mut self, _x: f32, _y: f32) {}
-    fn line_to(&mut self, _x: f32, _y: f32) {}
-    fn quad_to(&mut self, _cx0: f32, _cy0: f32, _x: f32, _y: f32) {}
-    fn curve_to(&mut self, _cx0: f32, _cy0: f32, _cx1: f32, _cy1: f32, _x: f32, _y: f32) {}
-    fn close(&mut self) {}
+/// How an outline is drawn.
+///
+/// A `glyf` outline is scaled in 26.6 fixed point. Without
+/// a size, it is drawn in font units, with an implied on-curve point between
+/// two off-curve points keeping its half unit.
+///
+/// The variation location comes from the font. Hinting is done through the
+/// source's own types.
+#[derive(Copy, Clone, Default, PartialEq, Debug)]
+pub struct DrawOptions {
+    /// Pixels per em to draw at, or `None` for font units.
+    pub ppem: Option<f32>,
+    /// Where a `glyf` contour starts when its first point is off-curve.
+    pub contour_start: PathContourStart,
 }
 
-/// Pen that generates SVG style path data.
-#[derive(Clone, Default, Debug)]
-pub struct SvgPen(String, Option<usize>);
-
-impl SvgPen {
-    /// Creates a new SVG pen that formats floating point values with the
-    /// standard behavior.
+impl DrawOptions {
+    /// Creates options that draw in font units with the default contour start.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates a new SVG pen with the given precision (the number of digits
-    /// that will be printed after the decimal).
-    pub fn with_precision(precision: usize) -> Self {
-        Self(String::default(), Some(precision))
+    /// Sets the size in pixels per em, or `None` for font units.
+    pub fn with_ppem(self, ppem: Option<f32>) -> Self {
+        Self { ppem, ..self }
     }
 
-    /// Clears the content of the internal string.
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
-    fn maybe_push_space(&mut self) {
-        if !self.0.is_empty() {
-            self.0.push(' ');
+    /// Sets where a `glyf` contour starts when its first point is off-curve.
+    pub fn with_contour_start(self, contour_start: PathContourStart) -> Self {
+        Self {
+            contour_start,
+            ..self
         }
     }
 }
 
-impl core::ops::Deref for SvgPen {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.as_str()
-    }
+/// Working memory for drawing an outline.
+///
+/// A `glyf` outline and a `VARC` composite need working memory to draw; a
+/// charstring needs none. The size an outline needs is given by its
+/// `required_memory_size`.
+#[derive(Debug, Default)]
+pub enum DrawMemory<'a> {
+    /// Short-lived scratch memory of the size the outline needs, which may be
+    /// allocated on the heap for a large glyph.
+    #[default]
+    Scratch,
+    /// Memory supplied by the caller, of at least the size the outline
+    /// needs.
+    Buffer(&'a mut [u8]),
 }
 
-impl OutlinePen for SvgPen {
-    fn move_to(&mut self, x: f32, y: f32) {
-        self.maybe_push_space();
-        let _ = if let Some(prec) = self.1 {
-            write!(self.0, "M{x:.0$},{y:.0$}", prec)
-        } else {
-            write!(self.0, "M{x},{y}")
-        };
-    }
-
-    fn line_to(&mut self, x: f32, y: f32) {
-        self.maybe_push_space();
-        let _ = if let Some(prec) = self.1 {
-            write!(self.0, "L{x:.0$},{y:.0$}", prec)
-        } else {
-            write!(self.0, "L{x},{y}")
-        };
-    }
-
-    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.maybe_push_space();
-        let _ = if let Some(prec) = self.1 {
-            write!(self.0, "Q{cx0:.0$},{cy0:.0$} {x:.0$},{y:.0$}", prec)
-        } else {
-            write!(self.0, "Q{cx0},{cy0} {x},{y}")
-        };
-    }
-
-    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.maybe_push_space();
-        let _ = if let Some(prec) = self.1 {
-            write!(
-                self.0,
-                "C{cx0:.0$},{cy0:.0$} {cx1:.0$},{cy1:.0$} {x:.0$},{y:.0$}",
-                prec
-            )
-        } else {
-            write!(self.0, "C{cx0},{cy0} {cx1},{cy1} {x},{y}")
-        };
-    }
-
-    fn close(&mut self) {
-        self.maybe_push_space();
-        self.0.push('Z');
-    }
-}
-
-impl AsRef<str> for SvgPen {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-impl From<String> for SvgPen {
-    fn from(value: String) -> Self {
-        Self(value, None)
-    }
-}
-
-impl From<SvgPen> for String {
-    fn from(value: SvgPen) -> Self {
-        value.0
-    }
-}
-
-impl fmt::Display for SvgPen {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Pen that generates the control bounds of a glyph outline.
-#[derive(Clone, Default, Debug)]
-pub struct ControlBoundsPen(Option<BoundingBox<f32>>);
-
-impl ControlBoundsPen {
-    /// Creates a new bounds pen.
-    pub fn new() -> Self {
-        Self(None)
-    }
-
-    /// Returns the bounding box collected by this pen.
-    pub fn bounding_box(&self) -> Option<BoundingBox<f32>> {
-        self.0
-    }
-
-    fn update_bounds(&mut self, x: f32, y: f32) {
-        if let Some(bb) = &mut self.0 {
-            bb.x_min = bb.x_min.min(x);
-            bb.y_min = bb.y_min.min(y);
-            bb.x_max = bb.x_max.max(x);
-            bb.y_max = bb.y_max.max(y);
-        } else {
-            self.0 = Some(BoundingBox {
-                x_min: x,
-                y_min: y,
-                x_max: x,
-                y_max: y,
-            });
+impl<'a> DrawMemory<'a> {
+    /// Returns the caller's memory, or `None` for scratch memory.
+    pub(crate) fn into_buffer(self) -> Option<&'a mut [u8]> {
+        match self {
+            Self::Scratch => None,
+            Self::Buffer(buffer) => Some(buffer),
         }
     }
 }
 
-impl OutlinePen for ControlBoundsPen {
-    fn move_to(&mut self, x: f32, y: f32) {
-        self.update_bounds(x, y);
+impl<'a> From<&'a mut [u8]> for DrawMemory<'a> {
+    fn from(buffer: &'a mut [u8]) -> Self {
+        Self::Buffer(buffer)
+    }
+}
+
+/// Metrics computed while drawing an outline.
+///
+/// Values are in the units the outline was drawn in: pixels at a size, font
+/// units otherwise. Hinting may adjust the advance and bearing.
+#[non_exhaustive]
+#[derive(Copy, Clone, Default, PartialEq, Debug)]
+pub struct ComputedMetrics {
+    /// The horizontal advance, if the outline provides one.
+    ///
+    /// A `glyf` outline provides it through its phantom points, with
+    /// variations applied. A charstring provides it directly. A `VARC`
+    /// composite has none.
+    pub h_advance: Option<f32>,
+    /// The left side bearing, if the outline provides one.
+    ///
+    /// Only a `glyf` outline provides it, through its phantom points. A
+    /// hinter that does not move phantom points, such as an automatic
+    /// hinter, may not report it.
+    pub x_bearing: Option<f32>,
+    /// True if the glyph is flagged as having overlapping contours or
+    /// components.
+    ///
+    /// Only `glyf` has these flags.
+    pub has_overlaps: bool,
+    /// The dropout control mode requested by the glyph program.
+    ///
+    /// This tells a bilevel rasterizer how to treat features thinner than a
+    /// pixel. It is [`DropoutControl::Simple`], the TrueType default, when
+    /// no TrueType hinter ran. When one ran, it is the mode the font's
+    /// programs left, and [`DropoutControl::Ignore`] if they never turned
+    /// dropout control on.
+    pub dropout_control: DropoutControl,
+}
+
+/// The dropout control mode for a bilevel rasterizer.
+///
+/// Dropout control defines how to treat features too thin to register on the
+/// pixel grid. A TrueType glyph program selects the mode with the `SCANCTRL`
+/// and `SCANTYPE` instructions, and may select a different mode for each
+/// glyph. It affects only rasterization to one bit per pixel. An antialiasing
+/// rasterizer uses coverage and does not need it.
+///
+/// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#scan-conversion-control>.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub enum DropoutControl {
+    /// Fills only pixels whose centers are covered. Thin features may vanish.
+    Ignore,
+    /// Restores a dropped feature that crosses a scan line, ignoring stubs.
+    ///
+    /// This is the default when a glyph program does not set a mode.
+    #[default]
+    Simple,
+    /// Like [`Self::Simple`], but also restores stubs.
+    SimpleWithStubs,
+    /// Restores a dropped feature at the best position chosen by the scan
+    /// converter rather than a fixed one, ignoring stubs.
+    Smart,
+    /// Like [`Self::Smart`], but also restores stubs.
+    SmartWithStubs,
+}
+
+impl DropoutControl {
+    /// Returns true if dropped features should be restored.
+    pub fn is_enabled(self) -> bool {
+        self != Self::Ignore
     }
 
-    fn line_to(&mut self, x: f32, y: f32) {
-        self.update_bounds(x, y);
+    /// Returns true if the scan converter should choose the restore position.
+    pub fn is_smart(self) -> bool {
+        matches!(self, Self::Smart | Self::SmartWithStubs)
     }
 
-    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.update_bounds(cx0, cy0);
-        self.update_bounds(x, y);
+    /// Returns true if stubs should be restored along with crossing features.
+    pub fn includes_stubs(self) -> bool {
+        matches!(self, Self::SimpleWithStubs | Self::SmartWithStubs)
     }
-
-    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.update_bounds(cx0, cy0);
-        self.update_bounds(cx1, cy1);
-        self.update_bounds(x, y);
-    }
-
-    fn close(&mut self) {}
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::DropoutControl;
 
     #[test]
-    fn svg_pen_precision() {
-        let svg_data = [None, Some(1), Some(4)].map(|prec| {
-            let mut pen = match prec {
-                None => SvgPen::new(),
-                Some(prec) => SvgPen::with_precision(prec),
-            };
-            pen.move_to(1.0, 2.45556);
-            pen.line_to(1.2, 4.0);
-            pen.quad_to(2.0345, 3.56789, -0.157, -425.07);
-            pen.curve_to(-37.0010, 4.5, 2.0, 1.0, -0.5, -0.25);
-            pen.close();
-            pen.to_string()
-        });
-        let expected = [
-            "M1,2.45556 L1.2,4 Q2.0345,3.56789 -0.157,-425.07 C-37.001,4.5 2,1 -0.5,-0.25 Z", 
-            "M1.0,2.5 L1.2,4.0 Q2.0,3.6 -0.2,-425.1 C-37.0,4.5 2.0,1.0 -0.5,-0.2 Z", 
-            "M1.0000,2.4556 L1.2000,4.0000 Q2.0345,3.5679 -0.1570,-425.0700 C-37.0010,4.5000 2.0000,1.0000 -0.5000,-0.2500 Z"
-        ];
-        for (result, expected) in svg_data.iter().zip(&expected) {
-            assert_eq!(result, expected);
-        }
+    fn dropout_predicates() {
+        assert!(!DropoutControl::Ignore.is_enabled());
+        assert!(DropoutControl::Simple.is_enabled());
+        assert!(!DropoutControl::Simple.is_smart());
+        assert!(DropoutControl::SmartWithStubs.is_smart());
+        assert!(DropoutControl::SmartWithStubs.includes_stubs());
+        assert!(!DropoutControl::Smart.includes_stubs());
+        assert_eq!(DropoutControl::default(), DropoutControl::Simple);
     }
 }

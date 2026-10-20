@@ -33,10 +33,7 @@ fn bench_system_fonts(c: &mut Criterion) {
         };
         let font = Font::new(data, 0).expect("parse font model");
         let charmap = font.charmap();
-        let covered: Vec<_> = charmap
-            .iter_unicodes()
-            .map(|(codepoint, _)| codepoint)
-            .collect();
+        let covered: Vec<_> = charmap.unicodes().map(|(codepoint, _)| codepoint).collect();
         if covered.is_empty() {
             continue;
         }

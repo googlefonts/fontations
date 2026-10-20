@@ -1,6 +1,7 @@
 //! Operand stack for CFF/CFF2 parsing.
 
-use super::{super::error::Error, blend::BlendState};
+use super::blend::BlendState;
+use crate::model::Error;
 use types::Fixed;
 
 /// Maximum size of the operand stack.
@@ -47,7 +48,7 @@ impl Stack {
 
     pub fn verify_exact_len(&self, len: usize) -> Result<(), Error> {
         if self.top != len {
-            Err(Error::StackUnderflow)
+            Err(Error::InvalidOperation)
         } else {
             Ok(())
         }
@@ -55,7 +56,7 @@ impl Stack {
 
     pub fn verify_at_least_len(&self, len: usize) -> Result<(), Error> {
         if self.top < len {
-            Err(Error::StackUnderflow)
+            Err(Error::InvalidOperation)
         } else {
             Ok(())
         }
@@ -86,7 +87,7 @@ impl Stack {
     /// Swaps the top two elements.
     pub(crate) fn exch(&mut self) -> Result<(), Error> {
         if self.top < 2 {
-            return Err(Error::StackUnderflow);
+            return Err(Error::InvalidOperation);
         }
         let a = self.top - 1;
         let b = a - 1;
@@ -105,7 +106,7 @@ impl Stack {
     /// Sets the element at `index` to the given `number`.
     pub fn set(&mut self, index: usize, number: impl Into<Number>) -> Result<(), Error> {
         if index >= self.top {
-            return Err(Error::StackOverflow);
+            return Err(Error::LimitExceeded);
         }
         match number.into() {
             Number::I32(value) => {
@@ -141,7 +142,7 @@ impl Stack {
         if self.value_is_fixed[index] {
             // FreeType returns an error here rather than converting
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psstack.c#L145>
-            Err(Error::ExpectedInt)
+            Err(Error::InvalidOperation)
         } else {
             Ok(value)
         }
@@ -290,14 +291,14 @@ impl Stack {
         // Then the stack is popped so only the final target values remain.
         let target_value_count = self.pop_i32()? as usize;
         if target_value_count > self.top {
-            return Err(Error::StackUnderflow);
+            return Err(Error::InvalidOperation);
         }
         let region_count = blend_state.region_count()?;
         // We expect at least `target_value_count * (region_count + 1)`
         // elements on the stack.
         let operand_count = target_value_count * (region_count + 1);
         if self.len() < operand_count {
-            return Err(Error::StackUnderflow);
+            return Err(Error::InvalidOperation);
         }
         // The stack may contain more elements than necessary, so keep track of
         // our active range.
@@ -360,7 +361,7 @@ impl Stack {
 
     fn push_impl(&mut self, value: i32, is_fixed: bool) -> Result<(), Error> {
         if self.top == MAX_STACK {
-            return Err(Error::StackOverflow);
+            return Err(Error::LimitExceeded);
         }
         self.values[self.top] = value;
         self.value_is_fixed[self.top] = is_fixed;
