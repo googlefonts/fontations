@@ -101,17 +101,27 @@ impl Type1Font {
                 }
                 Token::Name(b"version") => font.version = parser.read_string(),
                 Token::Name(b"Notice") => font.notice = parser.read_string(),
+                // In the /Blend dictionary of a multiple master font these
+                // hold an array with a value for each master. FreeType keeps
+                // the font's own value then, so only a number replaces it.
                 Token::Name(b"ItalicAngle") => {
-                    font.italic_angle = parser.read_num_as_int().unwrap_or(0)
+                    if let Some(angle) = parser.read_num_as_int() {
+                        font.italic_angle = angle;
+                    }
                 }
-                Token::Name(b"isFixedPitch") => {
-                    font.is_fixed_pitch = parser.next() == Some(Token::Raw(b"true"))
-                }
+                Token::Name(b"isFixedPitch") => match parser.next() {
+                    Some(Token::Raw(b"[") | Token::Proc(_)) => {}
+                    token => font.is_fixed_pitch = token == Some(Token::Raw(b"true")),
+                },
                 Token::Name(b"UnderlinePosition") => {
-                    font.underline_position = parser.read_num_as_int().unwrap_or(0);
+                    if let Some(position) = parser.read_num_as_int() {
+                        font.underline_position = position;
+                    }
                 }
                 Token::Name(b"UnderlineThickness") => {
-                    font.underline_thickness = parser.read_num_as_int().unwrap_or(0);
+                    if let Some(thickness) = parser.read_num_as_int() {
+                        font.underline_thickness = thickness;
+                    }
                 }
                 Token::Name(b"FontBBox") => {
                     if let Some([x_min, y_min, x_max, y_max]) = parser.read_font_bbox() {
@@ -1847,6 +1857,12 @@ impl Parser<'_> {
         Some(charstrings)
     }
 
+    /// Reads a `/FontBBox`, each component rounded to a whole unit as
+    /// FreeType rounds it.
+    ///
+    /// In the `/Blend` dictionary of a multiple master font, each component
+    /// is an array with a value for each master. FreeType stores master 0's
+    /// box over the font's own, so this returns master 0's values.
     fn read_font_bbox(&mut self) -> Option<[Fixed; 4]> {
         let mut bbox = [Fixed::ZERO; 4];
         // accept [ or { to match FreeType
@@ -1863,11 +1879,18 @@ impl Parser<'_> {
         };
         // read all components
         for component in &mut bbox {
-            *component = match parser.next()? {
+            let value = match parser.next()? {
+                Token::Proc(masters) => Parser::new(masters).read_fixed()?,
+                Token::Raw(b"[") => {
+                    let first = parser.read_fixed()?;
+                    while parser.next()? != Token::Raw(b"]") {}
+                    first
+                }
                 Token::Int(int) => Fixed::from_i32(int as i32),
                 Token::Raw(bytes) => decode_fixed(bytes, 0)?,
                 _ => return None,
-            }
+            };
+            *component = round_fixed(value);
         }
         Some(bbox)
     }
@@ -2110,6 +2133,18 @@ fn decode_int_prefix(bytes: &[u8], start: usize) -> Option<(i64, usize)> {
         .unwrap_or(tail.len());
     let int = decode_int(tail.get(..end)?)?;
     Some((int, start + end))
+}
+
+/// Rounds to a whole unit, halves away from zero, as FreeType's
+/// `FT_RoundFix` does.
+///
+/// A value from 32767.5 up rounds to 32768, which `Fixed` can't hold, so
+/// it saturates to `Fixed::MAX`. FreeType keeps 32768 in a 64-bit value;
+/// both give 32768 once rounded up to whole units.
+fn round_fixed(value: Fixed) -> Fixed {
+    let bits = value.to_bits() as i64;
+    let rounded = (bits + 0x8000 - (bits < 0) as i64) & !0xFFFF;
+    Fixed::from_bits(rounded.min(i32::MAX as i64) as i32)
 }
 
 /// Decode a fixed point value, scaling to a specific power of
@@ -3367,6 +3402,66 @@ pub(crate) mod multiple_master_tests {
         /BlendDesignPositions [[0] [1]] def \
         /BlendDesignMap [[[100 0] [900 1]]] def \
         /WeightVector [0.75 0.25] def";
+
+    fn bbox(font: &Type1Font) -> [f32; 4] {
+        let b = font.bbox();
+        [b.x_min, b.y_min, b.x_max, b.y_max].map(|v| v.to_f32())
+    }
+
+    // Every box is rounded to whole units, halves away from zero.
+    #[test]
+    fn boxes_are_rounded() {
+        let font = font_with_blend("/FontBBox {-10.4 -20.5 1000.5 900.25} readonly def").unwrap();
+        assert_eq!(bbox(&font), [-10.0, -21.0, 1001.0, 900.0]);
+    }
+
+    // A bound that rounds past the largest fixed value saturates instead of
+    // overflowing.
+    #[test]
+    fn box_rounding_saturates() {
+        let font = font_with_blend("/FontBBox [-32768 0 32767.5 900] def").unwrap();
+        assert_eq!(font.bbox().x_max, Fixed::MAX);
+        assert_eq!(font.bbox().x_min, Fixed::from_i32(-32768));
+    }
+
+    // The /Blend dictionary holds a box for each master, and master 0's
+    // replaces the font's own.
+    #[test]
+    fn box_is_master_zeros() {
+        let font = font_with_blend(&format!(
+            "{ONE_AXIS} /FontBBox {{-157 -257 1194 872}} readonly def \
+             /Blend 3 dict dup begin \
+             /FontBBox {{{{-55 -112}} {{-261 -262}} {{424.4 1156}} {{811 970}}}} def \
+             end def"
+        ))
+        .unwrap();
+        assert_eq!(bbox(&font), [-55.0, -261.0, 424.0, 811.0]);
+        let bracketed = font_with_blend(&format!(
+            "{ONE_AXIS} /Blend 3 dict dup begin \
+             /FontBBox [[-55 -112] [-261 -262] [424 1156] [811 970]] def end def"
+        ))
+        .unwrap();
+        assert_eq!(bbox(&bracketed), [-55.0, -261.0, 424.0, 811.0]);
+    }
+
+    // The /Blend dictionary's font info holds a value for each master, and
+    // the font keeps its own.
+    #[test]
+    fn font_info_keeps_its_own_values() {
+        let font = font_with_blend(&format!(
+            "{ONE_AXIS} /ItalicAngle -12 def /isFixedPitch true def \
+             /UnderlinePosition -100 def /UnderlineThickness 50 def \
+             /Blend 3 dict dup begin /FontInfo 4 dict dup begin \
+             /ItalicAngle [-12 0] def /isFixedPitch [false false] def \
+             /UnderlinePosition [-80 -120] def /UnderlineThickness [40 60] def \
+             end def end def"
+        ))
+        .unwrap();
+        assert_eq!(font.italic_angle(), -12);
+        assert!(font.is_fixed_pitch());
+        assert_eq!(font.underline_position(), -100);
+        assert_eq!(font.underline_thickness(), 50);
+    }
 
     fn first_move(instance: Type1Instance) -> f32 {
         let mut path = Vec::<PathElement>::new();
