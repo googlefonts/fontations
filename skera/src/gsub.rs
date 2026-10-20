@@ -8,7 +8,8 @@ mod single_subst;
 
 use crate::FastHashMap;
 use crate::{
-    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
+    collect_feature_variations_name_ids, collect_features_with_retained_subs,
+    collect_variable_feature_indices, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
@@ -32,14 +33,26 @@ impl NameIdClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return;
         };
-        for (i, feature_record) in feature_list.feature_records().iter().enumerate() {
-            if !plan.gsub_features.contains_key(&(i as u16)) {
+        let feature_records = feature_list.feature_records();
+        let feature_count = feature_list.feature_count();
+
+        for (feature_record, i) in feature_records.iter().zip(0..feature_count) {
+            if !plan.gsub_features.contains_key(&i) {
                 continue;
             }
             let Ok(feature) = feature_record.feature(feature_list.offset_data()) else {
                 continue;
             };
             feature.collect_name_ids(plan);
+        }
+
+        if let Some(Ok(feature_variations)) = self.feature_variations() {
+            collect_feature_variations_name_ids(
+                &feature_variations,
+                feature_records,
+                Gsub::TAG,
+                plan,
+            );
         }
     }
 }
@@ -343,6 +356,23 @@ mod test {
     use super::*;
     use font_test_data::closure as test_data;
     use read_fonts::{types::NameId, FontRef, TableProvider};
+
+    /// GSUB has cv01 (index 1), size (2) and ss01 (3) features whose params
+    /// use name IDs 300-305. A FeatureVariations record replaces each of them
+    /// with an alternate whose params use name IDs 400-405.
+    static FEATURE_PARAMS_VARIATIONS: &[u8] =
+        include_bytes!("../test-data/fonts/FeatureParams-variations.ttf");
+
+    #[test]
+    fn test_nameid_closure_alternate_features() {
+        let font = FontRef::new(FEATURE_PARAMS_VARIATIONS).unwrap();
+        let gsub = font.gsub().unwrap();
+        let mut plan = Plan::default();
+        plan.gsub_features.extend([(1, 0), (2, 1), (3, 2)]);
+        gsub.collect_name_ids(&mut plan);
+        let expected: IntSet<NameId> = (300u16..=305).chain(400..=405).map(NameId::new).collect();
+        assert_eq!(plan.name_ids, expected);
+    }
 
     #[test]
     fn test_nameid_closure() {
