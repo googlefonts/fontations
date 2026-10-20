@@ -3,7 +3,7 @@
 //! read-fonts loads the outline, and this crate's interpreter hints it
 //! through the loader's [`Hinter`] hook.
 
-use super::{ComputedMetrics, HintOptions, ScaleError};
+use super::{DrawnMetrics, HintOptions, ScaleError};
 use crate::{
     font::Font,
     outline::glyf::{
@@ -237,7 +237,7 @@ impl TrueTypeHinter {
         outline: &GlyfGlyph<'_>,
         memory: Option<&mut [u8]>,
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, ScaleError> {
+    ) -> Result<DrawnMetrics, ScaleError> {
         match memory {
             Some(buf) => self.draw_in(outline, buf, sink),
             None => with_scratch(self.required_memory_size(outline), |buf| {
@@ -251,7 +251,7 @@ impl TrueTypeHinter {
         outline: &GlyfGlyph<'_>,
         buf: &mut [u8],
         mut sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, ScaleError> {
+    ) -> Result<DrawnMetrics, ScaleError> {
         let (Some(tables), Some(scale)) = (&self.tables, &self.scale) else {
             return Err(Error::MissingResource.into());
         };
@@ -309,7 +309,7 @@ impl TrueTypeHinter {
         if !loaded.to_path(PathContourStart::ScanBackward, &mut sink) {
             return Err(Error::Malformed.into());
         }
-        let mut metrics = ComputedMetrics::default();
+        let mut metrics = DrawnMetrics::default();
         // A hinted advance is rounded, as FreeType rounds it.
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftobjs.c#L889>
         metrics.h_advance = Some(advance.round().to_f32());

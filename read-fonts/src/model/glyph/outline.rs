@@ -149,13 +149,13 @@ impl<'a> From<&'a mut [u8]> for DrawMemory<'a> {
     }
 }
 
-/// Metrics computed while drawing an outline.
+/// What drawing an outline reports about it.
 ///
 /// Values are in the units the outline was drawn in: pixels at a size, font
 /// units otherwise. Hinting may adjust the advance and bearing.
 #[non_exhaustive]
 #[derive(Copy, Clone, Default, PartialEq, Debug)]
-pub struct ComputedMetrics {
+pub struct DrawnMetrics {
     /// The horizontal advance, if the outline provides one.
     ///
     /// A `glyf` outline provides it through its phantom points, with

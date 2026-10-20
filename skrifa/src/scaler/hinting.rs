@@ -21,9 +21,25 @@ pub enum RasterTarget {
     VerticalLcd,
 }
 
+/// The hinting engine a scaler runs.
+///
+/// [`HintOptions`] asks for an engine, and the font decides which one runs:
+/// [`HintOptions::auto_fallback`] runs the font's own hints where they are
+/// worth running and the automatic hinter otherwise, and a font that needs
+/// its instructions for correct contours always runs them.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub enum HintEngine {
+    /// The font's TrueType instructions.
+    TrueType,
+    /// The font's PostScript hints.
+    PostScript,
+    /// The automatic hinter.
+    Auto,
+}
+
 /// The hinting engine requested by a configuration.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub(super) enum HintEngine {
+pub(super) enum EngineRequest {
     /// The font's own instructions.
     Interpreter,
     /// The interpreter if the font has instructions, and the automatic hinter
@@ -38,7 +54,7 @@ pub(super) enum HintEngine {
 /// Create one with a constructor and adjust it with the `with_*` methods:
 ///
 /// ```
-/// use skrifa::scaler::{HintOptions, RasterTarget};
+/// use skrifa::{HintOptions, RasterTarget};
 ///
 /// let hinting = HintOptions::interpreter()
 ///     .with_target(RasterTarget::Lcd)
@@ -47,7 +63,7 @@ pub(super) enum HintEngine {
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct HintOptions {
-    engine: HintEngine,
+    engine: EngineRequest,
     target: RasterTarget,
     classic_cleartype: bool,
     symmetric_rendering: bool,
@@ -69,7 +85,7 @@ impl HintOptions {
     /// hinter otherwise. A TrueType font with no glyph, font or control value
     /// program is autohinted.
     pub fn auto_fallback() -> Self {
-        Self::with_engine(HintEngine::AutoFallback)
+        Self::with_engine(EngineRequest::AutoFallback)
     }
 
     /// Creates a configuration that uses the instructions embedded in the
@@ -78,7 +94,7 @@ impl HintOptions {
     /// This runs the TrueType interpreter or the PostScript hinter, depending
     /// on which kind of instructions the font contains.
     pub fn interpreter() -> Self {
-        Self::with_engine(HintEngine::Interpreter)
+        Self::with_engine(EngineRequest::Interpreter)
     }
 
     /// Creates a configuration that uses the automatic hinter, which ignores
@@ -90,11 +106,11 @@ impl HintOptions {
     /// The data the hinter derives from a font is stored with the font. All
     /// scalers for that font share it at every size.
     pub fn auto() -> Self {
-        Self::with_engine(HintEngine::Auto)
+        Self::with_engine(EngineRequest::Auto)
     }
 
     /// Creates the defaults for a grayscale target that uses `engine`.
-    fn with_engine(engine: HintEngine) -> Self {
+    fn with_engine(engine: EngineRequest) -> Self {
         Self {
             engine,
             target: RasterTarget::Normal,
@@ -170,7 +186,7 @@ impl HintOptions {
     }
 
     /// Returns the hinting engine.
-    pub(super) fn engine(&self) -> HintEngine {
+    pub(super) fn engine(&self) -> EngineRequest {
         self.engine
     }
 

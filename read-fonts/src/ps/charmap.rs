@@ -1,6 +1,4 @@
 //! Unicode character map generated from glyph names.
-//!
-//! Building a character map depends on the `agl` feature.
 
 #[cfg(feature = "agl")]
 use super::agl;
@@ -11,12 +9,14 @@ use types::GlyphId;
 const VARIANT_BIT: u32 = 0x80000000;
 
 /// A Unicode charmap built from glyph names.
+///
+/// Building one depends on the `agl` feature.
 #[derive(Clone, Default, Debug)]
-pub struct Charmap {
+pub struct UnicodeCharmap {
     mapping: Vec<(u32, GlyphId)>,
 }
 
-impl Charmap {
+impl UnicodeCharmap {
     /// Create a new unicode charmap for the given sequence of glyph id
     /// and name pairs.
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psnames/psmodule.c#L313>
@@ -110,20 +110,12 @@ impl Charmap {
         result
     }
 
-    pub fn iter(&self) -> Iter<'_> {
-        Iter(self.mapping.iter().copied())
-    }
-}
-
-/// Iterator for a character map.
-#[derive(Clone)]
-pub struct Iter<'a>(core::iter::Copied<core::slice::Iter<'a, (u32, GlyphId)>>);
-
-impl Iterator for Iter<'_> {
-    type Item = (u32, GlyphId);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+    /// Returns each character and its glyph, in character order.
+    ///
+    /// A variant glyph, such as `A.alt`, has the high bit set on its
+    /// character, and follows any base glyph for the character.
+    pub fn iter(&self) -> impl Iterator<Item = (u32, GlyphId)> + Clone + '_ {
+        self.mapping.iter().copied()
     }
 }
 
@@ -154,7 +146,7 @@ mod tests {
 
     #[test]
     fn cmap() {
-        let cmap = Charmap::from_glyph_names(
+        let cmap = UnicodeCharmap::from_glyph_names(
             [
                 (1, "A"),
                 (2, "uni0042"), // B
@@ -184,7 +176,7 @@ mod tests {
     #[test]
     fn cmap_from_type1() {
         let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB).unwrap();
-        let cmap = Charmap::from_glyph_names(font.glyph_names());
+        let cmap = UnicodeCharmap::from_glyph_names(font.glyph_names());
         // Extracted from FreeType's generated unicode cmap
         let expected = [
             ('H' as u32, 1),
@@ -218,7 +210,7 @@ mod tests {
         // If we have a "hyphen" glyph but no "softhyphen" then add an
         // additional entry mapping the soft-hyphen codepoint to the
         // hyphen glyph
-        let cmap = Charmap::from_glyph_names([(GlyphId::new(1), "hyphen")].into_iter());
+        let cmap = UnicodeCharmap::from_glyph_names([(GlyphId::new(1), "hyphen")].into_iter());
         assert_eq!(cmap.mapping.len(), 2);
         assert_eq!(cmap.map('\u{00AD}'), Some(GlyphId::new(1)));
         assert_eq!(cmap.map('\u{002D}'), Some(GlyphId::new(1)));
@@ -228,7 +220,7 @@ mod tests {
     fn extra_glyphs_no_override() {
         // If we have an explicit "softhyphen" glyph then don't add any
         // additional mapping
-        let cmap = Charmap::from_glyph_names([(GlyphId::new(1), "softhyphen")].into_iter());
+        let cmap = UnicodeCharmap::from_glyph_names([(GlyphId::new(1), "softhyphen")].into_iter());
         assert_eq!(cmap.mapping.len(), 1);
         assert_eq!(cmap.map('\u{00AD}'), Some(GlyphId::new(1)));
     }

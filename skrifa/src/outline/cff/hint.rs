@@ -1,7 +1,7 @@
 //! CFF hinting.
 
 use read_fonts::{
-    ps::{cs::CommandSink, hinting::Blues},
+    ps::{charstring::CommandSink, Blues},
     types::Fixed,
 };
 

@@ -3,7 +3,7 @@
 use crate::model::Error;
 use crate::{
     model::{
-        glyph::outline::{ComputedMetrics, DrawOptions, PathSink, UnscaledOutlineSink},
+        glyph::outline::{DrawOptions, DrawnMetrics, PathSink, UnscaledOutlineSink},
         Font,
     },
     tables::{
@@ -84,7 +84,7 @@ impl<'a> GlyfGlyph<'a> {
         precision: Precision,
         buf: &mut [u8],
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         draw_plan(&self.plan, &self.context, options, precision, buf, sink)
     }
 
@@ -101,7 +101,7 @@ impl<'a> GlyfGlyph<'a> {
         &self,
         buf: &mut [u8],
         sink: &mut dyn UnscaledOutlineSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         let lengths = self.plan.buffer_lengths::<Unscaled>();
         let buffers = Buffers::from_bytes(buf, &lengths)?;
         let outline = self.plan.load(&self.context, &Unscaled, buffers, None)?;
@@ -119,7 +119,7 @@ impl<'a> GlyfGlyph<'a> {
             sink.end_contour();
             start = end + 1;
         }
-        Ok(ComputedMetrics {
+        Ok(DrawnMetrics {
             h_advance: Some(outline.adjusted_advance_width() as f32),
             x_bearing: Some(outline.adjusted_lsb() as f32),
             has_overlaps: self.plan.has_overlaps,
@@ -147,7 +147,7 @@ pub(crate) fn draw_plan<'a>(
     precision: Precision,
     buf: &mut [u8],
     sink: &mut dyn PathSink,
-) -> Result<ComputedMetrics, Error> {
+) -> Result<DrawnMetrics, Error> {
     let units_per_em = context.units_per_em();
     match precision {
         Precision::Fixed => load_and_draw(
@@ -176,11 +176,11 @@ fn load_and_draw<'a, S: Scale>(
     options: &DrawOptions,
     buf: &mut [u8],
     mut sink: &mut dyn PathSink,
-) -> Result<ComputedMetrics, Error> {
+) -> Result<DrawnMetrics, Error> {
     let lengths = plan.buffer_lengths::<S>();
     let buffers = Buffers::from_bytes(buf, &lengths)?;
     let outline = plan.load(context, scale, buffers, None)?;
-    let metrics = ComputedMetrics {
+    let metrics = DrawnMetrics {
         h_advance: Some(outline.adjusted_advance_width().to_f32()),
         x_bearing: Some(outline.adjusted_lsb().to_f32()),
         has_overlaps: plan.has_overlaps,

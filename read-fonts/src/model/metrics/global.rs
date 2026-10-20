@@ -17,20 +17,24 @@ use types::{BoundingBox, F48Dot16};
 /// two ends.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct LineExtents<T> {
-    /// Distance from the baseline to the top of the line.
+    /// Height of the line above the baseline. Never negative.
     pub ascender: T,
-    /// Distance from the baseline to the bottom of the line. Usually negative.
+    /// Depth of the line below the baseline, as a negative value. Never
+    /// positive.
     pub descender: T,
 }
 
 /// Ascender, descender and line gap from one table.
 ///
-/// In font units unless a caller names another unit.
+/// In font units unless a caller names another unit. The ascender is above
+/// the baseline and the descender below it, whatever sign a font stores
+/// them with.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct LineBox<T = F48Dot16> {
-    /// Distance from the baseline to the top of the line.
+    /// Height of the line above the baseline. Never negative.
     pub ascender: T,
-    /// Distance from the baseline to the bottom of the line. Usually negative.
+    /// Depth of the line below the baseline, as a negative value. Never
+    /// positive.
     pub descender: T,
     /// Extra space between the bottom of one line and the top of the next.
     pub line_gap: T,
@@ -166,29 +170,29 @@ impl Metrics {
             // `MVAR` names one horizontal ascender, descender and line gap
             // between them, so the same delta applies to whichever of these
             // two sets a caller goes on to believe.
-            metrics.hhea_line = Some(LineBox {
-                ascender: metric(hhea.ascender().to_i16() as i32, deltas, tags::HASC),
-                descender: metric(hhea.descender().to_i16() as i32, deltas, tags::HDSC),
-                line_gap: metric(hhea.line_gap().to_i16() as i32, deltas, tags::HLGP),
-            });
+            metrics.hhea_line = Some(line_box(
+                metric(hhea.ascender().to_i16() as i32, deltas, tags::HASC),
+                metric(hhea.descender().to_i16() as i32, deltas, tags::HDSC),
+                metric(hhea.line_gap().to_i16() as i32, deltas, tags::HLGP),
+            ));
             metrics.max_h_advance =
                 Some(F48Dot16::from_i32(hhea.advance_width_max().to_u16() as i32));
         }
         if let Ok(vhea) = tables.selected_vhea() {
-            metrics.vhea_line = Some(LineBox {
-                ascender: metric(vhea.ascender().to_i16() as i32, deltas, tags::VASC),
-                descender: metric(vhea.descender().to_i16() as i32, deltas, tags::VDSC),
-                line_gap: metric(vhea.line_gap().to_i16() as i32, deltas, tags::VLGP),
-            });
+            metrics.vhea_line = Some(line_box(
+                metric(vhea.ascender().to_i16() as i32, deltas, tags::VASC),
+                metric(vhea.descender().to_i16() as i32, deltas, tags::VDSC),
+                metric(vhea.line_gap().to_i16() as i32, deltas, tags::VLGP),
+            ));
             metrics.max_v_advance =
                 Some(F48Dot16::from_i32(vhea.advance_height_max().to_u16() as i32));
         }
         if let Ok(os2) = tables.os2() {
-            metrics.typo_line = Some(LineBox {
-                ascender: metric(os2.s_typo_ascender() as i32, deltas, tags::HASC),
-                descender: metric(os2.s_typo_descender() as i32, deltas, tags::HDSC),
-                line_gap: metric(os2.s_typo_line_gap() as i32, deltas, tags::HLGP),
-            });
+            metrics.typo_line = Some(line_box(
+                metric(os2.s_typo_ascender() as i32, deltas, tags::HASC),
+                metric(os2.s_typo_descender() as i32, deltas, tags::HDSC),
+                metric(os2.s_typo_line_gap() as i32, deltas, tags::HLGP),
+            ));
             metrics.win_line = Some(LineExtents {
                 ascender: metric(os2.us_win_ascent() as i32, deltas, tags::HCLA),
                 descender: -metric(os2.us_win_descent() as i32, deltas, tags::HCLD),
@@ -295,6 +299,21 @@ impl Metrics {
 ///
 /// This is `stated` if it is between 16 and 16384, and 1000 otherwise, which
 /// matches HarfBuzz.
+/// Returns a line with its ascender above the baseline and its descender
+/// below it.
+///
+/// The `hhea`, `vhea` and `OS/2` descenders are negative by the
+/// specification, but some fonts store them positive, which would put the
+/// bottom of the line above the baseline. Either end is read by its size
+/// alone. The gap is kept as stored.
+fn line_box(ascender: F48Dot16, descender: F48Dot16, line_gap: F48Dot16) -> LineBox {
+    LineBox {
+        ascender: ascender.abs(),
+        descender: -descender.abs(),
+        line_gap,
+    }
+}
+
 pub(crate) fn units_per_em(stated: u16) -> u16 {
     if (16..=16384).contains(&stated) {
         stated
@@ -307,6 +326,52 @@ pub(crate) fn units_per_em(stated: u16) -> u16 {
 mod tests {
     use super::*;
     use crate::FontRef;
+
+    /// Returns Tinos with the sign of its `hhea` descender flipped, as some
+    /// fonts store it.
+    fn positive_descender() -> Vec<u8> {
+        let mut data = font_test_data::TINOS_SUBSET.to_vec();
+        let font = FontRef::new(font_test_data::TINOS_SUBSET).unwrap();
+        let record = font
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == types::Tag::new(b"hhea"))
+            .unwrap();
+        // The descender follows the version and the ascender.
+        let at = record.offset() as usize + 6;
+        let descender = i16::from_be_bytes([data[at], data[at + 1]]);
+        assert!(descender < 0);
+        data[at..at + 2].copy_from_slice(&(-descender).to_be_bytes());
+        data
+    }
+
+    // A descender stored positive is read below the baseline, as is the
+    // vertical advance of a font without `vmtx`, which spans the line.
+    #[test]
+    fn descenders_stored_positive_are_below_the_baseline() {
+        use crate::model::Font;
+        use alloc::vec::Vec;
+        use types::GlyphId;
+        let flipped = positive_descender();
+        let stored = FontRef::new(&flipped).unwrap().hhea().unwrap().descender();
+        assert!(stored.to_i16() > 0);
+        let original =
+            Metrics::from_sfnt(&FontRef::new(font_test_data::TINOS_SUBSET).unwrap(), &[]);
+        let metrics = Metrics::from_sfnt(&FontRef::new(&flipped).unwrap(), &[]);
+        assert_eq!(metrics.hhea_line, original.hhea_line);
+        assert_eq!(metrics.h_line(), original.h_line());
+        assert!(metrics.h_line().unwrap().descender < F48Dot16::ZERO);
+        let [original, flipped] = [font_test_data::TINOS_SUBSET.to_vec(), flipped]
+            .map(|data| Font::new(data, 0).unwrap());
+        assert!(flipped.tables().vmtx().is_err());
+        let advances = |font: &Font| -> Vec<_> {
+            (0..font.num_glyphs())
+                .map(|gid| font.glyph_metrics().v_advance_exact(GlyphId::new(gid)))
+                .collect()
+        };
+        assert_eq!(advances(&flipped), advances(&original));
+    }
 
     fn line(ascender: i32, descender: i32) -> LineBox {
         LineBox {

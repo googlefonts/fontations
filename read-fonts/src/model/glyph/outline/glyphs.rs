@@ -5,7 +5,7 @@ use super::{
     glyf::{draw_plan, plan_buffer_size, FontAt, GlyfContext, GlyfGlyph, Precision},
     type1::Type1Glyph,
     varc::{self, VarcGlyph},
-    ComputedMetrics, ControlBoundsSink, DrawMemory, DrawOptions, PathSink, PointsFromPath,
+    ControlBoundsSink, DrawMemory, DrawOptions, DrawnMetrics, PathSink, PointsFromPath,
     UnscaledOutlineSink,
 };
 use crate::model::Error;
@@ -285,7 +285,6 @@ fn same_location(a: &[F2Dot14], b: &[F2Dot14]) -> bool {
 /// Each variant contains the data needed to draw that source: a `glyf`
 /// plan, a CFF subfont, or a composite tree. To hint an outline, match on
 /// the variant and use the source's own types.
-#[non_exhaustive]
 #[derive(Clone)]
 pub enum OutlineGlyph<'a> {
     /// A TrueType outline.
@@ -343,7 +342,7 @@ impl OutlineGlyph<'_> {
         options: &DrawOptions,
         memory: DrawMemory<'_>,
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         self.draw_dyn(options, Precision::Fixed, memory.into_buffer(), sink)
     }
 
@@ -357,7 +356,7 @@ impl OutlineGlyph<'_> {
         precision: Precision,
         memory: Option<&mut [u8]>,
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         match self {
             Self::Cff(glyph) => glyph.draw(options, sink),
             Self::Type1(glyph) => glyph.draw(options, sink),
@@ -401,7 +400,7 @@ impl OutlineGlyph<'_> {
         &self,
         memory: DrawMemory<'_>,
         sink: &mut dyn UnscaledOutlineSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         self.draw_unscaled_dyn(memory.into_buffer(), sink)
     }
 
@@ -409,7 +408,7 @@ impl OutlineGlyph<'_> {
         &self,
         memory: Option<&mut [u8]>,
         sink: &mut dyn UnscaledOutlineSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         let options = DrawOptions::default();
         match self {
             Self::Glyf(glyph) => match memory {

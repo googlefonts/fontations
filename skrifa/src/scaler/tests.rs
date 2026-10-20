@@ -32,14 +32,14 @@ fn draw(
     scaler: &ScalerFont,
     glyph: GlyphId,
     sink: &mut impl PathSink,
-) -> Result<ComputedMetrics, ScaleError> {
+) -> Result<DrawnMetrics, ScaleError> {
     scaler
         .outline(glyph)
         .ok_or(ScaleError::GlyphNotFound(glyph))?
         .draw(DrawMemory::Scratch, sink)
 }
 
-fn svg_scaler(scaler: &ScalerFont, glyph: GlyphId) -> Option<(String, ComputedMetrics)> {
+fn svg_scaler(scaler: &ScalerFont, glyph: GlyphId) -> Option<(String, DrawnMetrics)> {
     let mut pen = SvgPen::new();
     let metrics = draw(scaler, glyph, &mut pen).ok()?;
     Some((pen.to_string(), metrics))
@@ -432,6 +432,16 @@ fn a_scaler_draws_from_the_sources_it_is_given() {
     let base_only = || ScalerSource::new(model.clone(), GlyphSourceOrder::BASE_OUTLINES);
     let varc = ScalerFont::force_unhinted(model.clone(), Some(16.0));
     let base = ScalerFont::force_unhinted(base_only(), Some(16.0));
+    assert_eq!(varc.outline_source(), Some(OutlineSource::Varc));
+    assert_eq!(varc.underlying_outline_source(), Some(OutlineSource::Glyf));
+    assert_eq!(base.outline_source(), Some(OutlineSource::Glyf));
+    assert_eq!(base.underlying_outline_source(), Some(OutlineSource::Glyf));
+    let none = ScalerFont::force_unhinted(
+        ScalerSource::new(model.clone(), GlyphSourceOrder::COLOR),
+        Some(16.0),
+    );
+    assert_eq!(none.outline_source(), None);
+    assert_eq!(none.underlying_outline_source(), None);
     let glyph = (0..model.num_glyphs())
         .map(GlyphId::new)
         .find(|glyph| {
@@ -651,10 +661,10 @@ fn dropout_control_off_when_unrequested() {
 #[test]
 fn hinting_defaults() {
     let hinting = HintOptions::auto_fallback();
-    assert!(matches!(hinting.engine(), HintEngine::AutoFallback));
+    assert!(matches!(hinting.engine(), EngineRequest::AutoFallback));
     assert!(matches!(
         HintOptions::default().engine(),
-        HintEngine::AutoFallback
+        EngineRequest::AutoFallback
     ));
     assert_eq!(hinting.target(), RasterTarget::Normal);
     assert!(!hinting.classic_cleartype());
@@ -1300,4 +1310,124 @@ fn a_bad_subfont_fails_only_its_own_glyphs() {
         drawn += 1;
     }
     assert!(drawn > 0);
+}
+
+// A scaler's metrics are the font's, scaled linearly to its size, or in
+// font units without one.
+#[test]
+fn metrics_are_scaled_to_the_size() {
+    let font = font(font_test_data::TINOS_SUBSET);
+    let upem = font.units_per_em() as f32;
+    for scaler in [
+        ScalerFont::hinted(font.clone(), 16.0, HintOptions::interpreter()),
+        ScalerFont::unhinted(font.clone(), Some(16.0)),
+    ] {
+        assert_eq!(
+            scaler.metrics().h_line(),
+            font.metrics().scaled_f32(16.0).h_line()
+        );
+        assert_eq!(
+            scaler.style_metrics().underline(),
+            font.style_metrics().scaled_f32(16.0).underline()
+        );
+    }
+    let unscaled = ScalerFont::unhinted(font.clone(), None);
+    assert_eq!(
+        unscaled.metrics().h_line(),
+        font.metrics().scaled_f32(upem).h_line()
+    );
+    let line = font.metrics().h_line().unwrap();
+    assert_eq!(
+        unscaled.metrics().h_line().unwrap().ascender,
+        line.ascender.to_f32()
+    );
+}
+
+// Linear glyph metrics are the font's, scaled to the size, with extents
+// measured from the sources the scaler draws from.
+#[test]
+fn linear_glyph_metrics_follow_the_scaler() {
+    let font = font(font_test_data::TINOS_SUBSET);
+    let scaler = ScalerFont::hinted(font.clone(), 16.0, HintOptions::interpreter());
+    let linear = scaler.linear_glyph_metrics();
+    let expected = font.glyph_metrics().scaled_f32(16.0);
+    let mut differs = false;
+    for gid in 0..font.num_glyphs() {
+        let glyph = GlyphId::new(gid);
+        assert_eq!(linear.h_advance(glyph), expected.h_advance(glyph));
+        assert_eq!(linear.extents(glyph), expected.extents(glyph));
+        // Hinting rounds the drawn advance, which the linear one is not.
+        let drawn = draw(&scaler, glyph, &mut NullPen).unwrap();
+        differs |= drawn.h_advance != Some(linear.h_advance(glyph));
+    }
+    assert!(differs);
+    // A scaler drawing only from `COLR` measures nothing in a font without
+    // it.
+    let color = ScalerFont::unhinted(
+        ScalerSource::new(font.clone(), GlyphSourceOrder::COLOR),
+        Some(16.0),
+    );
+    assert!(expected.extents(GlyphId::new(1)).is_some());
+    assert!(color
+        .linear_glyph_metrics()
+        .extents(GlyphId::new(1))
+        .is_none());
+}
+
+// The engine a scaler runs follows the options and the font.
+#[test]
+fn hint_engine_reports_what_runs() {
+    let tinos = font(font_test_data::TINOS_SUBSET);
+    let cff = font(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED);
+    let engine =
+        |font: &Font, options| ScalerFont::hinted(font.clone(), 16.0, options).hint_engine();
+    assert_eq!(
+        engine(&tinos, HintOptions::interpreter()),
+        Some(HintEngine::TrueType)
+    );
+    assert_eq!(
+        engine(&tinos, HintOptions::auto_fallback()),
+        Some(HintEngine::TrueType)
+    );
+    assert_eq!(engine(&tinos, HintOptions::auto()), Some(HintEngine::Auto));
+    assert_eq!(
+        engine(&cff, HintOptions::interpreter()),
+        Some(HintEngine::PostScript)
+    );
+    // A PostScript font always runs its own hints when they are allowed.
+    assert_eq!(
+        engine(&cff, HintOptions::auto_fallback()),
+        Some(HintEngine::PostScript)
+    );
+    assert_eq!(engine(&cff, HintOptions::auto()), Some(HintEngine::Auto));
+    // Unhinted, except for a font that needs its instructions.
+    assert_eq!(
+        ScalerFont::unhinted(tinos.clone(), Some(16.0)).hint_engine(),
+        None
+    );
+    assert_eq!(
+        ScalerFont::unhinted(hint_reliant_tinos(), Some(16.0)).hint_engine(),
+        Some(HintEngine::TrueType)
+    );
+    assert_eq!(
+        ScalerFont::unhinted(hint_reliant_tinos(), None).hint_engine(),
+        None
+    );
+}
+
+// Debug output names the scaler's configuration without dumping the font.
+#[test]
+fn scalers_debug_print_their_configuration() {
+    let font = font(font_test_data::TINOS_SUBSET);
+    let scaler = ScalerFont::hinted(font.clone(), 16.0, HintOptions::interpreter());
+    let printed = format!("{scaler:?}");
+    assert!(printed.starts_with("ScalerFont { outline_source: Some(Glyf), ppem: Some(16.0)"));
+    assert!(printed.contains("hint_engine: Some(TrueType)"), "{printed}");
+    let outline = scaler.outline(GlyphId::new(1)).unwrap();
+    assert_eq!(
+        format!("{outline:?}"),
+        "ScalerOutline { glyph: GlyphId(1), source: Glyf }"
+    );
+    let source = ScalerSource::from(font);
+    assert!(format!("{source:?}").starts_with("ScalerSource { order: [Sbix"));
 }

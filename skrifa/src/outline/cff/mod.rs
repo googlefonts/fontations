@@ -8,8 +8,8 @@ use read_fonts::{
     model::Error,
     ps::{
         cff::{blend::BlendState, dict, fd_select::FdSelect, index::Index},
-        cs::{self, CommandSink, NopFilterSink, TransformSink},
-        transform::{self, FontMatrix, ScaledFontMatrix, Transform},
+        charstring::{self, CommandSink, NopFilterSink, TransformSink},
+        FontMatrix, ScaledFontMatrix, Transform,
     },
     tables::variations::ItemVariationStore,
     types::{F2Dot14, Fixed, GlyphId},
@@ -175,26 +175,7 @@ impl<'a> Outlines<'a> {
         let font_matrix = if let Some(top_matrix) = self.top_dict.font_matrix {
             // We have a top dict matrix. Now check for a font dict matrix.
             if let Some(sub_matrix) = font_dict.font_matrix {
-                let scaling = if top_matrix.scale > 1 && sub_matrix.scale > 1 {
-                    top_matrix.scale.min(sub_matrix.scale)
-                } else {
-                    1
-                };
-                // Concatenate and scale
-                let matrix =
-                    transform::combine_scaled(&top_matrix.matrix, &sub_matrix.matrix, scaling);
-                let upem = Fixed::from_bits(sub_matrix.scale).mul_div(
-                    Fixed::from_bits(top_matrix.scale),
-                    Fixed::from_bits(scaling),
-                );
-                // Then normalize
-                Some(
-                    ScaledFontMatrix {
-                        matrix,
-                        scale: upem.to_bits(),
-                    }
-                    .normalize(),
-                )
+                Some(top_matrix.combine(&sub_matrix))
             } else {
                 // Top matrix was already normalized on load
                 Some(top_matrix)
@@ -383,7 +364,7 @@ impl CharstringEvaluator<'_> {
     fn evaluate(self, sink: &mut impl CommandSink) -> Result<Option<Fixed>, Error> {
         let subrs = self.subrs.unwrap_or_default();
         let ctx = (self.cff_data, &self.charstrings, &self.global_subrs, &subrs);
-        cs::evaluate(&ctx, self.blend_state, self.charstring_data, sink)
+        charstring::evaluate(&ctx, self.blend_state, self.charstring_data, sink)
     }
 }
 
@@ -689,7 +670,7 @@ mod tests {
     };
     use font_test_data::bebuffer::BeBuffer;
     use raw::tables::cff2::Cff2;
-    use read_fonts::ps::hinting::Blues;
+    use read_fonts::ps::Blues;
     use read_fonts::FontRef;
 
     #[test]

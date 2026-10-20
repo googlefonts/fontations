@@ -1,42 +1,6 @@
 //! Scaled and hinted glyphs from a [`Font`].
 //!
-//! A [`ScalerFont`] holds a located [`Font`], a size in pixels per em, and
-//! hinting options, and draws the font's glyphs at that size. It is configured
-//! once and used for many draws.
-//!
-//! ```
-//! use skrifa::{
-//!     font::Font,
-//!     outline::pen::SvgPen,
-//!     scaler::{DrawMemory, HintOptions, RasterTarget, ScalerFont},
-//!     GlyphId,
-//! };
-//!
-//! # fn wrapper(font: Font) -> Result<(), skrifa::scaler::ScaleError> {
-//! let options = HintOptions::interpreter().with_target(RasterTarget::Lcd);
-//! let scaler = ScalerFont::hinted(font, 16.0, options);
-//!
-//! if let Some(outline) = scaler.outline(GlyphId::new(3)) {
-//!     let mut path = SvgPen::new();
-//!     let metrics = outline.draw(DrawMemory::Scratch, &mut path)?;
-//!     println!("{path} advances by {:?}", metrics.h_advance);
-//! }
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! [`ScalerFont::outline`] resolves a glyph's outline as a [`ScalerOutline`].
-//! A caller can size its own working memory before drawing it.
-//!
-//! A scaler draws from the font's outline sources in
-//! [`GlyphSourceOrder::DEFAULT`]. To draw from other sources, pass a
-//! [`ScalerSource`] in place of the font.
-//!
-//! [`HintOptions`] selects the hinting engine, the rasterization target, and
-//! whether the TrueType interpreter uses the classic ClearType behavior.
-//! [`ScalerFont::raster_policy`] returns the rasterizer settings the font
-//! requests at the size. [`ComputedMetrics::dropout_control`] returns the
-//! dropout control a glyph program requests from a bilevel rasterizer.
+//! The crate root re-exports the types.
 
 mod error;
 mod hinting;
@@ -48,9 +12,9 @@ mod tests;
 
 pub use crate::outline::glyf::{DropoutControl, RasterPolicy};
 pub use error::ScaleError;
-use hinting::HintEngine;
-pub use hinting::{HintOptions, RasterTarget};
-pub use raw::model::glyph::outline::{ComputedMetrics, DrawMemory, OutlineSource, PathSink};
+use hinting::EngineRequest;
+pub use hinting::{HintEngine, HintOptions, RasterTarget};
+pub use raw::model::glyph::outline::{DrawMemory, DrawnMetrics, OutlineSource, PathSink};
 pub use raw::model::glyph::{GlyphSource, GlyphSourceOrder};
 
 use crate::{
@@ -64,6 +28,7 @@ use alloc::boxed::Box;
 use core_maths::CoreFloat;
 use raw::{
     model::glyph::outline::{DrawOptions, OutlineGlyph, OutlineGlyphs, PathContourStart},
+    model::metrics::{ScaleF32, ScaledGlyphMetrics, ScaledMetrics, ScaledStyleMetrics},
     ps::cff::CffFontRef,
     types::{Fixed, GlyphId},
 };
@@ -75,7 +40,7 @@ const _: () = {
     let _ = shared::<ScalerFont>;
 };
 
-impl From<AdjustedMetrics> for ComputedMetrics {
+impl From<AdjustedMetrics> for DrawnMetrics {
     fn from(metrics: AdjustedMetrics) -> Self {
         let mut computed = Self::default();
         computed.h_advance = metrics.advance_width;
@@ -95,6 +60,9 @@ impl From<AdjustedMetrics> for ComputedMetrics {
 pub struct ScalerFont {
     /// The font, with its outlines resolved once rather than for every draw.
     outlines: Yoke<OutlineGlyphs<'static>, Box<Font>>,
+    /// The order the outline sources were resolved in, which glyph extents
+    /// follow too.
+    order: GlyphSourceOrder,
     /// Pixels per em, or `None` for font units.
     ppem: Option<f32>,
     hint_options: Option<HintOptions>,
@@ -121,9 +89,28 @@ impl ScalerSource {
     }
 }
 
+impl core::fmt::Debug for ScalerSource {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ScalerSource")
+            .field("order", &self.order)
+            .finish_non_exhaustive()
+    }
+}
+
 impl From<Font> for ScalerSource {
     fn from(font: Font) -> Self {
         Self::new(font, GlyphSourceOrder::DEFAULT)
+    }
+}
+
+impl core::fmt::Debug for ScalerFont {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ScalerFont")
+            .field("outline_source", &self.outline_source())
+            .field("ppem", &self.ppem)
+            .field("hint_options", &self.hint_options)
+            .field("hint_engine", &self.hint_engine())
+            .finish_non_exhaustive()
     }
 }
 
@@ -155,6 +142,7 @@ impl ScalerFont {
         let source = font.into();
         let tricky = ppem.is_some() && source.font.is_hint_reliant();
         let mut scaler = Self {
+            order: source.order,
             outlines: resolve_outlines(source),
             ppem,
             hint_options: tricky.then(HintOptions::interpreter),
@@ -169,8 +157,10 @@ impl ScalerFont {
     ///
     /// `ppem` is the size in pixels per em, or `None` for font units.
     pub fn force_unhinted(font: impl Into<ScalerSource>, ppem: Option<f32>) -> Self {
+        let source = font.into();
         Self {
-            outlines: resolve_outlines(font.into()),
+            order: source.order,
+            outlines: resolve_outlines(source),
             ppem,
             hint_options: None,
             state: State::Unhinted,
@@ -182,8 +172,10 @@ impl ScalerFont {
     ///
     /// Hinting fits an outline to a pixel grid, so it always requires a size.
     pub fn hinted(font: impl Into<ScalerSource>, ppem: f32, hint_options: HintOptions) -> Self {
+        let source = font.into();
         let mut scaler = Self {
-            outlines: resolve_outlines(font.into()),
+            order: source.order,
+            outlines: resolve_outlines(source),
             ppem: Some(ppem),
             hint_options: Some(hint_options),
             state: State::Unhinted,
@@ -207,7 +199,9 @@ impl ScalerFont {
         ppem: f32,
         hint_options: HintOptions,
     ) {
-        self.outlines = resolve_outlines(font.into());
+        let source = font.into();
+        self.order = source.order;
+        self.outlines = resolve_outlines(source);
         self.ppem = Some(ppem);
         self.hint_options = Some(hint_options);
         self.configure();
@@ -216,6 +210,26 @@ impl ScalerFont {
     /// Returns the font, set to its variation location.
     pub fn font(&self) -> &Font {
         self.outlines.backing_cart()
+    }
+
+    /// Returns the table that provides the outlines.
+    ///
+    /// This is [`OutlineSource::Varc`] if `VARC` composites are drawn. The
+    /// composites cover only some glyphs, and the rest come from the
+    /// [`underlying_outline_source`](Self::underlying_outline_source).
+    /// Returns `None` if the font has no outlines from the scaler's sources.
+    pub fn outline_source(&self) -> Option<OutlineSource> {
+        self.outlines.get().source()
+    }
+
+    /// Returns the table that draws the glyphs `VARC` does not cover and the
+    /// components of those it does.
+    ///
+    /// This is the same as [`outline_source`](Self::outline_source) unless
+    /// `VARC` composites are drawn, and is never [`OutlineSource::Varc`].
+    /// Returns `None` if the font has no outlines from the scaler's sources.
+    pub fn underlying_outline_source(&self) -> Option<OutlineSource> {
+        self.outlines.get().underlying_source()
     }
 
     /// Returns the size in pixels per em, or `None` for font units.
@@ -233,6 +247,22 @@ impl ScalerFont {
         match &self.state {
             State::TrueType(hinter) => hinter.ppem().or(self.ppem),
             _ => self.ppem,
+        }
+    }
+
+    /// Returns the hinting engine the scaler runs, or `None` if it does not
+    /// hint.
+    ///
+    /// A scaler does not hint without hinting options or a size, or where
+    /// setup failed, which [`hinting_error`](Self::hinting_error) reports. A
+    /// TrueType font can turn its hinting off at some sizes, so the engine
+    /// can be selected where [`is_hinted`](Self::is_hinted) is false.
+    pub fn hint_engine(&self) -> Option<HintEngine> {
+        match &self.state {
+            State::TrueType(_) => Some(HintEngine::TrueType),
+            State::PostScript(_) => Some(HintEngine::PostScript),
+            State::Auto(_) => Some(HintEngine::Auto),
+            State::Unhinted | State::Failed(_) => None,
         }
     }
 
@@ -278,6 +308,41 @@ impl ScalerFont {
             State::TrueType(hinter) => Some(hinter.raster_policy()),
             _ => None,
         }
+    }
+
+    /// Returns the metrics describing the font as a whole, in pixels at
+    /// [`ppem`](Self::ppem), or in font units without a size.
+    ///
+    /// These are scaled linearly; hinting does not change them.
+    pub fn metrics(&self) -> ScaledMetrics<'_, ScaleF32> {
+        let metrics = self.font().metrics();
+        metrics.scaled_f32(self.ppem.unwrap_or(metrics.units_per_em as f32))
+    }
+
+    /// Returns the font-wide style measurements, in pixels at
+    /// [`ppem`](Self::ppem), or in font units without a size.
+    ///
+    /// These are scaled linearly; hinting does not change them.
+    pub fn style_metrics(&self) -> ScaledStyleMetrics<'_, ScaleF32> {
+        let style = self.font().style_metrics();
+        style.scaled_f32(self.ppem.unwrap_or(style.units_per_em as f32))
+    }
+
+    /// Returns the glyph metrics, in pixels at [`ppem`](Self::ppem), or in
+    /// font units without a size.
+    ///
+    /// These are scaled linearly; hinting does not change them. For a hinted
+    /// glyph's advance, draw its outline: [`ScalerOutline::draw`] returns it
+    /// in [`DrawnMetrics::h_advance`].
+    ///
+    /// Glyph extents are measured from the sources the scaler draws from, in
+    /// the same order.
+    pub fn linear_glyph_metrics(&self) -> ScaledGlyphMetrics<'_, 'static, ScaleF32> {
+        let font = self.font();
+        let ppem = self.ppem.unwrap_or(font.units_per_em() as f32);
+        font.glyph_metrics()
+            .with_extents_source_order(self.order)
+            .scaled_f32(ppem)
     }
 
     /// Returns the outline of `glyph`, resolved for drawing.
@@ -338,7 +403,7 @@ impl ScalerFont {
         ppem: Option<f32>,
         memory: Option<&mut [u8]>,
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, ScaleError> {
+    ) -> Result<DrawnMetrics, ScaleError> {
         let glyph = outline.glyph();
         let options = draw_options(ppem);
         let supplied = memory.as_ref().map_or(0, |memory| memory.len());
@@ -408,9 +473,9 @@ impl<'a> EngineChoice<'a> {
             return Self::TrueType;
         }
         let instructions = match hinting.engine() {
-            HintEngine::Interpreter => true,
-            HintEngine::Auto => false,
-            HintEngine::AutoFallback => match source {
+            EngineRequest::Interpreter => true,
+            EngineRequest::Auto => false,
+            EngineRequest::AutoFallback => match source {
                 Some(OutlineSource::Glyf) => truetype::prefer_interpreter(font.tables()),
                 _ => true,
             },
@@ -436,6 +501,15 @@ impl<'a> EngineChoice<'a> {
 pub struct ScalerOutline<'a> {
     scaler: &'a ScalerFont,
     outline: OutlineGlyph<'a>,
+}
+
+impl core::fmt::Debug for ScalerOutline<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ScalerOutline")
+            .field("glyph", &self.glyph())
+            .field("source", &self.source())
+            .finish()
+    }
 }
 
 impl ScalerOutline<'_> {
@@ -474,7 +548,7 @@ impl ScalerOutline<'_> {
         &self,
         memory: DrawMemory<'_>,
         sink: &mut impl PathSink,
-    ) -> Result<ComputedMetrics, ScaleError> {
+    ) -> Result<DrawnMetrics, ScaleError> {
         let memory = match memory {
             DrawMemory::Buffer(buffer) => Some(buffer),
             _ => None,
@@ -488,7 +562,7 @@ impl ScalerOutline<'_> {
         &self,
         memory: Option<&mut [u8]>,
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, ScaleError> {
+    ) -> Result<DrawnMetrics, ScaleError> {
         let scaler = self.scaler;
         match (&scaler.state, &self.outline) {
             (State::Failed(error), _) => Err(ScaleError::clone(error)),
@@ -500,7 +574,7 @@ impl ScalerOutline<'_> {
                 );
                 let size = scaler.ppem.map_or_else(Size::unscaled, Size::new);
                 let mut sink = sink;
-                let mut metrics = ComputedMetrics::from(
+                let mut metrics = DrawnMetrics::from(
                     instance
                         .draw(&context, size, self.glyph(), PathStyle::FreeType, &mut sink)
                         .map_err(|error| {

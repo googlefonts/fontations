@@ -2,7 +2,7 @@
 //!
 //! The charstrings are parsed and evaluated by [`crate::ps::type1`].
 
-use super::{ComputedMetrics, DrawOptions, PathSink};
+use super::{DrawOptions, DrawnMetrics, PathSink};
 use crate::model::Error;
 use crate::{ps::type1::Type1Font, types::GlyphId};
 
@@ -28,9 +28,9 @@ impl<'a> Type1Glyph<'a> {
         &self,
         options: &DrawOptions,
         mut sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         let h_advance = self.font.draw(self.glyph, options.ppem, &mut sink)?;
-        Ok(ComputedMetrics {
+        Ok(DrawnMetrics {
             h_advance,
             ..Default::default()
         })

@@ -3,7 +3,7 @@
 //! read-fonts runs the charstrings, and this crate's PostScript hinter hints
 //! them before the font matrix is applied.
 
-use super::{ComputedMetrics, ScaleError};
+use super::{DrawnMetrics, ScaleError};
 use crate::{
     font::Font,
     outline::cff::{scale_for_hinting, HintParams, HintState, HintedTransformingSink, HintingSink},
@@ -14,9 +14,8 @@ use raw::{
     model::glyph::outline::{cff::CffGlyph, PathSink},
     ps::{
         cff::{CffFontRef, Subfont},
-        cs::NopFilterSink,
-        hinting::HintingParams,
-        transform::{FontMatrix, Transform},
+        charstring::NopFilterSink,
+        FontMatrix, HintingParams, Transform,
     },
     types::{F2Dot14, Fixed},
 };
@@ -72,7 +71,7 @@ impl PostScriptHinter {
         font: &Font,
         outline: &CffGlyph<'_>,
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, ScaleError> {
+    ) -> Result<DrawnMetrics, ScaleError> {
         let cff = outline.cff_font();
         let glyph = outline.glyph();
         let coords = outline.normalized_coords();
@@ -109,7 +108,7 @@ impl PostScriptHinter {
             // A charstring can state a width below zero. Report none and
             // leave the caller to its linear metrics.
             .filter(|width| *width >= 0.0);
-        let mut metrics = ComputedMetrics::default();
+        let mut metrics = DrawnMetrics::default();
         metrics.h_advance = advance_width;
         Ok(metrics)
     }

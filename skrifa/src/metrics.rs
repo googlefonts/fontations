@@ -81,9 +81,10 @@ pub struct Metrics {
     /// Italic angle in counter-clockwise degrees from the vertical. Zero for upright text,
     /// negative for text that leans to the right.
     pub italic_angle: f32,
-    /// Distance from the baseline to the top of the alignment box.
+    /// Height of the alignment box above the baseline. Never negative.
     pub ascent: f32,
-    /// Distance from the baseline to the bottom of the alignment box.
+    /// Depth of the alignment box below the baseline, as a negative value.
+    /// Never positive.
     pub descent: f32,
     /// Recommended additional spacing between lines.
     pub leading: f32,
@@ -213,6 +214,11 @@ impl Metrics {
                 strikeout.thickness += metric_delta(STRS);
             }
         }
+        // The ascent is above the baseline and the descent below it. Some
+        // fonts store a descender, or an ascender, with the other sign, so
+        // each is taken by its size alone.
+        metrics.ascent = metrics.ascent.abs();
+        metrics.descent = -metrics.descent.abs();
         metrics
     }
 }
@@ -420,6 +426,41 @@ mod tests {
     use super::*;
     use font_test_data::{NOTO_SANS_JP_CFF, SIMPLE_GLYF, VAZIRMATN_VAR};
     use read_fonts::FontRef;
+
+    /// Returns Tinos with the sign of its `hhea` descender flipped, as some
+    /// fonts store it.
+    fn positive_descender() -> Vec<u8> {
+        let mut data = font_test_data::TINOS_SUBSET.to_vec();
+        let font = FontRef::new(font_test_data::TINOS_SUBSET).unwrap();
+        let record = font
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == read_fonts::types::Tag::new(b"hhea"))
+            .unwrap();
+        // The descender follows the version and the ascender.
+        let at = record.offset() as usize + 6;
+        let descender = i16::from_be_bytes([data[at], data[at + 1]]);
+        assert!(descender < 0);
+        data[at..at + 2].copy_from_slice(&(-descender).to_be_bytes());
+        data
+    }
+
+    // A descender stored positive is read below the baseline.
+    #[test]
+    fn descenders_stored_positive_are_below_the_baseline() {
+        let flipped = positive_descender();
+        let original = FontRef::new(font_test_data::TINOS_SUBSET).unwrap();
+        let flipped = FontRef::new(&flipped).unwrap();
+        let size = Size::new(16.0);
+        let original = Metrics::new(&original, size, LocationRef::default());
+        let flipped = Metrics::new(&flipped, size, LocationRef::default());
+        assert!(flipped.descent < 0.0);
+        assert_eq!(
+            (flipped.ascent, flipped.descent, flipped.leading),
+            (original.ascent, original.descent, original.leading)
+        );
+    }
 
     #[test]
     fn extended_glyph_metrics_with_any_outline_tag() {

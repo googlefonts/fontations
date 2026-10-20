@@ -2,8 +2,8 @@
 
 use crate::{
     model::{font::SharedFont, Font},
-    ps::encoding::PredefinedEncoding,
     ps::type1::Type1Font,
+    ps::PredefinedEncoding,
     tables::{
         cmap::{
             Cmap, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId, UvsSubtable,
@@ -368,7 +368,7 @@ impl<'a> Charmap<'a> {
 }
 
 fn map_ps_batched<'o>(
-    map: Option<&crate::ps::charmap::Charmap>,
+    map: Option<&crate::ps::UnicodeCharmap>,
     codepoints: impl Iterator<Item = (u32, &'o mut GlyphId)>,
 ) -> usize {
     let mut mapped = 0;
@@ -387,9 +387,7 @@ fn iter_type1_unicodes(font: &Type1Font) -> impl Iterator<Item = (u32, GlyphId)>
     iter_ps_unicodes(font.unicode_charmap())
 }
 
-fn iter_ps_unicodes(
-    map: &crate::ps::charmap::Charmap,
-) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
+fn iter_ps_unicodes(map: &crate::ps::UnicodeCharmap) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
     map.iter()
         .scan(None, move |previous, (codepoint, _)| {
             let codepoint = codepoint & 0x7fff_ffff;
@@ -704,7 +702,7 @@ impl<'a> EncodingTable<'a> {
 
 /// The selected cmap subtables and the metadata needed to use them.
 #[derive(Clone, Default, Yokeable)]
-pub(crate) struct UnicodeCharmap<'a> {
+pub(crate) struct SfntUnicodeCharmap<'a> {
     cmap: UnicodeSubtables<'a>,
     dmap: UnicodeSubtables<'a>,
 }
@@ -717,7 +715,7 @@ struct UnicodeSubtables<'a> {
     is_mac_roman: bool,
 }
 
-impl<'a> UnicodeCharmap<'a> {
+impl<'a> SfntUnicodeCharmap<'a> {
     pub(crate) fn read(font: &impl TableProvider<'a>) -> Self {
         Self {
             cmap: UnicodeSubtables::read(font.cmap().ok()),
