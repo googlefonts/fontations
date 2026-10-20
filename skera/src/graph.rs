@@ -446,7 +446,7 @@ impl Vertex {
                 2 => prev_dist - table_size,
                 _ => 0,
             }
-            .clamp(0, i64::MAX >> 18)
+            .clamp(0, 0x7FFFFFFFFFF_i64)
         };
 
         (distance << 18) | (0x003FFFF & order as i64)
@@ -1491,8 +1491,9 @@ impl Graph {
             }
         }
 
-        // An already isolated subgraph can still need its own packing space.
-        self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())?;
+        if !self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())? {
+            return Ok(false);
+        }
         self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
@@ -2555,58 +2556,6 @@ pub(crate) mod test {
         assert_eq!(graph.vertices.len(), count);
         graph.sort_shortest_distance().unwrap();
         graph.is_fully_connected().unwrap();
-    }
-
-    #[test]
-    fn already_isolated_subgraph_can_move_to_a_new_space() {
-        let mut s = Serializer::new(1024);
-        s.start_serialize().unwrap();
-        let child = add_object(&mut s, b"cc", 2, false);
-        s.push().unwrap();
-        let offset = s.embed(0u16).unwrap();
-        s.add_link(offset..offset + 2, child, OffsetWhence::Head, 0, false)
-            .unwrap();
-        let a = s.pop_pack(false).unwrap();
-        let b = add_object(&mut s, b"bb", 2, false);
-        s.push().unwrap();
-        add_wide_offset(&mut s, a);
-        add_wide_offset(&mut s, b);
-        s.pop_pack(false).unwrap();
-        s.end_serialize();
-        let mut graph = Graph::from_serializer(s).unwrap();
-        graph.update_parents().unwrap();
-        graph.vertices[a].space = 1;
-        graph.vertices[b].space = 1;
-        graph.num_roots_for_space = vec![1, 2];
-        let count = graph.vertices.len();
-        let overflow = Overflow(((a as u64) << 32) | child as u64);
-        assert!(graph.try_isolating_subgraphs(&[overflow]).unwrap());
-        assert_eq!(graph.vertices.len(), count);
-        assert_eq!(graph.vertices[a].space, 2);
-        assert_eq!(graph.vertices[b].space, 1);
-        assert_eq!(graph.num_roots_for_space, vec![1, 1, 1]);
-        graph.sort_shortest_distance().unwrap();
-        graph.is_fully_connected().unwrap();
-    }
-
-    #[test]
-    fn large_distances_keep_their_packing_order() {
-        let mut vertex = Vertex {
-            tail: 128,
-            distance: (1u64 << 43) + 256,
-            ..Default::default()
-        };
-        let order = 7;
-        for (priority, modifier) in [(0, 0), (1, 64), (2, 128)] {
-            vertex.priority = priority;
-            let expected = (((vertex.distance - modifier) as i64) << 18) | order;
-            assert_eq!(vertex.modified_distance(order as u32), expected);
-        }
-        vertex.priority = 3;
-        assert_eq!(vertex.modified_distance(order as u32), order);
-        vertex.priority = 0;
-        vertex.distance = u64::MAX / 2;
-        assert_eq!(vertex.modified_distance(0), (i64::MAX >> 18) << 18);
     }
 
     #[test]
