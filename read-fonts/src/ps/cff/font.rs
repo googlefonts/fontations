@@ -8,11 +8,11 @@ use crate::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
             fd_select::FdSelect, index::Index,
         },
-        cs::{self, CommandSink, NopFilterSink, TransformSink},
+        charstring::{self, CommandSink, NopFilterSink, TransformSink},
         encoding::PredefinedEncoding,
         hinting::HintingParams,
         string::Sid,
-        transform::{self, ScaledFontMatrix, Transform},
+        transform::{ScaledFontMatrix, Transform},
     },
     tables::{cff, cff2, variations::ItemVariationStore},
     FontData, FontRead,
@@ -297,26 +297,7 @@ impl<'a> CffFontRef<'a> {
         let scaled_matrix = if let Some(top_matrix) = self.top_dict.matrix {
             // We have a top dict matrix. Now check for a font dict matrix.
             if let Some(sub_matrix) = subfont.matrix {
-                let scaling = if top_matrix.scale > 1 && sub_matrix.scale > 1 {
-                    top_matrix.scale.min(sub_matrix.scale)
-                } else {
-                    1
-                };
-                // Concatenate and scale
-                let matrix =
-                    transform::combine_scaled(&top_matrix.matrix, &sub_matrix.matrix, scaling);
-                let scaled_upem = Fixed::from_bits(sub_matrix.scale).mul_div(
-                    Fixed::from_bits(top_matrix.scale),
-                    Fixed::from_bits(scaling),
-                );
-                // Then normalize
-                Some(
-                    ScaledFontMatrix {
-                        matrix,
-                        scale: scaled_upem.to_bits(),
-                    }
-                    .normalize(),
-                )
+                Some(top_matrix.combine(&sub_matrix))
             } else {
                 // Top matrix was already normalized on load
                 Some(top_matrix)
@@ -404,10 +385,12 @@ impl<'a> CffFontRef<'a> {
             .get(gid.to_u32() as usize)
             .ok_or(Error::Malformed)?;
         let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
-        Ok(match cs::evaluate_width(&ctx, blend, charstring_data)? {
-            Some(width) => Some(width + subfont.nominal_width),
-            None => subfont.default_width,
-        })
+        Ok(
+            match charstring::evaluate_width(&ctx, blend, charstring_data)? {
+                Some(width) => Some(width + subfont.nominal_width),
+                None => subfont.default_width,
+            },
+        )
     }
 
     /// Evaluates the charstring for the requested glyph and sends the results
@@ -438,7 +421,7 @@ impl<'a> CffFontRef<'a> {
             .get(gid.to_u32() as usize)
             .ok_or(Error::Malformed)?;
         let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
-        if let Some(width) = cs::evaluate(&ctx, blend, charstring_data, sink)? {
+        if let Some(width) = charstring::evaluate(&ctx, blend, charstring_data, sink)? {
             Ok(Some(width + subfont.nominal_width))
         } else {
             Ok(subfont.default_width)
@@ -490,10 +473,10 @@ impl<'a> CffFontRef<'a> {
         gid: GlyphId,
         coords: &[F2Dot14],
     ) -> Result<Option<BoundingBox<Fixed>>, Error> {
-        let mut bounds = cs::ControlBoundsSink::new();
-        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let mut bounds = charstring::ControlBoundsSink::new();
+        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
         let transform = self.transform(subfont, None);
-        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
         self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
         Ok(bounds.bounding_box())
     }
@@ -518,10 +501,10 @@ impl<'a> CffFontRef<'a> {
         coords: &[F2Dot14],
         ppem: Option<f32>,
     ) -> Result<Option<BoundingBox<f32>>, Error> {
-        let mut bounds = cs::ControlBoundsSink::new();
-        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let mut bounds = charstring::ControlBoundsSink::new();
+        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
         let transform = self.transform(subfont, ppem);
-        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
         self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
         Ok(bounds.bounding_box().map(|b| BoundingBox {
             x_min: b.x_min.to_f32(),
@@ -1036,7 +1019,7 @@ mod tests {
         ps::{hinting::Blues, transform::FontMatrix},
         FontData, FontRef, TableProvider,
     };
-    use cs::test_helpers::*;
+    use charstring::test_helpers::*;
     use font_test_data::bebuffer::BeBuffer;
 
     #[test]
@@ -1460,7 +1443,7 @@ mod width_only_tests {
                 // the full run before the two can be compared.
                 let transform = cff.transform(subfont, None);
                 let full = cff
-                    .evaluate_charstring(subfont, gid, &[], &mut cs::NullSink)
+                    .evaluate_charstring(subfont, gid, &[], &mut charstring::NullSink)
                     .unwrap();
                 let quick = cff.evaluate_width(subfont, gid, &[]).unwrap();
                 assert_eq!(
@@ -1586,16 +1569,16 @@ mod extents_tests {
             // The box before the matrix. No method answers with one, since
             // it cannot be brought through the matrix afterwards, which is
             // what this test is about; the sink gives it.
-            let mut before = cs::ControlBoundsSink::new();
-            let mut filter = cs::NopFilterSink::new(&mut before);
+            let mut before = charstring::ControlBoundsSink::new();
+            let mut filter = charstring::NopFilterSink::new(&mut before);
             cff.evaluate_charstring(subfont, gid, &[], &mut filter)
                 .unwrap();
             let Some(plain) = before.bounding_box() else {
                 return;
             };
-            let mut turned = cs::ControlBoundsSink::new();
+            let mut turned = charstring::ControlBoundsSink::new();
             let transform = cff.transform(subfont, None);
-            let mut sink = cs::TransformSink::new(&mut turned, transform);
+            let mut sink = charstring::TransformSink::new(&mut turned, transform);
             for (x, y) in [
                 (plain.x_min, plain.y_min),
                 (plain.x_min, plain.y_max),

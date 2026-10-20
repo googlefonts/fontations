@@ -16,10 +16,10 @@ use crate::{
             outline::{OutlineGlyphs, OutlineSource},
             GlyphSource, GlyphSourceOrder,
         },
-        metrics::{LineExtents, Metrics, Scale, ScaledGlyphMetrics},
+        metrics::{LineExtents, Metrics, Scale, Scale26Dot6, ScaleF32, ScaledGlyphMetrics},
         Font, Kind,
     },
-    ps::{cff::CffFontRef, cs::CommandSink, type1::Type1Font},
+    ps::{cff::CffFontRef, charstring::CommandSink, type1::Type1Font},
     tables::{glyf::Glyf, hmtx::GlyphMetricRecords, loca::Loca},
 };
 use types::{BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
@@ -105,6 +105,20 @@ impl<'a> GlyphMetrics<'a> {
     #[inline]
     pub fn scaled<S: Scale>(self, scale: S) -> ScaledGlyphMetrics<'a, 'static, S> {
         ScaledGlyphMetrics::new(self, scale)
+    }
+
+    /// Returns these metrics in pixels at `ppem`, as `f32`.
+    #[inline]
+    pub fn scaled_f32(self, ppem: f32) -> ScaledGlyphMetrics<'a, 'static, ScaleF32> {
+        let units_per_em = self.units_per_em;
+        self.scaled(ScaleF32::from_ppem(ppem, units_per_em))
+    }
+
+    /// Returns these metrics in pixels at `ppem`, in 26.6 fixed point.
+    #[inline]
+    pub fn scaled_26dot6(self, ppem: f32) -> ScaledGlyphMetrics<'a, 'static, Scale26Dot6> {
+        let units_per_em = self.units_per_em;
+        self.scaled(Scale26Dot6::from_ppem(ppem, units_per_em))
     }
 
     /// Measures ink using the sources in `order`.
@@ -634,18 +648,14 @@ impl<'a> GlyphMetrics<'a> {
     }
 
     pub(crate) fn origin_line(&self) -> LineExtents<F48Dot16> {
-        let line = self.line_extents().unwrap_or_else(|| {
+        self.line_extents().unwrap_or_else(|| {
             let em = self.units_per_em as f64;
             let ascender = F48Dot16::from_f64(em * 0.8);
             LineExtents {
                 ascender,
                 descender: ascender - F48Dot16::from_i32(self.units_per_em as i32),
             }
-        });
-        LineExtents {
-            ascender: F48Dot16::from_bits(line.ascender.to_bits().saturating_abs()),
-            descender: F48Dot16::from_bits(-line.descender.to_bits().saturating_abs()),
-        }
+        })
     }
 
     fn origin_against_ink(&self, glyph: GlyphId, line: LineExtents<F48Dot16>) -> F48Dot16 {

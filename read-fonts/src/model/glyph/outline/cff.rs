@@ -3,14 +3,14 @@
 //! The charstrings are parsed and evaluated by [`crate::ps::cff`]. This
 //! module pairs a charstring with the font's location and its subfont.
 
-use super::{ComputedMetrics, DrawOptions, PathSink};
+use super::{DrawOptions, DrawnMetrics, PathSink};
 use crate::model::Error;
 use crate::{
     model::glyph::outline::OutlineSource,
     model::variation::NormalizedCoord,
     ps::{
         cff::{CffFontRef, Subfont},
-        cs::{NopFilterSink, TransformSink},
+        charstring::{NopFilterSink, TransformSink},
     },
     types::{F2Dot14, GlyphId},
 };
@@ -69,7 +69,7 @@ impl<'a> CffGlyph<'a> {
         &self,
         options: &DrawOptions,
         mut sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         let mut filter = NopFilterSink::new(&mut sink);
         let transform = self.cff.transform(&self.subfont, options.ppem);
         let mut transformer = TransformSink::new(&mut filter, transform);
@@ -79,7 +79,7 @@ impl<'a> CffGlyph<'a> {
             self.coords,
             &mut transformer,
         )?;
-        Ok(ComputedMetrics {
+        Ok(DrawnMetrics {
             h_advance: width.map(|width| transform.transform_h_metric(width).to_f32()),
             ..Default::default()
         })

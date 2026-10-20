@@ -1,8 +1,10 @@
 //! Type1 fonts.
 
 use super::{
-    charmap::Charmap,
-    cs::{self, CharstringContext, CharstringKind, CommandSink, NopFilterSink, TransformSink},
+    charmap::UnicodeCharmap,
+    charstring::{
+        self, CharstringContext, CharstringKind, CommandSink, NopFilterSink, TransformSink,
+    },
     encoding::PredefinedEncoding,
     transform::{self, FontMatrix, ScaledFontMatrix, Transform},
 };
@@ -32,7 +34,7 @@ pub struct Type1Font {
     subrs: Subrs,
     encoding: Option<RawEncoding>,
     weight_vector: Vec<Fixed>,
-    unicode_charmap: Charmap,
+    unicode_charmap: UnicodeCharmap,
 }
 
 impl Type1Font {
@@ -68,7 +70,7 @@ impl Type1Font {
             subrs: Subrs::default(),
             encoding: None,
             weight_vector: Vec::new(),
-            unicode_charmap: Charmap::default(),
+            unicode_charmap: UnicodeCharmap::default(),
         }
     }
 
@@ -169,7 +171,7 @@ impl Type1Font {
         // We can only generate a Unicode cmap if we have the AGL available
         #[cfg(feature = "agl")]
         {
-            font.unicode_charmap = Charmap::from_glyph_names(font.glyph_names());
+            font.unicode_charmap = UnicodeCharmap::from_glyph_names(font.glyph_names());
         }
         Some(font)
     }
@@ -264,7 +266,7 @@ impl Type1Font {
     /// Returns the Unicode charmap for this font.
     ///
     /// Note that this is an empty mapping if the `agl` feature is not enabled.
-    pub fn unicode_charmap(&self) -> &Charmap {
+    pub fn unicode_charmap(&self) -> &UnicodeCharmap {
         &self.unicode_charmap
     }
 
@@ -317,7 +319,7 @@ impl Type1Font {
     pub fn evaluate_width(&self, gid: GlyphId) -> Result<Option<Fixed>, Error> {
         let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
         let transform = self.transform(None);
-        Ok(cs::evaluate_width(self, None, charstring_data)?
+        Ok(charstring::evaluate_width(self, None, charstring_data)?
             .map(|width| transform.transform_h_metric(width)))
     }
 
@@ -333,7 +335,7 @@ impl Type1Font {
         sink: &mut impl CommandSink,
     ) -> Result<Option<Fixed>, Error> {
         let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
-        cs::evaluate(self, None, charstring_data, sink)
+        charstring::evaluate(self, None, charstring_data, sink)
     }
 
     /// Returns the advance width of the glyph with an optional size in
@@ -344,7 +346,7 @@ impl Type1Font {
     pub fn advance(&self, gid: GlyphId, ppem: Option<f32>) -> Result<Option<f32>, Error> {
         let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
         let transform = self.transform(ppem);
-        Ok(cs::evaluate_width(self, None, charstring_data)?
+        Ok(charstring::evaluate_width(self, None, charstring_data)?
             .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
     }
 
@@ -370,10 +372,10 @@ impl Type1Font {
     ///
     /// [`evaluate_charstring`]: Self::evaluate_charstring
     pub fn evaluate_extents(&self, gid: GlyphId) -> Result<Option<BoundingBox<Fixed>>, Error> {
-        let mut bounds = cs::ControlBoundsSink::new();
-        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let mut bounds = charstring::ControlBoundsSink::new();
+        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
         let transform = self.transform(None);
-        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
         self.evaluate_charstring(gid, &mut transformer)?;
         Ok(bounds.bounding_box())
     }
@@ -396,10 +398,10 @@ impl Type1Font {
         gid: GlyphId,
         ppem: Option<f32>,
     ) -> Result<Option<BoundingBox<f32>>, Error> {
-        let mut bounds = cs::ControlBoundsSink::new();
-        let mut nop_filter = cs::NopFilterSink::new(&mut bounds);
+        let mut bounds = charstring::ControlBoundsSink::new();
+        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
         let transform = self.transform(ppem);
-        let mut transformer = cs::TransformSink::new(&mut nop_filter, transform);
+        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
         self.evaluate_charstring(gid, &mut transformer)?;
         Ok(bounds.bounding_box().map(|b| BoundingBox {
             x_min: b.x_min.to_f32(),
@@ -1588,7 +1590,7 @@ fn decode_fixed(bytes: &[u8], mut power_ten: i32) -> Option<Fixed> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cs::test_helpers::*;
+    use charstring::test_helpers::*;
 
     #[test]
     fn pfb_tags() {
@@ -2470,7 +2472,7 @@ mod width_only_tests {
             let transform = font.transform(None);
             for gid in (0..font.num_glyphs()).map(GlyphId::new) {
                 let full = font
-                    .evaluate_charstring(gid, &mut cs::NullSink)
+                    .evaluate_charstring(gid, &mut charstring::NullSink)
                     .unwrap()
                     .map(|width| transform.transform_h_metric(width));
                 let quick = font.evaluate_width(gid).unwrap();

@@ -13,7 +13,7 @@
 //! beyond that buffer.
 
 use super::{
-    glyf::Precision, glyphs::OutlineGlyphs, ComputedMetrics, DrawOptions, PathSink, TransformSink,
+    glyf::Precision, glyphs::OutlineGlyphs, DrawOptions, DrawnMetrics, PathSink, TransformSink,
 };
 use crate::model::Error;
 use crate::{
@@ -1099,11 +1099,11 @@ impl<'a> VarcGlyph<'a> {
         precision: Precision,
         buf: &mut [u8],
         sink: &mut dyn PathSink,
-    ) -> Result<ComputedMetrics, Error> {
+    ) -> Result<DrawnMetrics, Error> {
         let leaves = Leaves::new(self.base, *options, precision);
         self.outlines
             .draw(&self.outline, &leaves, options.ppem, buf, sink)?;
-        Ok(ComputedMetrics::default())
+        Ok(DrawnMetrics::default())
     }
 }
 

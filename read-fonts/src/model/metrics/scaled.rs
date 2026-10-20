@@ -387,6 +387,18 @@ impl Metrics {
     pub fn scaled<S: Scale>(&self, scale: S) -> ScaledMetrics<'_, S> {
         ScaledMetrics::new(self, scale)
     }
+
+    /// Returns these metrics in pixels at `ppem`, as `f32`.
+    #[inline]
+    pub fn scaled_f32(&self, ppem: f32) -> ScaledMetrics<'_, ScaleF32> {
+        self.scaled(ScaleF32::from_ppem(ppem, self.units_per_em))
+    }
+
+    /// Returns these metrics in pixels at `ppem`, in 26.6 fixed point.
+    #[inline]
+    pub fn scaled_26dot6(&self, ppem: f32) -> ScaledMetrics<'_, Scale26Dot6> {
+        self.scaled(Scale26Dot6::from_ppem(ppem, self.units_per_em))
+    }
 }
 
 /// Style measurements in a caller's own units.
@@ -463,6 +475,19 @@ impl StyleMetrics {
     /// Returns these style measurements in the units `scale` describes.
     pub fn scaled<S: Scale>(&self, scale: S) -> ScaledStyleMetrics<'_, S> {
         ScaledStyleMetrics::new(self, scale)
+    }
+
+    /// Returns these style measurements in pixels at `ppem`, as `f32`.
+    #[inline]
+    pub fn scaled_f32(&self, ppem: f32) -> ScaledStyleMetrics<'_, ScaleF32> {
+        self.scaled(ScaleF32::from_ppem(ppem, self.units_per_em))
+    }
+
+    /// Returns these style measurements in pixels at `ppem`, in 26.6 fixed
+    /// point.
+    #[inline]
+    pub fn scaled_26dot6(&self, ppem: f32) -> ScaledStyleMetrics<'_, Scale26Dot6> {
+        self.scaled(Scale26Dot6::from_ppem(ppem, self.units_per_em))
     }
 }
 

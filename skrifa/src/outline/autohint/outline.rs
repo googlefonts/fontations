@@ -3,7 +3,7 @@
 use super::{
     super::{
         pen::PathStyle,
-        unscaled::{UnscaledOutlineSink, UnscaledPoint},
+        unscaled::{clamp_coord, UnscaledOutlineSink},
         DrawError, LocationRef, OutlineGlyph, OutlinePen,
     },
     metrics::Scale,
@@ -171,10 +171,27 @@ impl Outline {
         coords: &[F2Dot14],
         quirks: QuirksMode,
     ) -> Result<(), DrawError> {
+        let units_per_em = glyph.units_per_em() as i32;
+        self.fill_with(glyph.glyph_id(), units_per_em, quirks, |outline| {
+            glyph.draw_unscaled(LocationRef::new(coords), None, outline)
+        })
+    }
+
+    /// Fills the outline using `draw`.
+    ///
+    /// `draw` writes the glyph's points in font units and returns its advance
+    /// width.
+    pub fn fill_with(
+        &mut self,
+        glyph_id: GlyphId,
+        units_per_em: i32,
+        quirks: QuirksMode,
+        draw: impl FnOnce(&mut Self) -> Result<i32, DrawError>,
+    ) -> Result<(), DrawError> {
         self.clear();
-        self.units_per_em = glyph.units_per_em() as i32;
-        self.advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
-        self.analyze_and_validate(glyph.glyph_id(), quirks)
+        self.units_per_em = units_per_em;
+        self.advance = draw(self)?;
+        self.analyze_and_validate(glyph_id, quirks)
     }
 
     fn analyze_and_validate(&mut self, gid: GlyphId, quirks: QuirksMode) -> Result<(), DrawError> {
@@ -531,39 +548,46 @@ impl Contour {
 }
 
 impl UnscaledOutlineSink for Outline {
-    fn reserve(&mut self, additional: usize) {
-        self.points.reserve(additional);
+    fn start_contour(&mut self) {
+        // The contour is empty until its first point arrives; one that ends
+        // still empty is dropped again.
+        let ix = self.points.len() as u16;
+        self.contours.push(Contour {
+            first_ix: ix,
+            last_ix: ix,
+        });
     }
 
-    fn push(&mut self, point: UnscaledPoint) -> Result<(), DrawError> {
-        let new_point = Point {
-            flags: point.flags,
-            fx: point.x as i32,
-            fy: point.y as i32,
-            ..Default::default()
-        };
-        let new_point_ix: u16 = self
-            .points
-            .len()
-            .try_into()
-            .map_err(|_| DrawError::InsufficientMemory)?;
-        if point.is_contour_start {
-            self.contours.push(Contour {
-                first_ix: new_point_ix,
-                last_ix: new_point_ix,
-            });
-        } else if let Some(last_contour) = self.contours.last_mut() {
-            last_contour.last_ix += 1;
-        } else {
-            // If our first point is not marked as contour start, just
-            // create a new contour.
-            self.contours.push(Contour {
-                first_ix: new_point_ix,
-                last_ix: new_point_ix,
-            });
+    fn point(&mut self, x: i32, y: i32, flags: PointFlags) {
+        // Indices are sixteen bits; a glyph with more points than that fails
+        // the point count check once it is filled.
+        let ix = self.points.len() as u16;
+        match self.contours.last_mut() {
+            // The first point of a contour is already its range.
+            Some(contour) if contour.first_ix == ix => {}
+            Some(contour) => contour.last_ix = ix,
+            // A point outside any contour starts one.
+            None => self.contours.push(Contour {
+                first_ix: ix,
+                last_ix: ix,
+            }),
         }
-        self.points.push(new_point);
-        Ok(())
+        self.points.push(Point {
+            flags,
+            fx: clamp_coord(x),
+            fy: clamp_coord(y),
+            ..Default::default()
+        });
+    }
+
+    fn end_contour(&mut self) {
+        if self
+            .contours
+            .last()
+            .is_some_and(|contour| contour.first_ix as usize == self.points.len())
+        {
+            self.contours.pop();
+        }
     }
 }
 
@@ -573,6 +597,33 @@ mod tests {
     use super::*;
     use crate::{prelude::Size, MetadataProvider};
     use raw::{types::GlyphId, FontRef, TableProvider};
+
+    // Points far outside the em, as transformed components can place them,
+    // are analyzed without overflow.
+    #[test]
+    fn distant_points_are_analyzed() {
+        let mut outline = Outline::default();
+        for far in [1 << 26, i32::MAX] {
+            outline
+                .fill_with(GlyphId::new(0), 1000, QuirksMode::default(), |outline| {
+                    outline.start_contour();
+                    for (x, y) in [(-far, -far), (far, -far), (far, far), (i32::MIN, far)] {
+                        outline.point(x, y, PointFlags::on_curve());
+                    }
+                    outline.end_contour();
+                    Ok(far)
+                })
+                .unwrap();
+            let scale = Scale::new(
+                16.0,
+                1000,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            );
+            outline.scale(&scale);
+        }
+    }
 
     #[test]
     fn direction_from_vectors() {

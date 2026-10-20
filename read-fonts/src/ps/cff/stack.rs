@@ -46,22 +46,6 @@ impl Stack {
         self.top
     }
 
-    pub fn verify_exact_len(&self, len: usize) -> Result<(), Error> {
-        if self.top != len {
-            Err(Error::InvalidOperation)
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn verify_at_least_len(&self, len: usize) -> Result<(), Error> {
-        if self.top < len {
-            Err(Error::InvalidOperation)
-        } else {
-            Ok(())
-        }
-    }
-
     /// Returns true if the number of elements on the stack is odd.
     ///
     /// Used for processing some charstring operators where an odd
@@ -73,15 +57,6 @@ impl Stack {
 
     pub fn clear(&mut self) {
         self.top = 0;
-    }
-
-    /// Reverse the order of all elements on the stack.
-    ///
-    /// Some charstring operators are simpler to process on a reversed
-    /// stack.
-    pub fn reverse(&mut self) {
-        self.values[..self.top].reverse();
-        self.value_is_fixed[..self.top].reverse();
     }
 
     /// Swaps the top two elements.
@@ -223,17 +198,6 @@ impl Stack {
             *dest = value;
         }
         Ok(result)
-    }
-
-    /// Returns an iterator yielding all elements on the stack as number
-    /// values.
-    ///
-    /// This is useful for capturing the current state of the stack.
-    pub fn number_values(&self) -> impl Iterator<Item = Number> + '_ {
-        self.values[..self.top]
-            .iter()
-            .zip(&self.value_is_fixed)
-            .map(|(value, is_fixed)| Number::from_stack(*value, *is_fixed))
     }
 
     /// Apply a prefix sum to decode delta-encoded numbers.
@@ -395,16 +359,6 @@ pub enum Number {
     Fixed(Fixed),
 }
 
-impl Number {
-    fn from_stack(raw: i32, is_fixed: bool) -> Self {
-        if is_fixed {
-            Self::Fixed(Fixed::from_bits(raw))
-        } else {
-            Self::I32(raw)
-        }
-    }
-}
-
 impl From<i32> for Number {
     fn from(value: i32) -> Self {
         Self::I32(value)
@@ -438,8 +392,7 @@ mod tests {
         stack.push(20).unwrap();
         stack.push(Fixed::from_f64(42.42)).unwrap();
         assert!(!stack.len_is_odd());
-        stack.verify_exact_len(2).unwrap();
-        stack.verify_at_least_len(2).unwrap();
+        assert_eq!(stack.len(), 2);
         assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(42.42));
         assert_eq!(stack.pop_i32().unwrap(), 20);
     }
@@ -456,18 +409,6 @@ mod tests {
         let mut stack = Stack::new();
         stack.push(123).unwrap();
         assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(123.0));
-    }
-
-    #[test]
-    fn reverse() {
-        let mut stack = Stack::new();
-        stack.push(Fixed::from_f64(1.5)).unwrap();
-        stack.push(42).unwrap();
-        stack.push(Fixed::from_f64(4.2)).unwrap();
-        stack.reverse();
-        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(1.5));
-        assert_eq!(stack.pop_i32().unwrap(), 42);
-        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(4.2));
     }
 
     #[test]

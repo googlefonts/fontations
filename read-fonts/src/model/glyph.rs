@@ -84,11 +84,12 @@ impl GlyphSource {
 pub struct GlyphSourceOrder(u64);
 
 impl GlyphSourceOrder {
-    /// The default order for measuring glyphs.
+    /// The default order for measuring glyphs: `sbix`, `CBDT`, `COLR`,
+    /// `VARC`, `glyf`, `CFF2`, `CFF`, then Type 1 charstrings.
     ///
-    /// Bitmaps come first, then color, then outlines with `VARC` before its
-    /// base source. `Ebdt` is not included, so monochrome and grayscale
-    /// bitmaps are used only when a caller adds it to the order.
+    /// Color bitmaps come first, then color glyphs, then outlines with
+    /// `VARC` before its base source. `EBDT` is not included, so monochrome
+    /// and grayscale bitmaps are used only when a caller asks for them.
     pub const DEFAULT: Self = Self::new(&[
         GlyphSource::Sbix,
         GlyphSource::Cbdt,
@@ -100,7 +101,25 @@ impl GlyphSourceOrder {
         GlyphSource::Type1,
     ]);
 
-    /// Only the outline sources, with `VARC` first.
+    /// Every source: `sbix`, `CBDT`, `EBDT`, `COLR`, `VARC`, `glyf`, `CFF2`,
+    /// `CFF`, then Type 1 charstrings.
+    ///
+    /// The order of [`DEFAULT`](Self::DEFAULT), with `EBDT` after the color
+    /// bitmaps.
+    pub const ALL: Self = Self::new(&[
+        GlyphSource::Sbix,
+        GlyphSource::Cbdt,
+        GlyphSource::Ebdt,
+        GlyphSource::Colr,
+        GlyphSource::Varc,
+        GlyphSource::Glyf,
+        GlyphSource::Cff2,
+        GlyphSource::Cff,
+        GlyphSource::Type1,
+    ]);
+
+    /// The outline sources: `VARC`, `glyf`, `CFF2`, `CFF`, then Type 1
+    /// charstrings.
     pub const OUTLINES: Self = Self::new(&[
         GlyphSource::Varc,
         GlyphSource::Glyf,
@@ -109,7 +128,8 @@ impl GlyphSourceOrder {
         GlyphSource::Type1,
     ]);
 
-    /// The outline sources without `VARC`.
+    /// The outline sources without `VARC`: `glyf`, `CFF2`, `CFF`, then Type
+    /// 1 charstrings.
     ///
     /// Every glyph is drawn from the base source.
     pub const BASE_OUTLINES: Self = Self::new(&[
@@ -119,10 +139,16 @@ impl GlyphSourceOrder {
         GlyphSource::Type1,
     ]);
 
-    /// Only the bitmap sources.
+    /// The bitmap sources: `sbix`, `CBDT`, then `EBDT`.
     pub const BITMAPS: Self = Self::new(&[GlyphSource::Sbix, GlyphSource::Cbdt, GlyphSource::Ebdt]);
 
-    /// Only color glyphs.
+    /// The color bitmap sources: `sbix`, then `CBDT`.
+    pub const COLOR_BITMAPS: Self = Self::new(&[GlyphSource::Sbix, GlyphSource::Cbdt]);
+
+    /// The monochrome and grayscale bitmap source: `EBDT`.
+    pub const MONO_BITMAPS: Self = Self::new(&[GlyphSource::Ebdt]);
+
+    /// The color glyph source: `COLR`.
     pub const COLOR: Self = Self::new(&[GlyphSource::Colr]);
 
     /// No sources.
@@ -213,6 +239,35 @@ mod tests {
                 "{source:?}"
             );
         }
+    }
+
+    // The named orders hold the sources their documentation lists.
+    #[test]
+    fn named_orders_hold_their_sources() {
+        use GlyphSource::*;
+        let sources = |order: GlyphSourceOrder| order.iter().collect::<Vec<_>>();
+        assert_eq!(sources(GlyphSourceOrder::ALL), GlyphSource::ALL);
+        assert_eq!(
+            sources(GlyphSourceOrder::DEFAULT),
+            [Sbix, Cbdt, Colr, Varc, Glyf, Cff2, Cff, Type1]
+        );
+        assert_eq!(sources(GlyphSourceOrder::BITMAPS), [Sbix, Cbdt, Ebdt]);
+        assert_eq!(sources(GlyphSourceOrder::COLOR_BITMAPS), [Sbix, Cbdt]);
+        assert_eq!(sources(GlyphSourceOrder::MONO_BITMAPS), [Ebdt]);
+        assert_eq!(sources(GlyphSourceOrder::COLOR), [Colr]);
+        assert_eq!(
+            sources(GlyphSourceOrder::OUTLINES),
+            [Varc, Glyf, Cff2, Cff, Type1]
+        );
+        assert_eq!(
+            sources(GlyphSourceOrder::BASE_OUTLINES),
+            [Glyf, Cff2, Cff, Type1]
+        );
+        assert!(GlyphSourceOrder::EMPTY.is_empty());
+        assert_eq!(
+            alloc::format!("{:?}", GlyphSourceOrder::COLOR_BITMAPS),
+            "[Sbix, Cbdt]"
+        );
     }
 
     #[test]

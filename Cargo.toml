@@ -43,6 +43,10 @@ smallvec = { version = "1.13.1", default-features = false, features = [
     "const_generics",
     "union",
 ] }
+once_cell = { version = "1.21.4", default-features = false, features = [
+    "alloc",
+    "race",
+] }
 # dev dependencies
 env_logger = "0.11"
 pretty_assertions = "1.3.0"

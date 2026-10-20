@@ -21,7 +21,7 @@ pub use tables::{TableFunction, Tables};
 pub mod interop;
 
 use super::attribute::Attributes;
-use super::charmap::{Charmap, EncodingTables, UnicodeCharmap};
+use super::charmap::{Charmap, EncodingTables, SfntUnicodeCharmap};
 use super::glyph::{
     bitmap::BitmapStrikes,
     color::{ColorGlyphs, Palettes},
@@ -1106,12 +1106,14 @@ impl SharedFont {
     }
 
     /// Returns the selected character maps, parsed once for the font.
-    pub(super) fn unicode_charmap(&self) -> Option<&UnicodeCharmap<'_>> {
+    pub(super) fn unicode_charmap(&self) -> Option<&SfntUnicodeCharmap<'_>> {
         let sfnt = self.sfnt()?;
         Some(
             sfnt.charmap
                 .get_or_init(|| {
-                    TableCache::read(sfnt.tables.clone(), |tables| UnicodeCharmap::read(&tables))
+                    TableCache::read(sfnt.tables.clone(), |tables| {
+                        SfntUnicodeCharmap::read(&tables)
+                    })
                 })
                 .get(),
         )
@@ -1131,7 +1133,7 @@ impl SharedFont {
         )
     }
 
-    pub(super) fn standalone_cff_unicode_charmap(&self) -> Option<&crate::ps::charmap::Charmap> {
+    pub(super) fn standalone_cff_unicode_charmap(&self) -> Option<&crate::ps::UnicodeCharmap> {
         let KindRepr::StandaloneCff(cff) = &self.0.kind else {
             return None;
         };
@@ -1140,9 +1142,9 @@ impl SharedFont {
             {
                 let cff = cff.font.get();
                 if cff.is_cid() {
-                    return crate::ps::charmap::Charmap::default();
+                    return crate::ps::UnicodeCharmap::default();
                 }
-                crate::ps::charmap::Charmap::from_glyph_names(
+                crate::ps::UnicodeCharmap::from_glyph_names(
                     cff.charset()
                         .into_iter()
                         .flat_map(|charset| charset.iter())
@@ -1155,7 +1157,7 @@ impl SharedFont {
             #[cfg(not(feature = "agl"))]
             {
                 let _ = cff;
-                crate::ps::charmap::Charmap::default()
+                crate::ps::UnicodeCharmap::default()
             }
         }))
     }
@@ -1515,7 +1517,7 @@ pub(super) struct SfntCaches {
     // Where a glyph's vertical origin sits, read only by vertical text.
     vorg: Once<TableCache<VorgTable<'static>>>,
     // Selected Unicode cmap subtables and their encoding metadata.
-    charmap: Once<TableCache<UnicodeCharmap<'static>>>,
+    charmap: Once<TableCache<SfntUnicodeCharmap<'static>>>,
     // Only clients selecting a charmap pay for the dense record array.
     encodings: Once<Box<TableCache<EncodingTables<'static>>>>,
 }
@@ -1555,7 +1557,7 @@ struct StandaloneCffData {
     /// read; `None` where a private dict could not be.
     subfonts: Box<[Option<Subfont>]>,
     index: u32,
-    unicode_charmap: Once<crate::ps::charmap::Charmap>,
+    unicode_charmap: Once<crate::ps::UnicodeCharmap>,
     /// The glyph for each CID of a CID-keyed font, zero where none has it.
     cid_glyphs: Once<Box<[u16]>>,
 }
@@ -1778,7 +1780,7 @@ impl VariedInstance {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ps::string::Sid;
+    use crate::ps::Sid;
     use crate::tables::glyf::outline::{Outline, Unscaled};
     use core::sync::atomic::Ordering;
     use types::Tag;

@@ -79,10 +79,9 @@
 //! ```
 
 pub mod autohint;
-mod cff;
-mod glyf;
+pub(crate) mod cff;
+pub(crate) mod glyf;
 mod hint;
-mod hint_reliant;
 mod metrics;
 mod unscaled;
 mod varc;
@@ -503,21 +502,20 @@ impl<'a> OutlineGlyph<'a> {
                 with_temporary_memory(self, Hinting::None, user_memory, |buf| {
                     let outline = FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
                         .scale(&outline.glyph, outline.glyph_id)?;
-                    sink.reserve(outline.points.len());
                     let mut contour_start = 0;
                     for contour_end in outline.contours.iter().map(|contour| *contour as usize) {
                         if contour_end >= contour_start {
                             if let Some(points) = outline.points.get(contour_start..=contour_end) {
                                 let flags = &outline.flags[contour_start..=contour_end];
-                                sink.extend(points.iter().zip(flags).enumerate().map(
-                                    |(ix, (point, flags))| {
-                                        unscaled::UnscaledPoint::from_glyf_point(
-                                            *point,
-                                            *flags,
-                                            ix == 0,
-                                        )
-                                    },
-                                ))?;
+                                sink.start_contour();
+                                for (point, flags) in points.iter().zip(flags) {
+                                    sink.point(
+                                        point.x.to_bits() >> 6,
+                                        point.y.to_bits() >> 6,
+                                        flags.without_markers(),
+                                    );
+                                }
+                                sink.end_contour();
                             }
                         }
                         contour_start = contour_end + 1;
@@ -527,17 +525,17 @@ impl<'a> OutlineGlyph<'a> {
             }
             OutlineKind::Cff(cff, glyph_id, subfont_ix) => {
                 let subfont = cff.subfont(*subfont_ix, ppem, coords)?;
-                let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
+                let mut adapter = unscaled::PointsFromPath::new(sink);
                 cff.draw(&subfont, *glyph_id, coords, false, &mut adapter)?;
-                adapter.finish()?;
+                adapter.finish();
                 let advance = cff.glyph_metrics.advance_width(*glyph_id, coords);
                 Ok(advance)
             }
             OutlineKind::Varc(varc, outline) => {
                 with_temporary_memory(self, Hinting::None, user_memory, |buf| {
-                    let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
+                    let mut adapter = unscaled::PointsFromPath::new(sink);
                     let advance = varc.draw_unscaled(outline, buf, coords, &mut adapter)?;
-                    adapter.finish()?;
+                    adapter.finish();
                     Ok(advance)
                 })
             }
@@ -735,7 +733,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     /// possible.
     pub fn require_interpreter(&self) -> bool {
         self.font()
-            .map(|font| hint_reliant::require_interpreter(font))
+            .map(raw::tables::glyf::is_hint_reliant)
             .unwrap_or_default()
     }
 
