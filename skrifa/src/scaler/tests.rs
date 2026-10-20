@@ -808,10 +808,11 @@ fn hint_tables_match_the_outline_collection() {
 }
 
 // Monochrome rendering rounds a composite's horizontal offset to the pixel
-// grid under the newer ClearType rules, and nothing else differs from the
-// classic ones for a monochrome target, so only composites can move.
+// grid under both ClearType rules, as FreeType's v40 interpreter does, while
+// smooth rendering leaves it where it falls. Nothing else differs between
+// the two for these fonts, so only composites can move.
 #[test]
-fn enhanced_mono_rounds_composite_x_offsets() {
+fn mono_rounds_composite_x_offsets() {
     use raw::tables::glyf::{CompositeGlyphFlags, Glyph};
     let mut moved = 0;
     // Neither font has instructions, so the interpreter runs empty programs
@@ -823,15 +824,18 @@ fn enhanced_mono_rounds_composite_x_offsets() {
         let font = FontRef::new(data).unwrap();
         let (glyf, loca) = (font.glyf().unwrap(), font.loca(None).unwrap());
         for ppem in [9.0, 11.0, 13.0, 16.0, 24.0, 33.0] {
-            let scalers = [true, false].map(|classic| {
+            let scaler = |target, classic| {
                 ScalerFont::hinted(
                     self::font(data),
                     ppem,
                     HintOptions::interpreter()
-                        .with_target(RasterTarget::Mono)
+                        .with_target(target)
                         .with_classic_cleartype(classic),
                 )
-            });
+            };
+            let classic_mono = scaler(RasterTarget::Mono, true);
+            let enhanced_mono = scaler(RasterTarget::Mono, false);
+            let smooth = scaler(RasterTarget::Normal, true);
             for gid in 0..font.maxp().unwrap().num_glyphs() {
                 let gid = GlyphId::new(gid as u32);
                 let rounds_offsets = match loca.get_glyf(gid, &glyf) {
@@ -840,8 +844,13 @@ fn enhanced_mono_rounds_composite_x_offsets() {
                         .any(|(_, flags)| flags.contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)),
                     _ => false,
                 };
-                let [classic, enhanced] = scalers.each_ref().map(|scaler| svg_scaler(scaler, gid));
-                if classic != enhanced {
+                let mono = svg_scaler(&classic_mono, gid);
+                assert_eq!(
+                    mono,
+                    svg_scaler(&enhanced_mono, gid),
+                    "glyph {gid} at {ppem}"
+                );
+                if mono != svg_scaler(&smooth, gid) {
                     assert!(rounds_offsets, "glyph {gid} at {ppem} moved without asking");
                     moved += 1;
                 }

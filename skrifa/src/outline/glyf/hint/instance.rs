@@ -1,6 +1,5 @@
 //! Instance state for TrueType hinting.
 
-use super::cleartype::ClearType;
 use super::{
     cleartype::{ClearTypeState, RasterPolicy},
     cow_slice::CowSlice,
@@ -131,8 +130,7 @@ impl HintInstance {
         // ClearType positions components on a finer horizontal grid, which
         // the interpreter approximates by not rounding at all. Monochrome
         // rendering and hint reliant fonts keep the full pixel grid.
-        self.cleartype.mode == ClearType::Enhanced
-            && (!self.graphics.target.is_smooth() || self.cleartype.is_hint_reliant)
+        !self.graphics.target.is_smooth() || self.cleartype.is_hint_reliant
     }
 
     /// Returns true if backward compatibility mode has been activated
