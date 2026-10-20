@@ -36,6 +36,10 @@ const MAX_OPERATIONS: u32 = 1_000_000;
 /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psfont.h#L59>
 const STORAGE_SIZE: usize = 32;
 
+/// The number of elements of a multiple master font's `BuildCharArray`
+/// held inline. A font that declares a longer array has it on the heap.
+const INLINE_BUILD_CHAR_LEN: usize = 32;
+
 /// The type of a PostScript charstring.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CharstringKind {
@@ -69,6 +73,12 @@ pub trait CharstringContext {
     /// Returns the current active weight vector for a multiple master font.
     fn weight_vector(&self) -> &[Fixed] {
         &[]
+    }
+
+    /// Returns the number of elements in the `BuildCharArray` of a multiple
+    /// master font, which othersubrs read and write.
+    fn build_char_len(&self) -> usize {
+        0
     }
 }
 
@@ -353,6 +363,8 @@ struct Evaluator<'a> {
     ops_done: u32,
     /// The transient array that `put` and `get` address.
     storage: [Fixed; STORAGE_SIZE],
+    /// The `BuildCharArray` of a multiple master font, sized on first use.
+    build_char: smallvec::SmallVec<[Fixed; INLINE_BUILD_CHAR_LEN]>,
 }
 
 impl<'a> Evaluator<'a> {
@@ -382,6 +394,7 @@ impl<'a> Evaluator<'a> {
             in_seac: false,
             ops_done: 0,
             storage: [Fixed::ZERO; STORAGE_SIZE],
+            build_char: smallvec::SmallVec::new(),
         }
     }
 
@@ -996,8 +1009,16 @@ impl<'a> Evaluator<'a> {
                     }
                     // Handle blends for multiple masters.
                     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1823>
-                    (14..=18, _) if weight_vector.len() > 1 => {
+                    (14..=18, _) => {
+                        // A font with no masters has nothing to blend, and
+                        // FreeType fails the glyph.
+                        if weight_vector.is_empty() {
+                            return Err(Error::InvalidOperation);
+                        }
                         self.handle_mm_blend(subr_idx, num_args)?;
+                    }
+                    (19..=25 | 27, _) => {
+                        self.handle_build_char(subr_idx, num_args)?;
                     }
                     _ => {
                         // Unknown othersubr, so simply drop the arguments
@@ -1211,6 +1232,87 @@ impl<'a> Evaluator<'a> {
         }
         self.stack.drop(num_args.saturating_sub(num_points));
         Ok(())
+    }
+
+    /// Handles the othersubrs that compute with the `BuildCharArray` and the
+    /// blend, 19 to 25 and 27.
+    ///
+    /// Each takes its arguments from the stack and leaves its result there,
+    /// for the `pop` that follows. A wrong number of arguments, an index the
+    /// array cannot hold or a division by zero fails the glyph, as in
+    /// FreeType.
+    ///
+    /// The array starts out zeroed for each glyph. FreeType keeps one array
+    /// for the whole font, so a font that reads an element no earlier
+    /// othersubr in the glyph wrote can differ.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1911>
+    fn handle_build_char(&mut self, subr_idx: i32, num_args: usize) -> Result<(), Error> {
+        let weights = self.context.weight_vector();
+        let has_blend = !weights.is_empty();
+        let len = self.context.build_char_len();
+        match (subr_idx, num_args) {
+            // `<idx> 1 19 callothersubr` copies the weights into the array,
+            // starting at `idx`.
+            (19, 1) if has_blend => {
+                let idx = self.stack.pop_i32()? as u32 as usize;
+                if len < weights.len() || len - weights.len() < idx {
+                    return Err(Error::InvalidOperation);
+                }
+                self.build_char(len)[idx..idx + weights.len()].copy_from_slice(weights);
+            }
+            // Arithmetic: `<a> <b> 2 n callothersubr pop` pushes the result.
+            (20..=23, 2) => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                let result = match subr_idx {
+                    20 => Fixed::from_bits(a.to_bits().wrapping_add(b.to_bits())),
+                    21 => Fixed::from_bits(a.to_bits().wrapping_sub(b.to_bits())),
+                    22 => a * b,
+                    _ if b == Fixed::ZERO => return Err(Error::InvalidOperation),
+                    _ => a / b,
+                };
+                self.stack.push(result)?;
+            }
+            // `<val> <idx> 2 24 callothersubr` stores `val` at `idx`.
+            (24, 2) if has_blend => {
+                let idx = self.stack.pop_i32()? as u32 as usize;
+                if idx >= len {
+                    return Err(Error::InvalidOperation);
+                }
+                let value = self.stack.pop_fixed()?;
+                self.build_char(len)[idx] = value;
+            }
+            // `<idx> 1 25 callothersubr pop` pushes the value at `idx`.
+            (25, 1) if has_blend => {
+                let idx = self.stack.pop_i32()? as u32 as usize;
+                if idx >= len {
+                    return Err(Error::InvalidOperation);
+                }
+                let value = self.build_char(len)[idx];
+                self.stack.push(value)?;
+            }
+            // `<a> <b> <c> <d> 4 27 callothersubr pop` pushes `a` if `c <=
+            // d`, and `b` otherwise.
+            (27, 4) => {
+                let d = self.stack.pop_fixed()?;
+                let c = self.stack.pop_fixed()?;
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(if c <= d { a } else { b })?;
+            }
+            _ => return Err(Error::InvalidOperation),
+        }
+        Ok(())
+    }
+
+    /// Returns the `BuildCharArray`, sized to `len` zeroed elements on first
+    /// use.
+    fn build_char(&mut self, len: usize) -> &mut [Fixed] {
+        if self.build_char.len() != len {
+            self.build_char.resize(len, Fixed::ZERO);
+        }
+        &mut self.build_char
     }
 
     fn coords_remaining(&self) -> usize {
@@ -2576,6 +2678,104 @@ mod tests {
         fn weight_vector(&self) -> &[Fixed] {
             &self.0
         }
+
+        fn build_char_len(&self) -> usize {
+            8
+        }
+    }
+
+    /// Runs one `callothersubr` after pushing `args`, which end with the
+    /// argument count and the othersubr number, and returns the stack.
+    fn othersubr(eval: &mut Evaluator, args: &[f64]) -> Result<Vec<f64>, Error> {
+        let mut cursor = FontData::new(&[]).cursor();
+        for &arg in args {
+            if arg.fract() == 0.0 {
+                eval.stack.push(arg as i32)?;
+            } else {
+                eval.stack.push(Fixed::from_f64(arg))?;
+            }
+        }
+        eval.evaluate_operator(Operator::CallOtherSubr, &mut cursor, 0)?;
+        let stack = eval.stack.fixed_values().map(|v| v.to_f64()).collect();
+        Ok(stack)
+    }
+
+    // Othersubrs 20 to 23 and 27 compute without a blend.
+    #[test]
+    fn othersubr_arithmetic() {
+        let ctx = MmContext([Fixed::ZERO; 3]);
+        for (args, result) in [
+            (&[7.0, 2.0, 2.0, 20.0][..], 9.0),
+            (&[7.0, 2.0, 2.0, 21.0], 5.0),
+            (&[7.0, 2.0, 2.0, 22.0], 14.0),
+            (&[7.0, 2.0, 2.0, 23.0], 3.5),
+            (&[1.0, 2.0, 3.0, 4.0, 4.0, 27.0], 1.0),
+            (&[1.0, 2.0, 5.0, 4.0, 4.0, 27.0], 2.0),
+        ] {
+            let mut commands = CaptureCommandSink::default();
+            let mut eval = Evaluator::new(&ctx, None, &mut commands);
+            assert_eq!(othersubr(&mut eval, args).unwrap(), [result], "{args:?}");
+        }
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&ctx, None, &mut commands);
+        // Division by zero and a wrong argument count fail the glyph.
+        assert!(othersubr(&mut eval, &[7.0, 0.0, 2.0, 23.0]).is_err());
+        assert!(othersubr(&mut eval, &[7.0, 2.0, 1.0, 20.0]).is_err());
+    }
+
+    // Othersubrs 19, 24 and 25 read and write the `BuildCharArray`.
+    #[test]
+    fn othersubr_build_char_array() {
+        let ctx = MmContext([0.25, 0.5, 0.25].map(Fixed::from_f64));
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&ctx, None, &mut commands);
+        // Store 5 at 3, then read it back.
+        assert!(othersubr(&mut eval, &[5.0, 3.0, 2.0, 24.0])
+            .unwrap()
+            .is_empty());
+        assert_eq!(othersubr(&mut eval, &[3.0, 1.0, 25.0]).unwrap(), [5.0]);
+        eval.stack.clear();
+        // Copy the weights to 2, 3 and 4.
+        assert!(othersubr(&mut eval, &[2.0, 1.0, 19.0]).unwrap().is_empty());
+        assert_eq!(othersubr(&mut eval, &[3.0, 1.0, 25.0]).unwrap(), [0.5]);
+        eval.stack.clear();
+        // The array has eight elements.
+        assert!(othersubr(&mut eval, &[1.0, 8.0, 2.0, 24.0]).is_err());
+        assert!(othersubr(&mut eval, &[8.0, 1.0, 25.0]).is_err());
+        assert!(othersubr(&mut eval, &[6.0, 1.0, 19.0]).is_err());
+    }
+
+    // A font with no masters has no blend and no array to use.
+    #[test]
+    fn othersubrs_without_a_blend_fail() {
+        struct Plain;
+        impl CharstringContext for Plain {
+            fn kind(&self) -> CharstringKind {
+                CharstringKind::Type1
+            }
+            fn seac_components(&self, _: i32, _: i32) -> Result<[&[u8]; 2], Error> {
+                Err(Error::InvalidOperation)
+            }
+            fn global_subr(&self, _: i32) -> Result<&[u8], Error> {
+                Err(Error::MissingResource)
+            }
+            fn subr(&self, _: i32) -> Result<&[u8], Error> {
+                Err(Error::MissingResource)
+            }
+        }
+        for args in [
+            &[1.0, 2.0, 2.0, 14.0][..],
+            &[0.0, 1.0, 19.0],
+            &[5.0, 0.0, 2.0, 24.0],
+            &[0.0, 1.0, 25.0],
+        ] {
+            let mut commands = CaptureCommandSink::default();
+            let mut eval = Evaluator::new(&Plain, None, &mut commands);
+            assert!(othersubr(&mut eval, args).is_err(), "{args:?}");
+        }
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&Plain, None, &mut commands);
+        assert_eq!(othersubr(&mut eval, &[7.0, 2.0, 2.0, 20.0]).unwrap(), [9.0]);
     }
 
     /// Builds a Type 2 charstring from `ops`, then moves by whatever the
