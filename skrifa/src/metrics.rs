@@ -292,6 +292,7 @@ impl<'a> GlyphMetrics<'a> {
     ///
     /// If normalized coordinates were provided when constructing glyph metrics and
     /// an `HVAR` table is present, applies the appropriate delta.
+    /// A varied advance below zero is clamped to zero before scaling.
     ///
     /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
     /// data is invalid.
@@ -315,7 +316,7 @@ impl<'a> GlyphMetrics<'a> {
         } else if self.gvar.is_some() {
             advance += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[1];
         }
-        Some(self.fixed_scale.apply(advance))
+        Some(self.fixed_scale.apply(advance.max(0)))
     }
 
     /// Returns the left side bearing for the specified glyph.
@@ -632,6 +633,36 @@ mod tests {
                 y_max: 1456.0
             }
         );
+    }
+
+    #[test]
+    fn negative_varied_advances_are_clamped_before_scaling() {
+        let font = FontRef::new(font_test_data::NEGATIVE_VAR_ADVANCES).unwrap();
+        for (coord, expected) in [
+            (0.0, [500.0, 500.0]),
+            // Skrifa rounds the delta before adding it to the base width.
+            (0.5, [200.0, 551.0]),
+            (1.0, [0.0, 601.0]),
+        ] {
+            let coords = [NormalizedCoord::from_f32(coord)];
+            for size in [
+                Size::unscaled(),
+                Size::new(-2000.0),
+                Size::new(0.0),
+                Size::new(500.0),
+                Size::new(2000.0),
+            ] {
+                let scale = size.linear_scale(1000);
+                let metrics = font.glyph_metrics(size, LocationRef::new(&coords));
+                let mut gvar_metrics = metrics.clone();
+                gvar_metrics.hvar = None;
+                for (i, gid) in [GlyphId::new(1), GlyphId::new(2)].into_iter().enumerate() {
+                    assert_eq!(metrics.advance_width(gid), Some(expected[i] * scale));
+                    assert_eq!(gvar_metrics.advance_width(gid), Some(expected[i] * scale));
+                }
+                assert_eq!(metrics.advance_width(GlyphId::new(3)), None);
+            }
+        }
     }
 
     #[test]

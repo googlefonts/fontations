@@ -161,8 +161,8 @@ impl<'a> GlyphMetrics<'a> {
     /// Returns the exact advance width of `glyph`, in font units.
     ///
     /// `hmtx` contains whole units and variations can add a fraction, so the
-    /// result may not be a whole number. The caller decides how to round it
-    /// and how to handle an advance below zero.
+    /// result may not be a whole number. A varied advance below zero is
+    /// clamped to zero before scaling. The caller decides how to round it.
     #[inline]
     pub fn h_advance_exact(&self, glyph: GlyphId) -> F48Dot16 {
         let mut width = F48Dot16::ZERO;
@@ -219,7 +219,8 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns the exact advance height of `glyph`, in font units.
     ///
-    /// The height is positive, as stored in the font. A caller whose y axis
+    /// The height is non-negative, as stored in the font. A varied advance
+    /// below zero is clamped to zero before scaling. A caller whose y axis
     /// points down must negate it.
     #[inline]
     pub fn v_advance_exact(&self, glyph: GlyphId) -> F48Dot16 {
@@ -926,9 +927,8 @@ impl<'a> GlyphMetricRecords<'a> {
 
     /// Writes the table's value for each glyph.
     ///
-    /// A stored advance is a `u16`, so unlike
-    /// [`run_varied`](Self::run_varied) this can neither overflow the sum nor
-    /// report anything below zero.
+    /// A stored advance is a `u16`, so this needs neither the saturating sum
+    /// nor the lower bound of [`run_varied`](Self::run_varied).
     #[inline]
     fn run<'o, V: 'o>(
         &self,
@@ -944,9 +944,8 @@ impl<'a> GlyphMetricRecords<'a> {
     /// Writes each glyph's advance with `delta` applied.
     ///
     /// `delta` is settled before the run, leaving only the branches that turn
-    /// on the glyph. The sum saturates rather than wrapping, but is not
-    /// otherwise bounded: a font whose deltas say so can carry an advance
-    /// below zero, and what to do about that is the caller's to decide.
+    /// on the glyph. The sum saturates rather than wrapping, and is clamped
+    /// to zero before conversion or scaling.
     ///
     /// Glyphs beyond the end of the font measure zero here, as they do
     /// unvaried.
@@ -966,6 +965,7 @@ impl<'a> GlyphMetricRecords<'a> {
             let advance = if gid.to_u32() < num_glyphs {
                 self.stated_advance(num_glyphs, gid)
                     .saturating_add(delta(gid))
+                    .max(F48Dot16::ZERO)
             } else {
                 F48Dot16::ZERO
             };
@@ -2548,6 +2548,57 @@ mod tests {
             .map(GlyphId::new)
             .any(|gid| metrics.h_advance_exact(gid).to_bits() & 0xFFFF != 0);
         assert!(fractional, "no advance carried a fraction");
+    }
+
+    #[test]
+    fn negative_varied_advances_are_clamped_before_scaling() {
+        const DATA: &[u8] = font_test_data::NEGATIVE_VAR_ADVANCES;
+        for hide in [&[][..], &[b"HVAR", b"VVAR"][..]] {
+            let asked = Arc::new(Mutex::new(Vec::new()));
+            let font = callback_font(DATA, asked.clone(), hide);
+            // A crosses zero; B remains positive, with fractional advances
+            // at intermediate locations. The two metric sources agree.
+            for (coord, widths, heights) in [
+                (0.0, [500.0, 500.0], [1000.0, 1000.0]),
+                (0.5, [199.5, 550.5], [399.5, 1100.5]),
+                (1.0, [0.0, 601.0], [0.0, 1201.0]),
+            ] {
+                let instance = at(&font, coord);
+                let metrics = instance.glyph_metrics();
+                let gids = [GlyphId::new(1), GlyphId::new(2), GlyphId::new(3)];
+                let widths = [widths[0], widths[1], 0.0];
+                let heights = [heights[0], heights[1], 0.0];
+                let mut h_batch = [F48Dot16::ZERO; 3];
+                let mut v_batch = [F48Dot16::ZERO; 3];
+                metrics.h_advance_batched(|v| v, gids.into_iter().zip(h_batch.iter_mut()));
+                metrics.v_advance_batched(|v| v, gids.into_iter().zip(v_batch.iter_mut()));
+                for (i, gid) in gids.into_iter().enumerate() {
+                    assert_eq!(metrics.h_advance_exact(gid), F48Dot16::from_f64(widths[i]));
+                    assert_eq!(metrics.v_advance_exact(gid), F48Dot16::from_f64(heights[i]));
+                    assert_eq!(h_batch[i], metrics.h_advance_exact(gid));
+                    assert_eq!(v_batch[i], metrics.v_advance_exact(gid));
+                    assert_eq!(metrics.h_advance(gid), widths[i] as f32);
+                    assert_eq!(metrics.v_advance(gid), heights[i] as f32);
+                }
+                for factor in [-2.0, -1.0, 0.0, 1.0, 2.0] {
+                    let scaled =
+                        metrics.scaled(ScaleF32::new(factor * 1000.0, -factor * 1000.0, 1000));
+                    let mut h_batch = [0.0; 3];
+                    let mut v_batch = [0.0; 3];
+                    scaled.h_advance_batched(|v| v, gids.into_iter().zip(h_batch.iter_mut()));
+                    scaled.v_advance_batched(|v| v, gids.into_iter().zip(v_batch.iter_mut()));
+                    for (i, gid) in gids.into_iter().enumerate() {
+                        assert_eq!(scaled.h_advance(gid), widths[i] as f32 * factor);
+                        assert_eq!(scaled.v_advance(gid), heights[i] as f32 * -factor);
+                        assert_eq!(h_batch[i], scaled.h_advance(gid));
+                        assert_eq!(v_batch[i], scaled.v_advance(gid));
+                    }
+                }
+            }
+            if !hide.is_empty() {
+                assert!(asked_for(&asked, b"gvar"));
+            }
+        }
     }
 
     #[test]
