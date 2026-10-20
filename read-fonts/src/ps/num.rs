@@ -77,6 +77,7 @@ impl BcdComponents {
         let mut exponent_add = 0i32;
         let mut integer_len = 0;
         let mut fraction_len = 0;
+        let mut have_overflow = false;
         // Nibble value    Represents
         //----------------------------------
         // 0 to 9          0 to 9
@@ -134,13 +135,11 @@ impl BcdComponents {
                     Phase::Exponent => {
                         match nibble {
                             0x0..=0x9 => {
-                                // Arbitrarily limit exponent
+                                // Arbitrarily limit exponent. Keep consuming
+                                // nibbles so the cursor ends up after the
+                                // number
                                 if exponent > 1000 {
-                                    return if exponent_sign == -1 {
-                                        Ok(BCD_UNDERFLOW.into())
-                                    } else {
-                                        Ok(BCD_OVERFLOW.into())
-                                    };
+                                    have_overflow = true;
                                 } else {
                                     exponent = exponent * 10 + nibble as i32;
                                 }
@@ -150,6 +149,14 @@ impl BcdComponents {
                     }
                 }
             }
+        }
+        if have_overflow && number != 0 {
+            let error = if exponent_sign == -1 {
+                BCD_UNDERFLOW
+            } else {
+                Fixed::from_bits(BCD_OVERFLOW.to_bits() * sign)
+            };
+            return Ok(error.into());
         }
         exponent *= exponent_sign;
         Ok(Self {
@@ -434,6 +441,35 @@ mod tests {
                 .dynamically_scaled_value(),
             (Fixed::from_bits(1280000000), -7)
         );
+    }
+
+    #[test]
+    fn binary_coded_decimal_exponent_overflow_consumes_number() {
+        // 1E100100 followed by a byte that would otherwise decode as an
+        // operand
+        let bytes = FontData::new(&[0x1b, 0x10, 0x01, 0x00, 0xff, 0x8b]);
+        let mut cursor = bytes.cursor();
+        let components = BcdComponents::parse(&mut cursor).unwrap();
+        assert_eq!(components.value(false), BCD_OVERFLOW);
+        assert_eq!(cursor.position().unwrap(), 5);
+        // -1E100100
+        let bytes = FontData::new(&[0xe1, 0xb1, 0x00, 0x10, 0x0f]);
+        let mut cursor = bytes.cursor();
+        let components = BcdComponents::parse(&mut cursor).unwrap();
+        assert_eq!(components.value(false), -BCD_OVERFLOW);
+        assert_eq!(cursor.remaining_bytes(), 0);
+        // 1E-100100
+        let bytes = FontData::new(&[0x1c, 0x10, 0x01, 0x00, 0xff]);
+        let mut cursor = bytes.cursor();
+        let components = BcdComponents::parse(&mut cursor).unwrap();
+        assert_eq!(components.value(false), BCD_UNDERFLOW);
+        assert_eq!(cursor.remaining_bytes(), 0);
+        // 0E100100
+        let bytes = FontData::new(&[0x0b, 0x10, 0x01, 0x00, 0xff]);
+        let mut cursor = bytes.cursor();
+        let components = BcdComponents::parse(&mut cursor).unwrap();
+        assert_eq!(components.value(false), Fixed::ZERO);
+        assert_eq!(cursor.remaining_bytes(), 0);
     }
 
     /// See <https://github.com/googlefonts/fontations/issues/1617>
