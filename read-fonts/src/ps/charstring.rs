@@ -31,6 +31,11 @@ pub const NESTING_DEPTH_LIMIT: u32 = 10;
 /// FreeType only limits depth, not number of operations.
 const MAX_OPERATIONS: u32 = 1_000_000;
 
+/// Size of the transient array that `put` and `get` address.
+///
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psfont.h#L59>
+const STORAGE_SIZE: usize = 32;
+
 /// The type of a PostScript charstring.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CharstringKind {
@@ -280,6 +285,32 @@ pub fn evaluate_width<'a>(
     Ok(evaluator.have_read_width.then_some(evaluator.wx))
 }
 
+/// The square root of `value`, by the method FreeType uses.
+///
+/// Zero for anything that is not positive, so a caller never sees an
+/// imaginary answer.
+///
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1420>
+fn fixed_sqrt(value: Fixed) -> Fixed {
+    if value.to_bits() <= 0 {
+        return Fixed::ZERO;
+    }
+    // A start value small enough that the addition below cannot overflow.
+    let mut root = if value.to_bits() < 10 {
+        value
+    } else {
+        Fixed::from_bits(value.to_bits() >> 1)
+    };
+    // Babylonian method.
+    loop {
+        let next = Fixed::from_bits((root.to_bits() + (value / root).to_bits() + 1) >> 1);
+        if next == root {
+            return next;
+        }
+        root = next;
+    }
+}
+
 /// Specifies how the seac operation was invoked.
 #[derive(PartialEq)]
 enum SeacMode {
@@ -320,6 +351,8 @@ struct Evaluator<'a> {
     in_seac: bool,
     /// Number of operators or numbers processed so far
     ops_done: u32,
+    /// The transient array that `put` and `get` address.
+    storage: [Fixed; STORAGE_SIZE],
 }
 
 impl<'a> Evaluator<'a> {
@@ -348,6 +381,7 @@ impl<'a> Evaluator<'a> {
             stack_ix: 0,
             in_seac: false,
             ops_done: 0,
+            storage: [Fixed::ZERO; STORAGE_SIZE],
         }
     }
 
@@ -817,6 +851,125 @@ impl<'a> Evaluator<'a> {
             Div => {
                 self.stack.div(self.is_type1)?;
             }
+            // Arithmetic, logic, storage and stack operators. Deprecated in
+            // Type 2 and forbidden in CFF2, but a font may still state them,
+            // and FreeType evaluates them all.
+            //
+            // None of these clear the stack: they compute a value for the
+            // operator that follows.
+            //
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=27>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1252>
+            And | Or | Eq => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                // These answer with an integer, not a fixed point value.
+                let answer = match operator {
+                    And => a != Fixed::ZERO && b != Fixed::ZERO,
+                    Or => a != Fixed::ZERO || b != Fixed::ZERO,
+                    _ => a == b,
+                };
+                self.stack.push(answer as i32)?;
+            }
+            Not => {
+                let a = self.stack.pop_fixed()?;
+                self.stack.push((a == Fixed::ZERO) as i32)?;
+            }
+            Abs | Neg => {
+                let a = self.stack.pop_fixed()?;
+                // The most negative value has no positive counterpart, so it
+                // saturates rather than wrapping back to itself.
+                let answer = if a.to_bits() < -Fixed::MAX.to_bits() {
+                    Fixed::MAX
+                } else if operator == Abs {
+                    Fixed::from_bits(a.to_bits().abs())
+                } else {
+                    Fixed::from_bits(-a.to_bits())
+                };
+                self.stack.push(answer)?;
+            }
+            Add | Sub => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                // Wrapping, as FreeType's ADD_INT32 and SUB_INT32 are.
+                let answer = if operator == Add {
+                    a.to_bits().wrapping_add(b.to_bits())
+                } else {
+                    a.to_bits().wrapping_sub(b.to_bits())
+                };
+                self.stack.push(Fixed::from_bits(answer))?;
+            }
+            Mul => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(a * b)?;
+            }
+            Sqrt => {
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(fixed_sqrt(a))?;
+            }
+            Drop => {
+                self.stack.pop_fixed()?;
+            }
+            Dup => {
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(a)?;
+                self.stack.push(a)?;
+            }
+            Exch => {
+                self.stack.exch()?;
+            }
+            Index => {
+                let index = self.stack.pop_i32()?;
+                let len = self.stack.len();
+                if len > 0 {
+                    // A negative index names the top, and one past the end
+                    // names the bottom, rather than either being an error.
+                    let from_bottom = if index < 0 {
+                        len - 1
+                    } else if index as usize >= len {
+                        0
+                    } else {
+                        len - 1 - index as usize
+                    };
+                    let value = self.stack.get_fixed(from_bottom)?;
+                    self.stack.push(value)?;
+                }
+            }
+            Roll => {
+                let shift = self.stack.pop_i32()?;
+                let count = self.stack.pop_i32()?;
+                self.stack.roll(count, shift)?;
+            }
+            Put => {
+                let index = self.stack.pop_i32()?;
+                let value = self.stack.pop_fixed()?;
+                // An index the array cannot hold is dropped, not an error.
+                if let Some(slot) = usize::try_from(index)
+                    .ok()
+                    .and_then(|i| self.storage.get_mut(i))
+                {
+                    *slot = value;
+                }
+            }
+            Get => {
+                let index = self.stack.pop_i32()?;
+                // An index the array cannot hold pushes nothing, leaving the
+                // stack one shorter than the charstring expects.
+                if let Some(value) = usize::try_from(index)
+                    .ok()
+                    .and_then(|i| self.storage.get(i))
+                {
+                    self.stack.push(*value)?;
+                }
+            }
+            IfElse => {
+                let cond2 = self.stack.pop_fixed()?;
+                let cond1 = self.stack.pop_fixed()?;
+                let arg2 = self.stack.pop_fixed()?;
+                let arg1 = self.stack.pop_fixed()?;
+                self.stack.push(if cond1 <= cond2 { arg1 } else { arg2 })?;
+            }
             // Mechanism for making calls into the PostScript interpreter.
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=61>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1644>
@@ -1224,6 +1377,24 @@ enum Operator {
     Flex,
     HFlex1,
     Flex1,
+    And,
+    Or,
+    Not,
+    Abs,
+    Add,
+    Sub,
+    Neg,
+    Eq,
+    Drop,
+    Put,
+    Get,
+    IfElse,
+    Mul,
+    Sqrt,
+    Dup,
+    Exch,
+    Index,
+    Roll,
 }
 
 impl Operator {
@@ -1278,12 +1449,34 @@ impl Operator {
     pub fn from_two_byte_opcode(opcode: u8) -> Option<Self> {
         use Operator::*;
         Some(match opcode {
+            // `random` (12 23) is deliberately absent. It answers from a
+            // generator whose state belongs to the subfont and persists
+            // across glyphs, and its answers are meant to differ from run to
+            // run, so a charstring cannot depend on any particular one.
             0 => DotSection,
             1 => VStem3,
             2 => HStem3,
+            3 => And,
+            4 => Or,
+            5 => Not,
             6 => Seac,
             7 => Sbw,
+            9 => Abs,
+            10 => Add,
+            11 => Sub,
             12 => Div,
+            14 => Neg,
+            15 => Eq,
+            18 => Drop,
+            20 => Put,
+            21 => Get,
+            22 => IfElse,
+            24 => Mul,
+            26 => Sqrt,
+            27 => Dup,
+            28 => Exch,
+            29 => Index,
+            30 => Roll,
             16 => CallOtherSubr,
             17 => Pop,
             33 => SetCurrentPoint,
@@ -2382,6 +2575,253 @@ mod tests {
 
         fn weight_vector(&self) -> &[Fixed] {
             &self.0
+        }
+    }
+
+    /// Builds a Type 2 charstring from `ops`, then moves by whatever the
+    /// stack holds so the result is observable as a coordinate.
+    fn eval(ops: &[u8]) -> Vec<Command> {
+        let mut charstring = ops.to_vec();
+        charstring.push(21); // rmoveto
+        charstring.push(14); // endchar
+        let mut commands = CaptureCommandSink::default();
+        evaluate(
+            &NullContext(CharstringKind::Type2),
+            None,
+            &charstring,
+            &mut commands,
+        )
+        .unwrap();
+        commands.0
+    }
+
+    /// A single number, in the one-byte encoding where it fits.
+    fn n(v: i32) -> Vec<u8> {
+        assert!((-107..=107).contains(&v));
+        std::vec![(v + 139) as u8]
+    }
+
+    fn esc(op: u8) -> Vec<u8> {
+        std::vec![12, op]
+    }
+
+    /// Runs `a op b` and reports where the move ended up.
+    fn binary(a: i32, b: i32, op: u8) -> (Fixed, Fixed) {
+        let mut cs = n(0);
+        cs.extend(n(a));
+        cs.extend(n(b));
+        cs.extend(esc(op));
+        match eval(&cs).first() {
+            Some(Command::MoveTo(x, y)) => (*x, *y),
+            other => panic!("expected a move, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn arithmetic() {
+        // dx is 0, so the second coordinate carries the answer.
+        assert_eq!(binary(7, 5, 10).1, Fixed::from_i32(12)); // add
+        assert_eq!(binary(7, 5, 11).1, Fixed::from_i32(2)); // sub
+        assert_eq!(binary(7, 5, 24).1, Fixed::from_i32(35)); // mul
+        assert_eq!(binary(10, 4, 12).1, Fixed::from_f64(2.5)); // div
+    }
+
+    #[test]
+    fn logic_answers_with_one_or_zero() {
+        for (a, b, op, expected) in [
+            (1, 1, 3, 1),
+            (1, 0, 3, 0),
+            (0, 0, 3, 0), // and
+            (1, 0, 4, 1),
+            (0, 0, 4, 0), // or
+            (5, 5, 15, 1),
+            (5, 6, 15, 0), // eq
+        ] {
+            assert_eq!(
+                binary(a, b, op).1,
+                Fixed::from_i32(expected),
+                "12 {op} on {a}, {b}"
+            );
+        }
+    }
+
+    #[test]
+    fn unary() {
+        // not
+        let mut cs = n(0);
+        cs.extend(n(0));
+        cs.extend(esc(5));
+        assert_eq!(
+            match eval(&cs).first() {
+                Some(Command::MoveTo(_, y)) => *y,
+                _ => panic!(),
+            },
+            Fixed::from_i32(1)
+        );
+        // abs and neg
+        for (v, op, expected) in [(-5, 9, 5), (5, 9, 5), (5, 14, -5), (-5, 14, 5)] {
+            let mut cs = n(0);
+            cs.extend(n(v));
+            cs.extend(esc(op));
+            assert_eq!(
+                match eval(&cs).first() {
+                    Some(Command::MoveTo(_, y)) => *y,
+                    _ => panic!(),
+                },
+                Fixed::from_i32(expected),
+                "12 {op} on {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn sqrt_of_a_square_is_the_root() {
+        for v in [1i32, 4, 9, 16, 100] {
+            let mut cs = n(0);
+            cs.extend(n(v));
+            cs.extend(esc(26));
+            let got = match eval(&cs).first() {
+                Some(Command::MoveTo(_, y)) => *y,
+                _ => panic!(),
+            };
+            // The Babylonian method lands within a hair of the true root.
+            let want = Fixed::from_f64((v as f64).sqrt());
+            assert!(
+                (got.to_bits() - want.to_bits()).abs() <= 2,
+                "sqrt({v}) = {got:?}, wanted about {want:?}"
+            );
+        }
+        // Nothing that is not positive has a root here.
+        for v in [0i32, -4] {
+            let mut cs = n(0);
+            cs.extend(n(v));
+            cs.extend(esc(26));
+            assert_eq!(
+                match eval(&cs).first() {
+                    Some(Command::MoveTo(_, y)) => *y,
+                    _ => panic!(),
+                },
+                Fixed::ZERO
+            );
+        }
+    }
+
+    #[test]
+    fn the_stack_operators_rearrange_it() {
+        // dup: 0 7 dup -> 0 7 7, so the move takes the last two
+        let mut cs = n(0);
+        cs.extend(n(7));
+        cs.extend(esc(27));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(7), Fixed::from_i32(7)))
+        );
+        // exch: 3 9 exch -> 9 3
+        let mut cs = n(3);
+        cs.extend(n(9));
+        cs.extend(esc(28));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(9), Fixed::from_i32(3)))
+        );
+        // drop: 4 5 6 drop -> 4 5
+        let mut cs = n(4);
+        cs.extend(n(5));
+        cs.extend(n(6));
+        cs.extend(esc(18));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(4), Fixed::from_i32(5)))
+        );
+        // index 0 copies the top: 0 8 0 index -> 0 8 8
+        let mut cs = n(0);
+        cs.extend(n(8));
+        cs.extend(n(0));
+        cs.extend(esc(29));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(8), Fixed::from_i32(8)))
+        );
+    }
+
+    #[test]
+    fn roll_rotates_the_values_it_is_given() {
+        // 1 2 3, roll 3 by 1 -> 3 1 2, so the move takes 1 2
+        let mut cs = n(1);
+        cs.extend(n(2));
+        cs.extend(n(3));
+        cs.extend(n(3));
+        cs.extend(n(1));
+        cs.extend(esc(30));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(1), Fixed::from_i32(2)))
+        );
+    }
+
+    #[test]
+    fn roll_leaves_the_values_below_alone() {
+        // 99 1 2, roll 2 by 1 -> 99 2 1, so 99 is the width and the move
+        // takes 2 1
+        let mut cs = n(99);
+        cs.extend(n(1));
+        cs.extend(n(2));
+        cs.extend(n(2));
+        cs.extend(n(1));
+        cs.extend(esc(30));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(2), Fixed::from_i32(1)))
+        );
+    }
+
+    #[test]
+    fn the_transient_array_remembers_between_operators() {
+        // 0, then 42 into slot 3, then read it back
+        let mut cs = n(0);
+        cs.extend(n(42));
+        cs.extend(n(3));
+        cs.extend(esc(20)); // put
+        cs.extend(n(3));
+        cs.extend(esc(21)); // get
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::ZERO, Fixed::from_i32(42)))
+        );
+    }
+
+    #[test]
+    fn a_slot_the_array_does_not_have_is_ignored() {
+        // Storing out of range must not disturb the stack or panic.
+        let mut cs = n(3);
+        cs.extend(n(9));
+        cs.extend(n(99));
+        cs.extend(esc(20)); // put, out of range: drops the value
+        cs.extend(n(4));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(3), Fixed::from_i32(4)))
+        );
+    }
+
+    #[test]
+    fn ifelse_picks_the_first_when_the_conditions_are_ordered() {
+        // args 11 22, conditions 1 2: 1 <= 2, so 11
+        for (c1, c2, expected) in [(1, 2, 11), (2, 1, 22), (2, 2, 11)] {
+            let mut cs = n(0);
+            cs.extend(n(11));
+            cs.extend(n(22));
+            cs.extend(n(c1));
+            cs.extend(n(c2));
+            cs.extend(esc(22));
+            assert_eq!(
+                match eval(&cs).first() {
+                    Some(Command::MoveTo(_, y)) => *y,
+                    _ => panic!(),
+                },
+                Fixed::from_i32(expected),
+                "conditions {c1}, {c2}"
+            );
         }
     }
 }
