@@ -8,7 +8,7 @@ mod single_subst;
 
 use crate::FastHashMap;
 use crate::{
-    collect_features_with_retained_subs, find_duplicate_features,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
@@ -82,17 +82,16 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
-        let variations = self.feature_variations().and_then(Result::ok);
-        let mut duplicates = find_duplicate_features(
+        let variable_features = match self.feature_variations() {
+            Some(Ok(variations)) => collect_variable_feature_indices(&variations),
+            _ => IntSet::empty(),
+        };
+        find_duplicate_features(
             &feature_list,
             lookup_indices,
             feature_indices,
-            variations.as_ref(),
-        );
-        if let Some(variations) = variations.as_ref() {
-            crate::layout::protect_lookup_variation_features(variations, &mut duplicates);
-        }
-        duplicates
+            &variable_features,
+        )
     }
 
     fn prune_langsys(
@@ -116,11 +115,17 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
+        // Glyphs outside the font must not make further lookups reachable.
+        let num_glyphs = u32::try_from(plan.font_num_glyphs).unwrap_or(u32::MAX);
         if !plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE)
             && self
-                .closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub)
+                .closure_glyphs_with_num_glyphs(
+                    &lookup_indices,
+                    &mut plan.glyphset_gsub,
+                    num_glyphs,
+                )
                 .is_err()
         {
             return;

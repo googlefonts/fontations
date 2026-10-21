@@ -153,7 +153,6 @@ fn representable_len(start: usize, item_len: usize, len: usize) -> usize {
 /// this covers the types written by hand. A blanket impl is not possible,
 /// because a positioned type implements [`FontReadAt`] directly and the
 /// compiler cannot be told that no type does both.
-#[macro_export]
 macro_rules! impl_font_read_at {
     ($typ:ty) => {
         impl<'a> $crate::FontReadAt<'a> for $typ {
@@ -174,6 +173,7 @@ macro_rules! impl_font_read_at {
         }
     };
 }
+pub(crate) use impl_font_read_at;
 
 /// An array of items of non-uniform length.
 ///

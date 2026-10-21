@@ -2,17 +2,22 @@
 
 mod glyph;
 
-pub(crate) use glyph::{glyph_name, glyph_names};
+pub(crate) use glyph::{glyph_name, glyph_names, GlyphNameIndex};
+#[doc(inline)]
 pub use glyph::{GlyphName, GlyphNameSource};
 
 use crate::{
-    ps::type1::Type1Font,
+    ps::{
+        cff::{CffFontRef, Metadata as CffMetadata},
+        type1::Type1Font,
+    },
     tables::name::{language_id_to_bcp47, Encoding, Name as SfntName, NameRecord, NameString},
-    TableProvider,
+    FontData, FontRead, TableProvider,
 };
 use core::cmp::Ordering;
 use core::fmt;
 
+#[doc(inline)]
 pub use crate::types::NameId;
 
 /// Access to names in a font.
@@ -20,23 +25,29 @@ pub use crate::types::NameId;
 /// SFNT names come from the `name` table. For Type 1 fonts, the available
 /// notice, family, weight, full, version, and PostScript names are exposed as
 /// name IDs 0, 1, 2, 4, 5, and 6, respectively. A Type 1 `Notice` may contain
-/// either copyright or trademark text; it is exposed as ID 0.
-#[derive(Clone)]
+/// either copyright or trademark text; it is exposed as ID 0. The axes of a
+/// multiple master font are named by IDs from 256, one per axis, which
+/// [`Axis::name`](super::variation::Axis::name) returns. Standalone CFF
+/// fonts expose family, weight, full, and PostScript names as IDs 1, 2, 4,
+/// and 6, and copyright, version, and notice as IDs 0, 5, and 7.
+#[derive(Clone, Copy)]
 pub struct Names<'a> {
     source: Source<'a>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 enum Source<'a> {
-    Sfnt(Option<SfntName<'a>>),
+    /// The data of the `name` table, if the font has one.
+    Sfnt(Option<FontData<'a>>),
     Type1(&'a Type1Font),
+    StandaloneCff(Option<CffMetadata<'a>>),
 }
 
 impl<'a> Names<'a> {
     /// Creates a name facade from an SFNT table provider.
-    pub fn from_sfnt(font: impl TableProvider<'a>) -> Self {
+    pub fn from_sfnt(tables: &impl TableProvider<'a>) -> Self {
         Self {
-            source: Source::Sfnt(font.name().ok()),
+            source: Source::Sfnt(tables.name().ok().map(|name| name.offset_data())),
         }
     }
 
@@ -47,20 +58,83 @@ impl<'a> Names<'a> {
         }
     }
 
+    /// Creates a name facade from a standalone CFF font.
+    pub fn from_cff(font: &CffFontRef<'a>) -> Self {
+        Self {
+            source: Source::StandaloneCff(font.metadata()),
+        }
+    }
+
     /// Returns the name entry for the given identifier.
-    pub fn get(&self, id: NameId) -> Name<'a> {
-        Name {
-            source: self.source.clone(),
+    ///
+    /// Returns `None` if the font has no name with this identifier.
+    pub fn get(&self, id: NameId) -> Option<Name<'a>> {
+        // Records are sorted by platform, encoding and language before
+        // identifier, so those for one identifier are spread out. The first
+        // is kept so the strings are found without scanning the records
+        // before it again.
+        let start = match &self.source {
+            Source::Sfnt(data) => sfnt_name(*data)?
+                .name_record()
+                .iter()
+                .position(|record| record.name_id() == id)?,
+            Source::Type1(font) => type1_name(font, id).map(|_| 0)?,
+            Source::StandaloneCff(meta) => standalone_cff_name(meta.as_ref()?, id).map(|_| 0)?,
+        };
+        Some(Name {
+            source: self.source,
             id,
+            start,
+        })
+    }
+}
+
+/// Reads the `name` table from its data.
+fn sfnt_name(data: Option<FontData<'_>>) -> Option<SfntName<'_>> {
+    SfntName::read(data?).ok()
+}
+
+/// Returns the Type 1 string for a name identifier.
+fn type1_name(font: &Type1Font, id: NameId) -> Option<&str> {
+    match id {
+        NameId::COPYRIGHT_NOTICE => font.notice(),
+        NameId::FAMILY_NAME => font.family_name(),
+        NameId::SUBFAMILY_NAME => font.weight(),
+        NameId::FULL_NAME => font.full_name(),
+        NameId::VERSION_STRING => font.version(),
+        NameId::POSTSCRIPT_NAME => font.name(),
+        id => {
+            let index = id.to_u16().checked_sub(TYPE1_AXIS_NAMES)?;
+            font.multiple_master()?.axes().get(index as usize)?.name()
         }
     }
 }
 
+/// The name ID of the first axis of a Type 1 multiple master font. Each
+/// later axis takes the next.
+pub(crate) const TYPE1_AXIS_NAMES: u16 = 256;
+
+/// Returns the standalone CFF string for a name identifier.
+fn standalone_cff_name<'a>(meta: &CffMetadata<'a>, id: NameId) -> Option<&'a str> {
+    match id {
+        NameId::COPYRIGHT_NOTICE => meta.copyright(),
+        NameId::FAMILY_NAME => meta.family_name(),
+        NameId::SUBFAMILY_NAME => meta.weight(),
+        NameId::FULL_NAME => meta.full_name(),
+        NameId::VERSION_STRING => meta.version(),
+        NameId::POSTSCRIPT_NAME => meta.name(),
+        NameId::TRADEMARK => meta.notice(),
+        _ => None,
+    }
+}
+
 /// The localized strings for one name identifier.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Name<'a> {
     source: Source<'a>,
     id: NameId,
+    /// The index of the first `name` record with this identifier.
+    start: usize,
 }
 
 impl<'a> Name<'a> {
@@ -98,29 +172,23 @@ impl<'a> Name<'a> {
     ///
     /// Records with unsupported encodings are skipped. Malformed text in a
     /// supported encoding may contain replacement characters.
-    pub fn iter(&self) -> impl Iterator<Item = Localized<'a>> + '_ {
-        let id = self.id;
-        let sfnt = match &self.source {
-            Source::Sfnt(table) => table.as_ref(),
+    pub fn iter(&self) -> impl Iterator<Item = Localized<'a>> + 'a {
+        let (id, start) = (self.id, self.start);
+        let sfnt = match self.source {
+            Source::Sfnt(data) => sfnt_name(data),
             _ => None,
         };
         let sfnt = sfnt.into_iter().flat_map(move |table| {
             table
                 .name_record()
+                .get(start..)
+                .unwrap_or_default()
                 .iter()
                 .filter(move |record| record.name_id() == id)
-                .filter_map(move |record| Localized::from_record(table, record))
+                .filter_map(move |record| Localized::from_record(&table, record))
         });
         let type1 = match &self.source {
-            Source::Type1(font) => match id {
-                NameId::COPYRIGHT_NOTICE => font.notice(),
-                NameId::FAMILY_NAME => font.family_name(),
-                NameId::SUBFAMILY_NAME => font.weight(),
-                NameId::FULL_NAME => font.full_name(),
-                NameId::VERSION_STRING => font.version(),
-                NameId::POSTSCRIPT_NAME => font.name(),
-                _ => None,
-            },
+            Source::Type1(font) => type1_name(font, id),
             _ => None,
         }
         .map(|name| Localized {
@@ -128,14 +196,23 @@ impl<'a> Name<'a> {
             language: None,
             sfnt_record: None,
         });
-        sfnt.chain(type1)
+        let standalone_cff = match &self.source {
+            Source::StandaloneCff(Some(meta)) => standalone_cff_name(meta, id),
+            _ => None,
+        }
+        .map(|name| Localized {
+            name: Encoded::from_str(name),
+            language: None,
+            sfnt_record: None,
+        });
+        sfnt.chain(type1).chain(standalone_cff)
     }
 }
 
 /// A font name and its optional BCP 47 language tag.
 ///
 /// The language is `None` when the source supplies no recognized language or
-/// when the name comes from a Type 1 font.
+/// when the name comes from a Type 1 or standalone CFF font.
 #[derive(Clone, Copy, Debug)]
 pub struct Localized<'a> {
     name: Encoded<'a>,
@@ -154,7 +231,7 @@ impl<'a> Localized<'a> {
         self.language
     }
 
-    /// Returns the source `name` record for an SFNT name, or `None` for Type 1.
+    /// Returns the source `name` record for an SFNT name, or `None` for Type 1 or CFF.
     pub fn sfnt_record(self) -> Option<NameRecord> {
         self.sfnt_record
     }
@@ -186,8 +263,8 @@ impl<'a> Localized<'a> {
 /// A name or language tag in its source encoding.
 ///
 /// SFNT UTF-16BE and Mac Roman strings are decoded when displayed or compared,
-/// without allocating. Type 1 names and built-in language tags borrow UTF-8
-/// text directly.
+/// without allocating. Type 1 and standalone CFF names and built-in language
+/// tags borrow UTF-8 text directly.
 #[derive(Clone, Copy)]
 pub struct Encoded<'a>(EncodedRepr<'a>);
 
@@ -207,7 +284,7 @@ impl<'a> Encoded<'a> {
     }
 
     /// Iterates over decoded Unicode characters.
-    pub fn chars(&self) -> impl Iterator<Item = char> + '_ {
+    pub fn chars(&self) -> impl Iterator<Item = char> + 'a {
         let sfnt = match self.0 {
             EncodedRepr::Sfnt(name) => Some(name),
             _ => None,
@@ -287,6 +364,24 @@ mod tests {
     use crate::{model::Font, types::Tag, FontData};
     use alloc::vec::Vec;
 
+    // The iterators borrow the font, not the name or string they came from,
+    // so they outlive both.
+    #[test]
+    fn iterators_outlive_their_names() {
+        let font = Font::new(font_test_data::NAMES_ONLY, 0).unwrap();
+        let localized = font.names().get(NameId::FAMILY_NAME).unwrap().iter();
+        let chars = font
+            .names()
+            .get(NameId::FAMILY_NAME)
+            .unwrap()
+            .english_or_first()
+            .unwrap()
+            .name()
+            .chars();
+        assert!(localized.count() > 0);
+        assert!(chars.count() > 0);
+    }
+
     struct NameProvider<'a>(&'a [u8]);
 
     impl<'a> TableProvider<'a> for NameProvider<'a> {
@@ -351,7 +446,9 @@ mod tests {
             ],
             &[],
         );
-        let name = Names::from_sfnt(NameProvider(&data)).get(NameId::FAMILY_NAME);
+        let name = Names::from_sfnt(&NameProvider(&data))
+            .get(NameId::FAMILY_NAME)
+            .unwrap();
         let entries: Vec<_> = name.iter().collect();
         assert_eq!(entries.len(), 4);
         assert_eq!(entries[0].name(), "Français");
@@ -369,6 +466,31 @@ mod tests {
         assert_eq!(best.name().to_string(), "American English");
     }
 
+    // A missing identifier has no entry, and an entry starting partway
+    // through the records still finds every string for its identifier.
+    #[test]
+    fn get_finds_an_identifier_wherever_its_records_start() {
+        let data = name_table(
+            &[
+                (1, 0, 0, NameId::FAMILY_NAME, "Mac Family"),
+                (1, 0, 0, NameId::FULL_NAME, "Mac Full"),
+                (3, 1, 0x0409, NameId::FAMILY_NAME, "Windows Family"),
+                (3, 1, 0x0409, NameId::FULL_NAME, "Windows Full"),
+            ],
+            &[],
+        );
+        let names = Names::from_sfnt(&NameProvider(&data));
+        assert!(names.get(NameId::DESCRIPTION).is_none());
+        let full: Vec<_> = names
+            .get(NameId::FULL_NAME)
+            .unwrap()
+            .iter()
+            .map(|name| name.name().to_string())
+            .collect();
+        assert_eq!(full, ["Mac Full", "Windows Full"]);
+        assert_eq!(names.get(NameId::FAMILY_NAME).unwrap().iter().count(), 2);
+    }
+
     #[test]
     fn skips_names_with_unsupported_encodings() {
         let data = name_table(
@@ -378,7 +500,9 @@ mod tests {
             ],
             &[],
         );
-        let name = Names::from_sfnt(NameProvider(&data)).get(NameId::FAMILY_NAME);
+        let name = Names::from_sfnt(&NameProvider(&data))
+            .get(NameId::FAMILY_NAME)
+            .unwrap();
         let entries: Vec<_> = name.iter().collect();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name(), "Français");
@@ -391,14 +515,17 @@ mod tests {
             &[(3, 1, 0x8000, NameId::FULL_NAME, "Tagged Name")],
             &["en-GB"],
         );
-        let name = Names::from_sfnt(NameProvider(&data)).get(NameId::FULL_NAME);
+        let name = Names::from_sfnt(&NameProvider(&data))
+            .get(NameId::FULL_NAME)
+            .unwrap();
         let value = name.english_or_first().unwrap();
         assert_eq!(value.name(), "Tagged Name");
         assert_eq!(value.language().unwrap(), "en-GB");
 
         let invalid = name_table(&[(3, 1, 0x8000, NameId::FULL_NAME, "Tagged Name")], &["é"]);
-        let value = Names::from_sfnt(NameProvider(&invalid))
+        let value = Names::from_sfnt(&NameProvider(&invalid))
             .get(NameId::FULL_NAME)
+            .unwrap()
             .english_or_first()
             .unwrap();
         assert_eq!(value.name(), "Tagged Name");
@@ -410,8 +537,9 @@ mod tests {
             &[(3, 1, 0x8000, NameId::FULL_NAME, "Tagged Name")],
             &[long_tag],
         );
-        let value = Names::from_sfnt(NameProvider(&data))
+        let value = Names::from_sfnt(&NameProvider(&data))
             .get(NameId::FULL_NAME)
+            .unwrap()
             .english_or_first()
             .unwrap();
         assert_eq!(value.language().unwrap(), long_tag);
@@ -435,24 +563,20 @@ mod tests {
             ),
             (NameId::POSTSCRIPT_NAME, "NotoSerif-Regular"),
         ] {
-            let name = font.names().get(id);
+            let name = font.names().get(id).unwrap();
             let value = name.english_or_first().unwrap();
             assert_eq!(value.name(), expected);
             assert!(value.language().is_none());
             assert!(value.sfnt_record().is_none());
             assert_eq!(name.iter().count(), 1);
         }
-        assert!(font
-            .names()
-            .get(NameId::DESCRIPTION)
-            .iter()
-            .next()
-            .is_none());
+        assert!(font.names().get(NameId::DESCRIPTION).is_none());
 
         let type1 = Type1Font::new(data).unwrap();
         assert_eq!(
             Names::from_type1(&type1)
                 .get(NameId::POSTSCRIPT_NAME)
+                .unwrap()
                 .english_or_first()
                 .unwrap()
                 .name(),
@@ -470,8 +594,8 @@ mod tests {
             ],
             &[],
         );
-        let names = Names::from_sfnt(NameProvider(&data));
-        let entries: Vec<_> = names.get(NameId::FAMILY_NAME).iter().collect();
+        let names = Names::from_sfnt(&NameProvider(&data));
+        let entries: Vec<_> = names.get(NameId::FAMILY_NAME).unwrap().iter().collect();
         let mac = entries[0].name();
         let utf16 = entries[1].name();
         let accented = entries[2].name();
