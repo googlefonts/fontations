@@ -111,4 +111,55 @@ for i, g in enumerate([".notdef", "A", "B"]):
     top.CharStrings[g].fdSelectIndex = sel.gidArray[i]
 f.font["CFF2"].cff.GlobalSubrs.append(T2CharString(program=[10, 0, "rlineto"]))
 f.save(OUT / "cff2_shared_global.otf")
+# dotsection is a no-op even when live operands precede it.
+f = builder()
+f.setupCFF(
+    "CFFDotsection",
+    {},
+    {
+        ".notdef": T2CharString(program=["endchar"]),
+        # fontTools does not accept the deprecated opcode's source spelling.
+        "A": T2CharString(bytecode=bytes([189, 199, 12, 0, 21, 149, 149, 5, 14])),
+        "B": T2CharString(program=[0, 0, "rmoveto", 20, 20, "rlineto", "endchar"]),
+    },
+    {"defaultWidthX": 500},
+)
+f.save(OUT / "cff1_dotsection_live_args.otf")
+
+# The same bytes have two legal mask tokenizations depending on stem count.
+# Both glyph orders must work, including when one glyph falls back to flattening.
+for order, suffix in [([".notdef", "A", "B"], "forward"), ([".notdef", "B", "A"], "reverse")]:
+    f = builder()
+    f.setupGlyphOrder(order)
+    programs = {".notdef": ["endchar"]}
+    for name, stems in [("A", 16), ("B", 8)]:
+        programs[name] = [0, 10] * stems + [
+            "hstem", 50, 60, "rmoveto", -107, "callsubr", 10, 10, "rlineto", "endchar"
+        ]
+    f.setupCFF(
+        "CFFContextualMasks",
+        {},
+        {name: T2CharString(program=programs[name]) for name in order},
+        {"defaultWidthX": 500},
+    )
+    top = f.font["CFF "].cff.topDictIndex[0]
+    private = top.Private
+    private.Subrs = SubrsIndex()
+    private.Subrs.append(
+        T2CharString(bytecode=bytes([19, 0, 19, 11, 11]), private=private, globalSubrs=top.GlobalSubrs)
+    )
+    f.save(OUT / f"cff1_contextual_masks_{suffix}.otf")
+
+f = builder()
+f.setupFvar([("wght", 0, 0, 1, "Weight")], [])
+group = [10, 20] + [1] * 80 + [2, "blend"]
+f.setupCFF2(
+    {
+        ".notdef": T2CharString(program=[]),
+        "A": T2CharString(program=[0, 0, "rmoveto"] + group + ["rlineto"]),
+        "B": T2CharString(program=[0, 0, "rmoveto"] + group + [0, "blend"] + group + ["rlineto"]),
+    },
+    regions=[{"wght": (0, 1, 1)}] * 40,
+)
+f.save(OUT / "cff2_blend_identity.otf")
 print(OUT)
