@@ -30,6 +30,11 @@ pub static COLR_GRADIENT_RECT: &[u8] =
 
 pub static VAZIRMATN_VAR: &[u8] = include_bytes!("../test_data/ttf/vazirmatn_var_trimmed.ttf");
 
+/// Synthetic font with matching HVAR, VVAR and gvar advance deltas that can
+/// make advances negative, or fractional at intermediate locations.
+pub static NEGATIVE_VAR_ADVANCES: &[u8] =
+    include_bytes!("../test_data/ttf/negative_var_advances.ttf");
+
 pub static NAMES_ONLY: &[u8] = include_bytes!("../test_data/ttf/names_only.ttf");
 
 pub static VAZIRMATN_VAR_GLYPHS: &str =
