@@ -451,23 +451,34 @@ fn lookup_variations_prevent_default_only_feature_deduplication() {
     let table = FeatureList::read(FontData::new(&features)).unwrap();
     let retained = [1u16, 7].into_iter().collect();
     let selected: IntSet<u16> = [0u16, 1, 2].into_iter().collect();
-    let mut duplicates =
-        crate::layout::find_duplicate_features(&table, &retained, selected.clone());
+    let duplicates = crate::layout::find_duplicate_features(
+        &table,
+        &retained,
+        selected.clone(),
+        &IntSet::empty(),
+    );
     assert_eq!(duplicates.get(&1), Some(&0));
     assert_eq!(duplicates.get(&2), Some(&0));
+
+    // feature 2 has a lookup variation: it is never merged.
     input[12..14].copy_from_slice(&2u16.to_be_bytes());
     let variations = FeatureVariations::read(FontData::new(&input)).unwrap();
-    protect_lookup_variation_features(&variations, &mut duplicates);
+    let variable = crate::layout::collect_variable_feature_indices(&variations);
+    let duplicates =
+        crate::layout::find_duplicate_features(&table, &retained, selected.clone(), &variable);
     assert_eq!(duplicates.get(&0), Some(&0));
     assert_eq!(duplicates.get(&1), Some(&0));
     assert_eq!(duplicates.get(&2), Some(&2));
+
+    // feature 0 has a lookup variation: 1 cannot merge into 0, but 2 can
+    // still merge into 1, matching harfbuzz.
     input[12..14].fill(0);
     let variations = FeatureVariations::read(FontData::new(&input)).unwrap();
-    let mut duplicates = crate::layout::find_duplicate_features(&table, &retained, selected);
-    protect_lookup_variation_features(&variations, &mut duplicates);
-    for i in 0..3 {
-        assert_eq!(duplicates.get(&i), Some(&i));
-    }
+    let variable = crate::layout::collect_variable_feature_indices(&variations);
+    let duplicates = crate::layout::find_duplicate_features(&table, &retained, selected, &variable);
+    assert_eq!(duplicates.get(&0), Some(&0));
+    assert_eq!(duplicates.get(&1), Some(&1));
+    assert_eq!(duplicates.get(&2), Some(&1));
 }
 
 #[test]

@@ -74,6 +74,7 @@ extern crate core as std;
 extern crate alloc;
 
 pub mod array;
+pub(crate) use array::impl_font_read_at;
 #[cfg(any(test, feature = "codegen_test"))]
 pub mod codegen_test;
 pub mod collections;
@@ -173,7 +174,6 @@ pub(crate) mod codegen_prelude {
         }
     }
 
-    #[macro_export]
     macro_rules! basic_table_impls {
         (impl_the_methods) => {
             /// Resolve the provided offset from the start of this table.
@@ -204,7 +204,7 @@ pub(crate) mod codegen_prelude {
         };
     }
 
-    pub(crate) use crate::basic_table_impls;
+    pub(crate) use basic_table_impls;
 }
 
 include!("../generated/font.rs");

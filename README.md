@@ -134,37 +134,7 @@ git config core.hooksPath "./resources/githooks"
 
 ## Releasing
 
-We use [`cargo-release`] to help guide the release process. It can be installed
-with `cargo install cargo-release`. You may need to install `pkg-config` via your
-package manager for this to work.
-
-Releasing involves the following steps:
-
-1. Determine which crates may need to be published: run `cargo release changes`
-   to see which crates have been modified since their last release.
-1. Determine the new versions for the crates.
-   * Before 1.0, breaking changes bump the *minor* version number, and non-breaking changes modify the *patch* number.
-1. Update manifest versions and release. `./resources/scripts/bump-version.sh` orchestrates this process.
-   * `cargo release` does all the heavy lifting
-
-   ```shell
-   # To see usage
-   ./resources/scripts/bump-version.sh
-   # To do the thing
-   ./resources/scripts/bump-version.sh read-fonts write-fonts patch
-   ```
-
-1. Commit these changes to a new branch, get it approved and merged, and switch
-   to the up-to-date `main`.
-1. Publish the crates. `./resources/scripts/release.sh` orchestrates the process.
-   * You will be prompted to review changes along the way
-
-   ```shell
-   # To see usage
-   ./resources/scripts/release.sh
-   # To do the thing
-   ./resources/scripts/release.sh read-fonts write-fonts
-   ```
+See [docs/RELEASE.md][release-docs] for instructions on releasing crates.
 
 ## What version is running where?
 
@@ -231,4 +201,4 @@ OR build and run in one command:
 [`skrifa`]: ./skrifa
 [oxidize]: https://github.com/googlefonts/oxidize
 [codegen-tour]: ./docs/codegen-tour.md
-[`cargo-release`]: https://github.com/crate-ci/cargo-release
+[release-docs]: ./docs/RELEASE.md
