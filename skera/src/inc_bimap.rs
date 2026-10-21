@@ -48,20 +48,15 @@ impl IncBiMap {
         self.back_map.iter()
     }
 
-    fn clear(&mut self) {
-        self.forw_map.clear();
-        self.back_map.clear();
-    }
-
     // after finished adding all mappings in a random order,
     // reassign rhs to lhs so that they are in the same order.
     pub(crate) fn sort(&mut self) {
-        let mut work = self.back_map.clone();
-        work.sort();
-
-        self.clear();
-        for lhs in work.iter() {
-            self.add(*lhs);
+        // Every lhs is in back_map exactly once and already a key in forw_map, so
+        // sort back_map in place and update the existing forw_map entries, instead of
+        // cloning back_map and rebuilding both maps.
+        self.back_map.sort_unstable();
+        for (rhs, lhs) in self.back_map.iter().enumerate() {
+            self.forw_map.insert(*lhs, rhs as u32);
         }
     }
 }
@@ -93,5 +88,23 @@ mod test {
         assert_eq!(bimap.len(), 4);
         assert_eq!(bimap.get(7), Some(&3));
         assert_eq!(bimap.get_backward(0), Some(&13));
+    }
+
+    #[test]
+    fn test_bimap_sort() {
+        let mut bimap: IncBiMap = [13, 8, 10, 8, 7].into_iter().collect();
+        bimap.sort();
+
+        // rhs values are reassigned in lhs order
+        assert_eq!(bimap.len(), 4);
+        assert_eq!(bimap.keys().copied().collect::<Vec<_>>(), [7, 8, 10, 13]);
+        for (rhs, lhs) in [7, 8, 10, 13].into_iter().enumerate() {
+            assert_eq!(bimap.get(lhs), Some(&(rhs as u32)));
+            assert_eq!(bimap.get_backward(rhs as u32), Some(&lhs));
+        }
+        assert_eq!(bimap.get(9), None);
+
+        // adding after sorting continues from the end
+        assert_eq!(bimap.add(9), 4);
     }
 }
