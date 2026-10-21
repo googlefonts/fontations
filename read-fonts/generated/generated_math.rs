@@ -104,26 +104,26 @@ impl<'a> Math<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_constants_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_glyph_info_offset_byte_range(&self) -> Range<usize> {
         let start = self.math_constants_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_variants_offset_byte_range(&self) -> Range<usize> {
         let start = self.math_glyph_info_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -661,206 +661,206 @@ impl<'a> MathConstants<'a> {
     }
 
     pub fn script_percent_scale_down_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + i16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(i16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn script_script_percent_scale_down_byte_range(&self) -> Range<usize> {
         let start = self.script_percent_scale_down_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
+        let end = start.saturating_add(i16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn delimited_sub_formula_min_height_byte_range(&self) -> Range<usize> {
         let start = self.script_script_percent_scale_down_byte_range().end;
-        let end = start + UfWord::RAW_BYTE_LEN;
+        let end = start.saturating_add(UfWord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn display_operator_min_height_byte_range(&self) -> Range<usize> {
         let start = self.delimited_sub_formula_min_height_byte_range().end;
-        let end = start + UfWord::RAW_BYTE_LEN;
+        let end = start.saturating_add(UfWord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_leading_byte_range(&self) -> Range<usize> {
         let start = self.display_operator_min_height_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_height_byte_range(&self) -> Range<usize> {
         let start = self.math_leading_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn accent_base_height_byte_range(&self) -> Range<usize> {
         let start = self.axis_height_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flattened_accent_base_height_byte_range(&self) -> Range<usize> {
         let start = self.accent_base_height_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subscript_shift_down_byte_range(&self) -> Range<usize> {
         let start = self.flattened_accent_base_height_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subscript_top_max_byte_range(&self) -> Range<usize> {
         let start = self.subscript_shift_down_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subscript_baseline_drop_min_byte_range(&self) -> Range<usize> {
         let start = self.subscript_top_max_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn superscript_shift_up_byte_range(&self) -> Range<usize> {
         let start = self.subscript_baseline_drop_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn superscript_shift_up_cramped_byte_range(&self) -> Range<usize> {
         let start = self.superscript_shift_up_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn superscript_bottom_min_byte_range(&self) -> Range<usize> {
         let start = self.superscript_shift_up_cramped_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn superscript_baseline_drop_max_byte_range(&self) -> Range<usize> {
         let start = self.superscript_bottom_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn sub_superscript_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.superscript_baseline_drop_max_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn superscript_bottom_max_with_subscript_byte_range(&self) -> Range<usize> {
         let start = self.sub_superscript_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn space_after_script_byte_range(&self) -> Range<usize> {
         let start = self.superscript_bottom_max_with_subscript_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn upper_limit_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.space_after_script_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn upper_limit_baseline_rise_min_byte_range(&self) -> Range<usize> {
         let start = self.upper_limit_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn lower_limit_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.upper_limit_baseline_rise_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn lower_limit_baseline_drop_min_byte_range(&self) -> Range<usize> {
         let start = self.lower_limit_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stack_top_shift_up_byte_range(&self) -> Range<usize> {
         let start = self.lower_limit_baseline_drop_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stack_top_display_style_shift_up_byte_range(&self) -> Range<usize> {
         let start = self.stack_top_shift_up_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stack_bottom_shift_down_byte_range(&self) -> Range<usize> {
         let start = self.stack_top_display_style_shift_up_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stack_bottom_display_style_shift_down_byte_range(&self) -> Range<usize> {
         let start = self.stack_bottom_shift_down_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stack_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.stack_bottom_display_style_shift_down_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stack_display_style_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.stack_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stretch_stack_top_shift_up_byte_range(&self) -> Range<usize> {
         let start = self.stack_display_style_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stretch_stack_bottom_shift_down_byte_range(&self) -> Range<usize> {
         let start = self.stretch_stack_top_shift_up_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stretch_stack_gap_above_min_byte_range(&self) -> Range<usize> {
         let start = self.stretch_stack_bottom_shift_down_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn stretch_stack_gap_below_min_byte_range(&self) -> Range<usize> {
         let start = self.stretch_stack_gap_above_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_numerator_shift_up_byte_range(&self) -> Range<usize> {
         let start = self.stretch_stack_gap_below_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_numerator_display_style_shift_up_byte_range(&self) -> Range<usize> {
         let start = self.fraction_numerator_shift_up_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
@@ -868,13 +868,13 @@ impl<'a> MathConstants<'a> {
         let start = self
             .fraction_numerator_display_style_shift_up_byte_range()
             .end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_denominator_display_style_shift_down_byte_range(&self) -> Range<usize> {
         let start = self.fraction_denominator_shift_down_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
@@ -882,121 +882,121 @@ impl<'a> MathConstants<'a> {
         let start = self
             .fraction_denominator_display_style_shift_down_byte_range()
             .end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_num_display_style_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.fraction_numerator_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_rule_thickness_byte_range(&self) -> Range<usize> {
         let start = self.fraction_num_display_style_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_denominator_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.fraction_rule_thickness_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn fraction_denom_display_style_gap_min_byte_range(&self) -> Range<usize> {
         let start = self.fraction_denominator_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn skewed_fraction_horizontal_gap_byte_range(&self) -> Range<usize> {
         let start = self.fraction_denom_display_style_gap_min_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn skewed_fraction_vertical_gap_byte_range(&self) -> Range<usize> {
         let start = self.skewed_fraction_horizontal_gap_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn overbar_vertical_gap_byte_range(&self) -> Range<usize> {
         let start = self.skewed_fraction_vertical_gap_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn overbar_rule_thickness_byte_range(&self) -> Range<usize> {
         let start = self.overbar_vertical_gap_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn overbar_extra_ascender_byte_range(&self) -> Range<usize> {
         let start = self.overbar_rule_thickness_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn underbar_vertical_gap_byte_range(&self) -> Range<usize> {
         let start = self.overbar_extra_ascender_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn underbar_rule_thickness_byte_range(&self) -> Range<usize> {
         let start = self.underbar_vertical_gap_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn underbar_extra_descender_byte_range(&self) -> Range<usize> {
         let start = self.underbar_rule_thickness_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_vertical_gap_byte_range(&self) -> Range<usize> {
         let start = self.underbar_extra_descender_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_display_style_vertical_gap_byte_range(&self) -> Range<usize> {
         let start = self.radical_vertical_gap_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_rule_thickness_byte_range(&self) -> Range<usize> {
         let start = self.radical_display_style_vertical_gap_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_extra_ascender_byte_range(&self) -> Range<usize> {
         let start = self.radical_rule_thickness_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_kern_before_degree_byte_range(&self) -> Range<usize> {
         let start = self.radical_extra_ascender_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_kern_after_degree_byte_range(&self) -> Range<usize> {
         let start = self.radical_kern_before_degree_byte_range().end;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn radical_degree_bottom_raise_percent_byte_range(&self) -> Range<usize> {
         let start = self.radical_kern_after_degree_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
+        let end = start.saturating_add(i16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -1120,26 +1120,26 @@ impl<'a> MathGlyphInfo<'a> {
     }
 
     pub fn math_italics_correction_info_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_top_accent_attachment_offset_byte_range(&self) -> Range<usize> {
         let start = self.math_italics_correction_info_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn extended_shape_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.math_top_accent_attachment_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_kern_info_offset_byte_range(&self) -> Range<usize> {
         let start = self.extended_shape_coverage_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -1237,23 +1237,24 @@ impl<'a> MathItalicsCorrectionInfo<'a> {
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn italics_correction_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn italics_correction_byte_range(&self) -> Range<usize> {
         let italics_correction_count = self.italics_correction_count();
         let start = self.italics_correction_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(italics_correction_count))
-                .saturating_mul(MathValueRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(italics_correction_count))
+                .saturating_mul(MathValueRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1352,23 +1353,24 @@ impl<'a> MathTopAccentAttachment<'a> {
     }
 
     pub fn top_accent_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn top_accent_attachment_count_byte_range(&self) -> Range<usize> {
         let start = self.top_accent_coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn top_accent_attachment_byte_range(&self) -> Range<usize> {
         let top_accent_attachment_count = self.top_accent_attachment_count();
         let start = self.top_accent_attachment_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(top_accent_attachment_count))
-                .saturating_mul(MathValueRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(top_accent_attachment_count))
+                .saturating_mul(MathValueRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1464,23 +1466,24 @@ impl<'a> MathKernInfo<'a> {
     }
 
     pub fn math_kern_coverage_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_kern_count_byte_range(&self) -> Range<usize> {
         let start = self.math_kern_coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_kern_info_records_byte_range(&self) -> Range<usize> {
         let math_kern_count = self.math_kern_count();
         let start = self.math_kern_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(math_kern_count))
-                .saturating_mul(MathKernInfoRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(math_kern_count))
+                .saturating_mul(MathKernInfoRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1675,25 +1678,26 @@ impl<'a> MathKern<'a> {
     }
 
     pub fn height_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn correction_height_byte_range(&self) -> Range<usize> {
         let height_count = self.height_count();
         let start = self.height_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(height_count)).saturating_mul(MathValueRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(height_count)).saturating_mul(MathValueRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn kern_values_byte_range(&self) -> Range<usize> {
         let height_count = self.height_count();
         let start = self.correction_height_byte_range().end;
-        let end = start
-            + (transforms::add(height_count, 1_usize))
-                .saturating_mul(MathValueRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::add(height_count, 1_usize)).saturating_mul(MathValueRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1849,48 +1853,50 @@ impl<'a> MathVariants<'a> {
     }
 
     pub fn min_connector_overlap_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + UfWord::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(UfWord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn vert_glyph_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.min_connector_overlap_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn horiz_glyph_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.vert_glyph_coverage_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn vert_glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.horiz_glyph_coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn horiz_glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.vert_glyph_count_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn vert_glyph_construction_offsets_byte_range(&self) -> Range<usize> {
         let vert_glyph_count = self.vert_glyph_count();
         let start = self.horiz_glyph_count_byte_range().end;
-        let end =
-            start + (transforms::to_usize(vert_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(vert_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn horiz_glyph_construction_offsets_byte_range(&self) -> Range<usize> {
         let horiz_glyph_count = self.horiz_glyph_count();
         let start = self.vert_glyph_construction_offsets_byte_range().end;
-        let end = start
-            + (transforms::to_usize(horiz_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(horiz_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1985,23 +1991,24 @@ impl<'a> MathGlyphConstruction<'a> {
     }
 
     pub fn glyph_assembly_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn variant_count_byte_range(&self) -> Range<usize> {
         let start = self.glyph_assembly_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn math_glyph_variant_records_byte_range(&self) -> Range<usize> {
         let variant_count = self.variant_count();
         let start = self.variant_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(variant_count))
-                .saturating_mul(MathGlyphVariantRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(variant_count))
+                .saturating_mul(MathGlyphVariantRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -2120,22 +2127,23 @@ impl<'a> GlyphAssembly<'a> {
     }
 
     pub fn italics_correction_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MathValueRecord::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MathValueRecord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn part_count_byte_range(&self) -> Range<usize> {
         let start = self.italics_correction_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn part_records_byte_range(&self) -> Range<usize> {
         let part_count = self.part_count();
         let start = self.part_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(part_count)).saturating_mul(GlyphPartRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(part_count)).saturating_mul(GlyphPartRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

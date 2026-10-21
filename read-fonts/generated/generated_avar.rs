@@ -110,38 +110,38 @@ impl<'a> Avar<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_segment_maps_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
         let start = self.axis_count_byte_range().end;
-        let end = start + {
+        let end = start.saturating_add({
             let data = self.offset_data().split_off(start).unwrap_or_default();
             <SegmentMaps as VarSize>::total_len_for_count(data, transforms::to_usize(axis_count))
                 .unwrap_or(0)
-        };
+        });
         start..end
     }
 
     pub fn axis_index_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.axis_segment_maps_byte_range().end;
         let end = if self.version().compatible((2u16, 0u16)) {
-            start + Offset32::RAW_BYTE_LEN
+            start.saturating_add(Offset32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -151,7 +151,7 @@ impl<'a> Avar<'a> {
     pub fn var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_map_offset_byte_range().end;
         let end = if self.version().compatible((2u16, 0u16)) {
-            start + Offset32::RAW_BYTE_LEN
+            start.saturating_add(Offset32::RAW_BYTE_LEN)
         } else {
             start
         };

@@ -86,28 +86,29 @@ impl<'a> Eblc<'a> {
     }
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_sizes_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
         let num_sizes = self.num_sizes();
         let start = self.num_sizes_byte_range().end;
-        let end =
-            start + (transforms::to_usize(num_sizes)).saturating_mul(BitmapSize::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(num_sizes)).saturating_mul(BitmapSize::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

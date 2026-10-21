@@ -88,34 +88,35 @@ impl<'a> Meta<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn data_maps_count_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn data_maps_byte_range(&self) -> Range<usize> {
         let data_maps_count = self.data_maps_count();
         let start = self.data_maps_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(data_maps_count)).saturating_mul(DataMapRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(data_maps_count)).saturating_mul(DataMapRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

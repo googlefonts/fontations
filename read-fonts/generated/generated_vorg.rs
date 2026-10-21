@@ -88,29 +88,30 @@ impl<'a> Vorg<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
+        let end = start.saturating_add(i16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let start = self.default_vert_origin_y_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let num_vert_origin_y_metrics = self.num_vert_origin_y_metrics();
         let start = self.num_vert_origin_y_metrics_byte_range().end;
-        let end = start
-            + (transforms::to_usize(num_vert_origin_y_metrics))
-                .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(num_vert_origin_y_metrics))
+                .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

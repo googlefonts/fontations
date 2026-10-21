@@ -116,44 +116,44 @@ impl<'a> Fvar<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_instance_arrays_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.axis_instance_arrays_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_size_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn instance_count_byte_range(&self) -> Range<usize> {
         let start = self.axis_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn instance_size_byte_range(&self) -> Range<usize> {
         let start = self.instance_count_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -277,23 +277,25 @@ impl<'a> AxisInstanceArrays<'a> {
 
     pub fn axes_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
-        let start = 0;
-        let end = start
-            + (transforms::to_usize(axis_count)).saturating_mul(VariationAxisRecord::RAW_BYTE_LEN);
+        let start = 0usize;
+        let end = start.saturating_add(
+            (transforms::to_usize(axis_count)).saturating_mul(VariationAxisRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn instances_byte_range(&self) -> Range<usize> {
         let instance_count = self.instance_count();
         let start = self.axes_byte_range().end;
-        let end = start
-            + (transforms::to_usize(instance_count)).saturating_mul(
+        let end = start.saturating_add(
+            (transforms::to_usize(instance_count)).saturating_mul(
                 <InstanceRecord as ComputeSize>::compute_size((
                     self.axis_count(),
                     self.instance_size(),
                 ))
                 .unwrap_or(0),
-            );
+            ),
+        );
         start..end
     }
 }

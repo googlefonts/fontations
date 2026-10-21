@@ -87,28 +87,29 @@ impl<'a> Dsig<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_signatures_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.num_signatures_byte_range().end;
-        let end = start + PermissionFlags::RAW_BYTE_LEN;
+        let end = start.saturating_add(PermissionFlags::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn signature_records_byte_range(&self) -> Range<usize> {
         let num_signatures = self.num_signatures();
         let start = self.flags_byte_range().end;
-        let end = start
-            + (transforms::to_usize(num_signatures)).saturating_mul(SignatureRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(num_signatures)).saturating_mul(SignatureRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -523,27 +524,29 @@ impl<'a> SignatureBlockFormat1<'a> {
     }
 
     pub fn _reserved1_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved2_byte_range(&self) -> Range<usize> {
         let start = self._reserved1_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn signature_length_byte_range(&self) -> Range<usize> {
         let start = self._reserved2_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn signature_byte_range(&self) -> Range<usize> {
         let signature_length = self.signature_length();
         let start = self.signature_length_byte_range().end;
-        let end = start + (transforms::to_usize(signature_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(signature_length)).saturating_mul(u8::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

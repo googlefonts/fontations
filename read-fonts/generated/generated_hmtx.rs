@@ -100,17 +100,18 @@ impl<'a> Hmtx<'a> {
 
     pub fn h_metrics_byte_range(&self) -> Range<usize> {
         let number_of_h_metrics = self.number_of_h_metrics();
-        let start = 0;
-        let end = start
-            + (transforms::to_usize(number_of_h_metrics)).saturating_mul(LongMetric::RAW_BYTE_LEN);
+        let start = 0usize;
+        let end = start.saturating_add(
+            (transforms::to_usize(number_of_h_metrics)).saturating_mul(LongMetric::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.h_metrics_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / i16::RAW_BYTE_LEN
-                * i16::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -219,17 +220,18 @@ impl<'a> HmtxExtended<'a> {
 
     pub fn h_metrics_byte_range(&self) -> Range<usize> {
         let number_of_h_metrics = self.number_of_h_metrics();
-        let start = 0;
-        let end = start
-            + (transforms::to_usize(number_of_h_metrics)).saturating_mul(LongMetric::RAW_BYTE_LEN);
+        let start = 0usize;
+        let end = start.saturating_add(
+            (transforms::to_usize(number_of_h_metrics)).saturating_mul(LongMetric::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.h_metrics_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / i16::RAW_BYTE_LEN
-                * i16::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
