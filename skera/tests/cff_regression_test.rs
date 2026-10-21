@@ -85,8 +85,8 @@ fn dotsection_preserves_live_operands() {
 #[test]
 fn shared_mask_fallback_is_independent_of_glyph_order() {
     for file in [
-        "cff1_contextual_masks_ab.otf",
-        "cff1_contextual_masks_ba.otf",
+        "cff1_contextual_masks_forward.otf",
+        "cff1_contextual_masks_reverse.otf",
     ] {
         assert_review_outlines_preserved(file);
     }

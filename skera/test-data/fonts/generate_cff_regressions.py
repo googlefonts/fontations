@@ -128,7 +128,7 @@ f.save(OUT / "cff1_dotsection_live_args.otf")
 
 # The same bytes have two legal mask tokenizations depending on stem count.
 # Both glyph orders must work, including when one glyph falls back to flattening.
-for order, suffix in [([".notdef", "A", "B"], "ab"), ([".notdef", "B", "A"], "ba")]:
+for order, suffix in [([".notdef", "A", "B"], "forward"), ([".notdef", "B", "A"], "reverse")]:
     f = builder()
     f.setupGlyphOrder(order)
     programs = {".notdef": ["endchar"]}
