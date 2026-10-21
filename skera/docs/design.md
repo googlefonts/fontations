@@ -208,8 +208,10 @@ algorithms. Table handlers and shared helpers maintain these rules:
   reconstruction rule.
 * Preserve COLR geometry and colors. Large scales can require affine paints;
   negative derived radial radii require reparameterizing circles and stops;
-  minimum and maximum clip edges round differently. Store remapping covers
-  paint, stop, and clip references.
+  minimum and maximum clip edges round differently. Both the Skrifa renderer
+  and the new read-fonts renderer round rendering clips outward in font units.
+  The read-fonts glyph-extents path retains its separate delta-rounding policy.
+  Store remapping covers paint, stop, and clip references.
 
 Composition tests exercise both axis orders and the supported precision rules.
 Quantized mappings and intermediate rounding prevent a universal claim of exact
@@ -320,8 +322,10 @@ ID width before writing it.
 ## Validation and remaining limits
 
 ```sh
-cargo test -p skera -p skrifa -p write-fonts --all-features
-cargo clippy -p skera -p skrifa -p write-fonts --all-targets --all-features -- -D warnings
+cargo test -p skera -p skrifa -p write-fonts -p read-fonts \
+  -p font-types -p font-codegen --all-features
+cargo clippy -p skera -p skrifa -p write-fonts -p read-fonts \
+  --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 ```
 
@@ -362,6 +366,17 @@ compare decoded changed tables, ignoring only the head checksum adjustment;
 unchanged tables retain their exact bytes. New regressions cover all eight wide
 positioning formats, empty record counts, conditional lookup lists, store-index
 remapping, and composite glyph ID widths and overflow.
+
+Integration with current main `4aa488b5` and the CFF review fixes passes
+2,860 tests across the same six crates, with ten ignored by the ordinary run.
+The eight slow Skera tests also pass when run explicitly. All 67 PR boundaries
+build with Rust 1.85 and pass Skera Clippy with all targets/features and warnings
+denied; CFF regressions pass across the twelve distinct CFF source revisions.
+The full workspace MSRV check, documentation with warnings denied, no-std
+cross-builds, reproducible codegen, Rustfmt, and local document links pass.
+The main integration also carries outward rendering clip rounding into the new
+read-fonts color renderer, with tests distinguishing it from glyph-extents
+rounding for positive and negative fractional deltas.
 
 Cubic outlines use the upstream reader support; `spec_next` is retained as a
 compatibility feature. Instancing the extended GLYF/GVAR and uppercase metrics families is not
