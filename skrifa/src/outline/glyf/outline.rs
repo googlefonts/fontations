@@ -1,6 +1,7 @@
 //! TrueType outline types.
 
 use super::super::{pen::PathStyle, DrawError, Hinting, OutlinePen};
+use super::hint::DropoutControl;
 use crate::MAX_OUTLINE_POINTS;
 use raw::tables::glyf::PointCoord;
 use read_fonts::{
@@ -111,6 +112,7 @@ where
     pub contours: &'a mut [u16],
     pub phantom_points: [Point<C>; 4],
     pub hdmx_width: Option<u8>,
+    pub dropout_control: DropoutControl,
 }
 
 impl<'a, C> ScaledOutline<'a, C>
@@ -123,6 +125,7 @@ where
         flags: &'a mut [PointFlags],
         contours: &'a mut [u16],
         hdmx_width: Option<u8>,
+        dropout_control: DropoutControl,
     ) -> Self {
         let x_shift = phantom_points[0].x;
         if x_shift != C::zeroed() {
@@ -136,6 +139,7 @@ where
             contours,
             phantom_points,
             hdmx_width,
+            dropout_control,
         }
     }
 
