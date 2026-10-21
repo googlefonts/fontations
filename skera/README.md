@@ -9,8 +9,8 @@ custom and expert encodings, glyph names, and `seac` component closure.
 Retained-subroutine output requires each call's subroutine number to be an
 immediately preceding literal in the same program. Fonts using caller-supplied
 or computed targets require `--desubroutinize`; retained mode rejects them.
-Hint removal flattens individual glyphs when deleting their operands would
-modify a shared producer.
+Hint removal flattens individual glyphs when deleting their operands or changing
+caller-dependent mask boundaries would modify a shared program.
 
 ## Installation
 

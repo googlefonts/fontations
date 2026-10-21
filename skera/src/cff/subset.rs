@@ -90,12 +90,12 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         if desub {
             chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
         } else {
-            rec.needs_flatten = false;
+            let mut glyph = Recorder::default();
             let mut interpreter =
-                Interpreter::<F, _, _>::new(source, &mut rec, fd, source.fds[fd].ivs, nohint);
+                Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
             interpreter.run(key, data)?;
             let width = interpreter.width;
-            if rec.needs_flatten {
+            if !rec.merge(glyph) {
                 chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
             } else {
                 roots.push(key);
