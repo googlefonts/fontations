@@ -16,10 +16,15 @@ mod glyph;
 mod scaled;
 mod style;
 
+pub(crate) use global::units_per_em;
+#[doc(inline)]
 pub use global::{LineBox, LineExtents, Metrics};
 pub(crate) use glyph::empty as empty_glyph_metrics;
+#[doc(inline)]
 pub use glyph::{GlyphExtents, GlyphMetrics};
+#[doc(inline)]
 pub use scaled::{
     Scale, Scale26Dot6, ScaleF32, ScaledGlyphMetrics, ScaledMetrics, ScaledStyleMetrics,
 };
+#[doc(inline)]
 pub use style::{Decoration, ScriptMetrics, StyleMetrics};
