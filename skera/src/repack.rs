@@ -23,8 +23,10 @@ use read_fonts::{
 
 const MAX_ITERATIONS: u16 = 500;
 //TODO: add more functionality, serialize output etc.
+/// Takes the serializer by value so the repacker's graph can take over its buffer
+/// and links instead of copying them.
 pub(crate) fn resolve_overflows(
-    s: &Serializer,
+    s: Serializer,
     tag: Tag,
     max_round: u8,
 ) -> Result<Vec<u8>, RepackError> {
@@ -423,7 +425,7 @@ pub(crate) mod test {
             let old = add_object(&mut s, &[0, 0], 2, false);
             let new = add_object(&mut s, &[0, 0], 2, false);
             extended_header(&mut s, legacy.then_some(old), wide.then_some(new));
-            let graph = Graph::from_serializer(&s).unwrap();
+            let graph = Graph::from_serializer(s).unwrap();
             let (list, _, is_wide) = find_lookup_indices(&graph).unwrap();
             assert_eq!(is_wide, wide);
             assert_eq!(
@@ -454,7 +456,7 @@ pub(crate) mod test {
         add_wide_offset(&mut s, lookup);
         let list = s.pop_pack(false).unwrap();
         extended_header(&mut s, None, Some(list));
-        let output = resolve_overflows(&s, Gsub::TAG, 32).unwrap();
+        let output = resolve_overflows(s, Gsub::TAG, 32).unwrap();
         let table = Gsub::read(FontData::new(&output)).unwrap();
         let list = table.lookup_list().unwrap();
         let lookup = list.lookups().get(0).unwrap();
@@ -483,7 +485,7 @@ pub(crate) mod test {
         }
         let list = s.pop_pack(false).unwrap();
         extended_header(&mut s, None, Some(list));
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
         let (list, lookups, wide) = find_lookup_indices(&graph).unwrap();
         assert!(wide);
         promote_extensions_if_needed(&mut graph, list, &lookups, Gsub::TAG, wide).unwrap();
@@ -2004,8 +2006,8 @@ pub(crate) mod test {
     }
 
     fn run_resolve_overflow_test(
-        overflowing: &Serializer,
-        expected: &Serializer,
+        overflowing: Serializer,
+        expected: Serializer,
         num_iterations: u8,
         recalculate_extensions: bool,
         check_binary_equivalence: bool,
@@ -2055,7 +2057,7 @@ pub(crate) mod test {
         let buf_size = 160000;
         let mut s = Serializer::new(buf_size);
         populate_serializer_with_overflow(&mut s);
-        let out = resolve_overflows(&s, Tag::from_u32(0), 32).unwrap();
+        let out = resolve_overflows(s, Tag::from_u32(0), 32).unwrap();
         assert_eq!(out.len(), 80000 + 3 + 3 * 2);
     }
 
@@ -2064,7 +2066,7 @@ pub(crate) mod test {
         let buf_size = 160000;
         let mut s = Serializer::new(buf_size);
         populate_serializer_with_dedup_overflow(&mut s);
-        let out = resolve_overflows(&s, Tag::from_u32(0), 32).unwrap();
+        let out = resolve_overflows(s, Tag::from_u32(0), 32).unwrap();
         assert_eq!(out.len(), 10000 + 2 * 2 + 60000 + 2 + 3 * 2);
     }
 
@@ -2073,7 +2075,7 @@ pub(crate) mod test {
         let buf_size = 300000;
         let mut s = Serializer::new(buf_size);
         populate_serializer_with_multiple_dedup_overflow(&mut s);
-        let out = resolve_overflows(&s, Tag::from_u32(0), 5).unwrap();
+        let out = resolve_overflows(s, Tag::from_u32(0), 5).unwrap();
         assert!(!out.is_empty());
     }
 
@@ -2086,7 +2088,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_spaces(&mut e, false);
 
-        run_resolve_overflow_test(&c, &e, 0, false, false, Gsub::TAG);
+        run_resolve_overflow_test(c, e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2097,7 +2099,7 @@ pub(crate) mod test {
 
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_priority_overflow_expected(&mut e);
-        run_resolve_overflow_test(&s, &e, 3, false, false, Gsub::TAG);
+        run_resolve_overflow_test(s, e, 3, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2107,7 +2109,7 @@ pub(crate) mod test {
         populate_serializer_with_isolation_overflow(&mut s);
 
         assert!(s.offset_overflow());
-        let out = resolve_overflows(&s, Tag::new(b"GSUB"), 0).unwrap();
+        let out = resolve_overflows(s, Tag::new(b"GSUB"), 0).unwrap();
         assert!(!out.is_empty());
         assert_eq!(out.len(), 1 + 10000 + 60000 + 1 + 1 + 4 + 3 * 2);
     }
@@ -2121,7 +2123,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_isolation_overflow_complex_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false, false, Gsub::TAG);
+        run_resolve_overflow_test(s, e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2131,7 +2133,7 @@ pub(crate) mod test {
         populate_serializer_with_isolation_overflow_spaces(&mut s);
 
         assert!(s.offset_overflow());
-        let out = resolve_overflows(&s, Tag::new(b"GSUB"), 0).unwrap();
+        let out = resolve_overflows(s, Tag::new(b"GSUB"), 0).unwrap();
         assert!(!out.is_empty());
 
         // objects: 3 + 2 * 60000
@@ -2149,7 +2151,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_spaces_16bit_connection_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false, false, Gsub::TAG);
+        run_resolve_overflow_test(s, e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2161,7 +2163,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_short_and_wide_subgraph_root_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false, false, Gsub::TAG);
+        run_resolve_overflow_test(s, e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2173,7 +2175,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_split_spaces_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 1, false, false, Gsub::TAG);
+        run_resolve_overflow_test(s, e, 1, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2185,7 +2187,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_split_spaces_expected_2(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 1, false, false, Gsub::TAG);
+        run_resolve_overflow_test(s, e, 1, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -2195,7 +2197,7 @@ pub(crate) mod test {
         populate_serializer_with_24_and_32_bit_offsets(&mut s);
 
         assert!(s.offset_overflow());
-        let out = resolve_overflows(&s, Tag::new(b"GSUB"), 0).unwrap();
+        let out = resolve_overflows(s, Tag::new(b"GSUB"), 0).unwrap();
         assert!(!out.is_empty());
 
         // objects: 7 + 4 * 40000
@@ -2213,7 +2215,7 @@ pub(crate) mod test {
         let mut c = Serializer::new(buf_size);
         populate_serializer_virtual_link(&mut c);
 
-        let out = resolve_overflows(&c, Tag::from_u32(0), 32).unwrap();
+        let out = resolve_overflows(c, Tag::from_u32(0), 32).unwrap();
         assert!(!out.is_empty());
         assert_eq!(out.len(), 5 + 4 * 2);
         assert_eq!(out[0], b'a');
@@ -2231,7 +2233,7 @@ pub(crate) mod test {
 
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_repack_last(&mut expected, false);
-        run_resolve_overflow_test(&overflowing, &expected, 20, false, true, Tag::new(b"abcd"));
+        run_resolve_overflow_test(overflowing, expected, 20, false, true, Tag::new(b"abcd"));
     }
 
     #[test]
@@ -2242,7 +2244,7 @@ pub(crate) mod test {
 
         let mut expected = Serializer::new(buf_size);
         populate_serializer_virtual(&mut expected, false);
-        run_resolve_overflow_test(&overflowing, &expected, 20, false, true, Tag::new(b"abcd"));
+        run_resolve_overflow_test(overflowing, expected, 20, false, true, Tag::new(b"abcd"));
     }
 
     #[test]
@@ -2254,7 +2256,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_extension_promotion(&mut expected, 3, false);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -2266,7 +2268,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_extension_promotion(&mut expected, 3, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -2278,7 +2280,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_pair_pos_1(&mut expected, 2, 2, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
@@ -2290,7 +2292,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_pair_pos_1(&mut expected, 2, 2, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
@@ -2302,7 +2304,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_pair_pos_2(&mut expected, 2, 2, 3000, true, false, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
     }
     #[test]
     fn test_resolve_with_pair_pos_2_split_with_device_tables() {
@@ -2313,7 +2315,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_pair_pos_2(&mut expected, 2, 2, 2000, true, true, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
@@ -2333,7 +2335,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_pair_pos_2(&mut expected, 2, 818, 10, true, false, false);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
@@ -2345,7 +2347,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_mark_base_pos_1(&mut expected, 40, 10, 110, 2);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
@@ -2357,7 +2359,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_liga(&mut expected, 2, 1, 1, 40000, false);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -2369,7 +2371,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_liga(&mut expected, 3, 2, 2, 16000, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -2381,7 +2383,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_liga_overlapping_clone_result(&mut expected);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -2393,7 +2395,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_shared_large_liga(&mut expected, 3, 2, 2, 16000);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -2404,6 +2406,6 @@ pub(crate) mod test {
 
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_liga_shared_coverage(&mut expected, 3, 2, 2, 16000);
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+        run_resolve_overflow_test(overflowing, expected, 20, true, false, Gsub::TAG);
     }
 }
