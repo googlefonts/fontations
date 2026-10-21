@@ -782,10 +782,10 @@ mod tests {
             &cached.instance_builder().build(),
         ] {
             let charmap = instance.charmap();
-            let mut mappings: Vec<_> = charmap.iter_unicodes().collect();
+            let mut mappings: Vec<_> = charmap.unicodes().collect();
             mappings.sort_unstable();
             assert_eq!(mappings, nominal);
-            let mut resolved: Vec<_> = charmap.iter_unicode_variants().collect();
+            let mut resolved: Vec<_> = charmap.unicode_variants().collect();
             resolved.sort_unstable();
             assert_eq!(resolved, variants);
             for (ch, glyph) in nominal {

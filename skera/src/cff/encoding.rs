@@ -130,40 +130,77 @@ pub(super) fn encode(out: &mut Vec<u8>, value: f64, dict: bool) -> Result<()> {
     Ok(())
 }
 
+// INDEX layout is computed without building an intermediate byte buffer.
+pub(super) struct IndexLayout {
+    count: u32,
+    width: usize,
+    pub size: usize,
+    cff2: bool,
+}
+impl IndexLayout {
+    pub fn new(items: &[Vec<u8>], cff2: bool) -> Result<Self> {
+        let count = u32::try_from(items.len()).map_err(|_| Error)?;
+        if !cff2 {
+            u16::try_from(count).map_err(|_| Error)?;
+        }
+        let header = if cff2 { 4usize } else { 2usize };
+        let len = items
+            .iter()
+            .try_fold(1u32, |sum, s| sum.checked_add(u32::try_from(s.len()).ok()?))
+            .ok_or(Error)?;
+        let width = if len <= 255 {
+            1
+        } else if len <= 65535 {
+            2
+        } else if len <= 0xffffff {
+            3
+        } else {
+            4
+        };
+        let size = if count == 0 {
+            header
+        } else {
+            items
+                .len()
+                .checked_add(1)
+                .and_then(|n| n.checked_mul(width))
+                .and_then(|n| n.checked_add(header + 1))
+                .and_then(|n| n.checked_add((len - 1) as usize))
+                .ok_or(Error)?
+        };
+        Ok(Self {
+            count,
+            width,
+            size,
+            cff2,
+        })
+    }
+    pub fn write(&self, out: &mut Vec<u8>, items: &[Vec<u8>]) {
+        if self.cff2 {
+            out.extend(self.count.to_be_bytes());
+        } else {
+            out.extend((self.count as u16).to_be_bytes());
+        }
+        if self.count == 0 {
+            return;
+        }
+        out.push(self.width as u8);
+        let mut offset = 1u32;
+        for s in items {
+            out.extend(&offset.to_be_bytes()[4 - self.width..]);
+            offset += s.len() as u32;
+        }
+        out.extend(&offset.to_be_bytes()[4 - self.width..]);
+        for s in items {
+            out.extend(s);
+        }
+    }
+}
+
 pub(super) fn index(items: &[Vec<u8>], cff2: bool) -> Result<Vec<u8>> {
-    let count = u32::try_from(items.len()).map_err(|_| Error)?;
-    let mut out = Vec::new();
-    if cff2 {
-        out.extend(count.to_be_bytes());
-    } else {
-        out.extend(u16::try_from(count).map_err(|_| Error)?.to_be_bytes());
-    }
-    if count == 0 {
-        return Ok(out);
-    }
-    let len = items
-        .iter()
-        .try_fold(1u32, |sum, s| sum.checked_add(u32::try_from(s.len()).ok()?))
-        .ok_or(Error)?;
-    let width = if len <= 255 {
-        1
-    } else if len <= 65535 {
-        2
-    } else if len <= 0xffffff {
-        3
-    } else {
-        4
-    };
-    out.push(width as u8);
-    let mut offset = 1u32;
-    for s in items {
-        out.extend(&offset.to_be_bytes()[4 - width..]);
-        offset += s.len() as u32;
-    }
-    out.extend(&offset.to_be_bytes()[4 - width..]);
-    for s in items {
-        out.extend(s);
-    }
+    let layout = IndexLayout::new(items, cff2)?;
+    let mut out = Vec::with_capacity(layout.size);
+    layout.write(&mut out, items);
     Ok(out)
 }
 
