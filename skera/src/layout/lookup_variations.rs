@@ -182,24 +182,5 @@ pub(super) fn features_with_retained_lookups(
     features
 }
 
-pub(crate) fn protect_lookup_variation_features(
-    variations: &FeatureVariations<'_>,
-    duplicates: &mut FastHashMap<u16, u16>,
-) {
-    let protected: IntSet<u16> = variations
-        .lookup_variation_records()
-        .unwrap_or_default()
-        .iter()
-        .map(|record| record.feature_index())
-        .collect();
-    // Lookup variations are feature-indexed: matching default lookups alone
-    // do not make these features, or their default-only duplicates, interchangeable.
-    for (feature, duplicate) in duplicates {
-        if protected.contains(*feature) || protected.contains(*duplicate) {
-            *duplicate = *feature;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests;
