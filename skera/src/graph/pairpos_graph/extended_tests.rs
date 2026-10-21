@@ -90,7 +90,7 @@ fn input(class1: u16, class2: u16, devices: bool) -> Serializer {
 #[test]
 fn extended_class_pairs_split_device_offsets_without_narrowing() {
     let s = input(4, 3000, true);
-    let output = crate::repack::resolve_overflows(&s, Gpos::TAG, 32).unwrap();
+    let output = crate::repack::resolve_overflows(s, Gpos::TAG, 32).unwrap();
     let table = Gpos::read(FontData::new(&output)).unwrap();
     let list = table.lookup_list().unwrap();
     let lookup = list.lookups().get(0).unwrap();
@@ -152,7 +152,7 @@ fn extended_class_pairs_split_device_offsets_without_narrowing() {
 #[test]
 fn extended_class_pairs_do_not_split_wide_offsets_without_devices() {
     let s = input(4, 20000, false);
-    let mut graph = Graph::from_serializer(&s).unwrap();
+    let mut graph = Graph::from_serializer(s).unwrap();
     let list = graph.index_for_position(graph.root_idx(), 8).unwrap();
     let lookup = graph.index_for_position(list, 2).unwrap();
     let table = graph.index_for_position(lookup, 6).unwrap();
@@ -162,7 +162,7 @@ fn extended_class_pairs_do_not_split_wide_offsets_without_devices() {
 #[test]
 fn extended_class_pairs_reject_unsplittable_device_rows() {
     let s = input(1, 10000, true);
-    let mut graph = Graph::from_serializer(&s).unwrap();
+    let mut graph = Graph::from_serializer(s).unwrap();
     let list = graph.index_for_position(graph.root_idx(), 8).unwrap();
     let lookup = graph.index_for_position(list, 2).unwrap();
     let table = graph.index_for_position(lookup, 6).unwrap();
