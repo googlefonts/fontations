@@ -2,8 +2,8 @@
 
 use crate::{
     model::{font::SharedFont, Font},
-    ps::encoding::PredefinedEncoding,
     ps::type1::Type1Font,
+    ps::PredefinedEncoding,
     tables::{
         cmap::{
             Cmap, CmapIterLimits, CmapSubtable, EncodingRecord, MapVariant, PlatformId, UvsSubtable,
@@ -27,29 +27,33 @@ use yoke::Yokeable;
 /// For an SFNT font, it uses one selected `cmap` subtable, with a preference
 /// for a Microsoft symbol subtable, then full Unicode, then BMP Unicode, and
 /// finally Mac Roman. A symbol subtable retries codes in U+0000..U+00FF at
-/// U+F000..U+F0FF when the direct lookup fails. A Mac Roman subtable converts
-/// Unicode codepoints to Mac Roman character codes before lookup. For a Type 1
-/// font, the Unicode map is derived from glyph names when the `agl` feature is
+/// U+F000..U+F0FF when the direct lookup fails; [`unicodes`](Self::unicodes)
+/// lists only the codes the subtable holds. A Mac Roman subtable converts
+/// Unicode codepoints to Mac Roman character codes before lookup. For Type 1 and standalone CFF
+/// fonts, the Unicode map is derived from glyph names when the `agl` feature is
 /// enabled. Glyph ID 0 is treated as unmapped.
 /// An optional `DMAP` table takes precedence, with missing mappings falling
 /// back to `cmap` (ISO/IEC 14496-22:2026, 5.6.15).
+/// [`map_unicode_batched`](Self::map_unicode_batched) writes several results
+/// while reusing the selected subtable and, for formats 4 and 12, the preceding
+/// segment or group when possible.
 ///
 /// [`map_unicode_variant`](Self::map_unicode_variant) uses the last SFNT
 /// `cmap` variation sequences subtable, preferring format 15 to format 14. A non-default variation sequence names its glyph
 /// directly; a default sequence resolves through the selected Unicode map.
-/// Type 1 fonts have no variation-sequence map.
+/// Type 1 and standalone CFF fonts have no variation-sequence map.
 ///
-/// The corresponding iterators are [`iter_unicodes`](Self::iter_unicodes) and
-/// [`iter_unicode_variants`](Self::iter_unicode_variants).
+/// The corresponding iterators are [`unicodes`](Self::unicodes) and
+/// [`unicode_variants`](Self::unicode_variants).
 ///
 /// # Individual encodings
 ///
 /// [`encodings`](Self::encodings) lists each supported SFNT `cmap` encoding
 /// record separately, including multiple records with the same
-/// [`EncodingKind`]. It also lists a Type 1 font's native encoding and its
-/// glyph-name-derived Unicode encoding when available. Keep the complete
+/// [`EncodingKind`]. It also lists native and glyph-name-derived Unicode
+/// encodings for Type 1 and standalone CFF fonts when available. Keep the complete
 /// [`Encoding`] value to select that specific mapping with
-/// [`map_code`](Self::map_code) or [`iter_codes`](Self::iter_codes).
+/// [`map_code`](Self::map_code) or [`codes`](Self::codes).
 /// These methods use character codes in the selected encoding as stored in
 /// the font. They do not convert Mac Roman codes from Unicode or apply the
 /// Microsoft symbol fallback. A mapping to glyph ID 0 is treated as unmapped.
@@ -76,6 +80,10 @@ impl<'a> Charmap<'a> {
     pub fn has_unicode(&self) -> bool {
         match self.font.kind() {
             crate::model::Kind::Type1(font) => font.unicode_charmap().iter().next().is_some(),
+            crate::model::Kind::Cff(_, _) => self
+                .font
+                .standalone_cff_unicode_charmap()
+                .is_some_and(|map| map.iter().next().is_some()),
             _ => self
                 .font
                 .unicode_charmap()
@@ -99,33 +107,80 @@ impl<'a> Charmap<'a> {
 
     /// Maps a Unicode codepoint to a glyph.
     ///
-    /// Type 1 fonts use a glyph-name-based map when the `agl` feature is enabled.
+    /// Type 1 and standalone CFF fonts use a glyph-name-based map when the
+    /// `agl` feature is enabled.
     /// A mapping to glyph 0 is treated as unmapped.
     pub fn map_unicode(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
         let glyph = match self.font.kind() {
             crate::model::Kind::Type1(font) => font.unicode_charmap().map(codepoint),
+            crate::model::Kind::Cff(_, _) => {
+                self.font.standalone_cff_unicode_charmap()?.map(codepoint)
+            }
             _ => self.font.unicode_charmap()?.map(codepoint),
         };
         glyph.filter(|glyph| *glyph != GlyphId::NOTDEF)
     }
 
+    /// Writes the Unicode mapping of each codepoint to its slot, in order.
+    ///
+    /// Unmapped codepoints, including mappings to glyph 0, receive
+    /// [`GlyphId::NOTDEF`]. Returns the number of initial consecutive nonzero
+    /// mappings, while still writing every output. This uses
+    /// the same selected mapping, Mac Roman conversion, and Microsoft symbol
+    /// fallback as [`map_unicode`](Self::map_unicode).
+    pub fn map_unicode_batched<'o>(
+        &self,
+        codepoints: impl Iterator<Item = (u32, &'o mut GlyphId)>,
+    ) -> usize {
+        match self.font.kind() {
+            crate::model::Kind::Type1(font) => {
+                map_ps_batched(Some(font.unicode_charmap()), codepoints)
+            }
+            crate::model::Kind::Cff(_, _) => {
+                map_ps_batched(self.font.standalone_cff_unicode_charmap(), codepoints)
+            }
+            _ => {
+                if let Some(map) = self.font.unicode_charmap() {
+                    map.map_batched(codepoints)
+                } else {
+                    for (_, out) in codepoints {
+                        *out = GlyphId::NOTDEF;
+                    }
+                    0
+                }
+            }
+        }
+    }
+
     /// Iterates over Unicode codepoints and their resolved glyph IDs.
     ///
-    /// Type 1 mappings are derived from glyph names when `agl` is enabled.
-    pub fn iter_unicodes(&self) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
-        let type1 = match self.font.kind() {
+    /// A Microsoft symbol subtable yields only the codes it contains.
+    /// [`map_unicode`](Self::map_unicode) also maps U+0000..U+00FF through
+    /// U+F000..U+F0FF, but those codes are not included.
+    ///
+    /// Type 1 and standalone CFF mappings are derived from glyph names when
+    /// `agl` is enabled.
+    pub fn unicodes(&self) -> impl Iterator<Item = (u32, GlyphId)> + 'a {
+        let this = *self;
+        let type1 = match this.font.kind() {
             crate::model::Kind::Type1(font) => Some(font),
             _ => None,
         };
         let type1 = type1.into_iter().flat_map(iter_type1_unicodes);
-        let sfnt = self.font.unicode_charmap().into_iter().flat_map(|map| {
+        let standalone_cff = this
+            .font
+            .standalone_cff_unicode_charmap()
+            .into_iter()
+            .flat_map(iter_ps_unicodes);
+        let sfnt = this.font.unicode_charmap().into_iter().flat_map(|map| {
             map.iter(CmapIterLimits {
                 max_char: char::MAX as u32,
-                glyph_count: self.font.num_glyphs(),
+                glyph_count: this.font.num_glyphs(),
             })
         });
         type1
+            .chain(standalone_cff)
             .chain(sfnt)
             .filter(|(_, glyph)| *glyph != GlyphId::NOTDEF)
     }
@@ -159,11 +214,12 @@ impl<'a> Charmap<'a> {
     ///
     /// Yields `(codepoint, selector, glyph)` tuples, where `glyph` is the
     /// resolved glyph ID.
-    pub fn iter_unicode_variants(&self) -> impl Iterator<Item = (u32, u32, GlyphId)> + '_ {
-        self.font.unicode_charmap().into_iter().flat_map(|map| {
+    pub fn unicode_variants(&self) -> impl Iterator<Item = (u32, u32, GlyphId)> + 'a {
+        let this = *self;
+        this.font.unicode_charmap().into_iter().flat_map(|map| {
             map.variant_mappings(CmapIterLimits {
                 max_char: char::MAX as u32,
-                glyph_count: self.font.num_glyphs(),
+                glyph_count: this.font.num_glyphs(),
             })
             .filter_map(move |(codepoint, selector, variant)| {
                 let glyph = match variant {
@@ -179,13 +235,14 @@ impl<'a> Charmap<'a> {
     ///
     /// More than one mapping can have the same kind. Keep the full
     /// [`Encoding`] value to select a mapping with [`map_code`](Self::map_code).
-    pub fn encodings(&self) -> impl Iterator<Item = Encoding> + '_ {
-        let sfnt = self
+    pub fn encodings(&self) -> impl Iterator<Item = Encoding> + 'a {
+        let this = *self;
+        let sfnt = this
             .font
             .encodings()
             .into_iter()
             .flat_map(EncodingTables::iter);
-        let type1 = match self.font.kind() {
+        let type1 = match this.font.kind() {
             crate::model::Kind::Type1(font) => Some(font),
             _ => None,
         };
@@ -195,7 +252,23 @@ impl<'a> Charmap<'a> {
         let native = type1
             .and_then(|font| font.encoding())
             .map(|encoding| Encoding::type1_native(encoding.predefined()));
-        sfnt.chain(unicode).chain(native)
+        let standalone_cff = match this.font.kind() {
+            crate::model::Kind::Cff(font, _) => Some(font),
+            _ => None,
+        };
+        let standalone_cff_unicode = standalone_cff
+            .as_ref()
+            .filter(|_| this.has_unicode())
+            .map(|_| Encoding::standalone_cff_unicode());
+        let standalone_cff_native = standalone_cff
+            .as_ref()
+            .filter(|font| !font.is_cid())
+            .and_then(|font| font.encoding())
+            .map(|encoding| Encoding::standalone_cff_native(encoding.predefined()));
+        sfnt.chain(unicode)
+            .chain(native)
+            .chain(standalone_cff_unicode)
+            .chain(standalone_cff_native)
     }
 
     /// Maps a character code through a mapping returned by [`encodings`](Self::encodings).
@@ -215,6 +288,19 @@ impl<'a> Charmap<'a> {
                 }
                 native.map(u8::try_from(code).ok()?)
             }
+            crate::model::Kind::Cff(_, _) if encoding == Encoding::standalone_cff_unicode() => {
+                self.font.standalone_cff_unicode_charmap()?.map(code)
+            }
+            crate::model::Kind::Cff(font, _) => {
+                if font.is_cid() {
+                    return None;
+                }
+                let native = font.encoding()?;
+                if encoding != Encoding::standalone_cff_native(native.predefined()) {
+                    return None;
+                }
+                native.map(u8::try_from(code).ok()?)
+            }
             _ => self.font.encodings()?.map(encoding, code),
         };
         glyph.filter(|glyph| *glyph != GlyphId::NOTDEF)
@@ -226,8 +312,9 @@ impl<'a> Charmap<'a> {
     /// Codes are returned as stored in the encoding; Mac Roman conversion and
     /// symbol fallback are only used by the Unicode methods. Mappings to glyph
     /// 0 are omitted.
-    pub fn iter_codes(&self, encoding: Encoding) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
-        let type1 = match self.font.kind() {
+    pub fn codes(&self, encoding: Encoding) -> impl Iterator<Item = (u32, GlyphId)> + 'a {
+        let this = *self;
+        let type1 = match this.font.kind() {
             crate::model::Kind::Type1(font) => Some(font),
             _ => None,
         };
@@ -243,36 +330,74 @@ impl<'a> Charmap<'a> {
                 (0_u32..=255)
                     .filter_map(move |code| native.map(code as u8).map(|glyph| (code, glyph)))
             });
-        let sfnt = self.font.encodings().into_iter().flat_map(move |tables| {
-            tables.iter_codes(
+        let standalone_cff = match this.font.kind() {
+            crate::model::Kind::Cff(font, _) => Some(font),
+            _ => None,
+        };
+        let standalone_cff_unicode = (encoding == Encoding::standalone_cff_unicode())
+            .then(|| this.font.standalone_cff_unicode_charmap())
+            .flatten()
+            .into_iter()
+            .flat_map(iter_ps_unicodes);
+        let standalone_cff_native = standalone_cff
+            .as_ref()
+            .filter(|font| !font.is_cid())
+            .and_then(|font| font.encoding())
+            .filter(|native| encoding == Encoding::standalone_cff_native(native.predefined()))
+            .into_iter()
+            .flat_map(|native| {
+                (0_u32..=255)
+                    .filter_map(move |code| native.map(code as u8).map(|glyph| (code, glyph)))
+            });
+        let sfnt = this.font.encodings().into_iter().flat_map(move |tables| {
+            tables.codes(
                 encoding,
                 CmapIterLimits {
                     max_char: u32::MAX,
-                    glyph_count: self.font.num_glyphs(),
+                    glyph_count: this.font.num_glyphs(),
                 },
             )
         });
         type1_unicode
             .chain(type1_native)
+            .chain(standalone_cff_unicode)
+            .chain(standalone_cff_native)
             .chain(sfnt)
             .filter(|(_, glyph)| *glyph != GlyphId::NOTDEF)
     }
 }
 
+fn map_ps_batched<'o>(
+    map: Option<&crate::ps::UnicodeCharmap>,
+    codepoints: impl Iterator<Item = (u32, &'o mut GlyphId)>,
+) -> usize {
+    let mut mapped = 0;
+    let mut initial = true;
+    for (codepoint, out) in codepoints {
+        *out = map
+            .and_then(|map| map.map(codepoint))
+            .unwrap_or(GlyphId::NOTDEF);
+        initial &= *out != GlyphId::NOTDEF;
+        mapped += usize::from(initial);
+    }
+    mapped
+}
+
 fn iter_type1_unicodes(font: &Type1Font) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
-    let map = font.unicode_charmap();
-    map.iter()
-        .scan(None, move |previous, (codepoint, _)| {
-            let codepoint = codepoint & 0x7fff_ffff;
-            let result = if *previous == Some(codepoint) {
-                None
-            } else {
-                map.map(codepoint).map(|glyph| (codepoint, glyph))
-            };
-            *previous = Some(codepoint);
-            Some(result)
-        })
-        .flatten()
+    iter_ps_unicodes(font.unicode_charmap())
+}
+
+fn iter_ps_unicodes(map: &crate::ps::UnicodeCharmap) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
+    // Each character after the last, as FreeType steps through a charmap
+    // built from glyph names. No glyph maps to zero, so the first is the
+    // one after it. A character mapped to glyph zero ends the walk, as it
+    // ends FreeType's.
+    let mut codepoint = 0;
+    core::iter::from_fn(move || {
+        let (next, glyph) = map.next_char(codepoint)?;
+        codepoint = next;
+        (glyph != GlyphId::NOTDEF).then_some((next, glyph))
+    })
 }
 
 /// The character encoding of a font mapping.
@@ -325,45 +450,37 @@ pub struct Encoding {
 
 impl Encoding {
     const DMAP: u32 = 1 << 31;
+    const BARE_CFF_UNICODE: u32 = u32::MAX - 3;
+    const BARE_CFF_NATIVE: u32 = u32::MAX - 2;
     const TYPE1_UNICODE: u32 = u32::MAX - 1;
     const TYPE1_NATIVE: u32 = u32::MAX;
 
-    /// Returns the FreeType-compatible encoding kind.
+    /// Returns the encoding kind.
     pub fn kind(self) -> EncodingKind {
         self.kind
     }
 
-    /// Returns the index of this encoding's record in the `cmap` table, or
-    /// `None` for an encoding from DMAP or a Type 1 font.
-    pub fn cmap_index(self) -> Option<u32> {
-        self.record_index().filter(|_| self.index & Self::DMAP == 0)
-    }
-
-    /// Returns the index of this encoding's record in the DMAP table, if it
-    /// comes from DMAP.
-    pub fn dmap_index(self) -> Option<u32> {
-        self.record_index().filter(|_| self.index & Self::DMAP != 0)
-    }
-
-    /// The record index within the table named by [`sfnt_tag`](Self::sfnt_tag).
-    fn record_index(self) -> Option<u32> {
-        (self.index < Self::TYPE1_UNICODE).then_some(self.index & !Self::DMAP)
-    }
-
-    /// Returns the SFNT mapping table tag (`cmap` or `DMAP`), if applicable.
-    pub fn sfnt_tag(self) -> Option<Tag> {
-        self.record_index().map(|_| {
-            if self.index & Self::DMAP != 0 {
-                Tag::new(b"DMAP")
-            } else {
-                Tag::new(b"cmap")
-            }
-        })
+    /// Returns the tag of the table that holds this encoding's record, `cmap`
+    /// or `DMAP`, and the index of the record within that table.
+    ///
+    /// Returns `None` for an encoding from a Type 1 or standalone CFF font.
+    pub fn sfnt_index(self) -> Option<(Tag, u32)> {
+        // The DMAP bit is set on the standalone CFF and Type 1 values too, so
+        // records end below them.
+        if self.index >= Self::BARE_CFF_UNICODE {
+            return None;
+        }
+        let tag = if self.index & Self::DMAP != 0 {
+            Tag::new(b"DMAP")
+        } else {
+            Tag::new(b"cmap")
+        };
+        Some((tag, self.index & !Self::DMAP))
     }
 
     /// Returns the SFNT platform and encoding identifiers, if applicable.
     pub fn sfnt_ids(self) -> Option<(u16, u16)> {
-        self.record_index()
+        self.sfnt_index()
             .map(|_| (self.platform_id, self.encoding_id))
     }
 
@@ -388,6 +505,20 @@ impl Encoding {
             index: Self::TYPE1_NATIVE,
             platform_id: 0,
             encoding_id: 0,
+        }
+    }
+
+    pub(crate) fn standalone_cff_unicode() -> Self {
+        Self {
+            index: Self::BARE_CFF_UNICODE,
+            ..Self::type1_unicode()
+        }
+    }
+
+    pub(crate) fn standalone_cff_native(predefined: Option<PredefinedEncoding>) -> Self {
+        Self {
+            index: Self::BARE_CFF_NATIVE,
+            ..Self::type1_native(predefined)
         }
     }
 }
@@ -466,13 +597,14 @@ impl<'a> EncodingTables<'a> {
     }
 
     fn table(&self, encoding: Encoding) -> Option<&EncodingTable<'a>> {
-        let tables = if encoding.index & Encoding::DMAP != 0 {
+        let (tag, index) = encoding.sfnt_index()?;
+        let tables = if tag == Tag::new(b"DMAP") {
             &self.dmap
         } else {
             &self.cmap
         };
         tables
-            .get(encoding.record_index()? as usize)?
+            .get(index as usize)?
             .as_ref()
             .filter(|table| table.encoding == encoding)
     }
@@ -487,7 +619,7 @@ impl<'a> EncodingTables<'a> {
             .or_else(|| table.subtable.map_codepoint(code))
     }
 
-    fn iter_codes(
+    fn codes(
         &self,
         encoding: Encoding,
         limits: CmapIterLimits,
@@ -568,7 +700,7 @@ impl<'a> EncodingTable<'a> {
 
 /// The selected cmap subtables and the metadata needed to use them.
 #[derive(Clone, Default, Yokeable)]
-pub(crate) struct UnicodeCharmap<'a> {
+pub(crate) struct SfntUnicodeCharmap<'a> {
     cmap: UnicodeSubtables<'a>,
     dmap: UnicodeSubtables<'a>,
 }
@@ -581,7 +713,7 @@ struct UnicodeSubtables<'a> {
     is_mac_roman: bool,
 }
 
-impl<'a> UnicodeCharmap<'a> {
+impl<'a> SfntUnicodeCharmap<'a> {
     pub(crate) fn read(font: &impl TableProvider<'a>) -> Self {
         Self {
             cmap: UnicodeSubtables::read(font.cmap().ok()),
@@ -594,6 +726,25 @@ impl<'a> UnicodeCharmap<'a> {
             .map(codepoint)
             .filter(|glyph| *glyph != GlyphId::NOTDEF)
             .or_else(|| self.cmap.map(codepoint))
+    }
+
+    /// Writes the mapping of each codepoint to its slot and returns the
+    /// number of initial consecutive nonzero mappings.
+    ///
+    /// `DMAP` overrides `cmap` codepoint by codepoint, so only a font without
+    /// one runs through the cached lookups of a single subtable.
+    fn map_batched<'o>(&self, codepoints: impl Iterator<Item = (u32, &'o mut GlyphId)>) -> usize {
+        if self.dmap.subtable.is_none() {
+            return self.cmap.map_batched(codepoints);
+        }
+        let mut mapped = 0;
+        let mut initial = true;
+        for (codepoint, out) in codepoints {
+            *out = self.map(codepoint).unwrap_or(GlyphId::NOTDEF);
+            initial &= *out != GlyphId::NOTDEF;
+            mapped += usize::from(initial);
+        }
+        mapped
     }
 
     pub(crate) fn map_variant(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
@@ -670,22 +821,76 @@ impl<'a> UnicodeSubtables<'a> {
         }
     }
 
-    pub(crate) fn map(&self, mut codepoint: u32) -> Option<GlyphId> {
+    pub(crate) fn map(&self, codepoint: u32) -> Option<GlyphId> {
         let subtable = self.subtable.as_ref()?;
+        self.map_with(codepoint, |codepoint| subtable.map_codepoint(codepoint))
+    }
+
+    fn map_with(
+        &self,
+        mut codepoint: u32,
+        mut lookup: impl FnMut(u32) -> Option<GlyphId>,
+    ) -> Option<GlyphId> {
+        // A codepoint Mac Roman cannot encode maps to nothing.
         if self.is_mac_roman && codepoint > 0x7f {
             codepoint = char::from_u32(codepoint)
                 .and_then(|value| MacRomanMapping.encode(value))
-                .map(u32::from)
-                .unwrap_or(0);
+                .map(u32::from)?;
         }
-        let result = subtable.map_codepoint(codepoint);
+        let result = lookup(codepoint);
         if result.is_none_or(|glyph| glyph == GlyphId::NOTDEF)
             && self.is_symbol
             && codepoint <= 0xff
         {
-            return subtable.map_codepoint(0xf000 + codepoint);
+            return lookup(0xf000 + codepoint);
         }
         result
+    }
+
+    fn map_batched<'o>(&self, codepoints: impl Iterator<Item = (u32, &'o mut GlyphId)>) -> usize {
+        let mut mapped = 0;
+        let mut initial = true;
+        match self.subtable.as_ref() {
+            Some(CmapSubtable::Format4(subtable)) => {
+                let mut cached = None;
+                for (codepoint, out) in codepoints {
+                    *out = self
+                        .map_with(codepoint, |codepoint| {
+                            subtable.map_codepoint_cached(codepoint, &mut cached)
+                        })
+                        .unwrap_or(GlyphId::NOTDEF);
+                    initial &= *out != GlyphId::NOTDEF;
+                    mapped += usize::from(initial);
+                }
+            }
+            Some(CmapSubtable::Format12(subtable)) => {
+                let mut cached = None;
+                for (codepoint, out) in codepoints {
+                    *out = self
+                        .map_with(codepoint, |codepoint| {
+                            subtable.map_codepoint_cached(codepoint, &mut cached)
+                        })
+                        .unwrap_or(GlyphId::NOTDEF);
+                    initial &= *out != GlyphId::NOTDEF;
+                    mapped += usize::from(initial);
+                }
+            }
+            Some(subtable) => {
+                for (codepoint, out) in codepoints {
+                    *out = self
+                        .map_with(codepoint, |codepoint| subtable.map_codepoint(codepoint))
+                        .unwrap_or(GlyphId::NOTDEF);
+                    initial &= *out != GlyphId::NOTDEF;
+                    mapped += usize::from(initial);
+                }
+            }
+            None => {
+                for (_, out) in codepoints {
+                    *out = GlyphId::NOTDEF;
+                }
+            }
+        }
+        mapped
     }
 
     fn iter(&self, limits: CmapIterLimits) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
@@ -702,28 +907,10 @@ impl<'a> UnicodeSubtables<'a> {
             .then_some(self)
             .into_iter()
             .flat_map(move |map| {
-                let subtable = map.subtable.as_ref();
-                let direct = subtable
+                map.subtable
+                    .as_ref()
                     .into_iter()
-                    .flat_map(move |subtable| subtable.iter_with_limits(limits));
-                let format0 = (0_u32..=255).filter_map(move |codepoint| {
-                    let subtable = subtable?;
-                    matches!(subtable, CmapSubtable::Format0(_))
-                        .then(|| subtable.map_codepoint(codepoint))
-                        .flatten()
-                        .map(|glyph| (codepoint, glyph))
-                });
-                let symbol = (0_u32..=255).filter_map(move |codepoint| {
-                    let subtable = subtable?;
-                    (map.is_symbol
-                        && subtable
-                            .map_codepoint(codepoint)
-                            .is_none_or(|glyph| glyph == GlyphId::NOTDEF))
-                    .then(|| subtable.map_codepoint(0xf000 + codepoint))
-                    .flatten()
-                    .map(|glyph| (codepoint, glyph))
-                });
-                direct.chain(format0).chain(symbol)
+                    .flat_map(move |subtable| subtable.iter_with_limits(limits))
             });
         roman.chain(normal)
     }
@@ -739,6 +926,117 @@ mod tests {
     use alloc::{sync::Arc, vec};
     use core::sync::atomic::{AtomicUsize, Ordering};
     use types::Tag;
+
+    // The iterators borrow the font, not the charmap they came from, so
+    // they outlive it.
+    #[test]
+    fn iterators_outlive_the_charmap() {
+        let font = Font::new(font_test_data::CMAP14_FONT1, 0).unwrap();
+        let unicodes = font.charmap().unicodes();
+        let variants = font.charmap().unicode_variants();
+        let encodings: Vec<_> = font.charmap().encodings().collect();
+        let codes = font.charmap().codes(encodings[0]);
+        assert!(unicodes.count() > 0);
+        assert!(variants.count() > 0);
+        assert!(codes.count() > 0);
+    }
+
+    fn check_unicode_batch(data: &'static [u8], codepoints: &[u32]) {
+        let font = Font::new(data, 0).unwrap();
+        let charmap = font.charmap();
+        let expected: Vec<_> = codepoints
+            .iter()
+            .map(|&codepoint| charmap.map_unicode(codepoint).unwrap_or(GlyphId::NOTDEF))
+            .collect();
+        let mut actual = vec![GlyphId::new(123); codepoints.len()];
+        let mapped = charmap.map_unicode_batched(codepoints.iter().copied().zip(actual.iter_mut()));
+        assert_eq!(actual, expected);
+        assert_eq!(
+            mapped,
+            expected
+                .iter()
+                .take_while(|&&glyph| glyph != GlyphId::NOTDEF)
+                .count()
+        );
+    }
+
+    #[test]
+    fn batched_unicode_matches_scalar_across_cmap_formats() {
+        let codepoints = [
+            0, 0x20, 0x41, 0x42, 0xe9, 0x400, 0xf000, 0xffff, 0x10000, 0x10ffff, 0x110000, 0x41,
+            0x20, 0,
+        ];
+        for data in [
+            font_test_data::TINOS_SUBSET,
+            font_test_data::CMAP12_FONT1,
+            font_test_data::CMAP4_SYMBOL_PUA,
+            font_test_data::CMAP6,
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+            font_test_data::NOTO_COLOR_EMOJI_FLAGS,
+        ] {
+            check_unicode_batch(data, &codepoints);
+        }
+        check_unicode_batch(
+            font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB,
+            &codepoints,
+        );
+
+        let font = Font::new(font_test_data::TINOS_SUBSET, 0).unwrap();
+        let mut from_chars = [GlyphId::NOTDEF; 3];
+        let mapped = font.charmap().map_unicode_batched(
+            ['A', 'B', 'C']
+                .into_iter()
+                .map(u32::from)
+                .zip(from_chars.iter_mut()),
+        );
+        assert_eq!(
+            from_chars,
+            ['A', 'B', 'C'].map(|ch| font.charmap().map_unicode(ch).unwrap_or(GlyphId::NOTDEF))
+        );
+        assert_eq!(
+            mapped,
+            from_chars
+                .iter()
+                .take_while(|&&glyph| glyph != GlyphId::NOTDEF)
+                .count()
+        );
+    }
+
+    #[test]
+    fn batched_unicode_handles_large_ordered_and_reversed_inputs() {
+        let codepoints: Vec<_> = (0..=0x11000).step_by(7).collect();
+        for data in [font_test_data::TINOS_SUBSET, font_test_data::CMAP12_FONT1] {
+            check_unicode_batch(data, &codepoints);
+            check_unicode_batch(data, &codepoints.iter().copied().rev().collect::<Vec<_>>());
+        }
+    }
+
+    // DMAP overrides cmap codepoint by codepoint and supplies mappings cmap
+    // lacks, so a batch has to agree with single lookups when it is present.
+    #[test]
+    fn batched_unicode_honors_dmap() {
+        use font_test_data::cmap::{font_with_cmaps, format12, table};
+        let cmap = format12(&[(65, 1), (66, 2), (67, 3)]);
+        let dmap = format12(&[(66, 9), (68, 10)]);
+        let data = font_with_cmaps(
+            Some(&table(&[(3, 10, cmap.as_slice())])),
+            Some(&table(&[(3, 10, dmap.as_slice())])),
+        );
+        let font = Font::new(data, 0).unwrap();
+        let charmap = font.charmap();
+        let codepoints = [65, 66, 67, 68, 69, 66];
+        let mut actual = [GlyphId::new(123); 6];
+        let mapped = charmap.map_unicode_batched(codepoints.iter().copied().zip(actual.iter_mut()));
+        let expected = [1, 9, 3, 10, 0, 9].map(GlyphId::new);
+        assert_eq!(actual, expected);
+        assert_eq!(mapped, 4);
+        for (codepoint, glyph) in codepoints.iter().zip(expected) {
+            assert_eq!(
+                charmap.map_unicode(*codepoint).unwrap_or(GlyphId::NOTDEF),
+                glyph
+            );
+        }
+    }
 
     #[test]
     fn cmap15_selection_and_dmap_variants() {
@@ -771,7 +1069,7 @@ mod tests {
                 let font = Font::new(data, 0).unwrap();
                 let charmap = font.charmap();
                 assert!(charmap.has_unicode_variants());
-                let mut mappings: Vec<_> = charmap.iter_unicode_variants().collect();
+                let mut mappings: Vec<_> = charmap.unicode_variants().collect();
                 mappings.sort_unstable();
                 assert_eq!(
                     mappings,
@@ -810,7 +1108,7 @@ mod tests {
         let charmap = font.charmap();
         assert!(charmap.has_unicode());
         assert!(charmap.has_unicode_variants());
-        let mut mappings: Vec<_> = charmap.iter_unicodes().collect();
+        let mut mappings: Vec<_> = charmap.unicodes().collect();
         mappings.sort_unstable();
         assert_eq!(
             mappings,
@@ -825,9 +1123,9 @@ mod tests {
             assert_eq!(charmap.map_unicode(ch), Some(glyph));
         }
         for encoding in charmap.encodings() {
-            assert_eq!(encoding.sfnt_tag(), Some(Tag::new(b"cmap")));
+            assert_eq!(encoding.sfnt_index().unwrap().0, Tag::new(b"cmap"));
             assert_eq!(charmap.map_code(encoding, 65), Some(GlyphId::new(3)));
-            let mut codes: Vec<_> = charmap.iter_codes(encoding).collect();
+            let mut codes: Vec<_> = charmap.codes(encoding).collect();
             codes.sort_unstable();
             assert_eq!(
                 codes,
@@ -839,7 +1137,7 @@ mod tests {
                 ]
             );
         }
-        let mut variants: Vec<_> = charmap.iter_unicode_variants().collect();
+        let mut variants: Vec<_> = charmap.unicode_variants().collect();
         variants.sort_unstable();
         assert_eq!(
             variants,
@@ -862,11 +1160,54 @@ mod tests {
             Some(GlyphId::new(3))
         );
         let encoding = font.charmap().encodings().next().unwrap();
-        assert_eq!(encoding.sfnt_tag(), Some(Tag::new(b"DMAP")));
-        // The index is into DMAP, so it is not an index into cmap.
-        assert_eq!(encoding.cmap_index(), None);
-        assert_eq!(encoding.dmap_index(), Some(0));
+        // The index is into DMAP, not cmap.
+        assert_eq!(encoding.sfnt_index(), Some((Tag::new(b"DMAP"), 0)));
         assert_eq!(font.charmap().map_code(encoding, 65), Some(GlyphId::new(3)));
+    }
+
+    #[test]
+    fn standalone_cff_batch_matches_scalar_and_writes_after_a_miss() {
+        let sfnt = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = sfnt.cff().unwrap().offset_data().as_bytes();
+        let codepoints = ['i' as u32, 0x10ffff, 'i' as u32];
+        check_unicode_batch(cff, &codepoints);
+
+        let font = Font::new(cff, 0).unwrap();
+        let mut glyphs = [GlyphId::new(123); 3];
+        let mapped = font
+            .charmap()
+            .map_unicode_batched(codepoints.into_iter().zip(glyphs.iter_mut()));
+        #[cfg(feature = "agl")]
+        {
+            assert_eq!(mapped, 1);
+            assert_eq!(glyphs, [GlyphId::new(1), GlyphId::NOTDEF, GlyphId::new(1)]);
+        }
+        #[cfg(not(feature = "agl"))]
+        {
+            assert_eq!(mapped, 0);
+            assert_eq!(glyphs, [GlyphId::NOTDEF; 3]);
+        }
+    }
+
+    #[test]
+    fn cid_cff_has_no_glyph_name_unicode_mapping() {
+        let sfnt = FontRef::new(font_test_data::NOTO_SANS_JP_CFF).unwrap();
+        let cff = sfnt.cff().unwrap().offset_data().as_bytes();
+        let font = Font::new(cff, 0).unwrap();
+        let charmap = font.charmap();
+        assert!(!charmap.has_unicode());
+        assert_eq!(charmap.map_unicode('A'), None);
+        assert_eq!(charmap.encodings().count(), 0);
+        assert_eq!(
+            charmap.map_code(Encoding::standalone_cff_native(None), 65),
+            None
+        );
+        let mut glyphs = [GlyphId::new(123); 2];
+        assert_eq!(
+            charmap.map_unicode_batched([0x41, 0x42].into_iter().zip(glyphs.iter_mut())),
+            0
+        );
+        assert_eq!(glyphs, [GlyphId::NOTDEF; 2]);
     }
 
     #[test]
@@ -884,7 +1225,7 @@ mod tests {
         assert_eq!(font.charmap().map_unicode(0xffff_u32), None);
         assert!(font
             .charmap()
-            .iter_unicodes()
+            .unicodes()
             .any(|entry| entry == ('A' as u32, GlyphId::new(1))));
     }
 
@@ -903,7 +1244,9 @@ mod tests {
         let cmap = direct.cmap().unwrap();
         let encodings: Vec<_> = font.charmap().encodings().collect();
         for encoding in &encodings {
-            let index = encoding.cmap_index().unwrap() as usize;
+            let (tag, index) = encoding.sfnt_index().unwrap();
+            assert_eq!(tag, Tag::new(b"cmap"));
+            let index = index as usize;
             let record = &cmap.encoding_records()[index];
             assert_eq!(
                 encoding.sfnt_ids(),
@@ -914,7 +1257,7 @@ mod tests {
                 font.charmap().map_code(*encoding, 'A' as u32),
                 subtable.map_codepoint('A')
             );
-            for (code, glyph) in font.charmap().iter_codes(*encoding).take(3) {
+            for (code, glyph) in font.charmap().codes(*encoding).take(3) {
                 assert_eq!(font.charmap().map_code(*encoding, code), Some(glyph));
             }
         }
@@ -937,7 +1280,7 @@ mod tests {
             .iter()
             .find(|encoding| encoding.kind() == EncodingKind::Unicode)
             .unwrap();
-        assert_eq!(unicode.cmap_index(), None);
+        assert_eq!(unicode.sfnt_index(), None);
         assert_eq!(
             font.charmap().map_code(*unicode, 'H' as u32),
             font.charmap().map_unicode('H')
@@ -946,7 +1289,7 @@ mod tests {
             .iter()
             .find(|encoding| encoding.kind() != EncodingKind::Unicode)
             .unwrap();
-        assert_eq!(native.cmap_index(), None);
+        assert_eq!(native.sfnt_index(), None);
         assert_eq!(
             font.charmap().map_code(*native, b'H' as u32),
             Some(GlyphId::new(1))
@@ -954,11 +1297,11 @@ mod tests {
         assert_eq!(font.charmap().map_code(*native, 256), None);
         assert!(font
             .charmap()
-            .iter_unicodes()
+            .unicodes()
             .any(|entry| entry == ('H' as u32, GlyphId::new(1))));
         assert!(font
             .charmap()
-            .iter_codes(*native)
+            .codes(*native)
             .any(|entry| entry == (b'H' as u32, GlyphId::new(1))));
     }
 
@@ -1013,7 +1356,7 @@ mod tests {
             Some(GlyphId::new(25))
         );
         assert_eq!(font.charmap().map_unicode_variant('a', selector), None);
-        let variants: Vec<_> = font.charmap().iter_unicode_variants().collect();
+        let variants: Vec<_> = font.charmap().unicode_variants().collect();
         assert!(variants.contains(&(
             0x4e00,
             selector as u32,
@@ -1041,15 +1384,14 @@ mod tests {
         assert!(font.charmap().unicode_is_symbol());
         assert!(!font.charmap().unicode_is_mac_roman());
         assert_eq!(font.charmap().map_unicode(character), Some(glyph));
-        assert!(font
-            .charmap()
-            .iter_unicodes()
-            .any(|entry| entry == (character as u32, glyph)));
+        let unicodes: Vec<_> = font.charmap().unicodes().collect();
+        assert!(unicodes.contains(&(codepoint, glyph)));
+        assert!(!unicodes.contains(&(character as u32, glyph)));
         let encoding = font.charmap().encodings().next().unwrap();
         assert_eq!(font.charmap().map_code(encoding, codepoint), Some(glyph));
         assert!(font
             .charmap()
-            .iter_codes(encoding)
+            .codes(encoding)
             .any(|entry| entry == (codepoint, glyph)));
     }
 
@@ -1077,20 +1419,30 @@ mod tests {
         let font = Font::new(source, 0).unwrap();
         let charmap = font.charmap();
         assert_eq!(charmap.map_unicode('A'), Some(GlyphId::new(3)));
-        assert!(charmap
-            .iter_unicodes()
-            .any(|entry| entry == (0x41, GlyphId::new(3))));
+        let mut batched = [GlyphId::NOTDEF; 3];
+        let mapped = charmap.map_unicode_batched(
+            ['A', 'B', 'A']
+                .into_iter()
+                .map(u32::from)
+                .zip(batched.iter_mut()),
+        );
+        assert_eq!(batched, [GlyphId::new(3), GlyphId::NOTDEF, GlyphId::new(3)]);
+        assert_eq!(mapped, 1);
+        let unicodes: Vec<_> = charmap.unicodes().collect();
+        assert!(unicodes.contains(&(0xf041, GlyphId::new(3))));
+        assert!(!unicodes.iter().any(|(code, _)| *code == 0x41));
         let encoding = charmap.encodings().next().unwrap();
         assert_eq!(charmap.map_code(encoding, 0x41), None);
-        assert!(!charmap.iter_codes(encoding).any(|(code, _)| code == 0x41));
+        assert!(!charmap.codes(encoding).any(|(code, _)| code == 0x41));
     }
 
-    #[test]
-    fn mac_roman_encoding_translates_unicode() {
-        let mut cmap = vec![0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 12];
+    /// Creates a font with Tinos's tables and one format 0 `cmap` subtable.
+    ///
+    /// The subtable has the given `platform` and `encoding` IDs and maps
+    /// each code to the glyph at that position in `glyphs`.
+    fn font_with_format0_cmap(platform: u8, encoding: u8, glyphs: [u8; 256]) -> Font {
+        let mut cmap = vec![0, 0, 0, 1, 0, platform, 0, encoding, 0, 0, 0, 12];
         cmap.extend_from_slice(&[0, 0, 1, 6, 0, 0]);
-        let mut glyphs = [0u8; 256];
-        glyphs[0x8e] = 3; // U+00E9, encoded as Mac Roman 0x8E.
         cmap.extend_from_slice(&glyphs);
         let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
             if tag == Tag::new(b"cmap") {
@@ -1100,15 +1452,30 @@ mod tests {
             font.table_data(tag)
                 .map(|data| Blob::from(data.as_bytes().to_vec()))
         });
-        let font = Font::new(source, 0).unwrap();
+        Font::new(source, 0).unwrap()
+    }
+
+    #[test]
+    fn mac_roman_encoding_translates_unicode() {
+        let mut glyphs = [0u8; 256];
+        glyphs[0x8e] = 3; // U+00E9, encoded as Mac Roman 0x8E.
+        glyphs[0] = 5;
+        let font = font_with_format0_cmap(1, 0, glyphs);
         assert!(font.charmap().has_unicode());
         assert!(!font.charmap().unicode_is_symbol());
         assert!(font.charmap().unicode_is_mac_roman());
         assert_eq!(font.charmap().map_unicode('é'), Some(GlyphId::new(3)));
         assert_eq!(font.charmap().map_unicode('A'), None);
+        // Mac Roman cannot encode U+0100, so it maps to nothing rather than
+        // to what code 0 maps to.
+        assert_eq!(font.charmap().map_unicode('\u{100}'), None);
+        let mut batch = [GlyphId::new(9)];
+        font.charmap()
+            .map_unicode_batched([0x100u32].into_iter().zip(batch.iter_mut()));
+        assert_eq!(batch, [GlyphId::NOTDEF]);
         assert!(font
             .charmap()
-            .iter_unicodes()
+            .unicodes()
             .any(|entry| entry == ('é' as u32, GlyphId::new(3))));
         let encoding = font.charmap().encodings().next().unwrap();
         assert_eq!(
@@ -1117,8 +1484,24 @@ mod tests {
         );
         assert!(font
             .charmap()
-            .iter_codes(encoding)
+            .codes(encoding)
             .any(|entry| entry == (0x8e, GlyphId::new(3))));
+    }
+
+    #[test]
+    fn format0_mappings_are_listed_once() {
+        let mut glyphs = [0u8; 256];
+        glyphs[0x41] = 3;
+        glyphs[0x42] = 4;
+        let font = font_with_format0_cmap(3, 1, glyphs);
+        assert!(!font.charmap().unicode_is_mac_roman());
+        let mappings: Vec<_> = font.charmap().unicodes().collect();
+        let mut unique = mappings.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(mappings.len(), unique.len());
+        assert!(mappings.contains(&(0x41, GlyphId::new(3))));
+        assert!(mappings.contains(&(0x42, GlyphId::new(4))));
     }
 
     #[test]

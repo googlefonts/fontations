@@ -1,6 +1,6 @@
 //! Convert resolved CFF2 programs to CID-keyed CFF1, including explicit widths.
 use super::{
-    charstring::{self, Command, Interpreter, Program, Recorder, Value},
+    charstring::{self, Command, Flattener, Interpreter, Program, Value},
     dict, encoding,
     source::{Cff2, Source},
     Error, Result,
@@ -67,7 +67,7 @@ pub(super) fn convert(font: &FontRef) -> Result<Vec<u8>> {
     }
     let mut chars = Vec::new();
     for (gid, &fd) in old_fds.iter().enumerate() {
-        let mut rec = Recorder::default();
+        let mut rec = Flattener::default();
         let mut interp = Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, 0, false);
         interp.run(
             Program::Glyph(gid),
@@ -83,7 +83,7 @@ pub(super) fn convert(font: &FontRef) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
         for e in &source.fds[fd].private {
             if !matches!(e.op, 19..=23) {
-                bytes.extend(&e.raw);
+                bytes.extend(e.raw.as_ref());
             }
         }
         entry(&mut bytes, 20, &[defaults[fd] as f64])?;
@@ -119,7 +119,7 @@ pub(super) fn convert(font: &FontRef) -> Result<Vec<u8>> {
             let mut bytes = Vec::new();
             for e in &source.fds[old].entries {
                 if e.op == 0x107 {
-                    bytes.extend(&e.raw);
+                    bytes.extend(e.raw.as_ref());
                 }
             }
             link(&mut bytes, 18, &[privates[new].len(), offsets[new]])?;
@@ -141,7 +141,7 @@ pub(super) fn convert(font: &FontRef) -> Result<Vec<u8>> {
         )?;
         for e in &source.top {
             if e.op == 0x107 {
-                top.extend(&e.raw);
+                top.extend(e.raw.as_ref());
             }
         }
         for (op, offset) in [
@@ -266,7 +266,7 @@ mod tests {
     use super::*;
     use read_fonts::{
         model::glyph::outline::PathElement,
-        ps::{cff::CffFontRef, cs::CommandSink},
+        ps::{cff::CffFontRef, charstring::CommandSink},
         types::Fixed,
     };
     use write_fonts::FontBuilder;
