@@ -2,7 +2,7 @@
 
 use super::{outline_to_path, PathContourStart};
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     tables::glyf::{PointCoord, PointFlags, PHANTOM_POINT_COUNT},
     types::Point,
 };
@@ -49,7 +49,7 @@ impl<C: PointCoord> OutlineRef<'_, C> {
         self.phantom[1].x - self.phantom[0].x
     }
 
-    /// Converts the outline to path commands, calling `pen` for each.
+    /// Converts the outline to path commands, calling `sink` for each.
     ///
     /// `start` decides where a contour begins when its first point is
     /// off-curve. The point stream leaves that open.
@@ -57,7 +57,7 @@ impl<C: PointCoord> OutlineRef<'_, C> {
     /// Returns `false` if the points do not describe a path, on the same terms
     /// as [`outline_to_path`].
     #[must_use]
-    pub fn to_path(&self, start: PathContourStart, pen: &mut impl OutlinePen) -> bool {
-        outline_to_path(self.points, self.flags, self.contours, start, pen)
+    pub fn to_path(&self, start: PathContourStart, sink: &mut impl PathSink) -> bool {
+        outline_to_path(self.points, self.flags, self.contours, start, sink)
     }
 }
