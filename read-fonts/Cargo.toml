@@ -1,6 +1,6 @@
 [package]
 name = "read-fonts"
-version = "0.45.1"
+version = "0.46.0"
 description = "Reading OpenType font files."
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
