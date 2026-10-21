@@ -98,7 +98,10 @@ pub(crate) fn collect_retained_mark_varidx_and_classes(
 macro_rules! subset_mark_array {
     ($table:ident, $count:ident) => {
         impl<'a> SubsetTable<'a> for $table<'_> {
-            type ArgsForSubset = (&'a IntSet<u32>, &'a FastHashMap<u16, u16>);
+            /// `mark_record_idxes` are the coverage indices of the retained
+            /// marks, in the same order as the glyphs written to the mark
+            /// Coverage table.
+            type ArgsForSubset = (&'a [u32], &'a FastHashMap<u16, u16>);
             type Output = ();
             fn subset(
                 &self,
@@ -113,9 +116,7 @@ macro_rules! subset_mark_array {
                 if self.min_table_bytes().is_empty() {
                     return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 }
-                let mark_len = usize::try_from(mark_record_idxes.len())
-                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
-                let mark_count = $count::try_from(mark_len)
+                let mark_count = $count::try_from(mark_record_idxes.len())
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
                 s.embed(mark_count)?;
 
@@ -124,7 +125,7 @@ macro_rules! subset_mark_array {
                 // Preserve records with null anchors while dropping an array
                 // if none of its retained records has an anchor.
                 let mut has_anchor = false;
-                for i in mark_record_idxes.iter() {
+                for &i in mark_record_idxes {
                     let Some(mark_record) = mark_records.get(i as usize) else {
                         return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
                     };
@@ -203,12 +204,12 @@ mod test {
     fn subset_mark_array(raw: &[u8]) -> (Result<(), SerializeErrorFlags>, Serializer) {
         let mark_array = MarkArray::read(FontData::new(raw)).unwrap();
         let plan = Plan::default();
-        let mark_record_idxes: IntSet<u32> = [0, 1].into_iter().collect();
+        let mark_record_idxes = [0_u32, 1];
         let mark_class_map: FastHashMap<u16, u16> = [(0, 0), (1, 1)].into_iter().collect();
 
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
-        let ret = mark_array.subset(&plan, &mut s, (&mark_record_idxes, &mark_class_map));
+        let ret = mark_array.subset(&plan, &mut s, (&mark_record_idxes[..], &mark_class_map));
         (ret, s)
     }
 

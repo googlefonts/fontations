@@ -71,7 +71,16 @@ impl<'a> Charset<'a> {
     }
 
     /// Returns the glyph identifier for the given string identifier.
+    ///
+    /// Returns `None` if no glyph of the font has the string identifier.
     pub fn glyph_id(&self, string_id: Sid) -> Option<GlyphId> {
+        // The charset only describes the font's glyphs, so data past them is
+        // not part of it.
+        self.glyph_id_unbounded(string_id)
+            .filter(|gid| gid.to_u32() < self.num_glyphs)
+    }
+
+    fn glyph_id_unbounded(&self, string_id: Sid) -> Option<GlyphId> {
         let sid = string_id.to_u16();
         match &self.kind {
             CharsetKind::IsoAdobe => {
@@ -541,6 +550,23 @@ mod tests {
                 Some(GlyphId::new(gid as u32))
             );
         }
+    }
+
+    // A range may cover more string ids than the font has glyphs, and data
+    // after the last range the glyphs need is not part of the charset. No
+    // string id maps to a glyph past the end of the font.
+    #[test]
+    fn glyph_ids_stop_at_the_glyph_count() {
+        let mut buf = BeBuffer::new();
+        buf = buf.extend([0u8; 4]);
+        // format 1: sids 8..=10 cover glyphs 1 to 3, then a range past them
+        buf = buf.push(1u8);
+        buf = buf.push(8u16).push(5u8);
+        buf = buf.push(300u16).push(4u8);
+        let charset = Charset::new(FontData::new(buf.data()), 4, 4).unwrap();
+        assert_eq!(charset.glyph_id(Sid::new(10)), Some(GlyphId::new(3)));
+        assert_eq!(charset.glyph_id(Sid::new(11)), None);
+        assert_eq!(charset.glyph_id(Sid::new(300)), None);
     }
 
     #[test]

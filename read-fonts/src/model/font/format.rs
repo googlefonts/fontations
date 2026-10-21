@@ -13,9 +13,9 @@ pub enum Format {
     /// The field contains the number of available fonts. This is always 1 for
     /// .ttf and .otf files and usually greater than 1 for .ttc and .otc files.
     Sfnt(u32),
-    /// A Type1 font.
+    /// A Type 1 font.
     Type1,
-    /// A pure CFF font.
+    /// A standalone CFF font.
     ///
     /// The field contains the number of available fonts.
     Cff(u32),
