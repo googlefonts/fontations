@@ -194,8 +194,9 @@ algorithms. Table handlers and shared helpers maintain these rules:
 
 * Preserve TrueType points, component references, curve-kind bits, and
   instructions. Phantom metrics and bounds describe the same outline. CFF2
-  preserves nested blends, caller-dependent subroutines, and independent
-  rounding boundaries.
+  preserves nested blends and independent rounding boundaries. Retained
+  subroutine calls require immediate literal targets; desubroutinization handles
+  caller-dependent targets.
 * Preserve each consumer's precision. CFF folding, metric rounding, tuple
   scalar accumulation, Fixed transforms, and F2Dot14 fields do not share one
   interchangeable rounding rule.
@@ -213,6 +214,33 @@ algorithms. Table handlers and shared helpers maintain these rules:
 Composition tests exercise both axis orders and the supported precision rules.
 Quantized mappings and intermediate rounding prevent a universal claim of exact
 mathematical equivalence for every sequence of restrictions.
+
+## CFF interpreter passes
+
+The [Type 2 interpreter](../src/cff/charstring.rs) has separate actions for
+closure, retained programs, flattened commands, bounds, and blend inspection.
+Callbacks borrow operands. Closure builds neither tokens nor commands; retained
+output borrows the source program and records only edits; flattening records
+only the commands it emits. Unchanged byte spans are copied together.
+
+Literal provenance is one bounded source span. Arithmetic does not build or
+copy producer collections. Removing hints with shared or computed operands
+flattens the affected glyph. Retained recording also compares repeated program
+edits and mask boundaries before sharing them between glyphs. This keeps one
+glyph's hint deletion from changing another glyph's drawing operands.
+
+Retained calls require an immediately preceding literal in the same program.
+Caller-supplied or computed targets return an error in retained mode; use
+`--desubroutinize` for those programs. Global subroutines can be shared between
+Font DICTs when their rewritten programs agree and they do not reach an
+FD-local namespace. FD-dependent programs retain separate specializations.
+
+Private DICT entries preserve their complete borrowed source spans independently
+of their live operand stack. Each blend consumes defaults, deltas, and its count
+and leaves only its results. INDEX layouts compute checked sizes and write into
+the final pre-sized table buffer. Fixture and outline regressions live in
+[CFF tests](../tests/cff_test.rs) and
+[CFF review regressions](../tests/cff_regression_test.rs).
 
 ## Serialization and performance
 
@@ -250,7 +278,7 @@ identify the main slices; later fixes in the same stack refine them.
 
 | Area | Main stack slices | Tests and focus |
 | --- | --- | --- |
-| CFF | [#2248](https://github.com/googlefonts/fontations/pull/2248), [#2249](https://github.com/googlefonts/fontations/pull/2249), [#2250](https://github.com/googlefonts/fontations/pull/2250), [#2252](https://github.com/googlefonts/fontations/pull/2252) | [CFF](../tests/cff_test.rs): interpreter state, blends, subroutines, bounds, widths |
+| CFF | [#2248](https://github.com/googlefonts/fontations/pull/2248), [#2249](https://github.com/googlefonts/fontations/pull/2249), [#2250](https://github.com/googlefonts/fontations/pull/2250), [#2252](https://github.com/googlefonts/fontations/pull/2252) | [CFF](../tests/cff_test.rs), [review regressions](../tests/cff_regression_test.rs): interpreter state, blends, subroutines, bounds, widths |
 | TrueType | [#2268](https://github.com/googlefonts/fontations/pull/2268), [#2269](https://github.com/googlefonts/fontations/pull/2269), [#2284](https://github.com/googlefonts/fontations/pull/2284) | [TrueType](../tests/truetype_instance_test.rs), [IUP](../tests/iup_test.rs), [empty glyphs](../tests/empty_glyph_test.rs): components, instructions, phantoms, residual tuples |
 | Axes and avar2 | [#2253](https://github.com/googlefonts/fontations/pull/2253), [#2291](https://github.com/googlefonts/fontations/pull/2291), [#2296](https://github.com/googlefonts/fontations/pull/2296) | [Axis planning](../src/instance/axes.rs), [avar2](../src/instance/avar2.rs): coordinate spaces, reachability, hidden pins |
 | Layout | [#2255](https://github.com/googlefonts/fontations/pull/2255), [#2274](https://github.com/googlefonts/fontations/pull/2274), [#2281](https://github.com/googlefonts/fontations/pull/2281), [#2328](https://github.com/googlefonts/fontations/pull/2328) | [Layout](../tests/layout_instance_test.rs), [BASE](../tests/base_test.rs), [JSTF](../tests/jstf_test.rs): shared rows, conditions, device adjustments |
