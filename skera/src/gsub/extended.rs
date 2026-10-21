@@ -1,7 +1,7 @@
 //! Subsetting support for the ISO OFF extended GSUB formats.
 
 use crate::{
-    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
+    layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -25,24 +25,29 @@ fn subset_array_sets<'a, T>(
 where
     T: FontRead<'a, Args = ()> + SubsetTable<'a, ArgsForSubset = (), Output = ()>,
 {
-    let (glyphs, indices) = intersected_glyphs_and_indices(
-        coverage,
-        &plan.glyphset_gsub,
-        &plan.glyph_map_gsub,
-        sets.len() as u32,
-    );
-    if glyphs.is_empty() {
-        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-    }
+    let glyph_set = &plan.glyphset_gsub;
+    let set_count = sets.len() as u32;
     s.embed(2u16)?;
     let coverage_pos = s.embed(0u32)?;
     let count_pos = s.embed(Uint24::new(0))?;
-    let mut retained_glyphs = Vec::with_capacity(glyphs.len());
-    for (&gid, index) in glyphs.iter().zip(indices.iter()) {
-        if !sets.subset_offset(index as usize, s, plan, ()).is_empty()? {
-            retained_glyphs.push(gid);
-        }
-    }
+    let mut retained_glyphs = Vec::with_capacity(
+        coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(set_count as usize),
+    );
+    for_each_intersected_glyph_and_index(
+        coverage,
+        glyph_set,
+        &plan.glyph_map_gsub,
+        set_count,
+        |index, gid| {
+            if !sets.subset_offset(index as usize, s, plan, ()).is_empty()? {
+                retained_glyphs.push(gid);
+            }
+            Ok(())
+        },
+    )?;
     if retained_glyphs.is_empty() {
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
