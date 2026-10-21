@@ -46,6 +46,7 @@ impl<'a> Post<'a> {
                 checkpoints: [UNSET_CHECKPOINT; NUM_CHECKPOINTS],
                 last_actual_idx: None,
                 last_offset: 0,
+                strings_end: usize::MAX,
             },
             _ => GlyphNameIterKind::None,
         };
@@ -144,13 +145,33 @@ enum GlyphNameIterKind<'a> {
         last_actual_idx: Option<usize>,
         // The offset associated with the last scanned index
         last_offset: usize,
+        // The first string index the data cannot reach. Strings are read in
+        // order, so no later one can be read either.
+        strings_end: usize,
     },
 }
 
 impl<'a> Iterator for GlyphNames<'a> {
     type Item = (GlyphId, &'a str);
 
+    /// Returns the next glyph that has a readable name.
+    ///
+    /// Glyphs whose names cannot be read are skipped, so the glyph ids can
+    /// have gaps.
     fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let (gid, name) = self.next_entry()?;
+            if let Some(name) = name {
+                return Some((gid.into(), name));
+            }
+        }
+    }
+}
+
+impl<'a> GlyphNames<'a> {
+    /// Returns the next glyph and its name, or `None` if there are no more
+    /// glyphs.
+    fn next_entry(&mut self) -> Option<(GlyphId16, Option<&'a str>)> {
         match &mut self.kind {
             GlyphNameIterKind::None => None,
             GlyphNameIterKind::V1(post, idx) => {
@@ -158,9 +179,8 @@ impl<'a> Iterator for GlyphNames<'a> {
                     return None;
                 }
                 let gid = GlyphId16::new(*idx as u16);
-                let name = post.glyph_name(gid)?;
                 *idx += 1;
-                Some((gid.into(), name))
+                Some((gid, post.glyph_name(gid)))
             }
             GlyphNameIterKind::V2 {
                 post,
@@ -169,68 +189,81 @@ impl<'a> Iterator for GlyphNames<'a> {
                 checkpoints,
                 last_actual_idx,
                 last_offset,
+                strings_end,
             } => {
                 if *idx >= self.num_names {
                     return None;
                 }
                 let stride = *checkpoint_stride;
                 let gid = GlyphId16::new(*idx as u16);
-                let mut actual_idx = post.glyph_name_index()?.get(*idx as usize)?.get() as usize;
-                let name = if actual_idx < DEFAULT_GLYPH_NAMES.len() {
-                    DEFAULT_GLYPH_NAMES.get(actual_idx).copied()?
-                } else {
-                    actual_idx -= DEFAULT_GLYPH_NAMES.len();
-                    let string_data = post.offset_data().slice(post.string_data_byte_range())?;
-                    // Checkpoint 0 is implicit and always at offset 0; the
-                    // array stores logical checkpoints 1..=NUM_CHECKPOINTS.
-                    let target_slot = (actual_idx / stride).min(NUM_CHECKPOINTS);
-                    // Find the the starting location for our scan
-                    let (mut scan_idx, mut offset) = {
-                        // Search backward from the target slot to find the
-                        // nearest checkpoint that has been set
-                        let mut slot = target_slot;
-                        while slot > 0 && checkpoints[slot - 1] == UNSET_CHECKPOINT {
-                            slot -= 1;
+                let index = *idx as usize;
+                *idx += 1;
+                let mut name = || -> Option<&'a str> {
+                    let mut actual_idx = post.glyph_name_index()?.get(index)?.get() as usize;
+                    Some(if actual_idx < DEFAULT_GLYPH_NAMES.len() {
+                        DEFAULT_GLYPH_NAMES.get(actual_idx).copied()?
+                    } else {
+                        actual_idx -= DEFAULT_GLYPH_NAMES.len();
+                        if actual_idx >= *strings_end {
+                            return None;
                         }
-                        if slot == 0 {
-                            // Fallback to implicit checkpoint 0
-                            (0, 0)
-                        } else {
-                            // Otherwise, start scanning from the nearest
-                            // checkpoint
-                            (slot * stride, checkpoints[slot - 1] as usize)
+                        let string_data =
+                            post.offset_data().slice(post.string_data_byte_range())?;
+                        // Checkpoint 0 is implicit and always at offset 0; the
+                        // array stores logical checkpoints 1..=NUM_CHECKPOINTS.
+                        let target_slot = (actual_idx / stride).min(NUM_CHECKPOINTS);
+                        // Find the the starting location for our scan
+                        let (mut scan_idx, mut offset) = {
+                            // Search backward from the target slot to find the
+                            // nearest checkpoint that has been set
+                            let mut slot = target_slot;
+                            while slot > 0 && checkpoints[slot - 1] == UNSET_CHECKPOINT {
+                                slot -= 1;
+                            }
+                            if slot == 0 {
+                                // Fallback to implicit checkpoint 0
+                                (0, 0)
+                            } else {
+                                // Otherwise, start scanning from the nearest
+                                // checkpoint
+                                (slot * stride, checkpoints[slot - 1] as usize)
+                            }
+                        };
+                        // See if we can use the monotonic fast path.
+                        if let Some(last_idx) = *last_actual_idx {
+                            // Start scanning from the last index if that provides
+                            // a smaller search space than the nearest checkpoint
+                            if last_idx <= actual_idx && last_idx > scan_idx {
+                                scan_idx = last_idx;
+                                offset = *last_offset;
+                            }
                         }
-                    };
-                    // See if we can use the monotonic fast path.
-                    if let Some(last_idx) = *last_actual_idx {
-                        // Start scanning from the last index if that provides
-                        // a smaller search space than the nearest checkpoint
-                        if last_idx <= actual_idx && last_idx > scan_idx {
-                            scan_idx = last_idx;
-                            offset = *last_offset;
+                        // Now do the linear scan over the string data
+                        while scan_idx < actual_idx {
+                            let Some(next) = PString::read_len_at(string_data, offset)
+                                .and_then(|len| offset.checked_add(len))
+                            else {
+                                *strings_end = scan_idx;
+                                return None;
+                            };
+                            offset = next;
+                            scan_idx += 1;
+                            // If this index is a checkpoint, record the offset
+                            // for future scans
+                            if let Some(slot) = checkpoint_slot(scan_idx, stride) {
+                                checkpoints[slot] = u32::try_from(offset).ok()?;
+                            }
                         }
-                    }
-                    // Now do the linear scan over the string data
-                    while scan_idx < actual_idx {
-                        let item_len = PString::read_len_at(string_data, offset)?;
-                        offset = offset.checked_add(item_len)?;
-                        scan_idx += 1;
-                        // If this index is a checkpoint, record the offset
-                        // for future scans
-                        if let Some(slot) = checkpoint_slot(scan_idx, stride) {
+                        if let Some(slot) = checkpoint_slot(actual_idx, stride) {
                             checkpoints[slot] = u32::try_from(offset).ok()?;
                         }
-                    }
-                    if let Some(slot) = checkpoint_slot(actual_idx, stride) {
-                        checkpoints[slot] = u32::try_from(offset).ok()?;
-                    }
-                    // Record the last index and offset for future scans
-                    *last_actual_idx = Some(actual_idx);
-                    *last_offset = offset;
-                    PString::read(string_data.split_off(offset)?).ok()?.0
+                        // Record the last index and offset for future scans
+                        *last_actual_idx = Some(actual_idx);
+                        *last_offset = offset;
+                        PString::read(string_data.split_off(offset)?).ok()?.0
+                    })
                 };
-                *idx += 1;
-                Some((gid.into(), name))
+                Some((gid, name()))
             }
         }
     }
@@ -376,6 +409,56 @@ mod tests {
                 assert_eq!(*name, expected.as_str());
             }
         }
+    }
+
+    #[test]
+    fn glyph_names_skip_a_name_that_cannot_be_read() {
+        let mut buf = BeBuffer::new()
+            .push(Version16Dot16::VERSION_2_0)
+            .push(Fixed::from_i32(0))
+            .extend([FWord::new(0), FWord::new(0)])
+            .push(0u32)
+            .extend([0u32, 0, 0, 0])
+            .push(3u16);
+        // The second glyph names a string the table does not have.
+        for index in [258u16, 258 + 9, 3] {
+            buf = buf.push(index);
+        }
+        buf = buf.push(2u8).extend(*b"ok");
+        let post = Post::read(buf.data().into()).unwrap();
+        assert_eq!(post.glyph_name(GlyphId16::new(1)), None);
+        let names: Vec<_> = post.glyph_names().collect();
+        assert_eq!(names, [(GlyphId::new(0), "ok"), (GlyphId::new(2), "space")]);
+    }
+
+    // Glyphs whose names lie past the end of the string data fail at once,
+    // rather than each rescanning the strings that are there.
+    #[test]
+    fn glyph_names_past_the_string_data_stay_linear() {
+        let num_glyphs = u16::MAX;
+        let mut buf = BeBuffer::new()
+            .push(Version16Dot16::VERSION_2_0)
+            .push(Fixed::from_i32(0))
+            .extend([FWord::new(0), FWord::new(0)])
+            .push(0u32)
+            .extend([0u32, 0, 0, 0])
+            .push(num_glyphs);
+        // The first two glyphs have names; every other glyph names a string
+        // far past the end of the data.
+        for gid in 0..num_glyphs {
+            let index = if gid < 2 { 258 + gid } else { 258 + 60_000 };
+            buf = buf.push(index);
+        }
+        for _ in 0..3854 {
+            buf = buf.push(2u8).extend(*b"ab");
+        }
+        let post = Post::read(buf.data().into()).unwrap();
+        let start = std::time::Instant::now();
+        let names: Vec<_> = post.glyph_names().collect();
+        let elapsed = start.elapsed();
+        assert_eq!(names, [(GlyphId::new(0), "ab"), (GlyphId::new(1), "ab")]);
+        // Linear work is a few milliseconds even in a debug build.
+        assert!(elapsed.as_millis() < 2000, "{elapsed:?}");
     }
 
     /// A post table may hold more strings than it has glyphs, which puts a

@@ -1,7 +1,7 @@
 //! Turning a loaded outline into path commands.
 
 use super::super::{PointCoord, PointFlags};
-use crate::{model::glyph::outline::OutlinePen, types::Point};
+use crate::{model::glyph::outline::PathSink, types::Point};
 
 /// Where a contour starts when its first point is off-curve.
 ///
@@ -24,14 +24,14 @@ pub enum PathContourStart {
 }
 
 /// Converts an outline given as points, flags and contour end points into
-/// path commands, and calls `pen` for each.
+/// path commands, and calls `sink` for each.
 ///
-/// Points may have any coordinate type; the pen is always called with `f32`.
+/// Points may have any coordinate type; the sink is always called with `f32`.
 ///
 /// Returns `false` where the points do not describe a path: a contour whose
 /// points run off the end, a quadratic or cubic missing the points it needs,
 /// or one flag per point missing. Whatever was drawn before that is already
-/// on the pen, so a caller that cannot use half a glyph discards its own
+/// on the sink, so a caller that cannot use half a glyph discards its own
 /// work rather than asking for it back.
 ///
 /// Roughly [`FT_Outline_Decompose`](https://freetype.org/freetype2/docs/reference/ft2-outline_processing.html#ft_outline_decompose).
@@ -42,7 +42,7 @@ pub fn outline_to_path<C: PointCoord>(
     flags: &[PointFlags],
     contours: &[u16],
     start: PathContourStart,
-    pen: &mut impl OutlinePen,
+    sink: &mut impl PathSink,
 ) -> bool {
     if flags.len() != points.len() {
         return false;
@@ -58,7 +58,7 @@ pub fn outline_to_path<C: PointCoord>(
             points.len(),
             |ix| ContourPoint::new(points[ix], flags[ix]),
             start,
-            pen,
+            sink,
         ) {
             return false;
         }
@@ -74,11 +74,11 @@ pub fn outline_to_path<C: PointCoord>(
 /// an autohinter's points, say, which carry more per point than these do.
 ///
 /// Returns `false` on the same terms as [`outline_to_path`], and leaves what
-/// it drew on the pen.
+/// it drew on the sink.
 ///
 /// ```
 /// use read_fonts::{
-///     model::glyph::outline::SvgPen,
+///     model::glyph::outline::SvgSink,
 ///     tables::glyf::{outline::{contour_to_path, PathContourStart}, PointFlags},
 ///     types::Point,
 /// };
@@ -92,7 +92,7 @@ pub fn outline_to_path<C: PointCoord>(
 ///     MyPoint { x: 8.0, y: 8.0, on_curve: true, _more: [0; 8] },
 /// ];
 ///
-/// let mut pen = SvgPen::with_precision(1);
+/// let mut pen = SvgSink::with_precision(1);
 /// assert!(contour_to_path(
 ///     &contour,
 ///     |p| {
@@ -113,7 +113,7 @@ pub fn contour_to_path<T, C: PointCoord>(
     points: &[T],
     to_point: impl Fn(&T) -> (Point<C>, PointFlags),
     start: PathContourStart,
-    pen: &mut impl OutlinePen,
+    sink: &mut impl PathSink,
 ) -> bool {
     walk_contour(
         points.len(),
@@ -122,7 +122,7 @@ pub fn contour_to_path<T, C: PointCoord>(
             ContourPoint::new(point, flags)
         },
         start,
-        pen,
+        sink,
     )
 }
 
@@ -136,7 +136,7 @@ fn walk_contour<C: PointCoord>(
     len: usize,
     point: impl Fn(usize) -> ContourPoint<C>,
     start: PathContourStart,
-    pen: &mut impl OutlinePen,
+    sink: &mut impl PathSink,
 ) -> bool {
     if len == 0 {
         return true;
@@ -188,22 +188,22 @@ fn walk_contour<C: PointCoord>(
         }
     };
     let start_f32 = start_point.point_f32();
-    pen.move_to(start_f32.x, start_f32.y);
+    sink.move_to(start_f32.x, start_f32.y);
     let mut state = PendingState::default();
     // The walk runs off the end at most once, so it is two straight runs
     // rather than one indexed modulo `len`.
     let wrapped = (base + count).saturating_sub(len);
     for ix in base..base + count - wrapped {
-        if !state.emit(point(ix), pen) {
+        if !state.emit(point(ix), sink) {
             return false;
         }
     }
     for ix in 0..wrapped {
-        if !state.emit(point(ix), pen) {
+        if !state.emit(point(ix), sink) {
             return false;
         }
     }
-    state.finish(start_point, pen)
+    state.finish(start_point, sink)
 }
 
 /// A point and its flag, which is all path conversion reads.
@@ -249,7 +249,7 @@ enum PendingState<C> {
 
 impl<C: PointCoord> PendingState<C> {
     #[inline(always)]
-    fn emit(&mut self, point: ContourPoint<C>, pen: &mut impl OutlinePen) -> bool {
+    fn emit(&mut self, point: ContourPoint<C>, sink: &mut impl PathSink) -> bool {
         let flags = point.flags;
         match *self {
             Self::Empty => {
@@ -259,7 +259,7 @@ impl<C: PointCoord> PendingState<C> {
                     *self = Self::Cubic(point);
                 } else {
                     let p = point.point_f32();
-                    pen.line_to(p.x, p.y);
+                    sink.line_to(p.x, p.y);
                 }
             }
             Self::Quad(quad) => {
@@ -267,14 +267,14 @@ impl<C: PointCoord> PendingState<C> {
                     // Two quads in a row imply an on-curve point between them.
                     let c0 = quad.point_f32();
                     let p = quad.midpoint(point).point_f32();
-                    pen.quad_to(c0.x, c0.y, p.x, p.y);
+                    sink.quad_to(c0.x, c0.y, p.x, p.y);
                     *self = Self::Quad(point);
                 } else if flags.is_off_curve_cubic() {
                     return false;
                 } else {
                     let c0 = quad.point_f32();
                     let p = point.point_f32();
-                    pen.quad_to(c0.x, c0.y, p.x, p.y);
+                    sink.quad_to(c0.x, c0.y, p.x, p.y);
                     *self = Self::Empty;
                 }
             }
@@ -293,13 +293,13 @@ impl<C: PointCoord> PendingState<C> {
                     let c0 = cubic0.point_f32();
                     let c1 = cubic1.point_f32();
                     let p = cubic1.midpoint(point).point_f32();
-                    pen.curve_to(c0.x, c0.y, c1.x, c1.y, p.x, p.y);
+                    sink.curve_to(c0.x, c0.y, c1.x, c1.y, p.x, p.y);
                     *self = Self::Cubic(point);
                 } else {
                     let c0 = cubic0.point_f32();
                     let c1 = cubic1.point_f32();
                     let p = point.point_f32();
-                    pen.curve_to(c0.x, c0.y, c1.x, c1.y, p.x, p.y);
+                    sink.curve_to(c0.x, c0.y, c1.x, c1.y, p.x, p.y);
                     *self = Self::Empty;
                 }
             }
@@ -307,15 +307,15 @@ impl<C: PointCoord> PendingState<C> {
         true
     }
 
-    fn finish(mut self, mut start_point: ContourPoint<C>, pen: &mut impl OutlinePen) -> bool {
+    fn finish(mut self, mut start_point: ContourPoint<C>, sink: &mut impl PathSink) -> bool {
         if !matches!(self, Self::Empty) {
             // A contour always ends on an explicit on-curve point.
             start_point.flags = PointFlags::on_curve();
-            if !self.emit(start_point, pen) {
+            if !self.emit(start_point, sink) {
                 return false;
             }
         }
-        pen.close();
+        sink.close();
         true
     }
 }
@@ -323,7 +323,7 @@ impl<C: PointCoord> PendingState<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::glyph::outline::SvgPen;
+    use crate::model::glyph::outline::SvgSink;
     use crate::types::F26Dot6;
     use alloc::vec::Vec;
 
@@ -349,7 +349,7 @@ mod tests {
         start: PathContourStart,
     ) -> Option<String> {
         let (points, flags) = contour(points);
-        let mut pen = SvgPen::with_precision(1);
+        let mut pen = SvgSink::with_precision(1);
         outline_to_path(&points, &flags, contours, start, &mut pen)
             .then(|| pen.as_ref().to_string())
     }
@@ -365,7 +365,7 @@ mod tests {
             flags[1] = PointFlags::on_curve();
         }
         let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
-        let mut pen = SvgPen::with_precision(1);
+        let mut pen = SvgSink::with_precision(1);
         assert!(outline_to_path(&points, &flags, &[3], start, &mut pen));
         assert_eq!(pen.as_ref(), expected);
     }
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn a_flag_per_point_is_required() {
         let (points, _) = contour(&[(0.0, 0.0, 'n'), (8.0, 0.0, 'n')]);
-        let mut pen = SvgPen::with_precision(1);
+        let mut pen = SvgSink::with_precision(1);
         assert!(!outline_to_path(
             &points,
             &[PointFlags::on_curve()],
@@ -524,7 +524,7 @@ mod tests {
         flags[0] = PointFlags::from_bits(0x81);
         flags[1] = PointFlags::from_bits(0x81);
         assert!(!flags[0].is_off_curve());
-        let mut pen = SvgPen::with_precision(1);
+        let mut pen = SvgSink::with_precision(1);
         assert!(outline_to_path(
             &points,
             &flags,
