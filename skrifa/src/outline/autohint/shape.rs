@@ -1,7 +1,10 @@
 //! Shaping support for autohinting.
 
-use super::style::{GlyphStyle, StyleClass};
-use crate::{charmap::Charmap, collections::SmallVec, FontRef, GlyphId, MetadataProvider};
+use super::{
+    context::AutohintContext,
+    style::{GlyphStyle, StyleClass},
+};
+use crate::GlyphId;
 use alloc::vec::Vec;
 use core::ops::Range;
 use raw::{
@@ -14,8 +17,8 @@ use raw::{
         varc::CoverageTable,
     },
     types::{F2Dot14, Tag},
-    TableProvider,
 };
+use smallvec::SmallVec;
 
 // To prevent infinite recursion in contextual lookups. Matches HB
 // <https://github.com/harfbuzz/harfbuzz/blob/c7ef6a2ed58ae8ec108ee0962bef46f42c73a60c/src/hb-limits.hh#L53>
@@ -66,7 +69,7 @@ const SHAPED_CLUSTER_INLINE_SIZE: usize = 16;
 /// Some of our input "characters" for metrics computations are actually
 /// multi-character [grapheme clusters](https://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries)
 /// that may expand to multiple glyphs.
-pub(crate) type ShapedCluster = SmallVec<ShapedGlyph, SHAPED_CLUSTER_INLINE_SIZE>;
+pub(crate) type ShapedCluster = SmallVec<[ShapedGlyph; SHAPED_CLUSTER_INLINE_SIZE]>;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum ShaperCoverageKind {
@@ -83,32 +86,24 @@ pub(crate) enum ShaperCoverageKind {
 ///
 /// Roughly covers the functionality in <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afshaper.c>.
 pub(crate) struct Shaper<'a> {
-    font: FontRef<'a>,
+    context: &'a dyn AutohintContext,
     #[allow(unused)]
     mode: ShaperMode,
-    charmap: Charmap<'a>,
     gsub: Option<Gsub<'a>>,
     coords: &'a [F2Dot14],
 }
 
 impl<'a> Shaper<'a> {
-    pub fn new(font: &FontRef<'a>, mode: ShaperMode) -> Self {
-        let charmap = font.charmap();
+    pub fn new(context: &'a dyn AutohintContext, mode: ShaperMode) -> Self {
         let gsub = (mode != ShaperMode::Nominal)
-            .then(|| font.gsub().ok())
+            .then(|| context.gsub())
             .flatten();
         Self {
-            font: font.clone(),
+            context,
             mode,
-            charmap,
             gsub,
-            coords: &[],
+            coords: context.coords(),
         }
-    }
-
-    pub fn with_coords(mut self, coords: &'a [F2Dot14]) -> Self {
-        self.coords = coords;
-        self
     }
 
     fn lookup_indices(&self, feature_ix: u16, all_locations: bool) -> Option<Vec<u16>> {
@@ -124,9 +119,8 @@ impl<'a> Shaper<'a> {
             return Some(lookups);
         };
         let store = self
-            .font
+            .context
             .gdef()
-            .ok()
             .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten());
         let delta = store_deltas(store.as_ref(), self.coords);
         let selected = (!all_locations)
@@ -175,12 +169,8 @@ impl<'a> Shaper<'a> {
         Some(lookups)
     }
 
-    pub fn font(&self) -> &FontRef<'a> {
-        &self.font
-    }
-
-    pub fn charmap(&self) -> &Charmap<'a> {
-        &self.charmap
+    pub fn context(&self) -> &'a dyn AutohintContext {
+        self.context
     }
 
     pub fn lookup_count(&self) -> u16 {
@@ -277,13 +267,8 @@ impl<'a> Shaper<'a> {
             }
         }
         // Check each requested script that is available in GSUB
-        let mut gsub_handler = GsubHandler::new(
-            &self.charmap,
-            &lookup_list,
-            style,
-            glyph_styles,
-            visited_set,
-        );
+        let mut gsub_handler =
+            GsubHandler::new(self.context, &lookup_list, style, glyph_styles, visited_set);
         for script in script_tags.iter().filter_map(|tag| {
             tag.and_then(|tag| script_list.index_for_tag(tag))
                 .and_then(|ix| script_list.script_records().get(ix as usize))
@@ -351,7 +336,7 @@ impl ClusterShaper<'_> {
         output.clear();
         for ch in input.chars() {
             output.push(ShapedGlyph {
-                id: self.shaper.charmap.map(ch).unwrap_or_default(),
+                id: self.shaper.context.map(ch as u32).unwrap_or_default(),
                 y_offset: 0,
             });
         }
@@ -497,7 +482,7 @@ enum ClusterShaperKind {
 /// substitutions are checked for individual characters, we ignore ligatures
 /// and contextual lookups (and alternates since they aren't applicable).
 struct GsubHandler<'a, 'b> {
-    charmap: &'a Charmap<'a>,
+    context: &'a dyn AutohintContext,
     lookup_list: &'a SubstitutionLookupList<'a>,
     style: &'a StyleClass,
     glyph_styles: &'a mut [GlyphStyle],
@@ -513,7 +498,7 @@ struct GsubHandler<'a, 'b> {
 
 impl<'a, 'b> GsubHandler<'a, 'b> {
     fn new(
-        charmap: &'a Charmap<'a>,
+        context: &'a dyn AutohintContext,
         lookup_list: &'a SubstitutionLookupList,
         style: &'a StyleClass,
         glyph_styles: &'a mut [GlyphStyle],
@@ -525,7 +510,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
         // style because it won't have any affect on alignment zones
         let need_blue_substs = style.feature.is_some();
         Self {
-            charmap,
+            context,
             lookup_list,
             style,
             glyph_styles,
@@ -884,7 +869,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
         for (blue_str, _) in self.style.script.blues {
             if blue_str
                 .chars()
-                .filter_map(|ch| self.charmap.map(ch))
+                .filter_map(|ch| self.context.map(ch as u32))
                 .filter_map(|gid| coverage.get(gid))
                 .next()
                 .is_some()
@@ -975,6 +960,8 @@ fn sort_and_dedup(lookups: &mut Vec<u16>) {
 #[cfg(test)]
 mod tests {
     use super::{super::style, *};
+    use crate::outline::autohint::context::FontRefContext;
+    use crate::FontRef;
     use font_test_data::bebuffer::BeBuffer;
     use raw::{tables::gsub::OriginalSubstitutionLookupList, FontData, FontRead};
 
@@ -992,7 +979,8 @@ mod tests {
         let mut bytes: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
         bytes.extend(1u16.to_be_bytes());
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let mut shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let mut shaper = Shaper::new(&context, ShaperMode::BestEffort);
         shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
         assert_eq!(shaper.lookup_indices(0, false).unwrap(), [0, 1]);
         assert_eq!(shaper.lookup_indices(0, true).unwrap(), [0, 1]);
@@ -1011,7 +999,8 @@ mod tests {
     #[test]
     fn small_caps_subst() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::BestEffort);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
         let mut cluster_shaper = shaper.cluster_shaper(style);
         let mut cluster = ShapedCluster::new();
@@ -1024,7 +1013,8 @@ mod tests {
     #[test]
     fn small_caps_nominal() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::Nominal);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
         let mut cluster_shaper = shaper.cluster_shaper(style);
         let mut cluster = ShapedCluster::new();
@@ -1101,8 +1091,8 @@ mod tests {
                         // Empty and explicitly zero coordinates select the same lookups.
                         for coords in [coords.as_slice(), if coord == 0.0 { &[] } else { &coords }]
                         {
-                            let mut shaper =
-                                Shaper::new(&font, ShaperMode::BestEffort).with_coords(coords);
+                            let context = FontRefContext::new(&font, coords);
+                            let mut shaper = Shaper::new(&context, ShaperMode::BestEffort);
                             shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
                             let mut expected = Vec::new();
                             if add_defaults {
@@ -1160,7 +1150,8 @@ mod tests {
         }
         assert_eq!(bytes.len(), fv + tables + RECORDS as usize * table_len);
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let mut shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let mut shaper = Shaper::new(&context, ShaperMode::BestEffort);
         shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
         let lookups = shaper.lookup_indices(0, true).unwrap();
         let per_record = 1 + LOOKUPS as usize;
@@ -1173,7 +1164,8 @@ mod tests {
     fn conditional_coverage_includes_outputs_from_all_locations() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
         let bytes = conditional_gsub(false, false, true);
-        let mut shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let mut shaper = Shaper::new(&context, ShaperMode::BestEffort);
         shaper.gsub = Some(Gsub::read(FontData::new(&bytes)).unwrap());
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
         let mut styles = [GlyphStyle::default(); 10];
@@ -1191,7 +1183,8 @@ mod tests {
     #[test]
     fn extended_single_substitutions_preserve_and_wrap_24bit_ids() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::BestEffort);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN_C2SC];
         for (subtable, expected) in [
             // SingleSubst3: gid 65536 plus -65537 wraps to 0xFFFFFF.
@@ -1220,7 +1213,8 @@ mod tests {
     #[test]
     fn exceed_max_depth() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::BestEffort);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
         // Build a lookup chain exceeding our max depth
         let mut bad_lookup_builder = BadLookupBuilder::default();
@@ -1235,7 +1229,7 @@ mod tests {
         let mut set_buf = [0u8; 8192];
         let mut visited_set = VisitedLookupSet(&mut set_buf);
         let mut gsub_handler = GsubHandler::new(
-            &shaper.charmap,
+            shaper.context,
             &lookup_list,
             style,
             &mut [],
@@ -1250,7 +1244,8 @@ mod tests {
     #[test]
     fn dont_cycle_forever() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::BestEffort);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
         // Build a lookup chain that cycles; 0 calls 1 which calls 0
         let mut bad_lookup_builder = BadLookupBuilder::default();
@@ -1263,7 +1258,7 @@ mod tests {
         let mut set_buf = [0u8; 8192];
         let mut visited_set = VisitedLookupSet(&mut set_buf);
         let mut gsub_handler = GsubHandler::new(
-            &shaper.charmap,
+            shaper.context,
             &lookup_list,
             style,
             &mut [],
@@ -1275,7 +1270,8 @@ mod tests {
     #[test]
     fn finish_with_empty_glyph_styles() {
         let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
-        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let context = FontRefContext::new(&font, &[]);
+        let shaper = Shaper::new(&context, ShaperMode::BestEffort);
         let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
         let lookup_list_buf = BadLookupBuilder::default().build();
         let lookup_list = SubstitutionLookupList::from(
@@ -1284,7 +1280,7 @@ mod tests {
         let mut set_buf = [0u8; 8192];
         let mut visited_set = VisitedLookupSet(&mut set_buf);
         let gsub_handler = GsubHandler::new(
-            &shaper.charmap,
+            shaper.context,
             &lookup_list,
             style,
             &mut [],

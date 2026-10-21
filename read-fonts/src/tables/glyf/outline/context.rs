@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn extended_outline_tables_load_wide_cubic_components() {
         use super::super::PathContourStart;
-        use crate::model::glyph::outline::SvgPen;
+        use crate::model::glyph::outline::SvgSink;
         for extended_metrics in [false, true] {
             let data = font_test_data::extended::outlines_font(true, true, extended_metrics, false);
             let font = FontRef::new(&data).unwrap();
@@ -256,7 +256,7 @@ mod tests {
             for gid in [1, 65536] {
                 outline.load(&tables, GlyphId::new(gid)).unwrap();
                 assert_eq!(outline.adjusted_advance_width(), 1000);
-                let mut pen = SvgPen::with_precision(1);
+                let mut pen = SvgSink::with_precision(1);
                 assert!(outline.to_path(PathContourStart::ScanBackward, &mut pen));
                 assert_eq!(
                     pen.as_ref(),

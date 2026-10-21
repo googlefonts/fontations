@@ -1,7 +1,8 @@
 //! Types for collecting the output when drawing a glyph outline.
 
 pub use read_fonts::model::glyph::outline::{
-    ControlBoundsPen, NullPen, OutlinePen, PathElement, SvgPen,
+    ControlBoundsSink as ControlBoundsPen, NullSink as NullPen, PathElement,
+    PathSink as OutlinePen, SvgSink as SvgPen,
 };
 use read_fonts::tables::glyf::outline::PathContourStart;
 
