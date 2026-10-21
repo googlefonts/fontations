@@ -985,11 +985,7 @@ impl<'a> ClassDefFormat2<'a> {
                 };
                 last_end = range_end + 1;
             }
-            if glyphs
-                .iter_after(GlyphId::from(last_end + 1))
-                .next()
-                .is_some()
-            {
+            if glyphs.next_after(GlyphId::from(last_end + 1)).is_some() {
                 return true;
             }
         }
