@@ -388,18 +388,16 @@ fn iter_type1_unicodes(font: &Type1Font) -> impl Iterator<Item = (u32, GlyphId)>
 }
 
 fn iter_ps_unicodes(map: &crate::ps::UnicodeCharmap) -> impl Iterator<Item = (u32, GlyphId)> + '_ {
-    map.iter()
-        .scan(None, move |previous, (codepoint, _)| {
-            let codepoint = codepoint & 0x7fff_ffff;
-            let result = if *previous == Some(codepoint) {
-                None
-            } else {
-                map.map(codepoint).map(|glyph| (codepoint, glyph))
-            };
-            *previous = Some(codepoint);
-            Some(result)
-        })
-        .flatten()
+    // Each character after the last, as FreeType steps through a charmap
+    // built from glyph names. No glyph maps to zero, so the first is the
+    // one after it. A character mapped to glyph zero ends the walk, as it
+    // ends FreeType's.
+    let mut codepoint = 0;
+    core::iter::from_fn(move || {
+        let (next, glyph) = map.next_char(codepoint)?;
+        codepoint = next;
+        (glyph != GlyphId::NOTDEF).then_some((next, glyph))
+    })
 }
 
 /// The character encoding of a font mapping.
