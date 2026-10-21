@@ -219,7 +219,7 @@ impl Recorder<'_> {
         }
         Ok(used)
     }
-    fn fd_dependent(&self, key: Program) -> bool {
+    pub fn fd_dependent(&self, key: Program) -> bool {
         match key {
             Program::Local(..) => true,
             _ => self.programs[&key]

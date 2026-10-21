@@ -8,7 +8,7 @@ use super::{
     Error, Result,
 };
 use crate::{Plan, SubsetFlags};
-use read_fonts::{collections::IntSet, ps::encoding::PredefinedEncoding, types::GlyphId};
+use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn gid_list(plan: &Plan) -> Vec<usize> {
@@ -115,6 +115,11 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         for key in &used {
             match *key {
                 Program::Global(_, index) => {
+                    if rec.fd_dependent(*key) {
+                        remap.insert(*key, globals.len());
+                        globals.push(vec![]);
+                        continue;
+                    }
                     let candidates = shared_globals.entry(index).or_default();
                     if let Some(shared) = candidates
                         .iter()
@@ -135,7 +140,14 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
             }
         }
         let counts: Vec<_> = locals.iter().map(Vec::len).collect();
+        let mut written_globals = vec![false; globals.len()];
         for (&key, &new) in &remap {
+            if matches!(key, Program::Global(..)) {
+                if written_globals[new] {
+                    continue;
+                }
+                written_globals[new] = true;
+            }
             let bytes = rec.encode(key, &remap, globals.len(), &counts)?;
             match key {
                 Program::Global(_, _) => globals[new] = bytes,
