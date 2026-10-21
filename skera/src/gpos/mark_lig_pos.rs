@@ -6,7 +6,10 @@ mod extended_tests;
 use crate::FastHashMap;
 use crate::{
     gpos::mark_array::{collect_retained_mark_varidx_and_classes, get_mark_class_map},
-    layout::{for_each_intersected_coverage_index, intersected_glyphs_and_indices},
+    layout::{
+        for_each_intersected_coverage_index, for_each_intersected_glyph_and_index,
+        intersected_glyphs_and_indices,
+    },
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -170,23 +173,13 @@ macro_rules! subset_mark_lig {
                     .ligature_array()
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-                let (lig_glyphs, lig_attach_idxes) = intersected_glyphs_and_indices(
-                    &lig_coverage,
-                    glyph_set,
-                    glyph_map,
-                    lig_array.ligature_count(),
-                );
-                if lig_glyphs.is_empty() {
-                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-                }
-
                 // Return non-empty lig glyphs for serializing coverage table
                 // lig glyphs might have no anchor points defined for retained class of mark glyphs
                 let lig_glyphs = $offset::serialize_subset(
                     &lig_array,
                     s,
                     plan,
-                    (&lig_glyphs, &lig_attach_idxes, &mark_class_map),
+                    (&lig_coverage, &mark_class_map),
                     lig_array_offset_pos,
                 )?;
                 $offset::serialize_serialize::<CoverageTable>(s, &lig_glyphs, lig_cov_offset_pos)
@@ -200,7 +193,7 @@ subset_mark_lig!(MarkLigPosFormat2, Offset32);
 macro_rules! subset_lig_array {
     ($table:ident, $count:ident) => {
         impl<'a> SubsetTable<'a> for $table<'_> {
-            type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FastHashMap<u16, u16>);
+            type ArgsForSubset = (&'a CoverageTable<'a>, &'a FastHashMap<u16, u16>);
             type Output = Vec<GlyphId>;
             fn subset(
                 &self,
@@ -211,21 +204,35 @@ macro_rules! subset_lig_array {
                 if self.min_table_bytes().is_empty() {
                     return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 }
-                let (lig_glyphs, lig_attach_idxes, mark_class_map) = args;
+                let (lig_coverage, mark_class_map) = args;
+                let glyph_set = &plan.glyphset_gsub;
+                let lig_count = self.ligature_count();
 
-                let mut retained_lig_glyphs = Vec::with_capacity(lig_glyphs.len());
+                let mut retained_lig_glyphs = Vec::with_capacity(
+                    lig_coverage
+                        .population()
+                        .min(glyph_set.len() as usize)
+                        .min(u32::from(lig_count) as usize),
+                );
                 // ligature count
                 let lig_count_pos = s.allocate_size($count::RAW_BYTE_LEN, true)?;
 
                 let lig_attaches = self.ligature_attaches();
-                for (g, i) in lig_glyphs.iter().zip(lig_attach_idxes.iter()) {
-                    if !lig_attaches
-                        .subset_offset(i as usize, s, plan, mark_class_map)
-                        .is_empty()?
-                    {
-                        retained_lig_glyphs.push(*g);
-                    }
-                }
+                for_each_intersected_glyph_and_index(
+                    lig_coverage,
+                    glyph_set,
+                    &plan.glyph_map_gsub,
+                    lig_count,
+                    |i, g| {
+                        if !lig_attaches
+                            .subset_offset(i as usize, s, plan, mark_class_map)
+                            .is_empty()?
+                        {
+                            retained_lig_glyphs.push(g);
+                        }
+                        Ok(())
+                    },
+                )?;
 
                 if retained_lig_glyphs.is_empty() {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);

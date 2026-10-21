@@ -1,22 +1,14 @@
 //! Shared subset planning and format-specific table assembly.
 
 use super::{
-    charstring::{self, Interpreter, Program, Recorder},
+    charstring::{self, Flattener, Interpreter, Program, Recorder},
     dict::{self, Entry},
     encoding,
     source::{CffFlavor, Source},
     Error, Result,
 };
 use crate::{Plan, SubsetFlags};
-use read_fonts::{
-    collections::IntSet,
-    ps::{
-        cff::{charset::Charset, encoding::Encoding},
-        encoding::PredefinedEncoding,
-    },
-    types::GlyphId,
-    FontData,
-};
+use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn gid_list(plan: &Plan) -> Vec<usize> {
@@ -33,12 +25,7 @@ pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<(
     if source.cid || source.font.version() == 2 {
         return Ok(());
     }
-    let charset = Charset::new(
-        FontData::new(source.font.data()),
-        dict::offset(&source.top, 15, 0)?.unwrap_or(0),
-        source.font.num_glyphs(),
-    )
-    .ok_or(Error)?;
+    let charset = source.font.charset().ok_or(Error)?;
     let mut pending: Vec<_> = glyphs.iter().collect();
     let mut visited = BTreeSet::new();
     while let Some(gid) = pending.pop() {
@@ -46,7 +33,7 @@ pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<(
             continue;
         }
         let fd = source.fd(gid)?;
-        let mut rec = Recorder::default();
+        let mut rec = ();
         let mut interp =
             Interpreter::<super::source::Cff1, _, _>::new(source, &mut rec, fd, 0, false);
         interp.run(
@@ -100,19 +87,21 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         let fd = source.fd(old)?;
         let data = source.font.charstrings().get(orig).unwrap_or(&[]);
         let key = Program::Glyph(orig);
-        let first = rec.commands.len();
-        let mut interpreter =
-            Interpreter::<F, _, _>::new(source, &mut rec, fd, source.fds[fd].ivs, nohint);
-        interpreter.run(key, data)?;
-        let width = interpreter.width;
         if desub {
-            chars[gid] =
-                charstring::flatten(&rec.commands[first..], width, F::CFF2, source.fds[fd].ivs)?;
+            chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
         } else {
-            roots.push(key);
-            widths.insert(orig, width);
+            rec.needs_flatten = false;
+            let mut interpreter =
+                Interpreter::<F, _, _>::new(source, &mut rec, fd, source.fds[fd].ivs, nohint);
+            interpreter.run(key, data)?;
+            let width = interpreter.width;
+            if rec.needs_flatten {
+                chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
+            } else {
+                roots.push(key);
+                widths.insert(orig, width);
+            }
         }
-        rec.commands.truncate(first);
     }
     let mut globals = Vec::new();
     let mut locals = vec![Vec::new(); source.fds.len()];
@@ -122,11 +111,26 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         }
         let used = rec.closure(&roots)?;
         let mut remap = BTreeMap::new();
+        let mut shared_globals: BTreeMap<usize, Vec<Program>> = BTreeMap::new();
         for key in &used {
             match *key {
-                Program::Global(_, _) => {
-                    remap.insert(*key, globals.len());
-                    globals.push(vec![]);
+                Program::Global(_, index) => {
+                    if rec.fd_dependent(*key) {
+                        remap.insert(*key, globals.len());
+                        globals.push(vec![]);
+                        continue;
+                    }
+                    let candidates = shared_globals.entry(index).or_default();
+                    if let Some(shared) = candidates
+                        .iter()
+                        .find(|&&other| rec.share_global(*key, other))
+                    {
+                        remap.insert(*key, remap[shared]);
+                    } else {
+                        candidates.push(*key);
+                        remap.insert(*key, globals.len());
+                        globals.push(vec![]);
+                    }
                 }
                 Program::Local(fd, _) => {
                     remap.insert(*key, locals[fd].len());
@@ -136,7 +140,14 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
             }
         }
         let counts: Vec<_> = locals.iter().map(Vec::len).collect();
+        let mut written_globals = vec![false; globals.len()];
         for (&key, &new) in &remap {
+            if matches!(key, Program::Global(..)) {
+                if written_globals[new] {
+                    continue;
+                }
+                written_globals[new] = true;
+            }
             let bytes = rec.encode(key, &remap, globals.len(), &counts)?;
             match key {
                 Program::Global(_, _) => globals[new] = bytes,
@@ -166,6 +177,21 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
     })
 }
 
+fn flatten_glyph<F: CffFlavor>(
+    source: &Source,
+    key: Program,
+    fd: usize,
+    data: &[u8],
+    nohint: bool,
+) -> Result<Vec<u8>> {
+    let mut actions = Flattener::default();
+    let mut interpreter =
+        Interpreter::<F, _, _>::new(source, &mut actions, fd, source.fds[fd].ivs, nohint);
+    interpreter.run(key, data)?;
+    let width = interpreter.width;
+    charstring::flatten(&actions.commands, width, F::CFF2, source.fds[fd].ivs)
+}
+
 fn sid_args(op: u16) -> usize {
     if matches!(op, 0..=4 | 0x100 | 0x115 | 0x116 | 0x126) {
         1
@@ -175,12 +201,12 @@ fn sid_args(op: u16) -> usize {
         0
     }
 }
-fn map_sids(
-    entries: &[Entry],
+fn map_sids<'a>(
+    entries: &[Entry<'a>],
     map: &mut BTreeMap<usize, usize>,
     strings: &mut Vec<Vec<u8>>,
     source: &Source,
-) -> Result<Vec<Entry>> {
+) -> Result<Vec<Entry<'a>>> {
     let mut out = entries.to_vec();
     for e in &mut out {
         let count = sid_args(e.op);
@@ -192,11 +218,12 @@ fn map_sids(
             let new = remap_sid(sid, map, strings, source)?;
             e.args[i] = new as f64;
         }
-        e.raw.clear();
+        let mut raw = Vec::new();
         for &v in &e.args {
-            encoding::encode(&mut e.raw, v, true)?;
+            encoding::encode(&mut raw, v, true)?;
         }
-        encoding::emit_op(&mut e.raw, e.op);
+        encoding::emit_op(&mut raw, e.op);
+        e.raw = raw.into();
     }
     Ok(out)
 }
@@ -260,16 +287,10 @@ fn encoding(source: &Source, old_gids: &[usize], codes: &[usize]) -> Result<Opti
     if offset <= 1 {
         return Ok(None);
     }
-    let charset = Charset::new(
-        FontData::new(source.font.data()),
-        dict::offset(&source.top, 15, 0)?.unwrap_or(0),
-        source.font.num_glyphs(),
-    )
-    .ok_or(Error)?;
-    let enc = Encoding::new(source.font.data(), offset).ok_or(Error)?;
+    let enc = source.font.encoding().ok_or(Error)?;
     let mut by_gid: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
     for code in 0..=255 {
-        if let Some(gid) = enc.map(&charset, code) {
+        if let Some(gid) = enc.map(code) {
             by_gid.entry(gid.to_u32() as usize).or_default().push(code);
         }
     }
@@ -347,7 +368,7 @@ fn rewrite(entries: &[Entry], replacements: &[(u16, Option<Vec<u8>>)]) -> Vec<u8
     let mut out = Vec::new();
     for e in entries {
         if !replacements.iter().any(|r| r.0 == e.op) {
-            out.extend(&e.raw);
+            out.extend(e.raw.as_ref());
         }
     }
     for (_, bytes) in replacements {
@@ -383,12 +404,7 @@ pub(super) fn assemble<F: CffFlavor>(
     let mut sid_map = BTreeMap::new();
     let mut codes = vec![0];
     if !F::CFF2 {
-        let cs = Charset::new(
-            FontData::new(source.font.data()),
-            dict::offset(&source.top, 15, 0)?.unwrap_or(0),
-            source.font.num_glyphs(),
-        )
-        .ok_or(Error)?;
+        let cs = source.font.charset().ok_or(Error)?;
         for &old in old_gids.iter().skip(1) {
             let code = cs
                 .string_id(GlyphId::new(old as u32))
@@ -410,10 +426,10 @@ pub(super) fn assemble<F: CffFlavor>(
         .keys()
         .map(|&fd| map_sids(&source.fds[fd].entries, &mut sid_map, &mut strings, source))
         .collect::<Result<Vec<_>>>()?;
-    let name_index = encoding::index(&source.names, false)?;
-    let string_index = encoding::index(&strings, false)?;
-    let global_index = encoding::index(&programs.globals, F::CFF2)?;
-    let char_index = encoding::index(&programs.chars, F::CFF2)?;
+    let name_index = encoding::IndexLayout::new(&source.names, false)?;
+    let string_index = encoding::IndexLayout::new(&strings, false)?;
+    let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
+    let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
     let select = fdselect(&fds, F::CFF2)?;
     let charset = if F::CFF2 { vec![] } else { charset(&codes)? };
     let enc = if F::CFF2 || source.cid {
@@ -430,17 +446,17 @@ pub(super) fn assemble<F: CffFlavor>(
             .filter(|e| !nohint || !dict::is_hint(e.op))
             .cloned()
             .collect();
-        let local = encoding::index(&programs.locals[fd], F::CFF2)?;
         let has_subrs = !programs.locals[fd].is_empty();
         let base = rewrite(&entries, &[(19, None)]);
         let mut bytes = base;
         if has_subrs {
-            let size = bytes.len() + 6;
+            let size = bytes.len().checked_add(6).ok_or(Error)?;
             bytes.extend(dict::replacement(19, &[size])?);
         }
         private_sizes.push(bytes.len());
         if has_subrs {
-            bytes.extend(local);
+            encoding::IndexLayout::new(&programs.locals[fd], F::CFF2)?
+                .write(&mut bytes, &programs.locals[fd]);
         }
         privates.push(bytes);
     }
@@ -454,33 +470,35 @@ pub(super) fn assemble<F: CffFlavor>(
                         .try_into()
                         .map_err(|_| Error)?,
                 ) as usize;
-                Ok(data
-                    .get(offset..offset.checked_add(size + 2).ok_or(Error)?)
-                    .ok_or(Error)?
-                    .to_vec())
+                data.get(offset..offset.checked_add(size + 2).ok_or(Error)?)
+                    .ok_or(Error)
             })
             .transpose()?
     } else {
         None
     };
     // Fixed-width DICT links make the second pass independent of offset magnitudes.
-    let make_dicts = |base: usize| -> Result<(Vec<u8>, Vec<u8>, Vec<usize>)> {
+    let make_dicts = |base: usize| -> Result<(Vec<u8>, Vec<u8>, usize)> {
         let mut offsets = Vec::new();
         let mut pos = base;
         for private in &privates {
             offsets.push(pos);
-            pos += private.len();
+            pos = pos.checked_add(private.len()).ok_or(Error)?;
         }
         let cs = pos;
-        pos += char_index.len();
+        pos = pos.checked_add(char_index.size).ok_or(Error)?;
         let fdselect_pos = pos;
-        pos += select.len();
+        pos = pos.checked_add(select.len()).ok_or(Error)?;
         let charset_pos = pos;
-        pos += charset.len();
+        pos = pos.checked_add(charset.len()).ok_or(Error)?;
         let enc_pos = pos;
-        pos += enc.as_ref().map_or(0, Vec::len);
+        pos = pos
+            .checked_add(enc.as_ref().map_or(0, Vec::len))
+            .ok_or(Error)?;
         let vstore_pos = pos;
-        pos += var_store.as_ref().map_or(0, Vec::len);
+        pos = pos
+            .checked_add(var_store.as_ref().map_or(0, |v| v.len()))
+            .ok_or(Error)?;
         let fdarray_pos = pos;
         let mut fdarray = Vec::new();
         for ((_, &new), entries) in fd_map.iter().zip(&font_dicts) {
@@ -518,35 +536,35 @@ pub(super) fn assemble<F: CffFlavor>(
         if var_store.is_some() {
             replacements.push((24, Some(dict::replacement(24, &[vstore_pos])?)));
         }
-        Ok((rewrite(&top, &replacements), fdarray, offsets))
+        let size = pos.checked_add(fdarray.len()).ok_or(Error)?;
+        Ok((rewrite(&top, &replacements), fdarray, size))
     };
     let (dummy, _, _) = make_dicts(0)?;
     let base = if F::CFF2 {
-        5 + dummy.len() + global_index.len()
+        5 + dummy.len() + global_index.size
     } else {
-        4 + name_index.len()
+        4 + name_index.size
             + encoding::index(&[dummy], false)?.len()
-            + string_index.len()
-            + global_index.len()
+            + string_index.size
+            + global_index.size
     };
-    let (top, fdarray, _) = make_dicts(base)?;
-    let mut out = if F::CFF2 {
-        let mut out = vec![2, 0, 5];
+    let (top, fdarray, size) = make_dicts(base)?;
+    let mut out = Vec::with_capacity(size);
+    if F::CFF2 {
+        out.extend([2, 0, 5]);
         out.extend(u16::try_from(top.len()).map_err(|_| Error)?.to_be_bytes());
         out.extend(top);
-        out
     } else {
-        let mut out = vec![1, 0, 4, 4];
-        out.extend(name_index);
+        out.extend([1, 0, 4, 4]);
+        name_index.write(&mut out, &source.names);
         out.extend(encoding::index(&[top], false)?);
-        out.extend(string_index);
-        out
-    };
-    out.extend(global_index);
+        string_index.write(&mut out, &strings);
+    }
+    global_index.write(&mut out, &programs.globals);
     for bytes in privates {
         out.extend(bytes);
     }
-    out.extend(char_index);
+    char_index.write(&mut out, &programs.chars);
     out.extend(select);
     out.extend(charset);
     if let Some(enc) = enc {
