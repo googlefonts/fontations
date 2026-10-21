@@ -166,63 +166,63 @@ impl<'a> Post<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Version16Dot16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Version16Dot16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn italic_angle_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
+        let end = start.saturating_add(Fixed::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn underline_position_byte_range(&self) -> Range<usize> {
         let start = self.italic_angle_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
+        let end = start.saturating_add(FWord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn underline_thickness_byte_range(&self) -> Range<usize> {
         let start = self.underline_position_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
+        let end = start.saturating_add(FWord::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn is_fixed_pitch_byte_range(&self) -> Range<usize> {
         let start = self.underline_thickness_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn min_mem_type42_byte_range(&self) -> Range<usize> {
         let start = self.is_fixed_pitch_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn max_mem_type42_byte_range(&self) -> Range<usize> {
         let start = self.min_mem_type42_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn min_mem_type1_byte_range(&self) -> Range<usize> {
         let start = self.max_mem_type42_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn max_mem_type1_byte_range(&self) -> Range<usize> {
         let start = self.min_mem_type1_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.max_mem_type1_byte_range().end;
         let end = if self.version().compatible((2u16, 0u16)) {
-            start + u16::RAW_BYTE_LEN
+            start.saturating_add(u16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -233,7 +233,9 @@ impl<'a> Post<'a> {
         let num_glyphs = self.num_glyphs().unwrap_or_default();
         let start = self.num_glyphs_byte_range().end;
         let end = if self.version().compatible((2u16, 0u16)) {
-            start + (transforms::to_usize(num_glyphs)).saturating_mul(u16::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(num_glyphs)).saturating_mul(u16::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -243,7 +245,7 @@ impl<'a> Post<'a> {
     pub fn string_data_byte_range(&self) -> Range<usize> {
         let start = self.glyph_name_index_byte_range().end;
         let end = if self.version().compatible((2u16, 0u16)) {
-            start + self.offset_data().len().saturating_sub(start)
+            start.saturating_add(self.offset_data().len().saturating_sub(start))
         } else {
             start
         };

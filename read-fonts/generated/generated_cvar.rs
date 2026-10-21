@@ -96,26 +96,26 @@ impl<'a> Cvar<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + TupleVariationCount::RAW_BYTE_LEN;
+        let end = start.saturating_add(TupleVariationCount::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn data_offset_byte_range(&self) -> Range<usize> {
         let start = self.tuple_variation_count_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.data_offset_byte_range().end;
-        let end = start + self.offset_data().len().saturating_sub(start);
+        let end = start.saturating_add(self.offset_data().len().saturating_sub(start));
         start..end
     }
 }

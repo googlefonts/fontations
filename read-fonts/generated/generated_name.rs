@@ -102,34 +102,35 @@ impl<'a> Name<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn storage_offset_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn name_record_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.storage_offset_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(NameRecord::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(count)).saturating_mul(NameRecord::RAW_BYTE_LEN));
         start..end
     }
 
     pub fn lang_tag_count_byte_range(&self) -> Range<usize> {
         let start = self.name_record_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start + u16::RAW_BYTE_LEN
+            start.saturating_add(u16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -140,8 +141,9 @@ impl<'a> Name<'a> {
         let lang_tag_count = self.lang_tag_count().unwrap_or_default();
         let start = self.lang_tag_count_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start
-                + (transforms::to_usize(lang_tag_count)).saturating_mul(LangTagRecord::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(lang_tag_count)).saturating_mul(LangTagRecord::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
