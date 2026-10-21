@@ -35,8 +35,12 @@ impl<'a> Engine<'a> {
                 if self.graphics.instruct_control & 2 != 0 {
                     self.graphics.reset_retained();
                 }
-                // Set backward compatibility mode
-                if self.graphics.target.preserve_linear_metrics() {
+                // Set backward compatibility mode. A font that needs its
+                // instructions for correct contours runs without it, as
+                // FreeType runs one.
+                if self.cleartype.is_hint_reliant {
+                    self.graphics.backward_compatibility = false;
+                } else if self.graphics.target.preserve_linear_metrics() {
                     self.graphics.backward_compatibility = true;
                 } else if self.graphics.target.is_smooth() {
                     self.graphics.backward_compatibility =

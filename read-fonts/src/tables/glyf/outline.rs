@@ -20,7 +20,6 @@
 mod borrowed;
 mod buffers;
 mod context;
-mod error;
 mod hinter;
 mod load;
 mod owned;
@@ -33,7 +32,6 @@ mod testing;
 pub use borrowed::OutlineRef;
 pub use buffers::{BufferLengths, Buffers};
 pub use context::{OutlineContext, OutlineTables};
-pub use error::OutlineError;
 pub use hinter::{GlyphZone, Hinter};
 pub use owned::Outline;
 pub use path::{contour_to_path, outline_to_path, PathContourStart};

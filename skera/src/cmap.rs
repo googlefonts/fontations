@@ -790,15 +790,24 @@ fn serialize_rangeoffset_glyph_ids(
         .map(|(cp, gid)| (*cp, *gid))
         .collect();
 
-    let indices: Vec<usize> = (0..seg_count)
-        .filter(|idx| s.get_value_at::<i16>(id_delta + idx * 2).unwrap() == 0)
-        .collect();
-
-    for i in indices {
+    // Check each segment's idDelta in the same loop that writes its idRangeOffset
+    // and glyph ids: those writes never touch the idDelta array, so there's no
+    // need to collect the matching segments first.
+    for i in 0..seg_count {
+        let delta = s
+            .get_value_at::<i16>(id_delta + i * 2)
+            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+        if delta != 0 {
+            continue;
+        }
         let val = s.head() - id_range_offset - 2 * i;
         s.copy_assign(id_range_offset + i * 2, val as u16);
-        let start_cp = s.get_value_at::<u16>(start_code + i * 2).unwrap() as u32;
-        let end_cp = s.get_value_at::<u16>(end_code + i * 2).unwrap() as u32;
+        let start_cp = s
+            .get_value_at::<u16>(start_code + i * 2)
+            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)? as u32;
+        let end_cp = s
+            .get_value_at::<u16>(end_code + i * 2)
+            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)? as u32;
         for cp in start_cp..=end_cp {
             let gid = cp_to_gid_map
                 .get(&cp)

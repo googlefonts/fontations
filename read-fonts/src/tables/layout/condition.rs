@@ -4,34 +4,11 @@ use super::{Condition, ConditionSet, LookupConditionRecord};
 use crate::limits::MAX_RECURSION_DEPTH;
 use crate::tables::variations::{DeltaSetIndex, ItemVariationStore, NO_VARIATION_INDEX};
 use crate::types::F2Dot14;
-use crate::{FontData, FontRead, ReadError};
+use crate::{model::Error, FontData, FontRead, ReadError};
 
 #[cfg(test)]
 #[path = "condition_tests.rs"]
 mod tests;
-
-/// An error encountered when evaluating a condition tree.
-#[derive(Clone, Debug, PartialEq)]
-pub enum ConditionError<E> {
-    /// A condition or its offset array could not be read.
-    Read(ReadError),
-    /// The condition exceeded the recursion or total-work limit.
-    LimitExceeded,
-    /// The caller could not resolve a variation delta.
-    Delta(E),
-}
-
-impl<E: core::fmt::Display> core::fmt::Display for ConditionError<E> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Read(error) => error.fmt(f),
-            Self::LimitExceeded => f.write_str("condition evaluation limit exceeded"),
-            Self::Delta(error) => error.fmt(f),
-        }
-    }
-}
-
-impl<E: core::error::Error + 'static> core::error::Error for ConditionError<E> {}
 
 /// Returns a delta function for [`Condition::evaluate`] that reads `store`,
 /// usually the GDEF variation store.
@@ -40,7 +17,7 @@ impl<E: core::error::Error + 'static> core::error::Error for ConditionError<E> {
 pub fn store_deltas<'a>(
     store: Option<&'a ItemVariationStore<'a>>,
     coords: &'a [F2Dot14],
-) -> impl Fn(u32) -> Result<f64, core::convert::Infallible> + Copy + 'a {
+) -> impl Fn(u32) -> Result<f64, Error> + Copy + 'a {
     move |index| {
         Ok(store
             .and_then(|store| {
@@ -67,11 +44,11 @@ impl Condition<'_> {
     /// A condition of an unknown format is false. Malformed children and
     /// evaluation limits return errors, including beneath a NOT condition.
     /// AND and OR conditions short-circuit.
-    pub fn evaluate<E>(
+    pub fn evaluate(
         &self,
         coords: &[F2Dot14],
-        delta: impl FnMut(u32) -> Result<f64, E>,
-    ) -> Result<bool, ConditionError<E>> {
+        delta: impl FnMut(u32) -> Result<f64, Error>,
+    ) -> Result<bool, Error> {
         Evaluator::new(coords, delta).evaluate(self, MAX_RECURSION_DEPTH)
     }
 }
@@ -81,14 +58,14 @@ impl ConditionSet<'_> {
     ///
     /// A null condition offset is unconditional. See [`Condition::evaluate`]
     /// for variation-delta resolution and error handling.
-    pub fn evaluate<E>(
+    pub fn evaluate(
         &self,
         coords: &[F2Dot14],
-        delta: impl FnMut(u32) -> Result<f64, E>,
-    ) -> Result<bool, ConditionError<E>> {
+        delta: impl FnMut(u32) -> Result<f64, Error>,
+    ) -> Result<bool, Error> {
         let offsets = self.condition_offsets();
         if offsets.len() != usize::from(self.condition_count()) {
-            return Err(ConditionError::Read(ReadError::OutOfBounds));
+            return Err(Error::Malformed);
         }
         let mut evaluator = Evaluator::new(coords, delta);
         for offset in offsets {
@@ -109,12 +86,12 @@ impl LookupConditionRecord {
     ///
     /// A null offset is unconditional. See [`Condition::evaluate`] for
     /// variation-delta resolution and error handling.
-    pub fn evaluate<E>(
+    pub fn evaluate(
         &self,
         data: FontData<'_>,
         coords: &[F2Dot14],
-        delta: impl FnMut(u32) -> Result<f64, E>,
-    ) -> Result<bool, ConditionError<E>> {
+        delta: impl FnMut(u32) -> Result<f64, Error>,
+    ) -> Result<bool, Error> {
         Evaluator::new(coords, delta).evaluate_record(data, self)
     }
 }
@@ -126,7 +103,7 @@ pub(super) struct Evaluator<'a, F> {
     remaining_ops: usize,
 }
 
-impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
+impl<'a, F: FnMut(u32) -> Result<f64, Error>> Evaluator<'a, F> {
     pub(super) fn new(coords: &'a [F2Dot14], delta: F) -> Self {
         Self {
             coords,
@@ -143,7 +120,7 @@ impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
         &mut self,
         data: FontData<'_>,
         record: &LookupConditionRecord,
-    ) -> Result<bool, ConditionError<E>> {
+    ) -> Result<bool, Error> {
         self.evaluate_offset(
             data,
             record.condition_offset().offset().to_u32(),
@@ -156,29 +133,23 @@ impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
         data: FontData<'_>,
         offset: u32,
         depth: usize,
-    ) -> Result<bool, ConditionError<E>> {
+    ) -> Result<bool, Error> {
         if offset == 0 {
             return Ok(true);
         }
-        let data = data
-            .split_off(offset as usize)
-            .ok_or(ConditionError::Read(ReadError::OutOfBounds))?;
+        let data = data.split_off(offset as usize).ok_or(Error::Malformed)?;
         let condition = match Condition::read(data) {
             Ok(condition) => condition,
             // The spec treats a condition of an unknown format as false.
             Err(ReadError::InvalidFormat(_)) => return Ok(false),
-            Err(error) => return Err(ConditionError::Read(error)),
+            Err(error) => return Err(error.into()),
         };
         self.evaluate(&condition, depth)
     }
 
-    fn evaluate(
-        &mut self,
-        condition: &Condition<'_>,
-        depth: usize,
-    ) -> Result<bool, ConditionError<E>> {
+    fn evaluate(&mut self, condition: &Condition<'_>, depth: usize) -> Result<bool, Error> {
         if depth == 0 || self.remaining_ops == 0 {
-            return Err(ConditionError::LimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         self.remaining_ops -= 1;
         Ok(match condition {
@@ -196,14 +167,14 @@ impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
                 let delta = if index == NO_VARIATION_INDEX {
                     0.0
                 } else {
-                    (self.delta)(index).map_err(ConditionError::Delta)?
+                    (self.delta)(index)?
                 };
                 f64::from(condition.default_value()) + delta > 0.0
             }
             Condition::Format3And(condition) => {
                 let offsets = condition.condition_offsets();
                 if offsets.len() != usize::from(condition.condition_count()) {
-                    return Err(ConditionError::Read(ReadError::OutOfBounds));
+                    return Err(Error::Malformed);
                 }
                 for offset in offsets {
                     if !self.evaluate_offset(
@@ -219,7 +190,7 @@ impl<'a, E, F: FnMut(u32) -> Result<f64, E>> Evaluator<'a, F> {
             Condition::Format4Or(condition) => {
                 let offsets = condition.condition_offsets();
                 if offsets.len() != usize::from(condition.condition_count()) {
-                    return Err(ConditionError::Read(ReadError::OutOfBounds));
+                    return Err(Error::Malformed);
                 }
                 for offset in offsets {
                     if self.evaluate_offset(
