@@ -127,7 +127,7 @@ pub(super) fn instance(
         return Err(err());
     }
     let bytes = if s.offset_overflow() {
-        resolve_overflows(&s, TAG, 32).map_err(|_| err())?
+        resolve_overflows(s, TAG, 32).map_err(|_| err())?
     } else {
         s.copy_bytes()
     };
