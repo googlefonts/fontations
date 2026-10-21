@@ -300,6 +300,54 @@ impl Stack {
         Ok(())
     }
 
+    /// Rotates the top `count` values by `shift` places, toward the top.
+    ///
+    /// A count below two leaves the stack alone, as does a shift that is a
+    /// whole number of turns. A count the stack cannot supply is an error.
+    pub(crate) fn roll(&mut self, count: i32, shift: i32) -> Result<(), Error> {
+        if count < 2 {
+            return Ok(());
+        }
+        let count = count as usize;
+        if count > self.top {
+            return Err(Error::InvalidOperation);
+        }
+        let offset = self.top - count;
+        let n = count as i32;
+        let shift = if shift < 0 {
+            -((-shift) % n)
+        } else {
+            shift % n
+        };
+        if shift == 0 {
+            return Ok(());
+        }
+        // Two temporaries suffice: carry one value while its place is filled
+        // by the last, walking the cycle the shift describes.
+        let (mut start_idx, mut idx) = (-1i32, -1i32);
+        let mut last = (0i32, false);
+        for _ in 0..count {
+            if start_idx == idx {
+                start_idx += 1;
+                idx = start_idx;
+                let u = offset + idx as usize;
+                last = (self.values[u], self.value_is_fixed[u]);
+            }
+            idx += shift;
+            if idx >= n {
+                idx -= n;
+            } else if idx < 0 {
+                idx += n;
+            }
+            let u = offset + idx as usize;
+            let tmp = (self.values[u], self.value_is_fixed[u]);
+            self.values[u] = last.0;
+            self.value_is_fixed[u] = last.1;
+            last = tmp;
+        }
+        Ok(())
+    }
+
     /// Pops the top two elements from the stack and pushes the quotient.
     ///
     /// Implements special behavior for Type1 fonts to handle the case of

@@ -33,7 +33,12 @@ pub struct Type1Font {
     charstrings: Charstrings,
     subrs: Subrs,
     encoding: Option<RawEncoding>,
+    /// The default blend of a multiple master font, empty for any other.
     weight_vector: Vec<Fixed>,
+    multiple_master: Option<MultipleMaster>,
+    /// The number of elements in the `BuildCharArray` that othersubrs
+    /// read and write.
+    build_char_len: usize,
     unicode_charmap: UnicodeCharmap,
 }
 
@@ -70,6 +75,8 @@ impl Type1Font {
             subrs: Subrs::default(),
             encoding: None,
             weight_vector: Vec::new(),
+            multiple_master: None,
+            build_char_len: 0,
             unicode_charmap: UnicodeCharmap::default(),
         }
     }
@@ -78,6 +85,7 @@ impl Type1Font {
         let mut font = Self::empty();
         // Read base dict entries
         let mut encoding_offset = None;
+        let mut blend = RawBlend::default();
         let mut parser = Parser::new(base);
         while let Some(token) = parser.next() {
             match token {
@@ -93,17 +101,27 @@ impl Type1Font {
                 }
                 Token::Name(b"version") => font.version = parser.read_string(),
                 Token::Name(b"Notice") => font.notice = parser.read_string(),
+                // In the /Blend dictionary of a multiple master font these
+                // hold an array with a value for each master. FreeType keeps
+                // the font's own value then, so only a number replaces it.
                 Token::Name(b"ItalicAngle") => {
-                    font.italic_angle = parser.read_num_as_int().unwrap_or(0)
+                    if let Some(angle) = parser.read_num_as_int() {
+                        font.italic_angle = angle;
+                    }
                 }
-                Token::Name(b"isFixedPitch") => {
-                    font.is_fixed_pitch = parser.next() == Some(Token::Raw(b"true"))
-                }
+                Token::Name(b"isFixedPitch") => match parser.next() {
+                    Some(Token::Raw(b"[") | Token::Proc(_)) => {}
+                    token => font.is_fixed_pitch = token == Some(Token::Raw(b"true")),
+                },
                 Token::Name(b"UnderlinePosition") => {
-                    font.underline_position = parser.read_num_as_int().unwrap_or(0);
+                    if let Some(position) = parser.read_num_as_int() {
+                        font.underline_position = position;
+                    }
                 }
                 Token::Name(b"UnderlineThickness") => {
-                    font.underline_thickness = parser.read_num_as_int().unwrap_or(0);
+                    if let Some(thickness) = parser.read_num_as_int() {
+                        font.underline_thickness = thickness;
+                    }
                 }
                 Token::Name(b"FontBBox") => {
                     if let Some([x_min, y_min, x_max, y_max]) = parser.read_font_bbox() {
@@ -125,11 +143,38 @@ impl Type1Font {
                     // the /WeightVector name outside of a proc, leading to
                     // spurious field reads
                     if let Some(weights) = parser.read_weight_vector() {
-                        font.weight_vector = weights;
+                        blend.add_weights(weights)?;
+                    }
+                }
+                // The blend dictionaries are each read only where they hold
+                // an array, as FreeType reads them.
+                Token::Name(b"BlendAxisTypes") => {
+                    if let Some(names) = parser.read_blend_axis_types() {
+                        blend.add_axis_types(names)?;
+                    }
+                }
+                Token::Name(b"BlendDesignPositions") => {
+                    if let Some(positions) = parser.read_blend_design_positions() {
+                        blend.add_design_positions(positions)?;
+                    }
+                }
+                Token::Name(b"BlendDesignMap") => {
+                    if let Some(maps) = parser.read_blend_design_map() {
+                        blend.add_design_maps(maps)?;
+                    }
+                }
+                Token::Name(b"BuildCharArray") => {
+                    if let Some(len) = parser.read_array_len() {
+                        blend.build_char_len = len;
                     }
                 }
                 _ => {}
             }
+        }
+        if let Some((multiple_master, weights)) = blend.finish() {
+            font.multiple_master = Some(multiple_master);
+            font.weight_vector = weights;
+            font.build_char_len = blend.build_char_len;
         }
         // Read private dict entries
         let mut parser = Parser::new(private);
@@ -300,6 +345,31 @@ impl Type1Font {
         }
     }
 
+    /// Returns the design space of a multiple master font.
+    ///
+    /// `None` for a font with no masters, or with blend dictionaries that
+    /// do not agree.
+    pub fn multiple_master(&self) -> Option<&MultipleMaster> {
+        self.multiple_master.as_ref()
+    }
+
+    /// Returns the font drawn with the blend that `weights` give, one per
+    /// master.
+    ///
+    /// [`MultipleMaster::blend_to_weights`] computes the weights for a
+    /// position in the blend space.
+    pub fn instance<'a>(&'a self, weights: &'a [Fixed]) -> Type1Instance<'a> {
+        Type1Instance {
+            font: self,
+            weights,
+        }
+    }
+
+    /// Returns the font drawn with its own default blend.
+    pub fn default_instance(&self) -> Type1Instance<'_> {
+        self.instance(&self.weight_vector)
+    }
+
     /// Evaluates the charstring for the requested glyph far enough to read
     /// its advance width, without drawing it.
     ///
@@ -317,10 +387,7 @@ impl Type1Font {
     ///
     /// [`evaluate_charstring`]: Self::evaluate_charstring
     pub fn evaluate_width(&self, gid: GlyphId) -> Result<Option<Fixed>, Error> {
-        let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
-        let transform = self.transform(None);
-        Ok(charstring::evaluate_width(self, None, charstring_data)?
-            .map(|width| transform.transform_h_metric(width)))
+        self.default_instance().evaluate_width(gid)
     }
 
     /// Evaluates the charstring for the requested glyph and sends the results
@@ -334,8 +401,7 @@ impl Type1Font {
         gid: GlyphId,
         sink: &mut impl CommandSink,
     ) -> Result<Option<Fixed>, Error> {
-        let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
-        charstring::evaluate(self, None, charstring_data, sink)
+        self.default_instance().evaluate_charstring(gid, sink)
     }
 
     /// Returns the advance width of the glyph with an optional size in
@@ -344,10 +410,7 @@ impl Type1Font {
     /// This is the width [`draw`](Self::draw) reports, arrived at without
     /// the drawing.
     pub fn advance(&self, gid: GlyphId, ppem: Option<f32>) -> Result<Option<f32>, Error> {
-        let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
-        let transform = self.transform(ppem);
-        Ok(charstring::evaluate_width(self, None, charstring_data)?
-            .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
+        self.default_instance().advance(gid, ppem)
     }
 
     /// Measures the box the glyph's drawing stays within, in design units.
@@ -372,12 +435,7 @@ impl Type1Font {
     ///
     /// [`evaluate_charstring`]: Self::evaluate_charstring
     pub fn evaluate_extents(&self, gid: GlyphId) -> Result<Option<BoundingBox<Fixed>>, Error> {
-        let mut bounds = charstring::ControlBoundsSink::new();
-        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
-        let transform = self.transform(None);
-        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
-        self.evaluate_charstring(gid, &mut transformer)?;
-        Ok(bounds.bounding_box())
+        self.default_instance().evaluate_extents(gid)
     }
 
     /// Returns the box the glyph's drawing stays within, with an optional
@@ -398,17 +456,7 @@ impl Type1Font {
         gid: GlyphId,
         ppem: Option<f32>,
     ) -> Result<Option<BoundingBox<f32>>, Error> {
-        let mut bounds = charstring::ControlBoundsSink::new();
-        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
-        let transform = self.transform(ppem);
-        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
-        self.evaluate_charstring(gid, &mut transformer)?;
-        Ok(bounds.bounding_box().map(|b| BoundingBox {
-            x_min: b.x_min.to_f32(),
-            y_min: b.y_min.to_f32(),
-            x_max: b.x_max.to_f32(),
-            y_max: b.y_max.to_f32(),
-        }))
+        self.default_instance().extents(gid, ppem)
     }
 
     /// Draws the glyph with an optional size in ppem to the given pen.
@@ -421,8 +469,97 @@ impl Type1Font {
         ppem: Option<f32>,
         sink: &mut impl PathSink,
     ) -> Result<Option<f32>, Error> {
+        self.default_instance().draw(gid, ppem, sink)
+    }
+}
+
+impl<'a> Type1Instance<'a> {
+    /// Returns the font.
+    pub fn font(&self) -> &'a Type1Font {
+        self.font
+    }
+
+    /// Returns the weight of each master.
+    pub fn weights(&self) -> &'a [Fixed] {
+        self.weights
+    }
+
+    /// As [`Type1Font::evaluate_width`], with this instance's blend.
+    pub fn evaluate_width(&self, gid: GlyphId) -> Result<Option<Fixed>, Error> {
+        let charstring_data = self
+            .font
+            .charstrings
+            .get(gid.to_u32())
+            .ok_or(Error::Malformed)?;
+        let transform = self.font.transform(None);
+        Ok(charstring::evaluate_width(self, None, charstring_data)?
+            .map(|width| transform.transform_h_metric(width)))
+    }
+
+    /// As [`Type1Font::evaluate_charstring`], with this instance's blend.
+    pub fn evaluate_charstring(
+        &self,
+        gid: GlyphId,
+        sink: &mut impl CommandSink,
+    ) -> Result<Option<Fixed>, Error> {
+        let charstring_data = self
+            .font
+            .charstrings
+            .get(gid.to_u32())
+            .ok_or(Error::Malformed)?;
+        charstring::evaluate(self, None, charstring_data, sink)
+    }
+
+    /// As [`Type1Font::advance`], with this instance's blend.
+    pub fn advance(&self, gid: GlyphId, ppem: Option<f32>) -> Result<Option<f32>, Error> {
+        let charstring_data = self
+            .font
+            .charstrings
+            .get(gid.to_u32())
+            .ok_or(Error::Malformed)?;
+        let transform = self.font.transform(ppem);
+        Ok(charstring::evaluate_width(self, None, charstring_data)?
+            .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
+    }
+
+    /// As [`Type1Font::evaluate_extents`], with this instance's blend.
+    pub fn evaluate_extents(&self, gid: GlyphId) -> Result<Option<BoundingBox<Fixed>>, Error> {
+        let mut bounds = charstring::ControlBoundsSink::new();
+        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
+        let transform = self.font.transform(None);
+        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
+        self.evaluate_charstring(gid, &mut transformer)?;
+        Ok(bounds.bounding_box())
+    }
+
+    /// As [`Type1Font::extents`], with this instance's blend.
+    pub fn extents(
+        &self,
+        gid: GlyphId,
+        ppem: Option<f32>,
+    ) -> Result<Option<BoundingBox<f32>>, Error> {
+        let mut bounds = charstring::ControlBoundsSink::new();
+        let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
+        let transform = self.font.transform(ppem);
+        let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
+        self.evaluate_charstring(gid, &mut transformer)?;
+        Ok(bounds.bounding_box().map(|b| BoundingBox {
+            x_min: b.x_min.to_f32(),
+            y_min: b.y_min.to_f32(),
+            x_max: b.x_max.to_f32(),
+            y_max: b.y_max.to_f32(),
+        }))
+    }
+
+    /// As [`Type1Font::draw`], with this instance's blend.
+    pub fn draw(
+        &self,
+        gid: GlyphId,
+        ppem: Option<f32>,
+        sink: &mut impl PathSink,
+    ) -> Result<Option<f32>, Error> {
         let mut nop_filter = NopFilterSink::new(sink);
-        let transform = self.transform(ppem);
+        let transform = self.font.transform(ppem);
         let mut transformer = TransformSink::new(&mut nop_filter, transform);
         let width = self.evaluate_charstring(gid, &mut transformer)?;
         Ok(width.map(|w| transform.transform_h_metric(w).to_f32().max(0.0)))
@@ -460,6 +597,408 @@ impl CharstringContext for Type1Font {
     fn weight_vector(&self) -> &[Fixed] {
         &self.weight_vector
     }
+
+    fn build_char_len(&self) -> usize {
+        self.build_char_len
+    }
+}
+
+impl CharstringContext for Type1Instance<'_> {
+    fn kind(&self) -> CharstringKind {
+        CharstringKind::Type1
+    }
+
+    fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
+        self.font.seac_components(base_code, accent_code)
+    }
+
+    fn subr(&self, index: i32) -> Result<&[u8], Error> {
+        self.font.subr(index)
+    }
+
+    fn global_subr(&self, index: i32) -> Result<&[u8], Error> {
+        self.font.global_subr(index)
+    }
+
+    fn weight_vector(&self) -> &[Fixed] {
+        self.weights
+    }
+
+    fn build_char_len(&self) -> usize {
+        self.font.build_char_len
+    }
+}
+
+/// The most axes a multiple master font can have.
+const MAX_MASTER_AXES: usize = 4;
+
+/// The most masters a multiple master font can have.
+const MAX_MASTERS: usize = 16;
+
+/// The most points in the design map of one axis.
+const MAX_MAP_POINTS: usize = 20;
+
+/// The blend dictionaries of a font as they are read, before they are
+/// checked against each other.
+///
+/// Each `add` fails where FreeType refuses the whole font: a count out of
+/// range, a count that disagrees with one already read, or a second design
+/// map. A later axis type or position list replaces an earlier one, as in
+/// FreeType.
+///
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L764>
+#[derive(Default)]
+struct RawBlend {
+    num_axes: usize,
+    num_masters: usize,
+    axis_names: Vec<String>,
+    positions: bool,
+    maps: Vec<Vec<(i32, Fixed)>>,
+    weights: Vec<Fixed>,
+    build_char_len: usize,
+}
+
+impl RawBlend {
+    fn set_num_axes(&mut self, num_axes: usize) -> Option<()> {
+        if num_axes == 0 || num_axes > MAX_MASTER_AXES {
+            return None;
+        }
+        if self.num_axes != 0 && self.num_axes != num_axes {
+            return None;
+        }
+        self.num_axes = num_axes;
+        Some(())
+    }
+
+    fn set_num_masters(&mut self, num_masters: usize) -> Option<()> {
+        if num_masters == 0 || num_masters > MAX_MASTERS {
+            return None;
+        }
+        if self.num_masters != 0 && self.num_masters != num_masters {
+            return None;
+        }
+        self.num_masters = num_masters;
+        Some(())
+    }
+
+    fn add_axis_types(&mut self, names: Vec<String>) -> Option<()> {
+        self.set_num_axes(names.len())?;
+        self.axis_names = names;
+        Some(())
+    }
+
+    fn add_design_positions(&mut self, positions: Vec<Vec<Fixed>>) -> Option<()> {
+        self.set_num_masters(positions.len())?;
+        let num_axes = positions.first()?.len();
+        if positions.iter().any(|position| position.len() != num_axes) {
+            return None;
+        }
+        self.set_num_axes(num_axes)?;
+        // Only their presence matters: a font's masters sit at the corners
+        // of the blend space, which the weights are computed for.
+        self.positions = true;
+        Some(())
+    }
+
+    fn add_design_maps(&mut self, maps: Vec<Vec<(i32, Fixed)>>) -> Option<()> {
+        if !self.maps.is_empty() {
+            return None;
+        }
+        self.set_num_axes(maps.len())?;
+        if maps
+            .iter()
+            .any(|map| map.is_empty() || map.len() > MAX_MAP_POINTS)
+        {
+            return None;
+        }
+        self.maps = maps;
+        Some(())
+    }
+
+    fn add_weights(&mut self, weights: Vec<Fixed>) -> Option<()> {
+        self.set_num_masters(weights.len())?;
+        self.weights = weights;
+        Some(())
+    }
+
+    /// Returns the design space and the default weights, or `None` where
+    /// FreeType sets the blend aside and treats the font as an ordinary one.
+    ///
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L2567>
+    fn finish(&self) -> Option<(MultipleMaster, Vec<Fixed>)> {
+        // Only masters at the corners of the blend space are supported.
+        if self.num_axes == 0 || self.num_masters != 1 << self.num_axes {
+            return None;
+        }
+        if self.weights.is_empty() || !self.positions || self.maps.len() != self.num_axes {
+            return None;
+        }
+        let axes = self
+            .maps
+            .iter()
+            .enumerate()
+            .map(|(index, map)| MasterAxis {
+                name: self.axis_names.get(index).cloned(),
+                design_points: map.iter().map(|point| point.0).collect(),
+                blend_points: map.iter().map(|point| point.1).collect(),
+            })
+            .collect();
+        let multiple_master = MultipleMaster {
+            axes,
+            num_masters: self.num_masters,
+            default_weights: self.weights.clone(),
+        };
+        Some((multiple_master, self.weights.clone()))
+    }
+}
+
+/// The design space of a multiple master font.
+///
+/// A multiple master font holds two to sixteen masters at the corners of a
+/// blend space with one to four axes. An instance is a weighted blend of
+/// the masters, and its weights come from a position in that space, given
+/// as blend coordinates from 0 to 1 on each axis or as design coordinates,
+/// which each axis maps to blend coordinates.
+///
+/// The conversions follow FreeType's, including where its arithmetic
+/// departs from the specification, so that an instance draws as it does
+/// in FreeType.
+#[derive(Clone, Debug)]
+pub struct MultipleMaster {
+    axes: Vec<MasterAxis>,
+    num_masters: usize,
+    default_weights: Vec<Fixed>,
+}
+
+/// One axis of a multiple master font.
+#[derive(Clone, Debug)]
+pub struct MasterAxis {
+    name: Option<String>,
+    design_points: Vec<i32>,
+    blend_points: Vec<Fixed>,
+}
+
+impl MasterAxis {
+    /// Returns the name the font gives the axis, such as `Weight`.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// Returns the lowest design coordinate.
+    pub fn min_design(&self) -> i32 {
+        self.design_points.first().copied().unwrap_or_default()
+    }
+
+    /// Returns the highest design coordinate.
+    pub fn max_design(&self) -> i32 {
+        self.design_points.last().copied().unwrap_or_default()
+    }
+
+    /// Returns the map from design coordinates to blend coordinates, as
+    /// pairs in the font's order.
+    pub fn design_map(&self) -> impl Iterator<Item = (i32, Fixed)> + '_ {
+        self.design_points
+            .iter()
+            .copied()
+            .zip(self.blend_points.iter().copied())
+    }
+
+    /// Returns the blend coordinate for a design coordinate.
+    ///
+    /// This follows FreeType's `T1_Set_MM_Design`, which interpolates
+    /// between two points as though the first mapped to a blend of zero.
+    /// The result is exact for a map whose interpolated points start at
+    /// zero, as two point maps do.
+    ///
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L555>
+    pub fn design_to_blend(&self, design: i32) -> Fixed {
+        let designs = &self.design_points;
+        let blends = &self.blend_points;
+        let mut before = None;
+        let mut after = None;
+        for (p, &p_design) in designs.iter().enumerate() {
+            if design == p_design {
+                return blends[p];
+            }
+            if design < p_design {
+                after = Some(p);
+                break;
+            }
+            before = Some(p);
+        }
+        match (before, after) {
+            (None, _) => blends.first().copied().unwrap_or_default(),
+            (Some(_), None) => blends.last().copied().unwrap_or_default(),
+            (Some(before), Some(after)) => {
+                // FreeType leaves out `+ blends[before]`.
+                Fixed::from_bits(saturate(mul_div_wide(
+                    i64::from(design) - i64::from(designs[before]),
+                    i64::from(blends[after].to_bits()) - i64::from(blends[before].to_bits()),
+                    i64::from(designs[after]) - i64::from(designs[before]),
+                )))
+            }
+        }
+    }
+
+    /// Returns the design coordinate for a blend coordinate, a whole number.
+    ///
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L218>
+    pub fn blend_to_design(&self, blend: Fixed) -> i32 {
+        let designs = &self.design_points;
+        let blends = &self.blend_points;
+        if designs.is_empty() || blend <= blends[0] {
+            return self.min_design();
+        }
+        for j in 1..designs.len() {
+            if blend <= blends[j] {
+                let offset = mul_div_wide(
+                    i64::from(blend.to_bits()) - i64::from(blends[j - 1].to_bits()),
+                    i64::from(designs[j]) - i64::from(designs[j - 1]),
+                    i64::from(blends[j].to_bits()) - i64::from(blends[j - 1].to_bits()),
+                );
+                return saturate(i64::from(designs[j - 1]) + offset);
+            }
+        }
+        self.max_design()
+    }
+}
+
+/// Returns `a * b / c`, rounded as [`Fixed::mul_div`] rounds, without
+/// overflowing on the way.
+///
+/// Design maps hold any `i32`, so the differences between their points
+/// don't fit in one.
+fn mul_div_wide(a: i64, b: i64, c: i64) -> i64 {
+    let (a_abs, b_abs, c_abs) = (
+        u128::from(a.unsigned_abs()),
+        u128::from(b.unsigned_abs()),
+        u128::from(c.unsigned_abs()),
+    );
+    let result = if c_abs > 0 {
+        (a_abs * b_abs + (c_abs >> 1)) / c_abs
+    } else {
+        0x7FFFFFFF
+    };
+    let result = result.min(i64::MAX as u128) as i64;
+    if (a < 0) ^ (b < 0) ^ (c < 0) {
+        -result
+    } else {
+        result
+    }
+}
+
+/// Clamps `value` to the range of an `i32`.
+fn saturate(value: i64) -> i32 {
+    value.clamp(i32::MIN.into(), i32::MAX.into()) as i32
+}
+
+impl MultipleMaster {
+    /// Returns the axes.
+    pub fn axes(&self) -> &[MasterAxis] {
+        &self.axes
+    }
+
+    /// Returns the number of masters, which is two to the power of the
+    /// number of axes.
+    pub fn num_masters(&self) -> usize {
+        self.num_masters
+    }
+
+    /// Returns the weights of the font's default instance, one per master.
+    pub fn default_weights(&self) -> &[Fixed] {
+        &self.default_weights
+    }
+
+    /// Writes the blend coordinates of the font's default instance to
+    /// `blend`, one per axis.
+    ///
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L248>
+    pub fn default_blend(&self, blend: &mut [Fixed]) {
+        self.weights_to_blend(&self.default_weights, blend);
+    }
+
+    /// Writes the blend coordinates that give rise to `weights` to `blend`,
+    /// one per axis.
+    ///
+    /// The blend on an axis is the sum of the weights of the masters at its
+    /// far end.
+    pub fn weights_to_blend(&self, weights: &[Fixed], blend: &mut [Fixed]) {
+        for (axis, value) in blend.iter_mut().enumerate().take(self.axes.len()) {
+            *value = Fixed::from_bits(
+                (0..self.num_masters)
+                    .filter(|master| master & (1 << axis) != 0)
+                    .filter_map(|master| weights.get(master))
+                    .fold(0i32, |sum, weight| sum.wrapping_add(weight.to_bits())),
+            );
+        }
+    }
+
+    /// Writes the weights for the blend coordinates `blend` to `weights`, one
+    /// per master.
+    ///
+    /// An axis without a coordinate takes the middle of its range.
+    ///
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L383>
+    pub fn blend_to_weights(&self, blend: &[Fixed], weights: &mut [Fixed]) {
+        for (master, weight) in weights.iter_mut().enumerate().take(self.num_masters) {
+            let mut result = Fixed::ONE;
+            for axis in 0..self.axes.len() {
+                let Some(&coord) = blend.get(axis) else {
+                    result = Fixed::from_bits(result.to_bits() >> 1);
+                    continue;
+                };
+                let factor = if master & (1 << axis) == 0 {
+                    Fixed::ONE - coord
+                } else {
+                    coord
+                };
+                if factor <= Fixed::ZERO {
+                    result = Fixed::ZERO;
+                    break;
+                } else if factor >= Fixed::ONE {
+                    continue;
+                }
+                result *= factor;
+            }
+            *weight = result;
+        }
+    }
+
+    /// Writes the blend coordinates for the design coordinates `design` to
+    /// `blend`, one per axis.
+    ///
+    /// Each design coordinate is rounded to a whole number first. An axis
+    /// without a coordinate takes half its range above zero, `(max - min) /
+    /// 2`, which is the middle only of a range that starts at zero. Both
+    /// follow FreeType's `T1_Set_Var_Design`, as does
+    /// [`MasterAxis::design_to_blend`].
+    ///
+    /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L653>
+    pub fn design_to_blend(&self, design: &[Fixed], blend: &mut [Fixed]) {
+        for (index, (axis, value)) in self.axes.iter().zip(blend.iter_mut()).enumerate() {
+            let design = match design.get(index) {
+                // FreeType's `FIXED_TO_INT`, which rounds a half away from
+                // zero.
+                Some(design) => {
+                    let bits = design.to_bits();
+                    bits.wrapping_add(0x8000 - i32::from(bits < 0)) >> 16
+                }
+                None => saturate((i64::from(axis.max_design()) - i64::from(axis.min_design())) / 2),
+            };
+            *value = axis.design_to_blend(design);
+        }
+    }
+}
+
+/// A Type 1 font drawn with a given blend of its masters.
+///
+/// For a multiple master font, the weights give the blend, one per master.
+/// [`MultipleMaster::blend_to_weights`] computes them for a position in the
+/// blend space. A font with no masters takes empty weights.
+#[derive(Clone, Copy)]
+pub struct Type1Instance<'a> {
+    font: &'a Type1Font,
+    weights: &'a [Fixed],
 }
 
 /// Associates character codes with glyph names and ids.
@@ -1318,6 +1857,12 @@ impl Parser<'_> {
         Some(charstrings)
     }
 
+    /// Reads a `/FontBBox`, each component rounded to a whole unit as
+    /// FreeType rounds it.
+    ///
+    /// In the `/Blend` dictionary of a multiple master font, each component
+    /// is an array with a value for each master. FreeType stores master 0's
+    /// box over the font's own, so this returns master 0's values.
     fn read_font_bbox(&mut self) -> Option<[Fixed; 4]> {
         let mut bbox = [Fixed::ZERO; 4];
         // accept [ or { to match FreeType
@@ -1334,11 +1879,18 @@ impl Parser<'_> {
         };
         // read all components
         for component in &mut bbox {
-            *component = match parser.next()? {
+            let value = match parser.next()? {
+                Token::Proc(masters) => Parser::new(masters).read_fixed()?,
+                Token::Raw(b"[") => {
+                    let first = parser.read_fixed()?;
+                    while parser.next()? != Token::Raw(b"]") {}
+                    first
+                }
                 Token::Int(int) => Fixed::from_i32(int as i32),
                 Token::Raw(bytes) => decode_fixed(bytes, 0)?,
                 _ => return None,
-            }
+            };
+            *component = round_fixed(value);
         }
         Some(bbox)
     }
@@ -1355,6 +1907,99 @@ impl Parser<'_> {
             }
         }
         Some(weights)
+    }
+
+    /// Reads a number as a fixed point value.
+    fn read_fixed(&mut self) -> Option<Fixed> {
+        match self.next()? {
+            Token::Int(int) => Some(Fixed::from_i32(int as i32)),
+            Token::Raw(raw) => decode_fixed(raw, 0),
+            _ => None,
+        }
+    }
+
+    /// Reads the names of the blend axes, as in `[/Weight /Width]`.
+    fn read_blend_axis_types(&mut self) -> Option<Vec<String>> {
+        self.expect(Token::Raw(b"["))?;
+        let mut names = Vec::new();
+        loop {
+            match self.next()? {
+                Token::Raw(b"]") => return Some(names),
+                Token::Name(name) if !name.is_empty() => {
+                    names.push(decode_name(name).into_owned());
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    /// Reads the position of each master in the blend space, as in
+    /// `[[0 0] [1 0] [0 1] [1 1]]`.
+    fn read_blend_design_positions(&mut self) -> Option<Vec<Vec<Fixed>>> {
+        self.expect(Token::Raw(b"["))?;
+        let mut positions = Vec::new();
+        loop {
+            match self.next()? {
+                Token::Raw(b"]") => return Some(positions),
+                Token::Raw(b"[") => {
+                    let mut position = Vec::new();
+                    loop {
+                        let mut peek = self.clone();
+                        if peek.next()? == Token::Raw(b"]") {
+                            *self = peek;
+                            break;
+                        }
+                        position.push(self.read_fixed()?);
+                    }
+                    positions.push(position);
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    /// Reads the map from design coordinates to blend coordinates for each
+    /// axis, as in `[[[50 0] [1450 1]] [[50 0] [1450 1]]]`.
+    fn read_blend_design_map(&mut self) -> Option<Vec<Vec<(i32, Fixed)>>> {
+        self.expect(Token::Raw(b"["))?;
+        let mut maps = Vec::new();
+        loop {
+            match self.next()? {
+                Token::Raw(b"]") => return Some(maps),
+                Token::Raw(b"[") => {
+                    let mut map = Vec::new();
+                    loop {
+                        match self.next()? {
+                            Token::Raw(b"]") => break,
+                            Token::Raw(b"[") => {
+                                // The design point is read as an integer,
+                                // ignoring any fraction, as FreeType reads
+                                // it.
+                                let design = self.read_num_as_int()?;
+                                let blend = self.read_fixed()?;
+                                self.expect(Token::Raw(b"]"))?;
+                                map.push((design, blend));
+                            }
+                            _ => return None,
+                        }
+                    }
+                    maps.push(map);
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    /// Reads an array and returns the number of elements in it.
+    fn read_array_len(&mut self) -> Option<usize> {
+        self.expect(Token::Raw(b"["))?;
+        let mut len = 0;
+        loop {
+            match self.next()? {
+                Token::Raw(b"]") => return Some(len),
+                _ => len += 1,
+            }
+        }
     }
 
     /// Parse the encoding.
@@ -1488,6 +2133,18 @@ fn decode_int_prefix(bytes: &[u8], start: usize) -> Option<(i64, usize)> {
         .unwrap_or(tail.len());
     let int = decode_int(tail.get(..end)?)?;
     Some((int, start + end))
+}
+
+/// Rounds to a whole unit, halves away from zero, as FreeType's
+/// `FT_RoundFix` does.
+///
+/// A value from 32767.5 up rounds to 32768, which `Fixed` can't hold, so
+/// it saturates to `Fixed::MAX`. FreeType keeps 32768 in a 64-bit value;
+/// both give 32768 once rounded up to whole units.
+fn round_fixed(value: Fixed) -> Fixed {
+    let bits = value.to_bits() as i64;
+    let rounded = (bits + 0x8000 - (bits < 0) as i64) & !0xFFFF;
+    Fixed::from_bits(rounded.min(i32::MAX as i64) as i32)
 }
 
 /// Decode a fixed point value, scaling to a specific power of
@@ -2635,5 +3292,368 @@ mod extents_tests {
             .find(|gid| font.extents(*gid, None).unwrap().is_none());
         let gid = empty.expect("this font has no empty glyph to check");
         assert!(font.evaluate_extents(gid).unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod multiple_master_tests {
+    use super::*;
+    use crate::model::glyph::outline::PathElement;
+    use alloc::{format, vec};
+
+    /// Encodes `value` as a Type 1 charstring number.
+    fn num(value: i32) -> Vec<u8> {
+        match value {
+            -107..=107 => vec![(value + 139) as u8],
+            108..=1131 => {
+                let v = value - 108;
+                vec![(v / 256 + 247) as u8, (v % 256) as u8]
+            }
+            -1131..=-108 => {
+                let v = -value - 108;
+                vec![(v / 256 + 251) as u8, (v % 256) as u8]
+            }
+            _ => {
+                let mut bytes = vec![255];
+                bytes.extend_from_slice(&value.to_be_bytes());
+                bytes
+            }
+        }
+    }
+
+    /// Builds a charstring from numbers and operators, where an operator is
+    /// given as its bytes.
+    fn charstring(parts: &[&[i32]]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for part in parts {
+            match part {
+                [op] if *op < 0 => bytes.push((-op) as u8),
+                [12, op] if *op < 0 => bytes.extend_from_slice(&[12, (-op) as u8]),
+                values => values.iter().for_each(|&v| bytes.extend(num(v))),
+            }
+        }
+        bytes
+    }
+
+    const HSBW: &[i32] = &[-13];
+    const RMOVETO: &[i32] = &[-21];
+    const RLINETO: &[i32] = &[-5];
+    const CLOSEPATH: &[i32] = &[-9];
+    const ENDCHAR: &[i32] = &[-14];
+    const CALLOTHERSUBR: &[i32] = &[12, -16];
+    const POP: &[i32] = &[12, -17];
+
+    /// Reads the font that [`pfa_with_blend`] makes.
+    fn font_with_blend(blend: &str) -> Option<Type1Font> {
+        Type1Font::new(&pfa_with_blend(blend)).ok()
+    }
+
+    /// Returns a PFA font with `blend` in place of the blend entries of its
+    /// font dictionary.
+    ///
+    /// Glyph 1 moves to x = 100 + 200 * w1, where w1 is the weight of the
+    /// second master, then draws a triangle.
+    pub(crate) fn pfa_with_blend(blend: &str) -> Vec<u8> {
+        let base = format!(
+            "%!PS-AdobeFont-1.0: Test\n/FontName /Test def \
+             /FontMatrix [0.001 0 0 0.001 0 0] readonly def {blend}\n\
+             currentfile eexec\n"
+        );
+        let notdef = charstring(&[&[0, 500], HSBW, ENDCHAR]);
+        let glyph = charstring(&[
+            &[0, 500],
+            HSBW,
+            &[100, 50, 200, 0, 4, 15],
+            CALLOTHERSUBR,
+            POP,
+            POP,
+            RMOVETO,
+            &[300, 0],
+            RLINETO,
+            &[0, 300],
+            RLINETO,
+            CLOSEPATH,
+            ENDCHAR,
+        ]);
+        let mut private = b"/lenIV -1 def /CharStrings 2 dict dup begin\n".to_vec();
+        for (name, bytes) in [("/.notdef", notdef), ("/a", glyph)] {
+            private.extend_from_slice(format!("{name} {} RD ", bytes.len()).as_bytes());
+            private.extend_from_slice(&bytes);
+            private.extend_from_slice(b" ND\n");
+        }
+        private.extend_from_slice(b"end");
+        // Encrypted as eexec data, after four bytes of padding, and written
+        // as hex.
+        let mut seed = EEXEC_SEED;
+        let mut pfa = base.into_bytes();
+        for plain in [0u8; 4].iter().chain(&private) {
+            let cipher = (*plain as u32 ^ (seed >> 8)) as u8;
+            seed = (cipher as u32)
+                .wrapping_add(seed)
+                .wrapping_mul(52845)
+                .wrapping_add(22719)
+                & 0xFFFF;
+            pfa.extend_from_slice(format!("{cipher:02x}").as_bytes());
+        }
+        pfa
+    }
+
+    pub(crate) const ONE_AXIS: &str = "/BlendAxisTypes [/Weight] def \
+        /BlendDesignPositions [[0] [1]] def \
+        /BlendDesignMap [[[100 0] [900 1]]] def \
+        /WeightVector [0.75 0.25] def";
+
+    fn bbox(font: &Type1Font) -> [f32; 4] {
+        let b = font.bbox();
+        [b.x_min, b.y_min, b.x_max, b.y_max].map(|v| v.to_f32())
+    }
+
+    // Every box is rounded to whole units, halves away from zero.
+    #[test]
+    fn boxes_are_rounded() {
+        let font = font_with_blend("/FontBBox {-10.4 -20.5 1000.5 900.25} readonly def").unwrap();
+        assert_eq!(bbox(&font), [-10.0, -21.0, 1001.0, 900.0]);
+    }
+
+    // A bound that rounds past the largest fixed value saturates instead of
+    // overflowing.
+    #[test]
+    fn box_rounding_saturates() {
+        let font = font_with_blend("/FontBBox [-32768 0 32767.5 900] def").unwrap();
+        assert_eq!(font.bbox().x_max, Fixed::MAX);
+        assert_eq!(font.bbox().x_min, Fixed::from_i32(-32768));
+    }
+
+    // The /Blend dictionary holds a box for each master, and master 0's
+    // replaces the font's own.
+    #[test]
+    fn box_is_master_zeros() {
+        let font = font_with_blend(&format!(
+            "{ONE_AXIS} /FontBBox {{-157 -257 1194 872}} readonly def \
+             /Blend 3 dict dup begin \
+             /FontBBox {{{{-55 -112}} {{-261 -262}} {{424.4 1156}} {{811 970}}}} def \
+             end def"
+        ))
+        .unwrap();
+        assert_eq!(bbox(&font), [-55.0, -261.0, 424.0, 811.0]);
+        let bracketed = font_with_blend(&format!(
+            "{ONE_AXIS} /Blend 3 dict dup begin \
+             /FontBBox [[-55 -112] [-261 -262] [424 1156] [811 970]] def end def"
+        ))
+        .unwrap();
+        assert_eq!(bbox(&bracketed), [-55.0, -261.0, 424.0, 811.0]);
+    }
+
+    // The /Blend dictionary's font info holds a value for each master, and
+    // the font keeps its own.
+    #[test]
+    fn font_info_keeps_its_own_values() {
+        let font = font_with_blend(&format!(
+            "{ONE_AXIS} /ItalicAngle -12 def /isFixedPitch true def \
+             /UnderlinePosition -100 def /UnderlineThickness 50 def \
+             /Blend 3 dict dup begin /FontInfo 4 dict dup begin \
+             /ItalicAngle [-12 0] def /isFixedPitch [false false] def \
+             /UnderlinePosition [-80 -120] def /UnderlineThickness [40 60] def \
+             end def end def"
+        ))
+        .unwrap();
+        assert_eq!(font.italic_angle(), -12);
+        assert!(font.is_fixed_pitch());
+        assert_eq!(font.underline_position(), -100);
+        assert_eq!(font.underline_thickness(), 50);
+    }
+
+    fn first_move(instance: Type1Instance) -> f32 {
+        let mut path = Vec::<PathElement>::new();
+        instance.draw(GlyphId::new(1), None, &mut path).unwrap();
+        match path[0] {
+            PathElement::MoveTo { x, .. } => x,
+            _ => panic!("expected a move"),
+        }
+    }
+
+    #[test]
+    fn reads_the_design_space() {
+        let font = font_with_blend(ONE_AXIS).unwrap();
+        let mm = font.multiple_master().unwrap();
+        assert_eq!(mm.num_masters(), 2);
+        let [axis] = mm.axes() else {
+            panic!("expected one axis")
+        };
+        assert_eq!(axis.name(), Some("Weight"));
+        assert_eq!((axis.min_design(), axis.max_design()), (100, 900));
+        let mut blend = [Fixed::ZERO];
+        mm.default_blend(&mut blend);
+        assert_eq!(blend, [Fixed::from_f64(0.25)]);
+        assert_eq!(axis.blend_to_design(blend[0]), 300);
+    }
+
+    #[test]
+    fn draws_with_a_blend_of_the_masters() {
+        let font = font_with_blend(ONE_AXIS).unwrap();
+        let mm = font.multiple_master().unwrap();
+        // The font's own weights.
+        assert_eq!(first_move(font.default_instance()), 150.0);
+        let mut blend = [Fixed::ZERO];
+        let mut weights = [Fixed::ZERO; 2];
+        for (design, x) in [(100.0, 100.0), (500.0, 200.0), (900.0, 300.0)] {
+            mm.design_to_blend(&[Fixed::from_f64(design)], &mut blend);
+            mm.blend_to_weights(&blend, &mut weights);
+            assert_eq!(first_move(font.instance(&weights)), x, "{design}");
+        }
+    }
+
+    // Blends that FreeType sets aside leave an ordinary font, whose glyphs
+    // fail where they blend.
+    #[test]
+    fn inconsistent_blends_are_set_aside() {
+        for blend in [
+            // Three masters cannot sit at the corners of one axis.
+            "/BlendDesignPositions [[0] [1] [0.5]] def \
+             /BlendDesignMap [[[100 0] [900 1]]] def \
+             /WeightVector [0.5 0.25 0.25] def",
+            // No design map.
+            "/BlendDesignPositions [[0] [1]] def /WeightVector [0.75 0.25] def",
+            // Only weights, as in a font made from one instance.
+            "/WeightVector [0.75 0.25] def",
+        ] {
+            let font = font_with_blend(blend).unwrap();
+            assert!(font.multiple_master().is_none(), "{blend}");
+            let mut path = Vec::<PathElement>::new();
+            assert!(font.draw(GlyphId::new(1), None, &mut path).is_err());
+        }
+    }
+
+    // Counts that disagree make FreeType refuse the font.
+    #[test]
+    fn conflicting_counts_refuse_the_font() {
+        for blend in [
+            "/BlendDesignPositions [[0] [1]] def /WeightVector [0.5 0.25 0.25] def",
+            "/BlendAxisTypes [/Weight /Width] def /BlendDesignPositions [[0] [1]] def",
+            "/BlendDesignMap [[[100 0] [900 1]]] def /BlendDesignMap [[[100 0] [900 1]]] def",
+            "/BlendAxisTypes [/A /B /C /D /E] def",
+        ] {
+            assert!(font_with_blend(blend).is_none(), "{blend}");
+        }
+    }
+
+    /// The design space of a font with two axes, each mapping 50 to 1450,
+    /// whose default is the last master.
+    fn two_axes() -> MultipleMaster {
+        let axis = |name: &str| MasterAxis {
+            name: Some(name.into()),
+            design_points: vec![50, 1450],
+            blend_points: vec![Fixed::ZERO, Fixed::ONE],
+        };
+        MultipleMaster {
+            axes: vec![axis("Weight"), axis("Width")],
+            num_masters: 4,
+            default_weights: vec![Fixed::ZERO, Fixed::ZERO, Fixed::ZERO, Fixed::ONE],
+        }
+    }
+
+    // The blends and weights FreeType computes for these design coordinates
+    // in a font with this design space.
+    #[test]
+    fn design_coordinates_convert_as_in_freetype() {
+        let mm = two_axes();
+        for (design, blend, weights) in [
+            (
+                &[471.5, 819.4][..],
+                [19754, 35998],
+                [20635, 8903, 25147, 10851],
+            ),
+            (
+                &[470.49, 820.51],
+                [19661, 36092],
+                [20611, 8833, 25264, 10828],
+            ),
+            (&[1000.0, 333.0], [44471, 13248], [16807, 35481, 4258, 8990]),
+            (&[-100.0, 2000.0], [0, 65536], [0, 0, 65536, 0]),
+            // The missing axis takes (1450 - 50) / 2 = 700.
+            (&[300.0], [11703, 30427], [28839, 6270, 24994, 5433]),
+        ] {
+            let design: Vec<_> = design
+                .iter()
+                .map(|v| Fixed::from_bits((v * 65536.0) as i32))
+                .collect();
+            let mut actual_blend = [Fixed::ZERO; 2];
+            mm.design_to_blend(&design, &mut actual_blend);
+            assert_eq!(actual_blend.map(Fixed::to_bits), blend, "{design:?}");
+            let mut actual_weights = [Fixed::ZERO; 4];
+            mm.blend_to_weights(&actual_blend, &mut actual_weights);
+            assert_eq!(actual_weights.map(Fixed::to_bits), weights, "{design:?}");
+        }
+        let mut default = [Fixed::ZERO; 2];
+        mm.default_blend(&mut default);
+        assert_eq!(default, [Fixed::ONE; 2]);
+        assert!(mm
+            .axes()
+            .iter()
+            .all(|axis| axis.blend_to_design(Fixed::ONE) == 1450));
+    }
+
+    // Between two points that are not the first, FreeType's interpolation
+    // leaves out the blend at the lower point.
+    #[test]
+    fn three_point_maps_interpolate_as_in_freetype() {
+        let axis = MasterAxis {
+            name: None,
+            design_points: vec![0, 500, 1000],
+            blend_points: vec![Fixed::ZERO, Fixed::from_f64(0.6), Fixed::ONE],
+        };
+        assert_eq!(axis.design_to_blend(250), Fixed::from_f64(0.3));
+        assert_eq!(axis.design_to_blend(500), Fixed::from_f64(0.6));
+        // The specification gives 0.8.
+        assert_eq!(axis.design_to_blend(750), Fixed::from_f64(0.2));
+        assert_eq!(axis.design_to_blend(2000), Fixed::ONE);
+    }
+
+    // Design coordinates round to whole numbers, a half away from zero.
+    #[test]
+    fn design_coordinates_round_away_from_zero() {
+        let axis = MasterAxis {
+            name: None,
+            design_points: vec![-10, 10],
+            blend_points: vec![Fixed::ZERO, Fixed::ONE],
+        };
+        let mm = MultipleMaster {
+            axes: vec![axis],
+            num_masters: 2,
+            default_weights: vec![Fixed::ONE, Fixed::ZERO],
+        };
+        let mut blend = [Fixed::ZERO];
+        for (design, rounded) in [(0.5, 1), (-0.5, -1), (0.49, 0), (-1.5, -2)] {
+            mm.design_to_blend(&[Fixed::from_f64(design)], &mut blend);
+            assert_eq!(blend[0], mm.axes()[0].design_to_blend(rounded), "{design}");
+        }
+    }
+
+    // A map can span every design coordinate without overflowing.
+    #[test]
+    fn widest_design_maps_convert() {
+        let axis = MasterAxis {
+            name: None,
+            design_points: vec![i32::MIN, i32::MAX],
+            blend_points: vec![Fixed::ZERO, Fixed::ONE],
+        };
+        assert_eq!(axis.design_to_blend(0), Fixed::from_f64(0.5));
+        assert_eq!(axis.blend_to_design(Fixed::from_f64(0.5)), 0);
+        assert_eq!(axis.blend_to_design(Fixed::ONE), i32::MAX);
+        assert_eq!(axis.blend_to_design(Fixed::ZERO), i32::MIN);
+        let mm = MultipleMaster {
+            axes: vec![axis],
+            num_masters: 2,
+            default_weights: vec![Fixed::from_f64(0.5), Fixed::from_f64(0.5)],
+        };
+        // A missing coordinate is half the range, which is beyond the map.
+        let mut blend = [Fixed::ZERO];
+        mm.design_to_blend(&[], &mut blend);
+        assert_eq!(blend[0], Fixed::ONE);
+        let font = font_with_blend(
+            "/BlendAxisTypes [/Weight] def /BlendDesignPositions [[0] [1]] def              /BlendDesignMap [[[-2147483648 0] [2147483647 1]]] def              /WeightVector [0.5 0.5] def",
+        )
+        .unwrap();
+        assert!(font.multiple_master().is_some());
     }
 }

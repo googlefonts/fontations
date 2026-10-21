@@ -4,12 +4,16 @@
 
 use super::{DrawOptions, DrawnMetrics, PathSink};
 use crate::model::Error;
-use crate::{ps::type1::Type1Font, types::GlyphId};
+use crate::{
+    ps::type1::{Type1Font, Type1Instance},
+    types::GlyphId,
+};
 
 /// A charstring from a Type 1 [`Font`](crate::model::Font).
 #[derive(Clone, Copy)]
 pub struct Type1Glyph<'a> {
-    pub(super) font: &'a Type1Font,
+    /// The font at the location the glyph is drawn at.
+    pub(super) font: Type1Instance<'a>,
     pub(super) glyph: GlyphId,
 }
 
@@ -21,7 +25,7 @@ impl<'a> Type1Glyph<'a> {
 
     /// Returns the Type 1 font that evaluates the charstring.
     pub fn type1_font(&self) -> &'a Type1Font {
-        self.font
+        self.font.font()
     }
 
     pub(super) fn draw(

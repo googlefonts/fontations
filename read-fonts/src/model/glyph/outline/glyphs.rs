@@ -14,9 +14,9 @@ use crate::{
     model::{
         glyph::{outline::OutlineSource, GlyphSource, GlyphSourceOrder},
         metrics::GlyphExtents,
-        Font, Kind,
+        Font,
     },
-    ps::{cff::CffFontRef, type1::Type1Font},
+    ps::{cff::CffFontRef, type1::Type1Instance},
     tables::glyf::outline::{OutlineContext, OutlinePlan},
     types::{BoundingBox, F2Dot14, GlyphId},
 };
@@ -40,14 +40,14 @@ enum Base<'a> {
     None,
     Glyf(GlyfContext<'a>),
     Cff(&'a CffFontRef<'a>, OutlineSource),
-    Type1(&'a Type1Font),
+    Type1(Type1Instance<'a>),
 }
 
 impl<'a> OutlineGlyphs<'a> {
     pub(crate) fn new(font: &'a Font, order: GlyphSourceOrder) -> Self {
         let mut base = Base::None;
         let mut varc = None;
-        if let Kind::Type1(type1) = font.kind() {
+        if let Some(type1) = font.type1_instance() {
             if order.contains(GlyphSource::Type1) {
                 base = Base::Type1(type1);
             }
