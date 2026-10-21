@@ -1,6 +1,6 @@
 //! Continuous CFF2 control bounds with float scalars and double coordinates.
 use super::{
-    charstring::{BlendScalars, CharStringActions, Command, Interpreter, Program, Value},
+    charstring::{BlendScalars, CharStringActions, Interpreter, Program, Value},
     instance::gains,
     source::{Cff2, Source},
     Error, Result,
@@ -165,23 +165,17 @@ impl Bounds<'_> {
         Ok(())
     }
 }
-impl CharStringActions for Bounds<'_> {
-    fn token(&mut self, _: Program, _: usize, _: &[u8]) {}
-    fn call(&mut self, _: Program, _: usize, _: Program, _: &Value) -> Result<()> {
-        Ok(())
-    }
-    fn discard(&mut self, _: impl Iterator<Item = (Program, usize)>) {}
-    fn command(&mut self, command: Command) {
+impl CharStringActions<'_> for Bounds<'_> {
+    fn command(&mut self, op: u16, args: &[Value], _mask: &[u8]) {
         if self.result.is_err() {
             return;
         }
         self.result = (|| {
-            let args = command
-                .args
+            let args = args
                 .iter()
                 .map(|v| v.resolve(self.scalars, &mut self.remaining))
                 .collect::<Result<Vec<_>>>()?;
-            self.path(command.op, &args)
+            self.path(op, &args)
         })();
     }
 }
@@ -225,7 +219,8 @@ pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64;
 mod tests {
     use super::*;
     use crate::cff::charstring::flatten;
-    use read_fonts::ps::{cff::index::Index, cs};
+    use crate::cff::charstring::Command;
+    use read_fonts::ps::{cff::index::Index, charstring as cs};
 
     #[test]
     fn zero_extents_preserve_the_original_bearing() {
