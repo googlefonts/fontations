@@ -1,7 +1,10 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
 pub mod bytecode;
+mod hint_reliant;
 pub mod outline;
+
+pub use hint_reliant::is_hint_reliant;
 
 use bytemuck::AnyBitPattern;
 use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
