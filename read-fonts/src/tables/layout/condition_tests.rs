@@ -1,22 +1,22 @@
 use super::*;
+use crate::model::Error;
 use crate::tables::layout::FeatureVariations;
 use crate::tables::variations::ItemVariationStore;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::convert::Infallible;
 
 #[test]
 fn delta_callback_errors_survive_negation_and_no_variation_skips_callback() {
     let bytes = [0, 5, 0, 0, 5, 0, 2, 0, 1, 0, 0, 0, 0];
     let condition = Condition::read(FontData::new(&bytes)).unwrap();
     assert_eq!(
-        condition.evaluate(&[], |_| Err::<f64, _>("delta failed")),
-        Err(ConditionError::Delta("delta failed"))
+        condition.evaluate(&[], |_| Err::<f64, _>(Error::InvalidOperation)),
+        Err(Error::InvalidOperation)
     );
     let bytes = [0, 2, 0, 1, 255, 255, 255, 255];
     let condition = Condition::read(FontData::new(&bytes)).unwrap();
     assert_eq!(
-        condition.evaluate(&[], |_| Err::<f64, _>("must not be called")),
+        condition.evaluate(&[], |_| Err::<f64, _>(Error::InvalidOperation)),
         Ok(true)
     );
 }
@@ -25,31 +25,29 @@ fn delta_callback_errors_survive_negation_and_no_variation_skips_callback() {
 fn condition_sets_and_lookup_records_reject_bad_offsets() {
     let bytes = [0, 1, 0, 0, 0, 6, 0, 5, 0, 0, 0];
     let set = ConditionSet::read(FontData::new(&bytes)).unwrap();
-    assert_eq!(set.evaluate(&[], |_| Ok::<_, Infallible>(0.0)), Ok(false));
+    assert_eq!(set.evaluate(&[], |_| Ok::<_, Error>(0.0)), Ok(false));
     let truncated = ConditionSet::read(FontData::new(&bytes[..2])).unwrap();
     assert_eq!(
-        truncated.evaluate(&[], |_| Ok::<_, Infallible>(0.0)),
-        Err(ConditionError::Read(ReadError::OutOfBounds))
+        truncated.evaluate(&[], |_| Ok::<_, Error>(0.0)),
+        Err(Error::Malformed)
     );
     let record = LookupConditionRecord {
         condition_offset: crate::types::BigEndian::new([0, 0, 0, 6]),
         lookup_index_list_offset: crate::types::Offset32::new(0).into(),
     };
     assert_eq!(
-        record.evaluate(FontData::new(&bytes), &[], |_| Ok::<_, Infallible>(0.0)),
+        record.evaluate(FontData::new(&bytes), &[], |_| Ok::<_, Error>(0.0)),
         Ok(false)
     );
     assert!(record
-        .evaluate(FontData::new(&bytes[..2]), &[], |_| Ok::<_, Infallible>(
-            0.0
-        ))
+        .evaluate(FontData::new(&bytes[..2]), &[], |_| Ok::<_, Error>(0.0))
         .is_err());
     let null = LookupConditionRecord {
         condition_offset: crate::types::BigEndian::new([0; 4]),
         lookup_index_list_offset: crate::types::Offset32::new(0).into(),
     };
     assert_eq!(
-        null.evaluate(FontData::new(&[]), &[], |_| Ok::<_, Infallible>(0.0)),
+        null.evaluate(FontData::new(&[]), &[], |_| Ok::<_, Error>(0.0)),
         Ok(true)
     );
 }
@@ -57,7 +55,7 @@ fn condition_sets_and_lookup_records_reject_bad_offsets() {
 fn evaluate(bytes: &[u8], coords: &[F2Dot14]) -> Option<bool> {
     Condition::read(FontData::new(bytes))
         .ok()?
-        .evaluate(coords, |_| Ok::<_, Infallible>(0.0))
+        .evaluate(coords, |_| Ok::<_, Error>(0.0))
         .ok()
 }
 
