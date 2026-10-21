@@ -12,7 +12,7 @@ mod script;
 
 use core::cmp::Ordering;
 
-pub use condition::{store_deltas, ConditionError};
+pub use condition::store_deltas;
 pub use lookup_flag::LookupFlag;
 pub use script::{ScriptTags, SelectedScript, UNICODE_TO_NEW_OPENTYPE_SCRIPT_TAGS};
 
@@ -165,7 +165,8 @@ impl FeatureVariations<'_> {
             let Some(Ok(condition_set)) = rec.condition_set(self.offset_data()) else {
                 continue;
             };
-            if condition_set.evaluate(coords, &mut delta).ok() == Some(true) {
+            let delta = |index| delta(index).map_err(|_| crate::model::Error::Malformed);
+            if condition_set.evaluate(coords, delta).ok() == Some(true) {
                 return Some(index as u32);
             }
         }
