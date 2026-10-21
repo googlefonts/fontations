@@ -12,6 +12,7 @@ extend-exclude = [
     '*.ift_tk',
     '*.ift_gk',
     'glyphlist.txt',
+    'zapfdingbats.txt',
     'skera/test-data/',
 ]
 

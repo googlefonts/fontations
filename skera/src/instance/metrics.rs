@@ -95,8 +95,8 @@ pub(super) fn instance(
                     &axes.coords,
                 )
                 .map_err(|_| error(tag))?;
-            let mut bounds = read_fonts::ps::cs::ControlBoundsSink::new();
-            let mut sink = read_fonts::ps::cs::NopFilterSink::new(&mut bounds);
+            let mut bounds = read_fonts::ps::charstring::ControlBoundsSink::new();
+            let mut sink = read_fonts::ps::charstring::NopFilterSink::new(&mut bounds);
             cff.evaluate_charstring(&sf, gid, &axes.coords, &mut sink)
                 .map_err(|_| error(tag))?;
             bounds.bounding_box().map(|b| {

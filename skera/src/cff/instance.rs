@@ -1,7 +1,7 @@
 //! Resolve CFF2 charstring and Private DICT blends through the same region scalars.
 use super::{
     blend::{Rebaser, Rounding},
-    charstring::{self, CharStringActions, Command, Interpreter, Program, Recorder, Value},
+    charstring::{self, CharStringActions, Flattener, Interpreter, Program, Value},
     dict, encoding,
     source::{Cff2, CharStringSource, Source},
     subset::{self, Programs},
@@ -68,14 +68,9 @@ fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<
 }
 #[derive(Default)]
 struct ComplexBlends(BTreeSet<usize>);
-impl CharStringActions for ComplexBlends {
-    fn token(&mut self, _: Program, _: usize, _: &[u8]) {}
-    fn call(&mut self, _: Program, _: usize, _: Program, _: &Value) -> Result<()> {
-        Ok(())
-    }
-    fn discard(&mut self, _: impl Iterator<Item = (Program, usize)>) {}
-    fn command(&mut self, command: Command) {
-        for value in command.args.iter().filter(|v| v.nested()) {
+impl CharStringActions<'_> for ComplexBlends {
+    fn command(&mut self, _op: u16, args: &[Value], _mask: &[u8]) {
+        for value in args.iter().filter(|v| v.nested()) {
             self.0.insert(value.blend.as_ref().unwrap().ivs);
         }
     }
@@ -178,7 +173,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
     let mut chars = Vec::new();
     for gid in 0..source.font.num_glyphs() as usize {
         let fd = source.fd(read_fonts::types::GlyphId::new(gid as u32))?;
-        let mut rec = Recorder::default();
+        let mut rec = Flattener::default();
         let mut interp =
             Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, source.fds[fd].ivs, false);
         interp.run(
@@ -256,7 +251,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
             }
             encoding::emit_op(&mut raw, entry.op);
             let mut entry = entry.clone();
-            entry.raw = raw;
+            entry.raw = raw.into();
             entries.push(entry);
         }
         privates.push(entries);
@@ -330,7 +325,7 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
     let mut commands = Vec::new();
     for gid in 0..source.font.num_glyphs() as usize {
         let fd = source.fd(read_fonts::types::GlyphId::new(gid as u32))?;
-        let mut recorder = Recorder::default();
+        let mut recorder = Flattener::default();
         let mut interp =
             Interpreter::<Cff2, _, _>::new(&source, &mut recorder, fd, source.fds[fd].ivs, false);
         interp.run(
@@ -425,7 +420,7 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
                 if let Some(&new) = remap.get(&old) {
                     let mut e = entry.clone();
                     e.args = vec![new as f64];
-                    e.raw = dict::replacement(22, &[new])?;
+                    e.raw = dict::replacement(22, &[new])?.into();
                     private.push(e);
                 }
             } else {
