@@ -475,7 +475,9 @@ mod tests {
         }
         raw.push(23);
         raw.extend([140, 23, 10]);
-        let entry = dict::parse(&raw).unwrap().remove(0);
+        let entry = dict::parse_private(&raw, |ivs| source.region_count(ivs))
+            .unwrap()
+            .remove(0);
         let values = private_values(&entry, &source, 0).unwrap();
         assert_eq!(values.len(), 1);
         assert!(values[0].nested());
@@ -511,7 +513,14 @@ mod tests {
         )
         .unwrap();
         encoded.push(10);
-        let reread = private_values(&dict::parse(&encoded).unwrap().remove(0), &source, 0).unwrap();
+        let reread = private_values(
+            &dict::parse_private(&encoded, |ivs| source.region_count(ivs))
+                .unwrap()
+                .remove(0),
+            &source,
+            0,
+        )
+        .unwrap();
         assert_eq!(
             reread[0]
                 .resolve(&[vec![0.25, 1.]][..], &mut 200_000)
