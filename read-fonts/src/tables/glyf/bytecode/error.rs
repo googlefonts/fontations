@@ -150,6 +150,12 @@ impl core::fmt::Display for HintError {
 
 impl core::error::Error for HintError {}
 
+impl From<HintError> for crate::model::Error {
+    fn from(_: HintError) -> Self {
+        Self::InvalidOperation
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
