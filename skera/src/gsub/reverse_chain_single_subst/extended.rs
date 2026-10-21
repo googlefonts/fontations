@@ -1,7 +1,7 @@
 //! Subsetting the extended reverse-chain substitution format.
 
 use super::*;
-use crate::layout::intersected_glyphs_and_indices;
+use crate::layout::for_each_intersected_glyph_and_index;
 use read_fonts::{
     tables::gsub::ReverseChainSingleSubstFormat2,
     types::{GlyphId24, Offset32, Uint24},
@@ -22,12 +22,9 @@ impl SubsetTable<'_> for ReverseChainSingleSubstFormat2<'_> {
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let (glyphs, indices) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            &plan.glyph_map_gsub,
-            self.substitute_glyph_ids().len() as u32,
-        );
+        let glyph_set = &plan.glyphset_gsub;
+        let substitutes = self.substitute_glyph_ids();
+        let substitute_count = substitutes.len() as u32;
         s.embed(2u16)?;
         let coverage_pos = s.embed(0u32)?;
         s.embed(self.backtrack_glyph_count())?;
@@ -35,21 +32,33 @@ impl SubsetTable<'_> for ReverseChainSingleSubstFormat2<'_> {
         s.embed(self.lookahead_glyph_count())?;
         self.lookahead_coverages().subset(plan, s, ())?;
         let count_pos = s.embed(Uint24::new(0))?;
-        let substitutes = self.substitute_glyph_ids();
-        let mut retained_glyphs = Vec::with_capacity(glyphs.len());
-        for (&gid, index) in glyphs.iter().zip(indices.iter()) {
-            let Some(substitute) = substitutes.get(index as usize) else {
-                continue;
-            };
-            let Some(substitute) = map_gsub_glyph(&plan.glyph_map_gsub, substitute.get().into())
-            else {
-                continue;
-            };
-            let substitute = GlyphId24::checked_new(substitute.to_u32())
-                .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
-            s.embed(substitute)?;
-            retained_glyphs.push(gid);
-        }
+        let mut retained_glyphs = Vec::with_capacity(
+            coverage
+                .population()
+                .min(glyph_set.len() as usize)
+                .min(substitute_count as usize),
+        );
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            substitute_count,
+            |index, gid| {
+                let Some(substitute) = substitutes.get(index as usize) else {
+                    return Ok(());
+                };
+                let Some(substitute) =
+                    map_gsub_glyph(&plan.glyph_map_gsub, substitute.get().into())
+                else {
+                    return Ok(());
+                };
+                let substitute = GlyphId24::checked_new(substitute.to_u32())
+                    .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
+                s.embed(substitute)?;
+                retained_glyphs.push(gid);
+                Ok(())
+            },
+        )?;
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }

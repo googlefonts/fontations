@@ -12,7 +12,7 @@ mod value_record;
 
 use crate::FastHashMap;
 use crate::{
-    collect_features_with_retained_subs, find_duplicate_features,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -87,17 +87,16 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
-        let variations = self.feature_variations().and_then(Result::ok);
-        let mut duplicates = find_duplicate_features(
+        let variable_features = match self.feature_variations() {
+            Some(Ok(variations)) => collect_variable_feature_indices(&variations),
+            _ => IntSet::empty(),
+        };
+        find_duplicate_features(
             &feature_list,
             lookup_indices,
             feature_indices,
-            variations.as_ref(),
-        );
-        if let Some(variations) = variations.as_ref() {
-            crate::layout::protect_lookup_variation_features(variations, &mut duplicates);
-        }
-        duplicates
+            &variable_features,
+        )
     }
 
     fn prune_langsys(
