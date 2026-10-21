@@ -40,15 +40,13 @@ agl = []
 
 [dependencies]
 foldhash = { workspace = true, optional = true }
+smallvec = { workspace = true }
 font-types = { workspace = true, features = ["bytemuck"] }
 yoke = { workspace = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
-once_cell = { version = "1.21.4", default-features = false, features = [
-    "alloc",
-    "race",
-] }
+once_cell = { workspace = true }
 
 [dev-dependencies]
 read-fonts = { path = "." }
@@ -76,3 +74,12 @@ harness = false
 [[bench]]
 name = "type1"
 harness = false
+
+[[bench]]
+name = "charmap"
+harness = false
+
+[[bench]]
+name = "system_charmap"
+harness = false
+

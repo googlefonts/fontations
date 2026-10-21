@@ -6,7 +6,10 @@ mod extended_tests;
 use crate::FastHashMap;
 use crate::{
     gpos::mark_array::{collect_retained_mark_varidx_and_classes, get_mark_class_map},
-    layout::{for_each_intersected_coverage_index, intersected_glyphs_and_indices},
+    layout::{
+        for_each_intersected_coverage_index, for_each_intersected_glyph_and_index,
+        intersected_glyphs_and_indices,
+    },
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
@@ -164,21 +167,13 @@ macro_rules! subset_mark_base {
                     .base_array()
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-                let (base_glyphs, base_record_idxes) = intersected_glyphs_and_indices(
-                    &base_coverage,
-                    glyph_set,
-                    glyph_map,
-                    base_array.base_count(),
-                );
-                if base_glyphs.is_empty() {
-                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-                }
-
+                // Return non-empty base glyphs for serializing coverage table
+                // base glyphs might have no anchor points defined for retained class of mark glyphs
                 let base_glyphs = $offset::serialize_subset(
                     &base_array,
                     s,
                     plan,
-                    (&base_glyphs, &base_record_idxes, &mark_class_map),
+                    (&base_coverage, &mark_class_map),
                     base_array_offset_pos,
                 )?;
                 $offset::serialize_serialize::<CoverageTable>(s, &base_glyphs, base_cov_offset_pos)
@@ -192,7 +187,7 @@ subset_mark_base!(MarkBasePosFormat2, Offset32);
 macro_rules! subset_base_array {
     ($table:ident, $count:ident) => {
         impl<'a> SubsetTable<'a> for $table<'_> {
-            type ArgsForSubset = (&'a [GlyphId], &'a IntSet<u32>, &'a FastHashMap<u16, u16>);
+            type ArgsForSubset = (&'a CoverageTable<'a>, &'a FastHashMap<u16, u16>);
             type Output = Vec<GlyphId>;
             fn subset(
                 &self,
@@ -203,25 +198,39 @@ macro_rules! subset_base_array {
                 if self.min_table_bytes().is_empty() {
                     return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 }
-                let (base_glyphs, base_record_idxes, mark_class_map) = args;
-                let mut retained_base_glyphs = Vec::with_capacity(base_glyphs.len());
+                let (base_coverage, mark_class_map) = args;
+                let glyph_set = &plan.glyphset_gsub;
+                let base_count = self.base_count();
+                let mut retained_base_glyphs = Vec::with_capacity(
+                    base_coverage
+                        .population()
+                        .min(glyph_set.len() as usize)
+                        .min(u32::from(base_count) as usize),
+                );
                 // base count
                 let base_count_pos = s.allocate_size($count::RAW_BYTE_LEN, true)?;
 
                 let font_data = self.offset_data();
                 let base_records = self.base_records();
-                for (g, i) in base_glyphs.iter().zip(base_record_idxes.iter()) {
-                    let base_record = base_records
-                        .get(i as usize)
-                        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                for_each_intersected_glyph_and_index(
+                    base_coverage,
+                    glyph_set,
+                    &plan.glyph_map_gsub,
+                    base_count,
+                    |i, g| {
+                        let base_record = base_records.get(i as usize).map_err(|_| {
+                            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+                        })?;
 
-                    if !base_record
-                        .subset(plan, s, (mark_class_map, font_data))
-                        .is_empty()?
-                    {
-                        retained_base_glyphs.push(*g);
-                    }
-                }
+                        if !base_record
+                            .subset(plan, s, (mark_class_map, font_data))
+                            .is_empty()?
+                        {
+                            retained_base_glyphs.push(g);
+                        }
+                        Ok(())
+                    },
+                )?;
 
                 if retained_base_glyphs.is_empty() {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
