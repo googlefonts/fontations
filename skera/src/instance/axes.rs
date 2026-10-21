@@ -72,6 +72,7 @@ pub fn parse_axis_limits(input: &str) -> Result<Vec<AxisLimits>, SubsetError> {
 
 pub(crate) struct AxisPlan {
     pub coords: Vec<F2Dot14>,
+    pub metric_coords: Vec<F2Dot14>,
     pub pinned: Vec<bool>,
     pub values: Vec<(Tag, f32)>,
     pub normalized: Vec<Triple>,
@@ -81,6 +82,12 @@ pub(crate) struct AxisPlan {
 impl AxisPlan {
     pub fn new(font: &FontRef, limits: &[AxisLimits]) -> Result<Self, SubsetError> {
         let axes = font.axes();
+        if axes
+            .iter()
+            .any(|a| a.min_value() > a.default_value() || a.default_value() > a.max_value())
+        {
+            return Err(SubsetError::SubsetTableError(Tag::new(b"fvar")));
+        }
         let mut pinned = vec![false; axes.len()];
         let mut settings = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
@@ -111,11 +118,11 @@ impl AxisPlan {
                 AxisLimits::Range {
                     min, default, max, ..
                 } => {
-                    let default =
-                        default.unwrap_or(axis.default_value().clamp(min.min(max), max.max(min)));
-                    if !min.is_finite()
-                        || !max.is_finite()
-                        || !default.is_finite()
+                    if !min.is_finite() || !max.is_finite() || min > max {
+                        return Err(SubsetError::InvalidAxis(format!("invalid range for {tag}")));
+                    }
+                    let default = default.unwrap_or(axis.default_value().clamp(min, max));
+                    if !default.is_finite()
                         || min > default
                         || default > max
                         || min < axis.min_value()
@@ -133,7 +140,7 @@ impl AxisPlan {
             if !value.is_finite() {
                 return Err(SubsetError::InvalidAxis(format!("invalid value for {tag}")));
             }
-            settings.push((tag, value));
+            settings.push((tag, value.clamp(axis.min_value(), axis.max_value())));
             user[axis.index()] = match limit {
                 AxisLimits::Range { min, max, .. } => Triple(min as f64, value as f64, max as f64),
                 _ => {
@@ -147,7 +154,8 @@ impl AxisPlan {
                 "font has no variation axes".into(),
             ));
         }
-        let mut coords = axes.location(settings.iter().copied()).coords().to_vec();
+        let metric_coords = axes.location(settings.iter().copied()).coords().to_vec();
+        let mut coords = metric_coords.clone();
         let avar = font.avar().ok();
         if !pinned.iter().all(|p| *p)
             && avar
@@ -169,7 +177,7 @@ impl AxisPlan {
             let i = axis.index();
             let u = user[i];
             let map = |v: f64| {
-                let n = F2Dot14::from_f64(
+                let n = normalized_coord(
                     axis_to_normalized(
                         v,
                         axis.min_value() as f64,
@@ -181,7 +189,7 @@ impl AxisPlan {
                 maps.as_ref()
                     .and_then(|m| m.get(i))
                     .map_or(n.to_f64(), |m| {
-                        F2Dot14::from_f64(map_float(m, n.to_f64(), false)).to_f64()
+                        normalized_coord(map_float(m, n.to_f64(), false)).to_f64()
                     })
             };
             coords[i] = F2Dot14::from_f64(map(u.1));
@@ -221,6 +229,7 @@ impl AxisPlan {
         }
         Ok(Self {
             coords,
+            metric_coords,
             pinned,
             values: settings,
             normalized,
@@ -262,9 +271,12 @@ impl AxisPlan {
             .filter(|(i, _)| !self.pinned[*i])
             .map(|(i, a)| {
                 let mut a = a.clone();
-                a.min_value = Fixed::from_f64(self.user[i].0);
-                a.default_value = Fixed::from_f64(self.user[i].1);
-                a.max_value = Fixed::from_f64(self.user[i].2);
+                // Untouched fixed-point fields must not round-trip through f32.
+                if self.values.iter().any(|(tag, _)| *tag == a.axis_tag) {
+                    a.min_value = Fixed::from_f64(self.user[i].0);
+                    a.default_value = Fixed::from_f64(self.user[i].1);
+                    a.max_value = Fixed::from_f64(self.user[i].2);
+                }
                 a
             })
             .collect();
@@ -359,8 +371,11 @@ impl AxisPlan {
         Ok(())
     }
 }
-fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
-    if v == def {
+pub(super) fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
+    // HarfBuzz normalizes the user value in float before rounding to 2.14.
+    // Double intermediates can land on the other side of a half-unit tie.
+    let (v, min, def, max) = (v as f32, min as f32, def as f32, max as f32);
+    let normalized = if v == def {
         0.
     } else if v < def {
         if min == def {
@@ -372,7 +387,12 @@ fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
         1.
     } else {
         (v - def) / (max - def)
-    }
+    };
+    normalized as f64
+}
+
+pub(super) fn normalized_coord(value: f64) -> F2Dot14 {
+    F2Dot14::from_bits(((value * 16384. + 0.5).floor().clamp(-32768., 32767.)) as i16)
 }
 
 // HarfBuzz reconstructs the pre-avar interval from the quantized mapped
