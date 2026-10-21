@@ -648,7 +648,7 @@ mod tests {
         s.pop_pack(false).unwrap();
         s.end_serialize();
         assert!(!s.in_error());
-        let mut graph = Graph::from_serializer(&s).unwrap();
+        let mut graph = Graph::from_serializer(s).unwrap();
         let root = graph.root_idx();
         assert!(split_ligature_subst(&mut graph, root).unwrap().is_empty());
     }

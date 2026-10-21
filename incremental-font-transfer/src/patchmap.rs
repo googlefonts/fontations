@@ -369,10 +369,7 @@ impl IftTable {
         let url_template = map.url_template();
         let entries_data = map.entries()?.entry_data();
         let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
-
-        let entry_count = map.entry_count().to_u32();
         let mut entries_data = FontData::new(entries_data);
-
         let mut entry_start_byte = map.entries_offset().to_u32() as usize;
 
         let mut id_string_data = map
@@ -387,7 +384,12 @@ impl IftTable {
             PatchId::String(vec![])
         };
 
-        let mut entries = Vec::<Entry>::with_capacity(entry_count as usize);
+        let entry_count = map.entry_count().to_u32();
+        // Reserve the space required for most fonts. However, we cap at 100_00 to prevent a
+        // malicious font from reserving u24::MAX entries (~3.625GiB) and limit it to at most
+        // ~22MiB. 100,000 is more entries than a normal IFT font would need.
+        let entries_cap = (entry_count as usize).min(100_000);
+        let mut entries = Vec::<Entry>::with_capacity(entries_cap);
         for _ in 0..entry_count {
             let consumed_bytes;
             (entries_data, consumed_bytes) = EntryDecoder {

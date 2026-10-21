@@ -3,19 +3,19 @@
 use super::{
     super::{Point, PointFlags},
     scale::Scale,
-    OutlineError,
 };
 use crate::mem::take_slice;
+use crate::model::Error;
 use bytemuck::{AnyBitPattern, NoUninit};
 
 /// Scratch space for [`OutlinePlan::load`](super::OutlinePlan::load).
 ///
 /// Every buffer comes from the caller. Size them with
 /// [`OutlinePlan::buffer_lengths`](super::OutlinePlan::buffer_lengths); a buffer
-/// shorter than that is reported as [`OutlineError::InsufficientMemory`], not
+/// shorter than that is reported as [`Error::InsufficientMemory`], not
 /// overrun.
 ///
-/// [`OutlineError::InsufficientMemory`]: super::OutlineError::InsufficientMemory
+/// [`Error::InsufficientMemory`]: crate::model::Error::InsufficientMemory
 pub struct Buffers<'a, S: Scale> {
     /// Receives the loaded points.
     pub points: &'a mut [Point<S::Coord>],
@@ -113,7 +113,7 @@ impl<'a, S: Scale> Buffers<'a, S> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn from_bytes(bytes: &'a mut [u8], lengths: &BufferLengths) -> Result<Self, OutlineError> {
+    pub fn from_bytes(bytes: &'a mut [u8], lengths: &BufferLengths) -> Result<Self, Error> {
         // Descending alignment, so only the first allocation can need padding.
         let (points, bytes) = take(bytes, lengths.points)?;
         let (unscaled, bytes) = take(bytes, lengths.unscaled)?;
@@ -136,11 +136,11 @@ impl<'a, S: Scale> Buffers<'a, S> {
 
 /// Takes a `len` element slice of `T` off the front of `bytes`, in the terms
 /// an outline reports.
-fn take<T>(bytes: &mut [u8], len: u32) -> Result<(&mut [T], &mut [u8]), OutlineError>
+fn take<T>(bytes: &mut [u8], len: u32) -> Result<(&mut [T], &mut [u8]), Error>
 where
     T: AnyBitPattern + NoUninit,
 {
-    take_slice(bytes, len as usize).ok_or(OutlineError::InsufficientMemory)
+    take_slice(bytes, len as usize).ok_or(Error::InsufficientMemory)
 }
 
 #[cfg(test)]
@@ -204,7 +204,7 @@ mod tests {
         let mut short = vec![0u8; size - core::mem::align_of::<Point<F26Dot6>>() - 1];
         assert_eq!(
             Buffers::<Scale26Dot6>::from_bytes(&mut short, &lengths).err(),
-            Some(OutlineError::InsufficientMemory)
+            Some(Error::InsufficientMemory)
         );
     }
 
