@@ -855,7 +855,7 @@ impl<'a> ClassDefFormat2<'a> {
         } else {
             let mut glyph = GlyphId::from(first_record.end_glyph_id());
             for record in range_records.iter().skip(1) {
-                let Some(g) = glyphs.iter_after(glyph).next() else {
+                let Some(g) = glyphs.next_after(glyph) else {
                     break;
                 };
 
@@ -865,7 +865,7 @@ impl<'a> ClassDefFormat2<'a> {
                 }
                 glyph = GlyphId::from(record.end_glyph_id());
             }
-            if glyphs.iter_after(glyph).next().is_some() {
+            if glyphs.next_after(glyph).is_some() {
                 out.insert(0);
             }
         }

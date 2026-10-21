@@ -123,6 +123,33 @@ impl BitPage {
         }
     }
 
+    /// Returns the smallest member of this page that is `>= (value % page width)`, if any.
+    pub(crate) fn first_from(&self, value: u32) -> Option<u32> {
+        self.first_set_bit_from(value, |elem| elem)
+    }
+
+    /// Returns the smallest value `>= (value % page width)` that is not a member of this page,
+    /// if any.
+    pub(crate) fn first_absent_from(&self, value: u32) -> Option<u32> {
+        self.first_set_bit_from(value, |elem| !elem)
+    }
+
+    /// Returns the index of the first set bit at or after `(value % page width)` in the
+    /// elements of this page transformed by `bits`.
+    fn first_set_bit_from(&self, value: u32, bits: impl Fn(Element) -> Element) -> Option<u32> {
+        let start_index = Self::element_index(value);
+        // Clears the bits below `value` in its element.
+        let mut mask = Element::MAX << (value & ELEM_MASK);
+        for (i, elem) in self.storage[start_index..].iter().enumerate() {
+            let masked = bits(*elem) & mask;
+            if masked != 0 {
+                return Some((start_index + i) as u32 * ELEM_BITS + masked.trailing_zeros());
+            }
+            mask = Element::MAX;
+        }
+        None
+    }
+
     /// Marks `(val % page width)` a member of this set and returns `true` if it is newly added.
     #[inline(always)]
     pub(crate) fn insert(&mut self, val: u32) -> bool {
@@ -440,6 +467,57 @@ mod test {
 
         assert_eq!(Iter::new(Element::MAX).max(), Some(ELEM_BITS - 1));
         assert_eq!(Iter::new(Element::MAX).min(), Some(0));
+    }
+
+    #[test]
+    fn first_from() {
+        let page = BitPage::new_zeroes();
+        assert_eq!(page.first_from(0), None);
+        assert_eq!(page.first_from(511), None);
+
+        let page: BitPage = [3, 63, 64, 200, 511].into_iter().collect();
+        assert_eq!(page.first_from(0), Some(3));
+        assert_eq!(page.first_from(3), Some(3));
+        assert_eq!(page.first_from(4), Some(63));
+        assert_eq!(page.first_from(63), Some(63));
+        assert_eq!(page.first_from(64), Some(64));
+        assert_eq!(page.first_from(65), Some(200));
+        assert_eq!(page.first_from(201), Some(511));
+        assert_eq!(page.first_from(511), Some(511));
+        // values are taken modulo the page width
+        assert_eq!(page.first_from(512 + 4), Some(63));
+
+        let page = BitPage::new_ones();
+        for value in 0..PAGE_BITS {
+            assert_eq!(page.first_from(value), Some(value));
+        }
+    }
+
+    #[test]
+    fn first_absent_from() {
+        let page = BitPage::new_ones();
+        assert_eq!(page.first_absent_from(0), None);
+        assert_eq!(page.first_absent_from(511), None);
+
+        let mut page = BitPage::new_ones();
+        for v in [3, 63, 64, 200, 511] {
+            page.remove(v);
+        }
+        assert_eq!(page.first_absent_from(0), Some(3));
+        assert_eq!(page.first_absent_from(3), Some(3));
+        assert_eq!(page.first_absent_from(4), Some(63));
+        assert_eq!(page.first_absent_from(63), Some(63));
+        assert_eq!(page.first_absent_from(64), Some(64));
+        assert_eq!(page.first_absent_from(65), Some(200));
+        assert_eq!(page.first_absent_from(201), Some(511));
+        assert_eq!(page.first_absent_from(511), Some(511));
+        // values are taken modulo the page width
+        assert_eq!(page.first_absent_from(512 + 4), Some(63));
+
+        let page = BitPage::new_zeroes();
+        for value in 0..PAGE_BITS {
+            assert_eq!(page.first_absent_from(value), Some(value));
+        }
     }
 
     #[test]
