@@ -50,17 +50,21 @@ mod ctx {
         pub(super) glyphs: &'a mut IntSet<GlyphId>,
         pub(super) active_glyphs_stack: Vec<IntSet<GlyphId>>,
         pub(super) output: IntSet<GlyphId>,
+        /// If set, glyph ids at or past this are not in the font and are dropped
+        /// from the output when it is flushed.
+        num_glyphs: Option<u32>,
         lookup_count: u16,
         nesting_level_left: usize,
         done_lookups_glyphs: HashMap<u16, (u64, IntSet<GlyphId>)>,
     }
 
     impl<'a> ClosureCtx<'a> {
-        pub(super) fn new(glyphs: &'a mut IntSet<GlyphId>) -> Self {
+        pub(super) fn new(glyphs: &'a mut IntSet<GlyphId>, num_glyphs: Option<u32>) -> Self {
             Self {
                 glyphs,
                 active_glyphs_stack: Vec::new(),
                 output: IntSet::empty(),
+                num_glyphs,
                 lookup_count: 0,
                 nesting_level_left: MAX_RECURSION_DEPTH,
                 done_lookups_glyphs: Default::default(),
@@ -167,6 +171,13 @@ mod ctx {
         }
 
         pub(super) fn flush(&mut self) {
+            // Drop glyphs that are not in the font before they join the closure,
+            // so that they can't make other lookups reachable.
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-gsubgpos.hh#L190-L197>
+            if let Some(num_glyphs) = self.num_glyphs {
+                self.output
+                    .remove_range(GlyphId::new(num_glyphs)..=GlyphId::new(u32::MAX));
+            }
             self.glyphs.union(&self.output);
             self.output.clear();
             self.active_glyphs_stack.clear();
@@ -195,10 +206,37 @@ const CLOSURE_MAX_STAGES: u8 = 12;
 impl Gsub<'_> {
     /// Return the set of glyphs reachable from the input set via any substitution.
     /// ref: <https://github.com/harfbuzz/harfbuzz/blob/8d517f7e43f648cb804c46c47ae8009330fe4a47/src/hb-ot-layout.cc#L1616>
+    ///
+    /// Every glyph id produced by a substitution is added, even if it is not a
+    /// glyph in the font. Use [`Self::closure_glyphs_with_num_glyphs`] to drop
+    /// those, as harfbuzz does.
     pub fn closure_glyphs(
         &self,
         lookups: &IntSet<u16>,
         glyphs: &mut IntSet<GlyphId>,
+    ) -> Result<(), ReadError> {
+        self.closure_glyphs_impl(lookups, glyphs, None)
+    }
+
+    /// Like [`Self::closure_glyphs`], but for a font with `num_glyphs` glyphs.
+    ///
+    /// Glyph ids at or past `num_glyphs` produced by a substitution are dropped
+    /// before they join the closure, so they are never added to `glyphs` and
+    /// can't make other lookups reachable. This matches harfbuzz.
+    pub fn closure_glyphs_with_num_glyphs(
+        &self,
+        lookups: &IntSet<u16>,
+        glyphs: &mut IntSet<GlyphId>,
+        num_glyphs: u32,
+    ) -> Result<(), ReadError> {
+        self.closure_glyphs_impl(lookups, glyphs, Some(num_glyphs))
+    }
+
+    fn closure_glyphs_impl(
+        &self,
+        lookups: &IntSet<u16>,
+        glyphs: &mut IntSet<GlyphId>,
+        num_glyphs: Option<u32>,
     ) -> Result<(), ReadError> {
         if self.selected_lookup_list_offset()?.is_null() {
             return Ok(());
@@ -207,7 +245,7 @@ impl Gsub<'_> {
         let num_lookups = lookup_list.lookup_count();
         let lookup_offsets = lookup_list.lookups();
 
-        let mut ctx = ClosureCtx::new(glyphs);
+        let mut ctx = ClosureCtx::new(glyphs, num_glyphs);
         let mut iteration_count = 0;
         let mut glyphs_length;
         loop {
@@ -1444,6 +1482,21 @@ mod tests {
         let glyph_map = GlyphMap::new(test_data::RECURSIVE_GLYPHS);
         let result = compute_closure(&gsub, &glyph_map, &["a"]);
         assert_closure_result!(glyph_map, result, &["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn closure_drops_glyphs_outside_the_font() {
+        // Lookups map a -> b, b -> c and c -> d. With only 'a' and 'b' in the
+        // font, 'c' must be dropped when the closure is flushed, so it can't
+        // make c -> d reachable either.
+        let gsub = get_gsub(test_data::RECURSIVE);
+        let glyph_map = GlyphMap::new(test_data::RECURSIVE_GLYPHS);
+        let lookups = gsub.collect_lookups(&IntSet::all()).unwrap();
+        let mut glyphs: IntSet<GlyphId> = [glyph_map.get_gid("a").unwrap()].into_iter().collect();
+        let num_glyphs = glyph_map.get_gid("c").unwrap().to_u32();
+        gsub.closure_glyphs_with_num_glyphs(&lookups, &mut glyphs, num_glyphs)
+            .unwrap();
+        assert_closure_result!(glyph_map, glyphs, &["a", "b"]);
     }
 
     #[test]
