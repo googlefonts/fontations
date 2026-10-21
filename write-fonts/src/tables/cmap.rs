@@ -96,7 +96,7 @@ impl CmapSubtable {
         {
             return Err(Format4Error::GlyphIdOverflow { ch: *ch, gid: *gid });
         }
-        let segments = Format4SegmentComputer::new(mappings).compute();
+        let segments = compute_format4_segments(mappings);
         if segments.is_empty() {
             return Err(Format4Error::NoBmpMappings);
         }
@@ -328,22 +328,12 @@ impl Cmap {
     }
 }
 
-// a helper for computing efficient segments for cmap format 4
-struct Format4SegmentComputer<'a> {
-    mappings: &'a [(char, GlyphId)],
-    /// The start index of the current segment, during iteration
-    seg_start: usize,
-    /// tracks whether the current segment has ordered gids
-    gids_in_order: bool,
-}
-
+// a segment of a format 4 subtable
 #[derive(Clone, Copy, Debug)]
 struct Format4Segment {
     // indices are into the source mappings
     start_ix: usize,
     end_ix: usize,
-    start_char: char,
-    end_char: char,
     id_delta: Option<i32>,
 }
 
@@ -351,246 +341,103 @@ impl Format4Segment {
     fn len(&self) -> usize {
         self.end_ix - self.start_ix + 1
     }
-
-    // cost in bytes of this segment.
-    fn cost(&self) -> usize {
-        // a segment always costs 4 u16s (end, start, delta_id, id_range_offset)
-        const BASE_COST: usize = 4 * u16::RAW_BYTE_LEN;
-
-        if self.id_delta.is_some() {
-            BASE_COST
-        } else {
-            // and if there is not a common id_delta, we also need to add an item
-            // to the glyph_id_array for each char in the segment
-            BASE_COST + self.len() * u16::RAW_BYTE_LEN
-        }
-    }
-
-    /// `true` if we can merge other into self (other must follow self)
-    fn can_combine(&self, next: &Self) -> bool {
-        self.end_char as u32 + 1 == next.start_char as u32
-    }
-
-    /// Return `true` if we should combine this segment with the previous one.
-    ///
-    /// The case that matters here is when there is a segment with contiguous
-    /// GIDs and with a char range that is immediately adjacent to the previous
-    /// segment.
-    fn should_combine(&self, prev: &Self, next: Option<&Self>) -> bool {
-        if !prev.can_combine(self) {
-            return false;
-        }
-
-        // first we just consider the previous item. If our combined cost
-        // is lower than our separate cost, we will merge.
-        let combined_cost = prev.combine(self).cost();
-        let separate_cost = prev.cost() + self.cost();
-
-        if combined_cost < separate_cost {
-            return true;
-        }
-
-        // finally, if we are also char-contiguous with the next segment,
-        // then by construction it means if we merge now we will also merge
-        // with the next segment (since this current gid-contiguous segment
-        // is the reason we aren't all one big segment already) and so we need
-        // to also check that.
-        //
-        // Although the implementation is different, the logic is very similar in
-        // fonttools: https://github.com/fonttools/fonttools/blob/081d6a27ab8/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L828
-        //
-        // As an example, consider a segment with 5 contiguous gids.
-        //
-        // This segment costs 8 bytes to encode; because the gids are contiguous
-        // we can use the `id_delta` field to represent them all.
-        //
-        // As an example, consider the following three segments:
-        //
-        // chrs [1 2] [3 4 5 6 7] [8 9]
-        // GIDs [3 1] [4 5 6 7 8] [2 9]
-        // cost   12       8       12
-        //
-        // the first and last segments each have len == 2. The GIDs are not
-        // contiguous, so they have to be encoded individually, which costs
-        // 2 bytes each. This means the total cost of these segments is 12:
-        // 8-bytes for the segment data, and 4 bytes for the gids.
-        //
-        // The middle segment has len == 5, but the GIDs are contiguous. This
-        // means that we can represent all the gids using the delta_id part of
-        // the segment, and encode the whole segment for 8 bytes.
-        //
-        // If we combine the first two segments, the new segment costs 22:
-        // 8 bytes for the segment, and 14 bytes for the 7 glyphs. This is
-        // more than the 20 bytes they cost separately.
-        //
-        // If we combine all three, though, the total cost is 26 (we add two
-        // more entries to the glyph_id array), which is better than the 32 bytes
-        // they cost separately.
-        //
-        // (note that we don't need to explicitly combine the next segment;
-        // it will happen automatically during the next loop)
-        if let Some(next) = next.filter(|next| self.can_combine(next)) {
-            let combined_cost = prev.combine(self).combine(next).cost();
-            let separate_cost = separate_cost + next.cost();
-            return combined_cost < separate_cost;
-        }
-
-        false
-    }
-
-    /// Combine this segment with one that immediately follows it.
-    ///
-    /// The caller must ensure that the two segments are contiguous.
-    fn combine(&self, next: &Format4Segment) -> Format4Segment {
-        assert_eq!(next.start_ix, self.end_ix + 1,);
-        Format4Segment {
-            start_ix: self.start_ix,
-            start_char: self.start_char,
-            end_char: next.end_char,
-            end_ix: next.end_ix,
-            id_delta: None,
-        }
-    }
 }
 
-impl<'a> Format4SegmentComputer<'a> {
-    fn new(mappings: &'a [(char, GlyphId)]) -> Self {
-        // ignore chars above BMP:
-        let mappings = mappings
-            .iter()
-            .position(|(c, _)| u16::try_from(*c as u32).is_err())
-            .map(|bad_idx| &mappings[..bad_idx])
-            .unwrap_or(mappings);
-        Self {
-            mappings,
-            seg_start: 0,
-            gids_in_order: false,
-        }
+/// Compute the segments for a format 4 subtable, using as few bytes as possible.
+///
+/// A segment maps a contiguous range of chars. It costs 8 bytes (end code,
+/// start code, idDelta and idRangeOffset), and if its glyph ids aren't also
+/// contiguous, it needs a glyphIdArray entry for each char, at 2 bytes each.
+///
+/// We split the mappings into runs of contiguous chars, then find the
+/// cheapest segments for each run with [`push_cheapest_segments`]. So
+/// segments never span a gap in the chars. A glyphIdArray segment could, by
+/// mapping the missing chars to glyph 0, but we don't try that.
+///
+/// Chars above the BMP are ignored.
+fn compute_format4_segments(mappings: &[(char, GlyphId)]) -> Vec<Format4Segment> {
+    // ignore chars above BMP:
+    let mappings = mappings
+        .iter()
+        .position(|(c, _)| u16::try_from(*c as u32).is_err())
+        .map(|bad_idx| &mappings[..bad_idx])
+        .unwrap_or(mappings);
+    let mut segments = Vec::new();
+    let mut run_start = 0;
+    for run in mappings.chunk_by(|(c1, _), (c2, _)| *c1 as u32 + 1 == *c2 as u32) {
+        push_cheapest_segments(run, run_start, &mut segments);
+        run_start += run.len();
     }
+    segments
+}
 
-    /// a convenience method called from our iter in the various cases where
-    /// we emit a segment.
-    ///
-    /// a 'seg_len' of 0 means start == end, e.g. a segment of one glyph.
-    fn make_segment(&mut self, seg_len: usize) -> Format4Segment {
-        // if start == end, we should always use a delta.
-        let use_delta = self.gids_in_order || seg_len == 0;
-        let start_ix = self.seg_start;
-        let end_ix = self.seg_start + seg_len;
-        let start_char = self.mappings[start_ix].0;
-        let end_char = self.mappings[end_ix].0;
-        let result = Format4Segment {
-            start_ix,
-            end_ix,
-            start_char,
-            end_char,
-            id_delta: self
-                .mappings
-                .get(self.seg_start)
-                .map(|(cp, gid)| gid.to_u32() as i32 - *cp as u32 as i32)
-                .filter(|_| use_delta),
+/// Append the cheapest segments for `run`, whose chars are contiguous.
+///
+/// `offset` is the index of the start of `run` in the full list of mappings.
+///
+/// Let `best[k]` be the cost of the cheapest segments for `run[..k]`. The
+/// last of those segments covers `run[j..k]` for some `j`, so `best[k]` is
+/// the minimum over `j` of `best[j]` plus the cost of that segment. Trying
+/// every `j` would be quadratic, but two observations make it linear:
+///
+/// - `best` never decreases, since dropping the last mapping from a set of
+///   segments never makes them more expensive. So the cheapest idDelta
+///   segment ending at `k` is the longest one, which starts where the
+///   current run of contiguous glyph ids does.
+/// - A glyphIdArray segment costs 2 bytes per mapping wherever it starts,
+///   so the cheapest one ending at `k` starts at the `j` with the lowest
+///   `best[j] - 2 * j`. We track that as we go.
+fn push_cheapest_segments(
+    run: &[(char, GlyphId)],
+    offset: usize,
+    segments: &mut Vec<Format4Segment>,
+) {
+    // a segment always costs 4 u16s (end, start, id_delta, id_range_offset)
+    const SEGMENT_COST: usize = 4 * u16::RAW_BYTE_LEN;
+    // and a glyphIdArray segment also costs a u16 for each char
+    const GLYPH_ID_COST: usize = u16::RAW_BYTE_LEN;
+
+    // best[k] is the cost of the cheapest segments for run[..k]
+    let mut best = vec![0; run.len() + 1];
+    // the start of the last of those segments, and whether it uses idDelta
+    let mut last_segment = vec![(0, false); run.len() + 1];
+    // the start of the current run of contiguous glyph ids
+    let mut delta_start = 0;
+    // the start of the cheapest glyphIdArray segment ending at k
+    let mut array_start = 0;
+    for k in 1..=run.len() {
+        if k > 1 && run[k - 2].1.to_u32() + 1 != run[k - 1].1.to_u32() {
+            delta_start = k - 1;
+        }
+        let delta_cost = best[delta_start] + SEGMENT_COST;
+        let array_cost = best[array_start] + SEGMENT_COST + (k - array_start) * GLYPH_ID_COST;
+        // on a tie, prefer idDelta
+        (best[k], last_segment[k]) = if delta_cost <= array_cost {
+            (delta_cost, (delta_start, true))
+        } else {
+            (array_cost, (array_start, false))
         };
-        self.seg_start += seg_len + 1;
-        self.gids_in_order = false;
-        result
+        // best[k] - 2 * k < best[array_start] - 2 * array_start, without
+        // going negative
+        if best[k] < best[array_start] + (k - array_start) * GLYPH_ID_COST {
+            array_start = k;
+        }
     }
 
-    /// Find the next possible segment.
-    ///
-    /// A segment _must_ be a contiguous range of chars, but we where such a range
-    /// contains subranges that are also contiguous ranges of glyph ids, we will
-    /// split those subranges into separate segments.
-    fn next_possible_segment(&mut self) -> Option<Format4Segment> {
-        if self.seg_start == self.mappings.len() {
-            return None;
-        }
-
-        let Some(((mut prev_cp, mut prev_gid), rest)) =
-            self.mappings[self.seg_start..].split_first()
-        else {
-            // if this is the last element, make a final segment
-            return Some(self.make_segment(0));
-        };
-
-        for (i, (cp, gid)) in rest.iter().enumerate() {
-            // first: all segments must be a contiguous range of codepoints
-            if *cp as u32 != prev_cp as u32 + 1 {
-                return Some(self.make_segment(i));
-            }
-            let next_gid_is_in_order = prev_gid.to_u32() + 1 == gid.to_u32();
-            if !next_gid_is_in_order {
-                // next: if prev gids were ordered but this one isn't, end prev segment
-                if self.gids_in_order {
-                    return Some(self.make_segment(i));
-                }
-            // and the funny case:
-            // if gids were not previously ordered but are now:
-            // - if i == 0, then this is the first item in a new segment;
-            //   set gids_in_order and continue
-            // - if i > 0, we need to back up one
-            } else if !self.gids_in_order {
-                if i == 0 {
-                    self.gids_in_order = true;
-                } else {
-                    return Some(self.make_segment(i - 1));
-                }
-            }
-            prev_cp = *cp;
-            prev_gid = *gid;
-        }
-
-        // if we're done looping then create the last segment:
-        let last_idx = self.mappings.len() - 1;
-        Some(self.make_segment(last_idx - self.seg_start))
+    // walk back from the end of the run to recover the segments
+    let first_new = segments.len();
+    let mut end = run.len();
+    while end > 0 {
+        let (start, use_delta) = last_segment[end];
+        let (ch, gid) = run[start];
+        segments.push(Format4Segment {
+            start_ix: offset + start,
+            end_ix: offset + end - 1,
+            id_delta: use_delta.then(|| gid.to_u32() as i32 - ch as u32 as i32),
+        });
+        end = start;
     }
-
-    /// Compute an efficient set of segments.
-    ///
-    /// - A segment is a contiguous range of chars.
-    /// - If all the chars in a segment share a common delta to their glyph ids,
-    ///   we can encode them much more efficiently
-    /// - it's possible for a contiguous range of chars to contain a subrange
-    ///   that share a common delta, where the overall range does not, e.g.
-    ///
-    ///   ```text
-    ///   [a b c d e f g]
-    ///   [9 3 6 7 8 2 1]
-    ///   ```
-    ///   (here a-g is a range containing the subrange c-e, which have a common
-    ///   delta.)
-    ///
-    /// This leads us to a reasonably intuitive algorithm: we start by greedily
-    /// splitting ranges up so we can consider all subranges with common deltas;
-    /// then we look at these one at a time, and combine them back together if
-    /// doing so saves space.
-    ///
-    /// This differs from the python, which starts from larger segments and then
-    /// subdivides them, but the overall idea is the same.
-    ///
-    /// <https://github.com/fonttools/fonttools/blob/f1d3e116d54f/Lib/fontTools/ttLib/tables/_c_m_a_p.py#L783>
-    fn compute(mut self) -> Vec<Format4Segment> {
-        let Some(first) = self.next_possible_segment() else {
-            return Default::default();
-        };
-
-        let mut result = vec![first];
-
-        // now we want to collect the segments, combining smaller segments where
-        // that leads to a size savings.
-        let mut next = self.next_possible_segment();
-
-        while let Some(current) = next.take() {
-            next = self.next_possible_segment();
-            let prev = result.last_mut().unwrap();
-            if current.should_combine(prev, next.as_ref()) {
-                *prev = prev.combine(&current);
-                continue;
-            }
-
-            result.push(current);
-        }
-        result
-    }
+    segments[first_new..].reverse();
 }
 
 impl Cmap4 {
@@ -1084,8 +931,7 @@ mod tests {
         // compute the segments for the mapping
         fn compute(&mut self) -> Vec<RangeInclusive<char>> {
             self.mappings.sort();
-            super::Format4SegmentComputer::new(&self.mappings)
-                .compute()
+            super::compute_format4_segments(&self.mappings)
                 .into_iter()
                 .map(|seg| self.mappings[seg.start_ix].0..=self.mappings[seg.end_ix].0)
                 .collect()
@@ -1226,6 +1072,104 @@ mod tests {
 
         let format4 = expect_f4(&mapping);
         assert_eq!(format4.end_code.len(), 4);
+    }
+
+    #[test]
+    // ASCII from Adamina. In 0x3A..=0x7E the longest run of contiguous glyph
+    // ids is 5, which costs more to split out than it saves. Merging any two
+    // neighbouring segments doesn't help either, so a greedy merge (which we
+    // used to do) leaves 9 segments where one is cheapest.
+    fn f4_segments_adamina() {
+        #[rustfmt::skip]
+        let gids = [
+            // space to slash
+            175, 144, 150, 146, 180, 196, 198, 151, 159, 160, 138, 185, 143, 163, 147, 153,
+            // digits
+            120, 121, 122, 123, 124, 125, 126, 127, 128, 129,
+            // colon to at
+            142, 152, 191, 189, 190, 148, 197,
+            // A to Z
+            1, 9, 10, 12, 14, 19, 20, 21, 22, 27, 28, 29, 30, 31, 33, 41, 43, 44, 45, 46, 47,
+            52, 53, 54, 55, 57,
+            // left bracket to grave
+            157, 139, 158, 206, 154, 212,
+            // a to z
+            58, 66, 67, 69, 71, 76, 77, 78, 79, 85, 86, 87, 88, 89, 91, 99, 101, 102, 103, 105,
+            106, 111, 112, 113, 114, 117,
+            // left brace to tilde
+            155, 204, 156, 193,
+        ];
+        let mappings = ('\x20'..='\x7e').zip(gids.map(GlyphId::new)).collect();
+        let mut mapping = MappingBuilder {
+            mappings,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            mapping.compute(),
+            ['\x20'..='\x2f', '\x30'..='\x39', '\x3a'..='\x7e']
+        );
+    }
+
+    /// The cost of the cheapest segments for `mappings`, trying every split.
+    ///
+    /// This excludes the header and the final segment.
+    fn cheapest_segments_cost(mappings: &[(char, GlyphId)]) -> usize {
+        mappings
+            .chunk_by(|(c1, _), (c2, _)| *c1 as u32 + 1 == *c2 as u32)
+            .map(|run| {
+                // best[k] is the cost of the cheapest segments for run[..k]
+                let mut best = vec![0; run.len() + 1];
+                for end in 1..=run.len() {
+                    let cheapest = (0..end)
+                        .map(|start| {
+                            let segment = &run[start..end];
+                            let use_delta = segment
+                                .windows(2)
+                                .all(|pair| pair[0].1.to_u32() + 1 == pair[1].1.to_u32());
+                            let glyph_ids_cost = if use_delta { 0 } else { 2 * segment.len() };
+                            best[start] + 8 + glyph_ids_cost
+                        })
+                        .min()
+                        .unwrap();
+                    best[end] = cheapest;
+                }
+                best[run.len()]
+            })
+            .sum()
+    }
+
+    #[test]
+    fn f4_segments_are_cheapest() {
+        use rand::{rngs::StdRng, RngExt, SeedableRng};
+
+        // the header and the final segment
+        const FIXED_COST: usize = 16 + 8;
+
+        let mut rng = StdRng::seed_from_u64(4);
+        for _ in 0..500 {
+            // how often each glyph id follows on from the previous one
+            let p_contiguous = rng.random_range(0.0..1.0);
+            let mut mappings = Vec::new();
+            let (mut ch, mut gid) = (0x20, 1);
+            for _ in 0..rng.random_range(1..40) {
+                mappings.push((char::from_u32(ch).unwrap(), GlyphId::new(gid)));
+                ch += if rng.random_bool(0.05) { 2 } else { 1 };
+                gid = if rng.random_bool(p_contiguous) {
+                    gid + 1
+                } else {
+                    rng.random_range(1..100)
+                };
+            }
+
+            let format4 = expect_f4(&mappings);
+            assert_eq!(get_read_mapping(&format4), mappings);
+            assert_eq!(
+                dump_table(&format4).unwrap().len(),
+                FIXED_COST + cheapest_segments_cost(&mappings),
+                "{mappings:?}"
+            );
+        }
     }
 
     // test that we correctly encode array lengths exceeding u16::MAX
