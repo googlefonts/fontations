@@ -3,7 +3,7 @@
 use core::fmt;
 use read_fonts::types::GlyphId;
 
-pub use read_fonts::ps::error::Error as CffError;
+pub use read_fonts::model::Error as CffError;
 
 pub use super::glyf::HintError;
 
@@ -36,6 +36,25 @@ pub enum DrawError {
     /// HarfBuzz style drawing with hints is not supported
     // Error rather than silently returning unhinted per f2f discussion.
     HarfBuzzHintingUnsupported,
+}
+
+impl DrawError {
+    /// Converts an error from loading `glyph` through read-fonts.
+    ///
+    /// read-fonts errors do not include the glyph, since the caller already
+    /// has it. This adds the glyph to the error.
+    pub(crate) fn from_outline_error(error: read_fonts::model::Error, glyph: GlyphId) -> Self {
+        use read_fonts::model::Error;
+        match error {
+            Error::MissingResource => Self::GlyphNotFound(glyph),
+            Error::LimitExceeded => Self::RecursionLimitExceeded(glyph),
+            Error::InsufficientMemory => Self::InsufficientMemory,
+            // Only a charstring fails this way; a TrueType hinter reports its
+            // own error.
+            Error::InvalidOperation => Self::PostScript(error),
+            _ => Self::Malformed,
+        }
+    }
 }
 
 impl From<HintError> for DrawError {
