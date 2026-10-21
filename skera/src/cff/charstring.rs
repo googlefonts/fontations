@@ -1,7 +1,8 @@
-//! A Type 2 interpreter parameterized by its source, format, and actions.
+//! Type 2 interpretation with separate closure, retained, and flattened actions.
 //!
-//! Operand provenance lets hint removal follow values across subroutine calls.
-//! The flattened command stream retains operators and symbolic CFF2 blends.
+//! Retained programs borrow source bytes and record only edits. Literal spans
+//! are sufficient for the common case. Retained calls require immediate literals;
+//! hint operands crossing program boundaries flatten only the affected glyph.
 
 use super::{
     encoding,
@@ -17,13 +18,14 @@ pub(super) enum Program {
     Local(usize, usize),
     Global(usize, usize),
 }
-type Origin = (Program, usize);
+type Origin = (Program, usize, usize);
 
 #[derive(Clone, Default)]
 pub(super) struct Value {
     pub default: f64,
     pub blend: Option<(usize, Vec<f64>)>,
-    origins: BTreeSet<Origin>,
+    // Only an unmodified literal has a span. Computations never grow a producer tree.
+    origin: Option<Origin>,
 }
 impl Value {
     pub fn plain(default: f64) -> Self {
@@ -36,7 +38,7 @@ impl Value {
         Self {
             default: v,
             blend: None,
-            origins: [origin].into(),
+            origin: Some(origin),
         }
     }
     fn int(&self) -> Result<i32> {
@@ -58,115 +60,165 @@ pub(super) struct Command {
     pub mask: Vec<u8>,
 }
 
-pub(super) trait CharStringActions {
-    fn token(&mut self, program: Program, start: usize, bytes: &[u8]);
+pub(super) trait CharStringActions<'s> {
+    fn program(&mut self, _key: Program, _data: &'s [u8]) {}
     fn call(
         &mut self,
-        program: Program,
-        start: usize,
-        target: Program,
-        operand: &Value,
-    ) -> Result<()>;
-    fn discard(&mut self, origins: impl Iterator<Item = Origin>);
-    fn command(&mut self, command: Command);
+        _key: Program,
+        _start: usize,
+        _end: usize,
+        _target: Program,
+        _operand: &Value,
+    ) -> Result<()> {
+        Ok(())
+    }
+    fn width(&mut self, _origin: Option<Origin>) {}
+    fn mask(&mut self, _key: Program, _start: usize, _end: usize) {}
+    fn hint(&mut self, _key: Program, _start: usize, _end: usize, _args: &[Value]) {}
+    fn command(&mut self, _op: u16, _args: &[Value], _mask: &[u8]) {}
+}
+// seac closure only needs the interpreter's result.
+impl CharStringActions<'_> for () {}
+
+#[derive(Default)]
+pub(super) struct Flattener {
+    pub commands: Vec<Command>,
+}
+impl CharStringActions<'_> for Flattener {
+    fn command(&mut self, op: u16, args: &[Value], mask: &[u8]) {
+        self.commands.push(Command {
+            op,
+            args: args.to_vec(),
+            mask: mask.to_vec(),
+        });
+    }
 }
 
-#[derive(Default, PartialEq, Eq)]
-pub(super) struct Piece {
-    original: Vec<u8>,
-    bytes: Vec<u8>,
-    removed: bool,
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct Edit {
+    end: usize,
     call: Option<Program>,
 }
-#[derive(Default)]
-pub(super) struct Recorder {
-    programs: BTreeMap<Program, BTreeMap<usize, Piece>>,
-    pub commands: Vec<Command>,
-    drawing_origins: BTreeSet<Origin>,
-    pub needs_flattening: bool,
+#[derive(PartialEq, Eq)]
+struct RecordedProgram<'s> {
+    data: &'s [u8],
+    edits: BTreeMap<usize, Edit>,
+    masks: BTreeMap<usize, usize>,
 }
-impl CharStringActions for Recorder {
-    fn token(&mut self, program: Program, start: usize, bytes: &[u8]) {
-        let piece = self
-            .programs
-            .entry(program)
-            .or_default()
-            .entry(start)
-            .or_insert_with(|| Piece {
-                original: bytes.to_vec(),
-                bytes: bytes.to_vec(),
-                ..Default::default()
-            });
-        self.needs_flattening |= piece.original != bytes;
+#[derive(Default)]
+pub(super) struct Recorder<'s> {
+    programs: BTreeMap<Program, RecordedProgram<'s>>,
+    pub needs_flatten: bool,
+}
+impl<'s> CharStringActions<'s> for Recorder<'s> {
+    fn program(&mut self, key: Program, data: &'s [u8]) {
+        self.programs.entry(key).or_insert_with(|| RecordedProgram {
+            data,
+            edits: BTreeMap::new(),
+            masks: BTreeMap::new(),
+        });
     }
     fn call(
         &mut self,
-        program: Program,
+        key: Program,
         start: usize,
+        end: usize,
         target: Program,
         operand: &Value,
     ) -> Result<()> {
-        let pieces = self.programs.get_mut(&program).ok_or(Error)?;
-        // The common immediate-operand case needs only a replacement number.
-        let operand_origin = operand.origins.first().copied().ok_or(Error)?;
-        let immediate = operand.origins.len() == 1
-            && operand_origin.0 == program
-            && pieces
-                .get(&operand_origin.1)
-                .is_some_and(|p| operand_origin.1 + p.original.len() == start);
-        if immediate {
-            pieces.get_mut(&operand_origin.1).ok_or(Error)?.removed = true;
-        }
-        let piece = pieces.get_mut(&start).ok_or(Error)?;
-        let prefix = if immediate { vec![] } else { vec![12, 18] };
-        self.needs_flattening |= piece
-            .call
-            .is_some_and(|old| old != target || piece.bytes != prefix);
-        piece.call = Some(target);
-        // Otherwise retain the operand computation and consume its result.
-        piece.bytes = prefix;
-        Ok(())
-    }
-    fn discard(&mut self, origins: impl Iterator<Item = Origin>) {
-        for (key, offset) in origins {
-            self.needs_flattening |= self.drawing_origins.contains(&(key, offset));
-            if let Some(piece) = self.programs.get_mut(&key).and_then(|p| p.get_mut(&offset)) {
-                piece.removed = true;
+        if let Some((producer, number_start, number_end)) = operand.origin {
+            if producer == key && number_end == start {
+                self.edit(
+                    key,
+                    number_start,
+                    Edit {
+                        end,
+                        call: Some(target),
+                    },
+                );
+                return Ok(());
             }
         }
+        // Retained subroutine calls require a literal in the same program.
+        // A caller-supplied target cannot be remapped at this shared offset.
+        Err(Error)
     }
-    fn command(&mut self, command: Command) {
-        for origin in command.args.iter().flat_map(|v| &v.origins) {
-            self.needs_flattening |= self
-                .programs
-                .get(&origin.0)
-                .and_then(|p| p.get(&origin.1))
-                .is_some_and(|p| p.removed);
-            self.drawing_origins.insert(*origin);
+    fn width(&mut self, origin: Option<Origin>) {
+        if let Some((key @ Program::Glyph(_), start, end)) = origin {
+            self.edit(key, start, Edit { end, call: None });
+        } else {
+            self.needs_flatten = true;
         }
-        self.commands.push(command);
+    }
+    fn mask(&mut self, key: Program, start: usize, end: usize) {
+        let old = self
+            .programs
+            .get_mut(&key)
+            .unwrap()
+            .masks
+            .entry(start)
+            .or_insert(end);
+        self.needs_flatten |= *old != end;
+    }
+    fn hint(&mut self, key: Program, start: usize, end: usize, args: &[Value]) {
+        let mut first = start;
+        for value in args.iter().rev() {
+            let Some((producer, from, to)) = value.origin else {
+                self.needs_flatten = true;
+                return;
+            };
+            if producer != key || to != first {
+                self.needs_flatten = true;
+                return;
+            }
+            first = from;
+        }
+        self.edit(key, first, Edit { end, call: None });
     }
 }
+impl<'s> Recorder<'s> {
+    pub fn merge(&mut self, other: Self) -> bool {
+        if other.needs_flatten
+            || other
+                .programs
+                .iter()
+                .any(|(key, program)| self.programs.get(key).is_some_and(|old| old != program))
+        {
+            return false;
+        }
+        for (key, program) in other.programs {
+            self.programs.entry(key).or_insert(program);
+        }
+        true
+    }
 
-impl Recorder {
-    pub fn merge(&mut self, other: Self) {
-        self.needs_flattening |= other.needs_flattening;
-        for (key, pieces) in other.programs {
-            if let Some(old) = self.programs.get(&key) {
-                self.needs_flattening |= *old != pieces;
-            } else {
-                self.programs.insert(key, pieces);
+    fn edit(&mut self, key: Program, start: usize, edit: Edit) {
+        let edits = &mut self.programs.get_mut(&key).unwrap().edits;
+        // A mask's byte length can depend on its caller's stem count, too.
+        if let Some(previous) = edits.get(&start) {
+            if *previous != edit {
+                self.needs_flatten = true;
             }
+        } else {
+            edits.insert(start, edit);
         }
     }
     fn only_hints(&self, key: Program, visiting: &mut BTreeSet<Program>) -> bool {
         if !visiting.insert(key) {
             return false;
         }
-        let result = self.programs.get(&key).is_some_and(|pieces| {
-            pieces.values().all(|p| {
-                p.removed || p.bytes == [11] || p.call.is_some_and(|t| self.only_hints(t, visiting))
-            })
+        let result = self.programs.get(&key).is_some_and(|p| {
+            let mut pos = 0;
+            for (&start, edit) in &p.edits {
+                if start < pos
+                    || p.data[pos..start].iter().any(|&b| b != 11)
+                    || edit.call.is_some_and(|t| !self.only_hints(t, visiting))
+                {
+                    return false;
+                }
+                pos = edit.end;
+            }
+            p.data[pos..].iter().all(|&b| b == 11)
         });
         visiting.remove(&key);
         result
@@ -180,12 +232,10 @@ impl Recorder {
                 !matches!(p, Program::Glyph(_)) && self.only_hints(p, &mut BTreeSet::new())
             })
             .collect();
-        for pieces in self.programs.values_mut() {
-            for piece in pieces.values_mut() {
-                if piece.call.is_some_and(|p| dead.contains(&p)) {
-                    // A computed call operand must still be consumed.
-                    piece.call = None;
-                    piece.removed = piece.bytes.is_empty();
+        for p in self.programs.values_mut() {
+            for edit in p.edits.values_mut() {
+                if edit.call.is_some_and(|p| dead.contains(&p)) {
+                    edit.call = None;
                 }
             }
         }
@@ -197,15 +247,43 @@ impl Recorder {
             if !used.insert(key) {
                 continue;
             }
-            for p in self.programs.get(&key).ok_or(Error)?.values() {
-                if !p.removed {
-                    if let Some(target) = p.call {
-                        pending.push(target);
-                    }
+            for edit in self.programs.get(&key).ok_or(Error)?.edits.values() {
+                if let Some(target) = edit.call {
+                    pending.push(target);
                 }
             }
         }
         Ok(used)
+    }
+    pub fn fd_dependent(&self, key: Program) -> bool {
+        match key {
+            Program::Local(..) => true,
+            _ => self.programs[&key]
+                .edits
+                .values()
+                .filter_map(|e| e.call)
+                .any(|t| self.fd_dependent(t)),
+        }
+    }
+    pub fn share_global(&self, a: Program, b: Program) -> bool {
+        if self.fd_dependent(a) || self.fd_dependent(b) {
+            return false;
+        }
+        let a = &self.programs[&a];
+        let b = &self.programs[&b];
+        a.data == b.data
+            && a.edits.len() == b.edits.len()
+            && a.edits.iter().zip(&b.edits).all(|((s, a), (t, b))| {
+                s == t
+                    && a.end == b.end
+                    && match (a.call, b.call) {
+                        (None, None) => true,
+                        (Some(a @ Program::Global(_, i)), Some(b @ Program::Global(_, j))) => {
+                            i == j && self.share_global(a, b)
+                        }
+                        _ => false,
+                    }
+            })
     }
     pub fn encode(
         &self,
@@ -214,15 +292,14 @@ impl Recorder {
         global_count: usize,
         local_counts: &[usize],
     ) -> Result<Vec<u8>> {
-        let mut out = Vec::new();
-        for p in self.programs.get(&key).ok_or(Error)?.values() {
-            if p.removed {
-                continue;
-            }
-            out.extend(&p.bytes);
-            if let Some(target) = p.call {
+        let program = self.programs.get(&key).ok_or(Error)?;
+        let mut out = Vec::with_capacity(program.data.len());
+        let mut pos = 0;
+        for (&start, edit) in &program.edits {
+            out.extend(program.data.get(pos..start).ok_or(Error)?);
+            if let Some(target) = edit.call {
                 let (op, count) = match target {
-                    Program::Local(fd, _) => (10, local_counts[fd]),
+                    Program::Local(fd, _) => (10, *local_counts.get(fd).ok_or(Error)?),
                     Program::Global(_, _) => (29, global_count),
                     _ => return Err(Error),
                 };
@@ -233,13 +310,15 @@ impl Recorder {
                 );
                 out.push(op);
             }
+            pos = edit.end;
         }
+        out.extend(program.data.get(pos..).ok_or(Error)?);
         Ok(out)
     }
 }
 
-pub(super) struct Interpreter<'a, F, S, A> {
-    source: &'a S,
+pub(super) struct Interpreter<'a, 's, F, S, A> {
+    source: &'s S,
     actions: &'a mut A,
     fd: usize,
     stack: Vec<Value>,
@@ -255,8 +334,10 @@ pub(super) struct Interpreter<'a, F, S, A> {
     drop_hints: bool,
     flavor: PhantomData<F>,
 }
-impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a, F, S, A> {
-    pub fn new(source: &'a S, actions: &'a mut A, fd: usize, ivs: usize, drop_hints: bool) -> Self {
+impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
+    Interpreter<'a, 's, F, S, A>
+{
+    pub fn new(source: &'s S, actions: &'a mut A, fd: usize, ivs: usize, drop_hints: bool) -> Self {
         Self {
             source,
             actions,
@@ -301,23 +382,20 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
             self.width = Some(value.default);
             // Flattening emits the width separately, while recording keeps its original location.
             if self.drop_hints {
-                self.actions.discard(value.origins.iter().copied());
+                self.actions.width(value.origin);
             }
         }
         Ok(())
     }
-    pub fn run(&mut self, key: Program, data: &[u8]) -> Result<()> {
+    pub fn run(&mut self, key: Program, data: &'s [u8]) -> Result<()> {
         self.execute(key, data, 0).map(|_| ())
     }
-    fn execute(&mut self, key: Program, data: &[u8], depth: usize) -> Result<bool> {
+    fn execute(&mut self, key: Program, data: &'s [u8], depth: usize) -> Result<bool> {
         if depth > 10 {
             return Err(Error);
         }
         let mut p = 0;
-        // Empty CFF2 programs are valid, including retained-gid holes.
-        if data.is_empty() {
-            self.actions.token(key, 0, &[]);
-        }
+        self.actions.program(key, data);
         while p < data.len() {
             if self.remaining == 0 {
                 return Err(Error);
@@ -325,12 +403,11 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
             self.remaining -= 1;
             let start = p;
             if let Some(value) = encoding::number(data, &mut p, false)? {
-                self.actions.token(key, start, &data[start..p]);
-                self.push(Value::number(value, (key, start)))?;
+                self.push(Value::number(value, (key, start, p)))?;
                 continue;
             }
             let op = encoding::op(data, &mut p)?;
-            let mut mask = Vec::new();
+            let mut mask = &[][..];
             self.width(op)?;
             if matches!(op, 1 | 3 | 18 | 23 | 19 | 20) {
                 if self.stack.len() % 2 != 0 {
@@ -342,18 +419,18 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                 }
                 if matches!(op, 19 | 20) {
                     let end = p.checked_add(self.hints.div_ceil(8)).ok_or(Error)?;
-                    mask.extend(data.get(p..end).ok_or(Error)?);
+                    mask = data.get(p..end).ok_or(Error)?;
                     p = end;
+                    self.actions.mask(key, start, end);
                 }
             }
-            self.actions.token(key, start, &data[start..p]);
             match op {
                 10 | 29 => {
                     let value = self.pop()?;
                     let global = op == 29;
                     let index = value
                         .int()?
-                        .checked_add(encoding::bias(self.source.subr_count(global, self.fd)))
+                        .checked_add(self.source.subr_bias(global, self.fd))
                         .ok_or(Error)?;
                     let index = usize::try_from(index).map_err(|_| Error)?;
                     let target = if global {
@@ -361,7 +438,7 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                     } else {
                         Program::Local(self.fd, index)
                     };
-                    self.actions.call(key, start, target, &value)?;
+                    self.actions.call(key, start, p, target, &value)?;
                     if self.execute(
                         target,
                         self.source.program(global, self.fd, index)?,
@@ -386,8 +463,7 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                 }
                 16 if F::CFF2 => {
                     self.seen_blend = true;
-                    let count_value = self.pop()?;
-                    let n = usize::try_from(count_value.int()?).map_err(|_| Error)?;
+                    let n = usize::try_from(self.pop()?.int()?).map_err(|_| Error)?;
                     let k = self.source.region_count(self.ivs)?;
                     let count = n.checked_mul(k + 1).ok_or(Error)?;
                     let group_start = self.stack.len().checked_sub(count).ok_or(Error)?;
@@ -402,11 +478,7 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                             return Err(Error);
                         }
                         value.blend = Some((self.ivs, deltas.iter().map(|v| v.default).collect()));
-                        for delta in deltas {
-                            value.origins.extend(&delta.origins);
-                        }
-                        value.origins.extend(&count_value.origins);
-                        value.origins.insert((key, start));
+                        value.origin = None;
                         self.push(value)?;
                     }
                 }
@@ -415,7 +487,7 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                 | 0x10e..=0x10f
                 | 0x112
                 | 0x114..=0x118
-                | 0x11a..=0x11e => self.arithmetic(op, (key, start))?,
+                | 0x11a..=0x11e => self.arithmetic(op)?,
                 1
                 | 3
                 | 4
@@ -446,16 +518,9 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                     }
                     let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23 | 0x100);
                     if hint && self.drop_hints {
-                        self.actions.discard([(key, start)].into_iter());
-                        for v in &self.stack {
-                            self.actions.discard(v.origins.iter().copied());
-                        }
+                        self.actions.hint(key, start, p, &self.stack);
                     } else if !(F::CFF2 && op == 14) {
-                        self.actions.command(Command {
-                            op,
-                            args: self.stack.clone(),
-                            mask,
-                        });
+                        self.actions.command(op, &self.stack, mask);
                     }
                     self.stack.clear();
                     if op == 14 {
@@ -474,7 +539,12 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
         }
         Ok(false)
     }
-    fn arithmetic(&mut self, op: u16, origin: Origin) -> Result<()> {
+    fn arithmetic(&mut self, op: u16) -> Result<()> {
+        // Stack/transient operations may share values. Their producer is no
+        // longer a removable literal, even if the numeric result is unchanged.
+        for value in self.stack.iter_mut().chain(&mut self.transient) {
+            value.origin = None;
+        }
         let mut a = self.pop()?;
         if a.blend.is_some() {
             return Err(Error);
@@ -495,24 +565,19 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
             }
             0x114 => {
                 let idx = usize::try_from(a.int()?).map_err(|_| Error)?;
-                let mut v = self.pop()?;
-                v.origins.extend(a.origins);
-                v.origins.insert(origin);
+                let v = self.pop()?;
                 *self.transient.get_mut(idx).ok_or(Error)? = v;
                 return Ok(());
             }
             0x115 => {
-                let selector = a.origins.clone();
                 a = self
                     .transient
                     .get(usize::try_from(a.int()?).map_err(|_| Error)?)
                     .ok_or(Error)?
                     .clone();
-                a.origins.extend(selector);
             }
             0x11d => {
                 let idx = a.int()?.max(0) as usize;
-                let selector = a.origins.clone();
                 a = self
                     .stack
                     .get(
@@ -523,26 +588,18 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                     )
                     .ok_or(Error)?
                     .clone();
-                a.origins.extend(selector);
             }
             0x11c => {
                 let b = self.pop()?;
-                a.origins.insert(origin);
                 self.push(a)?;
                 a = b;
             }
             0x11e => {
                 let shift = a.int()?;
-                let count = self.pop()?;
-                let n = usize::try_from(count.int()?).map_err(|_| Error)?;
+                let n = usize::try_from(self.pop()?.int()?).map_err(|_| Error)?;
                 let start = self.stack.len().checked_sub(n).ok_or(Error)?;
                 if n > 0 {
                     self.stack[start..].rotate_right(shift.rem_euclid(n as i32) as usize);
-                    for value in &mut self.stack[start..] {
-                        value.origins.extend(&a.origins);
-                        value.origins.extend(&count.origins);
-                        value.origins.insert(origin);
-                    }
                 }
                 return Ok(());
             }
@@ -550,12 +607,7 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                 let b = self.pop()?;
                 let v2 = self.pop()?;
                 let v1 = self.pop()?;
-                let mut origins = a.origins.clone();
-                origins.extend(&b.origins);
-                origins.extend(&v1.origins);
-                origins.extend(&v2.origins);
                 a = if b.default <= a.default { v1 } else { v2 };
-                a.origins = origins;
             }
             0x117 => {
                 return Err(Error);
@@ -565,7 +617,6 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                 if b.blend.is_some() {
                     return Err(Error);
                 }
-                b.origins.extend(&a.origins);
                 b.default = match op {
                     0x103 => f64::from(b.default != 0. && a.default != 0.),
                     0x104 => f64::from(b.default != 0. || a.default != 0.),
@@ -584,7 +635,6 @@ impl<'a, F: CffFlavor, S: CharStringSource, A: CharStringActions> Interpreter<'a
                 a = b;
             }
         }
-        a.origins.insert(origin);
         self.push(a)
     }
 }
@@ -608,18 +658,40 @@ pub(super) fn flatten(
         out.push(15);
     }
     for cmd in commands {
-        for (i, v) in cmd.args.iter().enumerate() {
+        let mut i = 0;
+        while i < cmd.args.len() {
+            let v = &cmd.args[i];
             if let Some((vs, deltas)) = &v.blend {
-                if Some(*vs) != active || i + deltas.len() + 2 > 513 {
+                if Some(*vs) != active {
                     return Err(Error);
                 }
-                encoding::encode(&mut out, v.default, false)?;
-                for &delta in deltas {
-                    encoding::encode(&mut out, delta, false)?;
+                let room = 513usize.checked_sub(i + 1).ok_or(Error)? / (deltas.len() + 1);
+                let n = cmd.args[i..]
+                    .iter()
+                    .take(room)
+                    .take_while(|v| {
+                        v.blend
+                            .as_ref()
+                            .is_some_and(|(vsi, ds)| vsi == vs && ds.len() == deltas.len())
+                    })
+                    .count();
+                if n == 0 {
+                    return Err(Error);
                 }
-                out.extend([140, 16]);
+                for value in &cmd.args[i..i + n] {
+                    encoding::encode(&mut out, value.default, false)?;
+                }
+                for value in &cmd.args[i..i + n] {
+                    for &delta in &value.blend.as_ref().ok_or(Error)?.1 {
+                        encoding::encode(&mut out, delta, false)?;
+                    }
+                }
+                encoding::integer(&mut out, n as i32);
+                out.push(16);
+                i += n;
             } else {
                 encoding::encode(&mut out, v.default, false)?;
+                i += 1;
             }
         }
         encoding::emit_op(&mut out, cmd.op);
@@ -648,59 +720,117 @@ mod tests {
         }
     }
     #[test]
-    fn hint_operands_cross_subroutine_boundaries() {
-        let source = Source(vec![vec![1, 11]]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff1, _, _>::new(&source, &mut recorder, 0, 0, true);
-        interpreter
-            .run(Program::Glyph(0), &[139, 149, 32, 10, 139, 139, 21, 14])
+    fn repeated_dup_add_has_bounded_state() {
+        let source = Source(vec![]);
+        let mut data = vec![139];
+        for _ in 0..40 {
+            data.extend([12, 27, 12, 10]);
+        }
+        data.extend([149, 1, 139, 139, 21, 14]);
+        let mut rec = Recorder::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(0), &data)
             .unwrap();
-        recorder.remove_hint_calls();
+        assert!(rec.needs_flatten);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
         assert_eq!(
-            recorder.closure(&[Program::Glyph(0)]).unwrap(),
-            [Program::Glyph(0)].into()
-        );
-        assert_eq!(
-            recorder
-                .encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
-                .unwrap(),
-            vec![139, 139, 21, 14]
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [139, 139, 21, 14]
         );
     }
     #[test]
-    fn removing_blended_hints_removes_count_and_blend() {
-        let source = Source(vec![]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff2, _, _>::new(&source, &mut recorder, 0, 0, true);
-        interpreter
-            .run(
-                Program::Glyph(0),
-                &[139, 149, 140, 141, 141, 16, 1, 139, 139, 21],
-            )
+    fn shared_hint_producers_require_flattening() {
+        let source = Source(vec![vec![139, 149, 11]]);
+        let mut rec = Recorder::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(0), &[32, 10, 1, 139, 139, 21, 14])
             .unwrap();
+        assert!(rec.needs_flatten);
+        rec.needs_flatten = false;
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(1), &[32, 10, 21, 14])
+            .unwrap();
+        assert!(!rec.needs_flatten);
         assert_eq!(
-            recorder
-                .encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
+            rec.encode(Program::Local(0, 0), &BTreeMap::new(), 0, &[1])
                 .unwrap(),
-            vec![139, 139, 21]
+            [139, 149, 11]
         );
+    }
+    #[test]
+    fn hints_with_local_literals_remain_subroutinized() {
+        let source = Source(vec![vec![139, 149, 1, 11]]);
+        let mut rec = Recorder::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(0), &[32, 10, 139, 139, 21, 14])
+            .unwrap();
+        assert!(!rec.needs_flatten);
+        rec.remove_hint_calls();
+        assert_eq!(
+            rec.closure(&[Program::Glyph(0)]).unwrap(),
+            [Program::Glyph(0)].into()
+        );
+        assert_eq!(
+            rec.encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
+                .unwrap(),
+            [139, 139, 21, 14]
+        );
+    }
+    #[test]
+    fn caller_supplied_subroutine_operand_is_rejected() {
+        let source = Source(vec![vec![10, 11]]);
+        let mut rec = Recorder::default();
+        assert!(
+            Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, false)
+                .run(Program::Glyph(0), &[32, 32, 10, 14])
+                .is_err()
+        );
+    }
+    #[test]
+    fn flatten_keeps_blend_groups() {
+        let source = Source(vec![]);
+        let mut flat = Flattener::default();
+        let data = [139, 149, 140, 141, 141, 16, 21];
+        Interpreter::<Cff2, _, _>::new(&source, &mut flat, 0, 0, false)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(flatten(&flat.commands, None, true, 0).unwrap(), data);
+    }
+    #[test]
+    fn recursion_and_truncated_operands_are_errors() {
+        let source = Source(vec![vec![32, 10, 11]]);
+        for bytes in [
+            vec![32, 10, 14],
+            vec![28],
+            vec![255, 0],
+            vec![139, 19],
+            vec![32, 10],
+        ] {
+            assert!(
+                Interpreter::<Cff1, _, _>::new(&source, &mut (), 0, 0, false)
+                    .run(Program::Glyph(0), &bytes)
+                    .is_err()
+            );
+        }
     }
     #[test]
     fn computed_hint_calls_consume_their_operand() {
         let source = Source(vec![vec![1, 11]]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff1, _, _>::new(&source, &mut recorder, 0, 0, true);
-        interpreter
-            .run(
-                Program::Glyph(0),
-                &[139, 149, 32, 139, 12, 10, 10, 139, 139, 21, 149, 139, 5, 14],
-            )
+        let data = [139, 149, 32, 139, 12, 10, 10, 139, 139, 21, 149, 139, 5, 14];
+        assert!(
+            Interpreter::<Cff1, _, _>::new(&source, &mut Recorder::default(), 0, 0, true)
+                .run(Program::Glyph(0), &data)
+                .is_err()
+        );
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
             .unwrap();
-        recorder.remove_hint_calls();
-        let bytes = recorder
-            .encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
-            .unwrap();
-        let mut result = Recorder::default();
+        let bytes = flatten(&flat.commands, None, false, 0).unwrap();
+        let mut result = Flattener::default();
         let mut decoded = Interpreter::<Cff1, _, _>::new(&source, &mut result, 0, 0, false);
         decoded.run(Program::Glyph(0), &bytes).unwrap();
         assert_eq!(decoded.width, None);
@@ -710,75 +840,54 @@ mod tests {
         );
         assert_eq!(result.commands[1].args[0].default, 10.);
     }
-
     #[test]
     fn transient_and_selector_operands_are_removed_with_hints() {
         let source = Source(vec![]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff1, _, _>::new(&source, &mut recorder, 0, 0, true);
-        interpreter
-            .run(
-                Program::Glyph(0),
-                &[159, 139, 12, 20, 139, 12, 21, 139, 1, 139, 139, 21, 14],
-            )
+        let data = [159, 139, 12, 20, 139, 12, 21, 139, 1, 139, 139, 21, 14];
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
             .unwrap();
         assert_eq!(
-            recorder
-                .encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
-                .unwrap(),
+            flatten(&flat.commands, None, false, 0).unwrap(),
             [139, 139, 21, 14]
         );
     }
-
     #[test]
     fn shared_hint_and_drawing_operands_require_flattening() {
         let source = Source(vec![]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff1, _, _>::new(&source, &mut recorder, 0, 0, true);
-        interpreter
-            .run(
-                Program::Glyph(0),
-                &[
-                    139, 149, 1, 159, 12, 27, 139, 12, 20, 139, 1, 139, 12, 21, 139, 21, 14,
-                ],
-            )
+        let data = [
+            139, 149, 1, 159, 12, 27, 139, 12, 20, 139, 1, 139, 12, 21, 139, 21, 14,
+        ];
+        let mut rec = Recorder::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(0), &data)
             .unwrap();
-        assert!(recorder.needs_flattening);
+        assert!(rec.needs_flatten);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
         assert_eq!(
-            flatten(&recorder.commands, None, false, 0).unwrap(),
+            flatten(&flat.commands, None, false, 0).unwrap(),
             [159, 139, 21, 14]
         );
     }
-
     #[test]
     fn duplicated_provenance_does_not_expand_exponentially() {
         let source = Source(vec![]);
-        let mut program = vec![139];
+        let mut data = vec![139];
         for _ in 0..80 {
-            program.extend([12, 27, 12, 10]);
+            data.extend([12, 27, 12, 10]);
         }
-        program.extend([139, 1, 139, 139, 21, 14]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff1, _, _>::new(&source, &mut recorder, 0, 0, true);
-        interpreter.run(Program::Glyph(0), &program).unwrap();
+        data.extend([139, 1, 139, 139, 21, 14]);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
         assert_eq!(
-            recorder
-                .encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
-                .unwrap(),
+            flatten(&flat.commands, None, false, 0).unwrap(),
             [139, 139, 21, 14]
         );
-    }
-
-    #[test]
-    fn recursion_and_truncated_operands_are_errors() {
-        let source = Source(vec![vec![32, 10, 11]]);
-        let mut recorder = Recorder::default();
-        let mut interpreter = Interpreter::<Cff1, _, _>::new(&source, &mut recorder, 0, 0, false);
-        assert!(interpreter.run(Program::Glyph(0), &[32, 10, 14]).is_err());
-        for bytes in [vec![28], vec![255, 0], vec![139, 19], vec![32, 10]] {
-            let mut rec = Recorder::default();
-            let mut i = Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, false);
-            assert!(i.run(Program::Glyph(0), &bytes).is_err());
-        }
     }
 }
