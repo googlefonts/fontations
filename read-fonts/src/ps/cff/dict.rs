@@ -4,9 +4,9 @@ use super::{
     blend::BlendState,
     stack::{Number, Stack},
 };
+use crate::model::Error;
 use crate::{
     ps::{
-        error::Error,
         hinting::{Blues, StemSnaps},
         num::{self, BcdComponents},
         string::Sid,
@@ -393,7 +393,7 @@ fn entries_impl<'a>(
         if op == Operator::Blend || op == Operator::VariationStoreIndex {
             let state = match blend_state.as_mut() {
                 Some(state) => state,
-                None => return Some(Err(Error::MissingBlendState)),
+                None => return Some(Err(Error::MissingResource)),
             };
             if op == Operator::VariationStoreIndex {
                 match stack
