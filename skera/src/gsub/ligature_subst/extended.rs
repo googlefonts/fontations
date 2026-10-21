@@ -1,7 +1,7 @@
 //! Subsetting the extended ligature substitution format.
 
 use super::*;
-use crate::layout::intersected_glyphs_and_indices;
+use crate::layout::for_each_intersected_glyph_and_index;
 use read_fonts::{
     tables::gsub::{Ligature2, LigatureSet2, LigatureSubstFormat2},
     types::{GlyphId24, Offset24, Offset32, Uint24},
@@ -30,39 +30,48 @@ impl SubsetTable<'_> for LigatureSubstFormat2<'_> {
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let (glyphs, indices) = intersected_glyphs_and_indices(
-            &coverage,
-            &plan.glyphset_gsub,
-            &plan.glyph_map_gsub,
-            self.ligature_sets().len() as u32,
-        );
+        let glyph_set = &plan.glyphset_gsub;
         let sets = self.ligature_sets();
-        let mut retained_glyphs = Vec::with_capacity(glyphs.len());
-        let mut retained_indices = Vec::with_capacity(glyphs.len());
-        for (&gid, index) in glyphs.iter().zip(indices.iter()) {
-            let set = match sets.get(index as usize) {
-                Err(ReadError::NullOffset) => continue,
-                Err(_) => return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)),
-                Ok(set) => set,
-            };
-            let mut retained = false;
-            for ligature in set.ligatures().iter_as_nullable() {
-                let Some(ligature) = ligature
-                    .transpose()
-                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-                else {
-                    continue;
+        let set_count = sets.len() as u32;
+        let cap = coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(set_count as usize);
+        let mut retained_glyphs = Vec::with_capacity(cap);
+        let mut retained_indices = Vec::with_capacity(cap);
+        for_each_intersected_glyph_and_index(
+            &coverage,
+            glyph_set,
+            &plan.glyph_map_gsub,
+            set_count,
+            |index, gid| {
+                let set = match sets.get(index as usize) {
+                    Err(ReadError::NullOffset) => return Ok(()),
+                    Err(_) => {
+                        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
+                    }
+                    Ok(set) => set,
                 };
-                if retains_ligature(&ligature, plan) {
-                    retained = true;
-                    break;
+                let mut retained = false;
+                for ligature in set.ligatures().iter_as_nullable() {
+                    let Some(ligature) = ligature
+                        .transpose()
+                        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+                    else {
+                        continue;
+                    };
+                    if retains_ligature(&ligature, plan) {
+                        retained = true;
+                        break;
+                    }
                 }
-            }
-            if retained {
-                retained_glyphs.push(gid);
-                retained_indices.push(index as usize);
-            }
-        }
+                if retained {
+                    retained_glyphs.push(gid);
+                    retained_indices.push(index as usize);
+                }
+                Ok(())
+            },
+        )?;
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
