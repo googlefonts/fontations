@@ -33,14 +33,14 @@ impl CffFlavor for Cff2 {
 }
 
 pub(super) struct FontDict<'a> {
-    pub entries: Vec<Entry>,
-    pub private: Vec<Entry>,
+    pub entries: Vec<Entry<'a>>,
+    pub private: Vec<Entry<'a>>,
     pub subrs: Index<'a>,
     pub ivs: usize,
 }
 pub(super) struct Source<'a> {
     pub font: CffFontRef<'a>,
-    pub top: Vec<Entry>,
+    pub top: Vec<Entry<'a>>,
     pub names: Vec<Vec<u8>>,
     pub strings: Index<'a>,
     pub fds: Vec<FontDict<'a>>,
@@ -50,6 +50,9 @@ pub(super) struct Source<'a> {
 pub(super) trait CharStringSource {
     fn program(&self, global: bool, fd: usize, index: usize) -> Result<&[u8]>;
     fn subr_count(&self, global: bool, fd: usize) -> usize;
+    fn subr_bias(&self, global: bool, fd: usize) -> i32 {
+        super::encoding::bias(self.subr_count(global, fd))
+    }
     fn region_count(&self, ivs: usize) -> Result<usize>;
 }
 impl CharStringSource for Source<'_> {
@@ -66,6 +69,13 @@ impl CharStringSource for Source<'_> {
             self.font.global_subrs().count() as usize
         } else {
             self.fds[fd].subrs.count() as usize
+        }
+    }
+    fn subr_bias(&self, global: bool, fd: usize) -> i32 {
+        if global {
+            self.font.global_subrs().subr_bias()
+        } else {
+            self.fds[fd].subrs.subr_bias()
         }
     }
     fn region_count(&self, ivs: usize) -> Result<usize> {
@@ -100,7 +110,7 @@ impl<'a> Source<'a> {
                 table.strings().into(),
             )
         };
-        let cid = top.iter().any(|e| e.op == 0x11e);
+        let cid = font.is_cid();
         let fd_entries = if let Some(offset) = dict::offset(&top, 0x124, 0)? {
             let index = Index::new(data.get(offset..).ok_or(Error)?, cff2).map_err(|_| Error)?;
             (0..index.count() as usize)
@@ -116,9 +126,18 @@ impl<'a> Source<'a> {
             let parent = if !cff2 && !cid { &top } else { &entries };
             let size = dict::offset(parent, 18, 0)?.unwrap_or(0);
             let offset = dict::offset(parent, 18, 1)?.unwrap_or(0);
-            let private = dict::parse(
+            let private = dict::parse_private(
                 data.get(offset..offset.checked_add(size).ok_or(Error)?)
                     .ok_or(Error)?,
+                |ivs| {
+                    let store = font.var_store().ok_or(Error)?;
+                    Ok(store
+                        .item_variation_data()
+                        .get(ivs)
+                        .ok_or(Error)?
+                        .map_err(|_| Error)?
+                        .region_index_count() as usize)
+                },
             )?;
             let subrs = if let Some(relative) = dict::offset(&private, 19, 0)? {
                 Index::new(
