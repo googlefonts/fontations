@@ -92,6 +92,8 @@
 //! with HarfRust and drawn with a [`ScalerFont`].
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
+// Compiles the README's example.
+#![cfg_attr(doctest, doc = include_str!("../README.md"))]
 #![forbid(unsafe_code)]
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
