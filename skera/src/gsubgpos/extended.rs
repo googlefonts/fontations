@@ -27,28 +27,33 @@ macro_rules! subset_glyph_context {
                 let coverage = self
                     .coverage()
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-                let (glyphs, indices) = intersected_glyphs_and_indices(
-                    &coverage,
-                    &plan.glyphset_gsub,
-                    &plan.glyph_map_gsub,
-                    self.$sets().len() as u32,
-                );
-                if glyphs.is_empty() {
-                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-                }
+                let glyph_set = &plan.glyphset_gsub;
+                let sets = self.$sets();
+                let set_count = sets.len() as u32;
                 s.embed(self.format())?;
                 let coverage_pos = s.embed(0u32)?;
                 let count_pos = s.embed(Uint24::new(0))?;
-                let sets = self.$sets();
-                let mut retained_glyphs = Vec::with_capacity(glyphs.len());
-                for (&gid, index) in glyphs.iter().zip(indices.iter()) {
-                    if !sets
-                        .subset_offset(index as usize, s, plan, lookup_map)
-                        .is_empty()?
-                    {
-                        retained_glyphs.push(gid);
-                    }
-                }
+                let mut retained_glyphs = Vec::with_capacity(
+                    coverage
+                        .population()
+                        .min(glyph_set.len() as usize)
+                        .min(set_count as usize),
+                );
+                for_each_intersected_glyph_and_index(
+                    &coverage,
+                    glyph_set,
+                    &plan.glyph_map_gsub,
+                    set_count,
+                    |index, gid| {
+                        if !sets
+                            .subset_offset(index as usize, s, plan, lookup_map)
+                            .is_empty()?
+                        {
+                            retained_glyphs.push(gid);
+                        }
+                        Ok(())
+                    },
+                )?;
                 if retained_glyphs.is_empty() {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
                 }
