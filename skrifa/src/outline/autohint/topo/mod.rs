@@ -7,7 +7,7 @@ use super::{
     metrics::ScaledWidth,
     outline::{Direction, Orientation, Point},
 };
-use crate::collections::SmallVec;
+use smallvec::SmallVec;
 
 pub(crate) use edges::{compute_blue_edges, compute_edges};
 pub(crate) use segments::{compute_segments, link_segments};
@@ -55,9 +55,9 @@ pub struct Axis {
     /// Depends on dimension and outline orientation.
     pub(crate) major_dir: Direction,
     /// Collection of segments for the axis.
-    pub(crate) segments: SmallVec<Segment, MAX_INLINE_SEGMENTS>,
+    pub(crate) segments: SmallVec<[Segment; MAX_INLINE_SEGMENTS]>,
     /// Collection of edges for the axis.
-    pub(crate) edges: SmallVec<Edge, MAX_INLINE_EDGES>,
+    pub(crate) edges: SmallVec<[Edge; MAX_INLINE_EDGES]>,
 }
 
 impl Axis {
