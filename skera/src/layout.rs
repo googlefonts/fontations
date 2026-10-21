@@ -5,10 +5,9 @@ mod condition;
 pub(crate) use condition::collect_feature_variation_condition_indices;
 mod extended;
 pub(crate) mod header;
-mod lookup_variations;
-pub(crate) use lookup_variations::protect_lookup_variation_features;
 #[cfg(test)]
 mod lookup_list_tests;
+mod lookup_variations;
 
 use std::{cmp::Ordering, mem};
 
@@ -492,6 +491,12 @@ fn for_each_intersection<E>(
 /// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
 /// returned glyphs are mapped into new glyph ids
 ///
+/// The two Vecs are parallel: `indices[i]` is the coverage index of `glyphs[i]`.
+/// Prefer [`for_each_intersected_glyph_and_index`] when the glyphs can be
+/// consumed directly; use this only when the glyph list has to be serialized
+/// before the array it indexes into (e.g. a mark Coverage table that must be
+/// written before its MarkArray to keep the packing order).
+///
 /// See [`for_each_intersected_glyph_and_index`] for how `array_len` bounds the
 /// coverage indices.
 pub(crate) fn intersected_glyphs_and_indices(
@@ -499,14 +504,14 @@ pub(crate) fn intersected_glyphs_and_indices(
     glyph_set: &IntSet<GlyphId>,
     glyph_map: &[GlyphId],
     array_len: impl Into<u32>,
-) -> (Vec<GlyphId>, IntSet<u32>) {
+) -> (Vec<GlyphId>, Vec<u32>) {
     let array_len = array_len.into();
     let cap = coverage
         .population()
         .min(glyph_set.len() as usize)
         .min(array_len as usize);
     let mut glyphs = Vec::with_capacity(cap);
-    let mut indices = IntSet::empty();
+    let mut indices = Vec::with_capacity(cap);
 
     let _ = for_each_intersected_glyph_and_index::<()>(
         coverage,
@@ -515,7 +520,7 @@ pub(crate) fn intersected_glyphs_and_indices(
         array_len,
         |idx, g| {
             glyphs.push(g);
-            indices.insert(idx);
+            indices.push(idx);
             Ok(())
         },
     );
@@ -607,10 +612,81 @@ pub(crate) fn prune_features(
     out
 }
 
+/// Return the indices of features whose behavior can vary: those that have an
+/// alternate feature table in a FeatureTableSubstitution, or a
+/// LookupVariationRecord.
+///
+/// Matching default lookups do not make such features interchangeable with
+/// another same-tag feature, so they must never be deduplicated.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/d89fa94461c7ed9c53d8cbe888fd02c527aa546c/src/hb-subset-plan-layout.cc#L297-L330>
+pub(crate) fn collect_variable_feature_indices(
+    feature_variations: &FeatureVariations,
+) -> IntSet<u16> {
+    let font_data = feature_variations.offset_data();
+    let mut out: IntSet<u16> = feature_variations
+        .feature_variation_records()
+        .iter()
+        .filter_map(|rec| rec.feature_table_substitution(font_data)?.ok())
+        .flat_map(|subs| {
+            subs.substitutions()
+                .iter()
+                .map(|rec| rec.feature_index())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    out.extend(
+        feature_variations
+            .lookup_variation_records()
+            .unwrap_or_default()
+            .iter()
+            .map(|rec| rec.feature_index()),
+    );
+    out
+}
+
+/// Whether two same-tag features carry identical FeatureParams data.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/d89fa94461c7ed9c53d8cbe888fd02c527aa546c/src/hb-subset-plan-layout.cc#L260-L286>
+fn features_have_equal_params(a: &Feature, b: &Feature, tag: Tag) -> bool {
+    match (
+        a.feature_params_offset().is_null(),
+        b.feature_params_offset().is_null(),
+    ) {
+        (true, true) => true,
+        (false, false) => {
+            let a_bytes = feature_params_bytes(a, tag);
+            a_bytes.is_some() && a_bytes == feature_params_bytes(b, tag)
+        }
+        _ => false,
+    }
+}
+
+/// Raw bytes of the FeatureParams table compared by harfbuzz for `tag`: empty
+/// for tags whose params harfbuzz does not compare, `None` if truncated.
+fn feature_params_bytes<'a>(f: &Feature<'a>, tag: Tag) -> Option<&'a [u8]> {
+    let data = f
+        .offset_data()
+        .split_off(f.feature_params_offset().offset().to_u32() as usize)?;
+    let raw_tag = tag.to_be_bytes();
+    let len = if tag == Tag::new(b"size") {
+        // FeatureParamsSize::static_size
+        10
+    } else if raw_tag.starts_with(b"ss") {
+        // FeatureParamsStylisticSet::static_size
+        4
+    } else if raw_tag.starts_with(b"cv") {
+        // FeatureParamsCharacterVariants: 14 byte header + 3 bytes per character
+        14 + 3 * data.read_at::<u16>(12).ok()? as usize
+    } else {
+        0
+    };
+    data.as_bytes().get(..len)
+}
+
 pub(crate) fn find_duplicate_features(
     feature_list: &FeatureList,
     lookup_indices: &IntSet<u16>,
     feature_indices: IntSet<u16>,
+    variable_features: &IntSet<u16>,
 ) -> FastHashMap<u16, u16> {
     let mut out = FastHashMap::default();
     if feature_indices.is_empty() {
@@ -638,6 +714,10 @@ pub(crate) fn find_duplicate_features(
         }
 
         for other_f_idx in same_tag_features.iter() {
+            // Matching base lookups do not imply matching alternate behavior.
+            if variable_features.contains(i) || variable_features.contains(other_f_idx) {
+                continue;
+            }
             let Some(other_rec) = feature_recs.get(other_f_idx as usize) else {
                 continue;
             };
@@ -645,6 +725,10 @@ pub(crate) fn find_duplicate_features(
             let Ok(other_f) = other_rec.feature(feature_list.offset_data()) else {
                 return out;
             };
+
+            if !features_have_equal_params(&f, &other_f, rec.feature_tag()) {
+                continue;
+            }
 
             let f_iter = f
                 .lookup_list_indices()
@@ -1582,6 +1666,85 @@ mod test {
         types::GlyphId,
         FontRef, TableProvider,
     };
+
+    /// Build a FeatureList where every feature has `tag`, lookup [0], and the
+    /// given (optional) FeatureParams bytes.
+    fn feature_list_with_params(tag: &[u8; 4], params: &[Option<&[u8]>]) -> Vec<u8> {
+        let n = params.len();
+        let mut bytes = (n as u16).to_be_bytes().to_vec();
+        let mut offset = 2 + n * 6;
+        let mut tables = Vec::new();
+        for p in params {
+            bytes.extend_from_slice(tag);
+            bytes.extend_from_slice(&(offset as u16).to_be_bytes());
+            // Feature: featureParams offset, lookupIndexCount=1, lookup 0
+            let params_offset: u16 = if p.is_some() { 6 } else { 0 };
+            let mut table = params_offset.to_be_bytes().to_vec();
+            table.extend_from_slice(&[0, 1, 0, 0]);
+            table.extend_from_slice(p.unwrap_or_default());
+            offset += table.len();
+            tables.extend(table);
+        }
+        bytes.extend(tables);
+        bytes
+    }
+
+    fn dedup(tag: &[u8; 4], params: &[Option<&[u8]>]) -> Vec<u16> {
+        let bytes = feature_list_with_params(tag, params);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let lookups = [0u16].into_iter().collect();
+        let features = (0..params.len() as u16).collect();
+        let map = find_duplicate_features(&list, &lookups, features, &IntSet::empty());
+        (0..params.len() as u16).map(|i| map[&i]).collect()
+    }
+
+    #[test]
+    fn find_duplicate_features_compares_feature_params() {
+        // ss01 params: version 0, UINameID
+        let ss_a: &[u8] = &[0, 0, 1, 0];
+        let ss_b: &[u8] = &[0, 0, 1, 1];
+        assert_eq!(
+            dedup(b"ss01", &[Some(ss_a), Some(ss_b), Some(ss_a), None]),
+            [0, 1, 0, 3]
+        );
+
+        // size params: 10 bytes
+        let size_a: &[u8] = &[0, 100, 0, 0, 0, 0, 0, 0, 0, 0];
+        let size_b: &[u8] = &[0, 120, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(
+            dedup(b"size", &[Some(size_a), Some(size_b), Some(size_a)]),
+            [0, 1, 0]
+        );
+
+        // cv01 params: 14 byte header + 3 bytes per character; differing
+        // only in the character array.
+        let mut cv_a = vec![0u8; 12];
+        cv_a.extend_from_slice(&[0, 1, 0, 0, 0x41]);
+        let mut cv_b = cv_a.clone();
+        cv_b[16] = 0x42;
+        assert_eq!(
+            dedup(b"cv01", &[Some(&cv_a), Some(&cv_b), Some(&cv_a)]),
+            [0, 1, 0]
+        );
+
+        // tags whose params harfbuzz does not compare only need both present
+        assert_eq!(
+            dedup(b"liga", &[Some(&[1, 2]), Some(&[3, 4]), None]),
+            [0, 0, 2]
+        );
+    }
+
+    #[test]
+    fn find_duplicate_features_skips_variable_features() {
+        let bytes = feature_list_with_params(b"palt", &[None, None, None]);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let lookups = [0u16].into_iter().collect();
+        let variable = [1u16].into_iter().collect();
+        let map = find_duplicate_features(&list, &lookups, (0..3).collect(), &variable);
+        assert_eq!(map[&0], 0);
+        assert_eq!(map[&1], 1);
+        assert_eq!(map[&2], 0);
+    }
 
     #[test]
     fn test_subset_gpos_classdefs() {
