@@ -54,6 +54,11 @@ The pattern ends with a single `-`.
 ## test font sources
 Describes the provenance, usage and generation procedures for font data used for testing.
 
+* _negative_var_advances_
+  * source: synthetic font, described in `ttx/negative_var_advances.ttx`
+  * usage: negative and fractional advances from HVAR, VVAR and gvar
+  * generation: `ttx --no-recalc-timestamp -o ttf/negative_var_advances.ttf ttx/negative_var_advances.ttx`
+
 * _notoseriftc_autohint_metrics_
   * font: Noto Serif Traditional Chinese Regular
   * source: https://fonts.google.com/noto/specimen/Noto+Serif+TC

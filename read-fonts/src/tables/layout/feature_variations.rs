@@ -85,7 +85,12 @@ impl<'a> LookupVariations<'a> {
         {
             lookups.clear();
         }
-        let mut evaluator = Evaluator::new(coords, delta);
+        // Only whether a condition holds is used, so a failed delta is simply
+        // a condition that does not.
+        let mut delta = delta;
+        let mut evaluator = Evaluator::new(coords, |index| {
+            delta(index).map_err(|_| crate::model::Error::Malformed)
+        });
         let mut lists = LookupLists::new(&table);
         for record in table.lookup_condition_records() {
             if evaluator.evaluate_record(table.offset_data(), record).ok() == Some(true) {
