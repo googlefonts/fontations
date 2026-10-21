@@ -24,7 +24,7 @@ use read_fonts::{
     collections::IntSet,
     tables::{
         gpos::{ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables},
-        layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
+        layout::{ExtensionLookup, FeatureRecord, Intersect, LookupFlag, Subtables},
     },
     types::Tag,
     types::{Compatible, MajorMinor, Offset16, Offset32},
@@ -197,10 +197,12 @@ fn subset_gpos(
         )?;
     }
 
+    let mut feature_records: &[FeatureRecord] = &[];
     if !gpos.feature_list_offset().is_null() {
         let feature_list = gpos
             .feature_list()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        feature_records = feature_list.feature_records();
         Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
     }
 
@@ -223,7 +225,7 @@ fn subset_gpos(
             &feature_variations,
             s,
             plan,
-            &mut c,
+            (feature_records, &mut c),
             feature_vars_offset_pos,
         )
         .is_empty()?
