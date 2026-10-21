@@ -1,10 +1,10 @@
 //! Parsing and evaluation of charstrings.
 
+use crate::model::Error;
 use crate::{
-    model::glyph::outline::OutlinePen,
+    model::glyph::outline::PathSink,
     ps::{
         cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
-        error::Error,
         num,
         string::Sid,
         transform::{FontMatrix, Transform},
@@ -30,6 +30,15 @@ pub const NESTING_DEPTH_LIMIT: u32 = 10;
 ///
 /// FreeType only limits depth, not number of operations.
 const MAX_OPERATIONS: u32 = 1_000_000;
+
+/// Size of the transient array that `put` and `get` address.
+///
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psfont.h#L59>
+const STORAGE_SIZE: usize = 32;
+
+/// The number of elements of a multiple master font's `BuildCharArray`
+/// held inline. A font that declares a longer array has it on the heap.
+const INLINE_BUILD_CHAR_LEN: usize = 32;
 
 /// The type of a PostScript charstring.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -65,6 +74,12 @@ pub trait CharstringContext {
     fn weight_vector(&self) -> &[Fixed] {
         &[]
     }
+
+    /// Returns the number of elements in the `BuildCharArray` of a multiple
+    /// master font, which othersubrs read and write.
+    fn build_char_len(&self) -> usize {
+        0
+    }
 }
 
 // Ugly temporary impl to support existing skrifa code until it is replaced
@@ -81,14 +96,14 @@ impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Inde
         let charset = cff
             .charset(0)
             .or_else(|| Charset::new(FontData::default(), 0, self.1.count()))
-            .ok_or(Error::MissingCharset)?;
+            .ok_or(Error::MissingResource)?;
         let seac_to_gid = |code: i32| {
             let code: u8 = code.try_into().ok()?;
             let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
             charset.glyph_id(Sid::new(sid as u16))
         };
-        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
-        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
+        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidOperation)?;
+        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidOperation)?;
         let accent_charstring = self
             .1
             .get(accent_gid.to_u32() as usize)
@@ -177,7 +192,7 @@ impl CommandSink for NullSink {
 /// Nothing drawn leaves [`bounding_box`](Self::bounding_box) empty, which is
 /// the answer for a glyph with no ink rather than a box of no size at the
 /// origin. The pen that measures a drawn outline the same way is
-/// [`ControlBoundsPen`](crate::model::glyph::outline::ControlBoundsPen).
+/// [`ControlBoundsSink`](crate::model::glyph::outline::ControlBoundsSink).
 #[derive(Clone, Default, Debug)]
 pub struct ControlBoundsSink {
     bounds: Option<BoundingBox<Fixed>>,
@@ -235,12 +250,12 @@ impl CommandSink for ControlBoundsSink {
 ///
 /// If the Private DICT associated with this charstring contains local
 /// subroutines, then the `subrs` index must be provided, otherwise
-/// `Error::MissingSubroutines` will be returned if a callsubr operator
+/// `Error::MissingResource` will be returned if a callsubr operator
 /// is present.
 ///
 /// If evaluating a CFF2 charstring and the top-level table contains an
 /// item variation store, then `blend_state` must be provided, otherwise
-/// `Error::MissingBlendState` will be returned if a blend operator is
+/// `Error::MissingResource` will be returned if a blend operator is
 /// present.
 pub fn evaluate<'a>(
     context: &'a impl CharstringContext,
@@ -278,6 +293,32 @@ pub fn evaluate_width<'a>(
     // simply states no width.
     evaluator.evaluate(charstring_data)?;
     Ok(evaluator.have_read_width.then_some(evaluator.wx))
+}
+
+/// The square root of `value`, by the method FreeType uses.
+///
+/// Zero for anything that is not positive, so a caller never sees an
+/// imaginary answer.
+///
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1420>
+fn fixed_sqrt(value: Fixed) -> Fixed {
+    if value.to_bits() <= 0 {
+        return Fixed::ZERO;
+    }
+    // A start value small enough that the addition below cannot overflow.
+    let mut root = if value.to_bits() < 10 {
+        value
+    } else {
+        Fixed::from_bits(value.to_bits() >> 1)
+    };
+    // Babylonian method.
+    loop {
+        let next = Fixed::from_bits((root.to_bits() + (value / root).to_bits() + 1) >> 1);
+        if next == root {
+            return next;
+        }
+        root = next;
+    }
 }
 
 /// Specifies how the seac operation was invoked.
@@ -320,6 +361,10 @@ struct Evaluator<'a> {
     in_seac: bool,
     /// Number of operators or numbers processed so far
     ops_done: u32,
+    /// The transient array that `put` and `get` address.
+    storage: [Fixed; STORAGE_SIZE],
+    /// The `BuildCharArray` of a multiple master font, sized on first use.
+    build_char: smallvec::SmallVec<[Fixed; INLINE_BUILD_CHAR_LEN]>,
 }
 
 impl<'a> Evaluator<'a> {
@@ -348,6 +393,8 @@ impl<'a> Evaluator<'a> {
             stack_ix: 0,
             in_seac: false,
             ops_done: 0,
+            storage: [Fixed::ZERO; STORAGE_SIZE],
+            build_char: smallvec::SmallVec::new(),
         }
     }
 
@@ -370,14 +417,14 @@ impl<'a> Evaluator<'a> {
 
     fn evaluate_impl(&mut self, charstring_data: &[u8], nesting_depth: u32) -> Result<bool, Error> {
         if nesting_depth > NESTING_DEPTH_LIMIT {
-            return Err(Error::CharstringNestingDepthLimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         let mut cursor = crate::FontData::new(charstring_data).cursor();
         let mut seen_endchar = false;
         while cursor.remaining_bytes() != 0 {
             self.ops_done += 1;
             if self.ops_done > MAX_OPERATIONS {
-                return Err(Error::CharstringNestingDepthLimitExceeded);
+                return Err(Error::LimitExceeded);
             }
             let b0 = cursor.read::<u8>()?;
             match b0 {
@@ -468,7 +515,7 @@ impl<'a> Evaluator<'a> {
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
             VariationStoreIndex => {
                 if !self.is_type1 {
-                    let blend_state = self.blend_state.as_mut().ok_or(Error::MissingBlendState)?;
+                    let blend_state = self.blend_state.as_mut().ok_or(Error::MissingResource)?;
                     let store_index = self.stack.pop_i32()? as u16;
                     blend_state.set_store_index(store_index)?;
                 }
@@ -477,7 +524,7 @@ impl<'a> Evaluator<'a> {
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
             Blend => {
                 if !self.is_type1 {
-                    let blend_state = self.blend_state.as_ref().ok_or(Error::MissingBlendState)?;
+                    let blend_state = self.blend_state.as_ref().ok_or(Error::MissingResource)?;
                     self.stack.apply_blend(blend_state)?;
                 }
             }
@@ -817,6 +864,125 @@ impl<'a> Evaluator<'a> {
             Div => {
                 self.stack.div(self.is_type1)?;
             }
+            // Arithmetic, logic, storage and stack operators. Deprecated in
+            // Type 2 and forbidden in CFF2, but a font may still state them,
+            // and FreeType evaluates them all.
+            //
+            // None of these clear the stack: they compute a value for the
+            // operator that follows.
+            //
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=27>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1252>
+            And | Or | Eq => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                // These answer with an integer, not a fixed point value.
+                let answer = match operator {
+                    And => a != Fixed::ZERO && b != Fixed::ZERO,
+                    Or => a != Fixed::ZERO || b != Fixed::ZERO,
+                    _ => a == b,
+                };
+                self.stack.push(answer as i32)?;
+            }
+            Not => {
+                let a = self.stack.pop_fixed()?;
+                self.stack.push((a == Fixed::ZERO) as i32)?;
+            }
+            Abs | Neg => {
+                let a = self.stack.pop_fixed()?;
+                // The most negative value has no positive counterpart, so it
+                // saturates rather than wrapping back to itself.
+                let answer = if a.to_bits() < -Fixed::MAX.to_bits() {
+                    Fixed::MAX
+                } else if operator == Abs {
+                    Fixed::from_bits(a.to_bits().abs())
+                } else {
+                    Fixed::from_bits(-a.to_bits())
+                };
+                self.stack.push(answer)?;
+            }
+            Add | Sub => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                // Wrapping, as FreeType's ADD_INT32 and SUB_INT32 are.
+                let answer = if operator == Add {
+                    a.to_bits().wrapping_add(b.to_bits())
+                } else {
+                    a.to_bits().wrapping_sub(b.to_bits())
+                };
+                self.stack.push(Fixed::from_bits(answer))?;
+            }
+            Mul => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(a * b)?;
+            }
+            Sqrt => {
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(fixed_sqrt(a))?;
+            }
+            Drop => {
+                self.stack.pop_fixed()?;
+            }
+            Dup => {
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(a)?;
+                self.stack.push(a)?;
+            }
+            Exch => {
+                self.stack.exch()?;
+            }
+            Index => {
+                let index = self.stack.pop_i32()?;
+                let len = self.stack.len();
+                if len > 0 {
+                    // A negative index names the top, and one past the end
+                    // names the bottom, rather than either being an error.
+                    let from_bottom = if index < 0 {
+                        len - 1
+                    } else if index as usize >= len {
+                        0
+                    } else {
+                        len - 1 - index as usize
+                    };
+                    let value = self.stack.get_fixed(from_bottom)?;
+                    self.stack.push(value)?;
+                }
+            }
+            Roll => {
+                let shift = self.stack.pop_i32()?;
+                let count = self.stack.pop_i32()?;
+                self.stack.roll(count, shift)?;
+            }
+            Put => {
+                let index = self.stack.pop_i32()?;
+                let value = self.stack.pop_fixed()?;
+                // An index the array cannot hold is dropped, not an error.
+                if let Some(slot) = usize::try_from(index)
+                    .ok()
+                    .and_then(|i| self.storage.get_mut(i))
+                {
+                    *slot = value;
+                }
+            }
+            Get => {
+                let index = self.stack.pop_i32()?;
+                // An index the array cannot hold pushes nothing, leaving the
+                // stack one shorter than the charstring expects.
+                if let Some(value) = usize::try_from(index)
+                    .ok()
+                    .and_then(|i| self.storage.get(i))
+                {
+                    self.stack.push(*value)?;
+                }
+            }
+            IfElse => {
+                let cond2 = self.stack.pop_fixed()?;
+                let cond1 = self.stack.pop_fixed()?;
+                let arg2 = self.stack.pop_fixed()?;
+                let arg1 = self.stack.pop_fixed()?;
+                self.stack.push(if cond1 <= cond2 { arg1 } else { arg2 })?;
+            }
             // Mechanism for making calls into the PostScript interpreter.
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=61>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1644>
@@ -843,8 +1009,16 @@ impl<'a> Evaluator<'a> {
                     }
                     // Handle blends for multiple masters.
                     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1823>
-                    (14..=18, _) if weight_vector.len() > 1 => {
+                    (14..=18, _) => {
+                        // A font with no masters has nothing to blend, and
+                        // FreeType fails the glyph.
+                        if weight_vector.is_empty() {
+                            return Err(Error::InvalidOperation);
+                        }
                         self.handle_mm_blend(subr_idx, num_args)?;
+                    }
+                    (19..=25 | 27, _) => {
+                        self.handle_build_char(subr_idx, num_args)?;
                     }
                     _ => {
                         // Unknown othersubr, so simply drop the arguments
@@ -887,7 +1061,7 @@ impl<'a> Evaluator<'a> {
     fn handle_seac(&mut self, mode: SeacMode, nesting_depth: u32) -> Result<(), Error> {
         // handle seac operator
         if self.in_seac {
-            return Err(Error::CharstringNestingDepthLimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         self.in_seac = true;
         let accent_code = self.stack.pop_i32()?;
@@ -1046,7 +1220,7 @@ impl<'a> Evaluator<'a> {
             .stack
             .len()
             .checked_sub(num_args)
-            .ok_or(Error::StackUnderflow)?;
+            .ok_or(Error::InvalidOperation)?;
         let mut delta_idx = stack_base + num_points;
         for i in 0..num_points {
             let mut val = self.stack.get_fixed(stack_base + i)?;
@@ -1058,6 +1232,87 @@ impl<'a> Evaluator<'a> {
         }
         self.stack.drop(num_args.saturating_sub(num_points));
         Ok(())
+    }
+
+    /// Handles the othersubrs that compute with the `BuildCharArray` and the
+    /// blend, 19 to 25 and 27.
+    ///
+    /// Each takes its arguments from the stack and leaves its result there,
+    /// for the `pop` that follows. A wrong number of arguments, an index the
+    /// array cannot hold or a division by zero fails the glyph, as in
+    /// FreeType.
+    ///
+    /// The array starts out zeroed for each glyph. FreeType keeps one array
+    /// for the whole font, so a font that reads an element no earlier
+    /// othersubr in the glyph wrote can differ.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1911>
+    fn handle_build_char(&mut self, subr_idx: i32, num_args: usize) -> Result<(), Error> {
+        let weights = self.context.weight_vector();
+        let has_blend = !weights.is_empty();
+        let len = self.context.build_char_len();
+        match (subr_idx, num_args) {
+            // `<idx> 1 19 callothersubr` copies the weights into the array,
+            // starting at `idx`.
+            (19, 1) if has_blend => {
+                let idx = self.stack.pop_i32()? as u32 as usize;
+                if len < weights.len() || len - weights.len() < idx {
+                    return Err(Error::InvalidOperation);
+                }
+                self.build_char(len)[idx..idx + weights.len()].copy_from_slice(weights);
+            }
+            // Arithmetic: `<a> <b> 2 n callothersubr pop` pushes the result.
+            (20..=23, 2) => {
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                let result = match subr_idx {
+                    20 => Fixed::from_bits(a.to_bits().wrapping_add(b.to_bits())),
+                    21 => Fixed::from_bits(a.to_bits().wrapping_sub(b.to_bits())),
+                    22 => a * b,
+                    _ if b == Fixed::ZERO => return Err(Error::InvalidOperation),
+                    _ => a / b,
+                };
+                self.stack.push(result)?;
+            }
+            // `<val> <idx> 2 24 callothersubr` stores `val` at `idx`.
+            (24, 2) if has_blend => {
+                let idx = self.stack.pop_i32()? as u32 as usize;
+                if idx >= len {
+                    return Err(Error::InvalidOperation);
+                }
+                let value = self.stack.pop_fixed()?;
+                self.build_char(len)[idx] = value;
+            }
+            // `<idx> 1 25 callothersubr pop` pushes the value at `idx`.
+            (25, 1) if has_blend => {
+                let idx = self.stack.pop_i32()? as u32 as usize;
+                if idx >= len {
+                    return Err(Error::InvalidOperation);
+                }
+                let value = self.build_char(len)[idx];
+                self.stack.push(value)?;
+            }
+            // `<a> <b> <c> <d> 4 27 callothersubr pop` pushes `a` if `c <=
+            // d`, and `b` otherwise.
+            (27, 4) => {
+                let d = self.stack.pop_fixed()?;
+                let c = self.stack.pop_fixed()?;
+                let b = self.stack.pop_fixed()?;
+                let a = self.stack.pop_fixed()?;
+                self.stack.push(if c <= d { a } else { b })?;
+            }
+            _ => return Err(Error::InvalidOperation),
+        }
+        Ok(())
+    }
+
+    /// Returns the `BuildCharArray`, sized to `len` zeroed elements on first
+    /// use.
+    fn build_char(&mut self, len: usize) -> &mut [Fixed] {
+        if self.build_char.len() != len {
+            self.build_char.resize(len, Fixed::ZERO);
+        }
+        &mut self.build_char
     }
 
     fn coords_remaining(&self) -> usize {
@@ -1224,6 +1479,24 @@ enum Operator {
     Flex,
     HFlex1,
     Flex1,
+    And,
+    Or,
+    Not,
+    Abs,
+    Add,
+    Sub,
+    Neg,
+    Eq,
+    Drop,
+    Put,
+    Get,
+    IfElse,
+    Mul,
+    Sqrt,
+    Dup,
+    Exch,
+    Index,
+    Roll,
 }
 
 impl Operator {
@@ -1278,12 +1551,34 @@ impl Operator {
     pub fn from_two_byte_opcode(opcode: u8) -> Option<Self> {
         use Operator::*;
         Some(match opcode {
+            // `random` (12 23) is deliberately absent. It answers from a
+            // generator whose state belongs to the subfont and persists
+            // across glyphs, and its answers are meant to differ from run to
+            // run, so a charstring cannot depend on any particular one.
             0 => DotSection,
             1 => VStem3,
             2 => HStem3,
+            3 => And,
+            4 => Or,
+            5 => Not,
             6 => Seac,
             7 => Sbw,
+            9 => Abs,
+            10 => Add,
+            11 => Sub,
             12 => Div,
+            14 => Neg,
+            15 => Eq,
+            18 => Drop,
+            20 => Put,
+            21 => Get,
+            22 => IfElse,
+            24 => Mul,
+            26 => Sqrt,
+            27 => Dup,
+            28 => Exch,
+            29 => Index,
+            30 => Roll,
             16 => CallOtherSubr,
             17 => Pop,
             33 => SetCurrentPoint,
@@ -1542,7 +1837,7 @@ where
     }
 }
 
-impl<P: OutlinePen> CommandSink for P {
+impl<P: PathSink> CommandSink for P {
     fn move_to(&mut self, x: Fixed, y: Fixed) {
         self.move_to(x.to_f32(), y.to_f32());
     }
@@ -2059,7 +2354,7 @@ mod tests {
             &mut commands,
         )
         .unwrap_err();
-        assert!(matches!(err, Error::CharstringNestingDepthLimitExceeded));
+        assert!(matches!(err, Error::LimitExceeded));
     }
 
     #[test]
@@ -2206,16 +2501,16 @@ mod tests {
             self.0
         }
 
-        fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
-            Err(Error::InvalidSeacCode(base_code))
+        fn seac_components(&self, _base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
+            Err(Error::InvalidOperation)
         }
 
         fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
 
         fn subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
     }
 
@@ -2368,20 +2663,365 @@ mod tests {
             CharstringKind::Type1
         }
 
-        fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
-            Err(Error::InvalidSeacCode(base_code))
+        fn seac_components(&self, _base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
+            Err(Error::InvalidOperation)
         }
 
         fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
 
         fn subr(&self, _index: i32) -> Result<&[u8], Error> {
-            Err(Error::MissingSubroutines)
+            Err(Error::MissingResource)
         }
 
         fn weight_vector(&self) -> &[Fixed] {
             &self.0
+        }
+
+        fn build_char_len(&self) -> usize {
+            8
+        }
+    }
+
+    /// Runs one `callothersubr` after pushing `args`, which end with the
+    /// argument count and the othersubr number, and returns the stack.
+    fn othersubr(eval: &mut Evaluator, args: &[f64]) -> Result<Vec<f64>, Error> {
+        let mut cursor = FontData::new(&[]).cursor();
+        for &arg in args {
+            if arg.fract() == 0.0 {
+                eval.stack.push(arg as i32)?;
+            } else {
+                eval.stack.push(Fixed::from_f64(arg))?;
+            }
+        }
+        eval.evaluate_operator(Operator::CallOtherSubr, &mut cursor, 0)?;
+        let stack = eval.stack.fixed_values().map(|v| v.to_f64()).collect();
+        Ok(stack)
+    }
+
+    // Othersubrs 20 to 23 and 27 compute without a blend.
+    #[test]
+    fn othersubr_arithmetic() {
+        let ctx = MmContext([Fixed::ZERO; 3]);
+        for (args, result) in [
+            (&[7.0, 2.0, 2.0, 20.0][..], 9.0),
+            (&[7.0, 2.0, 2.0, 21.0], 5.0),
+            (&[7.0, 2.0, 2.0, 22.0], 14.0),
+            (&[7.0, 2.0, 2.0, 23.0], 3.5),
+            (&[1.0, 2.0, 3.0, 4.0, 4.0, 27.0], 1.0),
+            (&[1.0, 2.0, 5.0, 4.0, 4.0, 27.0], 2.0),
+        ] {
+            let mut commands = CaptureCommandSink::default();
+            let mut eval = Evaluator::new(&ctx, None, &mut commands);
+            assert_eq!(othersubr(&mut eval, args).unwrap(), [result], "{args:?}");
+        }
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&ctx, None, &mut commands);
+        // Division by zero and a wrong argument count fail the glyph.
+        assert!(othersubr(&mut eval, &[7.0, 0.0, 2.0, 23.0]).is_err());
+        assert!(othersubr(&mut eval, &[7.0, 2.0, 1.0, 20.0]).is_err());
+    }
+
+    // Othersubrs 19, 24 and 25 read and write the `BuildCharArray`.
+    #[test]
+    fn othersubr_build_char_array() {
+        let ctx = MmContext([0.25, 0.5, 0.25].map(Fixed::from_f64));
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&ctx, None, &mut commands);
+        // Store 5 at 3, then read it back.
+        assert!(othersubr(&mut eval, &[5.0, 3.0, 2.0, 24.0])
+            .unwrap()
+            .is_empty());
+        assert_eq!(othersubr(&mut eval, &[3.0, 1.0, 25.0]).unwrap(), [5.0]);
+        eval.stack.clear();
+        // Copy the weights to 2, 3 and 4.
+        assert!(othersubr(&mut eval, &[2.0, 1.0, 19.0]).unwrap().is_empty());
+        assert_eq!(othersubr(&mut eval, &[3.0, 1.0, 25.0]).unwrap(), [0.5]);
+        eval.stack.clear();
+        // The array has eight elements.
+        assert!(othersubr(&mut eval, &[1.0, 8.0, 2.0, 24.0]).is_err());
+        assert!(othersubr(&mut eval, &[8.0, 1.0, 25.0]).is_err());
+        assert!(othersubr(&mut eval, &[6.0, 1.0, 19.0]).is_err());
+    }
+
+    // A font with no masters has no blend and no array to use.
+    #[test]
+    fn othersubrs_without_a_blend_fail() {
+        struct Plain;
+        impl CharstringContext for Plain {
+            fn kind(&self) -> CharstringKind {
+                CharstringKind::Type1
+            }
+            fn seac_components(&self, _: i32, _: i32) -> Result<[&[u8]; 2], Error> {
+                Err(Error::InvalidOperation)
+            }
+            fn global_subr(&self, _: i32) -> Result<&[u8], Error> {
+                Err(Error::MissingResource)
+            }
+            fn subr(&self, _: i32) -> Result<&[u8], Error> {
+                Err(Error::MissingResource)
+            }
+        }
+        for args in [
+            &[1.0, 2.0, 2.0, 14.0][..],
+            &[0.0, 1.0, 19.0],
+            &[5.0, 0.0, 2.0, 24.0],
+            &[0.0, 1.0, 25.0],
+        ] {
+            let mut commands = CaptureCommandSink::default();
+            let mut eval = Evaluator::new(&Plain, None, &mut commands);
+            assert!(othersubr(&mut eval, args).is_err(), "{args:?}");
+        }
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&Plain, None, &mut commands);
+        assert_eq!(othersubr(&mut eval, &[7.0, 2.0, 2.0, 20.0]).unwrap(), [9.0]);
+    }
+
+    /// Builds a Type 2 charstring from `ops`, then moves by whatever the
+    /// stack holds so the result is observable as a coordinate.
+    fn eval(ops: &[u8]) -> Vec<Command> {
+        let mut charstring = ops.to_vec();
+        charstring.push(21); // rmoveto
+        charstring.push(14); // endchar
+        let mut commands = CaptureCommandSink::default();
+        evaluate(
+            &NullContext(CharstringKind::Type2),
+            None,
+            &charstring,
+            &mut commands,
+        )
+        .unwrap();
+        commands.0
+    }
+
+    /// A single number, in the one-byte encoding where it fits.
+    fn n(v: i32) -> Vec<u8> {
+        assert!((-107..=107).contains(&v));
+        std::vec![(v + 139) as u8]
+    }
+
+    fn esc(op: u8) -> Vec<u8> {
+        std::vec![12, op]
+    }
+
+    /// Runs `a op b` and reports where the move ended up.
+    fn binary(a: i32, b: i32, op: u8) -> (Fixed, Fixed) {
+        let mut cs = n(0);
+        cs.extend(n(a));
+        cs.extend(n(b));
+        cs.extend(esc(op));
+        match eval(&cs).first() {
+            Some(Command::MoveTo(x, y)) => (*x, *y),
+            other => panic!("expected a move, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn arithmetic() {
+        // dx is 0, so the second coordinate carries the answer.
+        assert_eq!(binary(7, 5, 10).1, Fixed::from_i32(12)); // add
+        assert_eq!(binary(7, 5, 11).1, Fixed::from_i32(2)); // sub
+        assert_eq!(binary(7, 5, 24).1, Fixed::from_i32(35)); // mul
+        assert_eq!(binary(10, 4, 12).1, Fixed::from_f64(2.5)); // div
+    }
+
+    #[test]
+    fn logic_answers_with_one_or_zero() {
+        for (a, b, op, expected) in [
+            (1, 1, 3, 1),
+            (1, 0, 3, 0),
+            (0, 0, 3, 0), // and
+            (1, 0, 4, 1),
+            (0, 0, 4, 0), // or
+            (5, 5, 15, 1),
+            (5, 6, 15, 0), // eq
+        ] {
+            assert_eq!(
+                binary(a, b, op).1,
+                Fixed::from_i32(expected),
+                "12 {op} on {a}, {b}"
+            );
+        }
+    }
+
+    #[test]
+    fn unary() {
+        // not
+        let mut cs = n(0);
+        cs.extend(n(0));
+        cs.extend(esc(5));
+        assert_eq!(
+            match eval(&cs).first() {
+                Some(Command::MoveTo(_, y)) => *y,
+                _ => panic!(),
+            },
+            Fixed::from_i32(1)
+        );
+        // abs and neg
+        for (v, op, expected) in [(-5, 9, 5), (5, 9, 5), (5, 14, -5), (-5, 14, 5)] {
+            let mut cs = n(0);
+            cs.extend(n(v));
+            cs.extend(esc(op));
+            assert_eq!(
+                match eval(&cs).first() {
+                    Some(Command::MoveTo(_, y)) => *y,
+                    _ => panic!(),
+                },
+                Fixed::from_i32(expected),
+                "12 {op} on {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn sqrt_of_a_square_is_the_root() {
+        for v in [1i32, 4, 9, 16, 100] {
+            let mut cs = n(0);
+            cs.extend(n(v));
+            cs.extend(esc(26));
+            let got = match eval(&cs).first() {
+                Some(Command::MoveTo(_, y)) => *y,
+                _ => panic!(),
+            };
+            // The Babylonian method lands within a hair of the true root.
+            let want = Fixed::from_f64((v as f64).sqrt());
+            assert!(
+                (got.to_bits() - want.to_bits()).abs() <= 2,
+                "sqrt({v}) = {got:?}, wanted about {want:?}"
+            );
+        }
+        // Nothing that is not positive has a root here.
+        for v in [0i32, -4] {
+            let mut cs = n(0);
+            cs.extend(n(v));
+            cs.extend(esc(26));
+            assert_eq!(
+                match eval(&cs).first() {
+                    Some(Command::MoveTo(_, y)) => *y,
+                    _ => panic!(),
+                },
+                Fixed::ZERO
+            );
+        }
+    }
+
+    #[test]
+    fn the_stack_operators_rearrange_it() {
+        // dup: 0 7 dup -> 0 7 7, so the move takes the last two
+        let mut cs = n(0);
+        cs.extend(n(7));
+        cs.extend(esc(27));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(7), Fixed::from_i32(7)))
+        );
+        // exch: 3 9 exch -> 9 3
+        let mut cs = n(3);
+        cs.extend(n(9));
+        cs.extend(esc(28));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(9), Fixed::from_i32(3)))
+        );
+        // drop: 4 5 6 drop -> 4 5
+        let mut cs = n(4);
+        cs.extend(n(5));
+        cs.extend(n(6));
+        cs.extend(esc(18));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(4), Fixed::from_i32(5)))
+        );
+        // index 0 copies the top: 0 8 0 index -> 0 8 8
+        let mut cs = n(0);
+        cs.extend(n(8));
+        cs.extend(n(0));
+        cs.extend(esc(29));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(8), Fixed::from_i32(8)))
+        );
+    }
+
+    #[test]
+    fn roll_rotates_the_values_it_is_given() {
+        // 1 2 3, roll 3 by 1 -> 3 1 2, so the move takes 1 2
+        let mut cs = n(1);
+        cs.extend(n(2));
+        cs.extend(n(3));
+        cs.extend(n(3));
+        cs.extend(n(1));
+        cs.extend(esc(30));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(1), Fixed::from_i32(2)))
+        );
+    }
+
+    #[test]
+    fn roll_leaves_the_values_below_alone() {
+        // 99 1 2, roll 2 by 1 -> 99 2 1, so 99 is the width and the move
+        // takes 2 1
+        let mut cs = n(99);
+        cs.extend(n(1));
+        cs.extend(n(2));
+        cs.extend(n(2));
+        cs.extend(n(1));
+        cs.extend(esc(30));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(2), Fixed::from_i32(1)))
+        );
+    }
+
+    #[test]
+    fn the_transient_array_remembers_between_operators() {
+        // 0, then 42 into slot 3, then read it back
+        let mut cs = n(0);
+        cs.extend(n(42));
+        cs.extend(n(3));
+        cs.extend(esc(20)); // put
+        cs.extend(n(3));
+        cs.extend(esc(21)); // get
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::ZERO, Fixed::from_i32(42)))
+        );
+    }
+
+    #[test]
+    fn a_slot_the_array_does_not_have_is_ignored() {
+        // Storing out of range must not disturb the stack or panic.
+        let mut cs = n(3);
+        cs.extend(n(9));
+        cs.extend(n(99));
+        cs.extend(esc(20)); // put, out of range: drops the value
+        cs.extend(n(4));
+        assert_eq!(
+            eval(&cs).first().cloned(),
+            Some(Command::MoveTo(Fixed::from_i32(3), Fixed::from_i32(4)))
+        );
+    }
+
+    #[test]
+    fn ifelse_picks_the_first_when_the_conditions_are_ordered() {
+        // args 11 22, conditions 1 2: 1 <= 2, so 11
+        for (c1, c2, expected) in [(1, 2, 11), (2, 1, 22), (2, 2, 11)] {
+            let mut cs = n(0);
+            cs.extend(n(11));
+            cs.extend(n(22));
+            cs.extend(n(c1));
+            cs.extend(n(c2));
+            cs.extend(esc(22));
+            assert_eq!(
+                match eval(&cs).first() {
+                    Some(Command::MoveTo(_, y)) => *y,
+                    _ => panic!(),
+                },
+                Fixed::from_i32(expected),
+                "conditions {c1}, {c2}"
+            );
         }
     }
 }
