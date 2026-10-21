@@ -448,14 +448,18 @@ impl GraphicsState<'_> {
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1669>
                 let fv = self.freedom_vector;
                 let distance = distance.to_bits();
+                // A move measured along a horizontal projection vector is
+                // made even in backward compatibility mode. Comic Sans MS
+                // depends on it.
+                let horizontal = self.proj_vector.y == 0;
                 if fv.x != 0 {
-                    if !back_compat {
+                    if !back_compat || horizontal {
                         point.x += F26Dot6::from_bits(math::mul_div(distance, fv.x, self.fdotp));
                     }
                     zone.touch(point_ix, CoordAxis::X)?;
                 }
                 if fv.y != 0 {
-                    if !back_compat_and_did_iup {
+                    if !back_compat_and_did_iup || horizontal {
                         zone.point_mut(point_ix)?.y +=
                             F26Dot6::from_bits(math::mul_div(distance, fv.y, self.fdotp));
                     }
@@ -709,6 +713,25 @@ mod tests {
         gs.move_point(ZonePointer::Glyph, 0, dist).unwrap();
         let point = gs.zones[1].point(point_ix).unwrap();
         assert_eq!(point.map(F26Dot6::to_bits), Point::new(4, -16));
+    }
+
+    // With a horizontal projection vector, a diagonal move is made in both
+    // directions despite backward compatibility.
+    #[test]
+    fn move_point_along_a_horizontal_projection() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 50);
+        gs.proj_vector = math::normalize14(-100, 0);
+        gs.update_projection_state();
+        assert_eq!(gs.freedom_axis, CoordAxis::Both);
+        gs.did_iup_x = true;
+        gs.did_iup_y = true;
+        let orig_point = gs.zones[1].point(0).unwrap();
+        gs.move_point(ZonePointer::Glyph, 0, F26Dot6::from_bits(10))
+            .unwrap();
+        let point = gs.zones[1].point(0).unwrap();
+        assert_ne!(point.x, orig_point.x);
+        assert_ne!(point.y, orig_point.y);
     }
 
     #[test]

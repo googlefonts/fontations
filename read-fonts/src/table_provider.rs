@@ -276,6 +276,20 @@ pub trait TableProvider<'a> {
         table_data.read_array(0..table_data.len())
     }
 
+    /// Returns the font program, which contains the TrueType instructions
+    /// run once per font.
+    fn fpgm(&self) -> Result<&'a [u8], ReadError> {
+        self.expect_data_for_tag(Tag::new(b"fpgm"))
+            .map(|data| data.as_bytes())
+    }
+
+    /// Returns the control value program, which contains the TrueType
+    /// instructions run once per size.
+    fn prep(&self) -> Result<&'a [u8], ReadError> {
+        self.expect_data_for_tag(Tag::new(b"prep"))
+            .map(|data| data.as_bytes())
+    }
+
     fn cvar(&self) -> Result<tables::cvar::Cvar<'a>, ReadError> {
         self.expect_table()
     }
