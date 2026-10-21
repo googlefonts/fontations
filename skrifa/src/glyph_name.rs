@@ -4,7 +4,7 @@ use core::ops::Range;
 use raw::{
     ps::{
         cff::charset::{Charset, Iter as CharsetIter},
-        string::Sid,
+        Sid,
     },
     tables::{
         cff::Cff,
