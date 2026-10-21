@@ -2295,26 +2295,28 @@ mod tests {
         use crate::model::glyph::color::test_glyph_defs::CLIPBOX;
         let font = Font::new(font_test_data::COLRV0V1_VARIABLE, 0).unwrap();
         let gid = font.charmap().map_unicode(CLIPBOX[0]).unwrap();
-        let moved = font
-            .instance_builder()
-            .variations([("CLXI", 200.0)])
-            .build();
-        let (at_default, at_moved) = (
-            font.glyph_metrics().extents_exact(gid).unwrap(),
-            moved.glyph_metrics().extents_exact(gid).unwrap(),
-        );
-        assert_ne!(at_default.x_bearing, at_moved.x_bearing);
-        // The clip box moves by a fraction of a unit, and the extents by the
-        // whole units HarfBuzz rounds each delta to.
-        let clip_box = moved.color_glyphs().get(gid).unwrap().clip_box().unwrap();
-        assert_ne!(clip_box.x_min, clip_box.x_min.round());
-        let rounded = BoundingBox {
-            x_min: clip_box.x_min.round(),
-            y_min: clip_box.y_min.round(),
-            x_max: clip_box.x_max.round(),
-            y_max: clip_box.y_max.round(),
-        };
-        assert_eq!(at_moved, extents_of(rounded));
+        let at_default = font.glyph_metrics().extents_exact(gid).unwrap();
+        // Rendering rounds minimum clip edges down. Glyph extents instead
+        // round each delta to the nearest whole unit, as HarfBuzz does.
+        for (location, render_min, extent_min) in
+            [(200.75, 200.0, 201.0), (-200.25, -201.0, -200.0)]
+        {
+            let moved = font
+                .instance_builder()
+                .variations([("CLXI", location)])
+                .build();
+            let at_moved = moved.glyph_metrics().extents_exact(gid).unwrap();
+            assert_ne!(at_default.x_bearing, at_moved.x_bearing);
+            let clip_box = moved.color_glyphs().get(gid).unwrap().clip_box().unwrap();
+            assert_eq!(clip_box.x_min, render_min);
+            assert_eq!(
+                at_moved,
+                extents_of(BoundingBox {
+                    x_min: extent_min,
+                    ..clip_box
+                })
+            );
+        }
     }
 
     #[test]
