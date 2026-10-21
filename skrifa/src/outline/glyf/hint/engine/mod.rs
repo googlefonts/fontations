@@ -21,12 +21,12 @@ use read_fonts::{
 };
 
 use super::{
-    super::Outlines,
+    cleartype::ClearTypeState,
     cvt::Cvt,
     definition::DefinitionState,
     graphics::{GraphicsState, RetainedGraphicsState},
     math,
-    program::ProgramState,
+    program::{Program, ProgramState},
     storage::Storage,
     value_stack::ValueStack,
     zone::Zone,
@@ -51,12 +51,13 @@ pub struct Engine<'a> {
     work_budget: WorkBudget,
     axis_count: u16,
     coords: &'a [F2Dot14],
+    cleartype: ClearTypeState,
 }
 
 impl<'a> Engine<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        outlines: &Outlines,
+        cvt_len: usize,
         program: ProgramState<'a>,
         graphics: RetainedGraphicsState,
         definitions: DefinitionState<'a>,
@@ -68,6 +69,7 @@ impl<'a> Engine<'a> {
         axis_count: u16,
         coords: &'a [F2Dot14],
         is_composite: bool,
+        cleartype: ClearTypeState,
     ) -> Self {
         let point_count = if glyph.points.is_empty() {
             None
@@ -87,10 +89,29 @@ impl<'a> Engine<'a> {
             cvt: cvt.into(),
             storage: storage.into(),
             value_stack,
-            work_budget: WorkBudget::new(outlines, point_count),
+            work_budget: WorkBudget::new(cvt_len, point_count),
             axis_count,
             coords,
+            cleartype,
         }
+    }
+
+    /// Returns true while a glyph program moves points along the horizontal
+    /// axis of native ClearType.
+    ///
+    /// ClearType has sixteen horizontal positions per pixel, and the
+    /// interpreter has one. The interpreter approximates the finer grid by
+    /// leaving the affected distances unrounded. This is computed on demand,
+    /// so changes to the projection and freedom vectors or to `INSTCTRL`
+    /// take effect immediately.
+    #[inline]
+    fn native_cleartype_x(&self) -> bool {
+        self.cleartype.is_native_enhanced()
+            && self.program.initial == Program::Glyph
+            && self.graphics.target.is_smooth()
+            && !self.graphics.backward_compatibility
+            && self.graphics.proj_vector.y == 0
+            && self.graphics.freedom_vector.y == 0
     }
 
     pub fn backward_compatibility(&self) -> bool {
@@ -116,8 +137,7 @@ struct WorkBudget {
 }
 
 impl WorkBudget {
-    fn new(outlines: &Outlines, point_count: Option<usize>) -> Self {
-        let cvt_len = outlines.cvt_len as usize;
+    fn new(cvt_len: usize, point_count: Option<usize>) -> Self {
         // Compute limits for loop calls and backward jumps.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6955>
         let loop_limit = if let Some(point_count) = point_count {
@@ -259,6 +279,7 @@ mod mock {
                 definitions: definition,
                 axis_count: 0,
                 coords: &[],
+                cleartype: Default::default(),
             }
         }
     }
