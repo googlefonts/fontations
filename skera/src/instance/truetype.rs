@@ -150,6 +150,7 @@ pub(super) fn instance(
     font: &FontRef,
     axes: &AxisPlan,
     tables: &mut Tables,
+    optimize_iup: bool,
 ) -> Result<(), SubsetError> {
     let glyf = font.glyf().map_err(|_| error(b"glyf"))?;
     let loca = font.loca(None).map_err(|_| error(b"loca"))?;
@@ -256,7 +257,16 @@ pub(super) fn instance(
             }
         }
         if !axes.all_pinned() {
-            residual.instantiate(font, axes, Some((&orig_points, &contours)))?;
+            let mut iup_points = optimize_iup.then(|| orig_points.clone());
+            residual.instantiate(
+                font,
+                axes,
+                Some((&orig_points, &contours)),
+                iup_points.as_deref_mut(),
+            )?;
+            if let Some(points) = iup_points {
+                residual.optimize(&points, &contours, matches!(glyph, Glyph::Composite(_)))?;
+            }
         }
         variations.push(residual);
         let phantoms = points.split_off(points.len() - 4).try_into().unwrap();
@@ -679,7 +689,7 @@ fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result
     if axes.all_pinned() {
         tables.remove(&Tag::new(b"cvar"));
     } else {
-        residual.instantiate(font, axes, None)?;
+        residual.instantiate(font, axes, None, None)?;
         let data = residual.compile_bytes(&BTreeMap::new(), false)?;
         if data.is_empty() {
             tables.remove(&Tag::new(b"cvar"));
