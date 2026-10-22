@@ -51,7 +51,7 @@ struct Args {
     layout_scripts: Option<String>,
 
     /// List of 'name' table entry nameIDs
-    #[arg(long)]
+    #[arg(long = "name-IDs")]
     name_IDs: Option<String>,
 
     /// List of 'name' table entry langIDs
