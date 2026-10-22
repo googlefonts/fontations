@@ -124,6 +124,75 @@ fn retained_gid_holes_and_notdef_are_empty() {
 }
 
 #[test]
+fn identity_charsets_use_output_gids_only_for_cid_keyed_cff() {
+    for file in [
+        "SourceHanSans-Regular_subset.otf",
+        "SourceSansPro-Regular.otf",
+        "AdobeVFPrototype.otf",
+    ] {
+        let source = std::fs::read(format!("test-data/fonts/{file}")).unwrap();
+        let font = FontRef::new(&source).unwrap();
+        for retain in [false, true] {
+            let flags = SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE
+                | if retain {
+                    SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                } else {
+                    SubsetFlags::default()
+                };
+            let dense_plan = plan(&font, flags, "U+0041,U+0043,U+0061,U+4E00");
+            let identity_plan = plan(
+                &font,
+                flags | SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET,
+                "U+0041,U+0043,U+0061,U+4E00",
+            );
+            let ordinary = subset_font(&font, &dense_plan).unwrap();
+            let identity = subset_font(&font, &identity_plan).unwrap();
+            let ordinary = FontRef::new(&ordinary).unwrap();
+            let identity = FontRef::new(&identity).unwrap();
+            let tag = if identity.cff2().is_ok() {
+                Tag::new(b"CFF2")
+            } else {
+                Tag::new(b"CFF ")
+            };
+            let a_data = ordinary.data_for_tag(tag).unwrap().as_bytes();
+            let b_data = identity.data_for_tag(tag).unwrap().as_bytes();
+            let a = CffFontRef::new(a_data, 0, None).unwrap();
+            let b = CffFontRef::new(b_data, 0, None).unwrap();
+            assert_eq!(a.num_glyphs(), b.num_glyphs());
+            if tag == Tag::new(b"CFF ") && b.is_cid() {
+                for gid in 0..b.num_glyphs() {
+                    let gid = GlyphId::new(gid);
+                    assert_eq!(
+                        b.charset().unwrap().string_id(gid).unwrap().to_u16() as u32,
+                        gid.to_u32()
+                    );
+                    assert_eq!(
+                        a.charstrings().get(gid.to_u32() as usize),
+                        b.charstrings().get(gid.to_u32() as usize)
+                    );
+                    assert_eq!(a.subfont_index(gid), b.subfont_index(gid));
+                }
+                assert!(
+                    identity_plan
+                        .old_to_new_glyph_mapping()
+                        .any(|(old, new)| old != new)
+                        || retain
+                );
+            } else {
+                assert_eq!(a_data, b_data, "{file}");
+            }
+            for tag in [b"cmap", b"hmtx", b"GPOS", b"GSUB"] {
+                let tag = Tag::new(tag);
+                assert_eq!(
+                    ordinary.data_for_tag(tag).map(|d| d.as_bytes()),
+                    identity.data_for_tag(tag).map(|d| d.as_bytes())
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn cff2_subsetting_preserves_variation_locations() {
     use write_fonts::types::F2Dot14;
     for filename in [
