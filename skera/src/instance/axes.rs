@@ -163,7 +163,8 @@ impl AxisPlan {
                 "font has no variation axes".into(),
             ));
         }
-        let mut coords = axes.location(settings.iter().copied()).coords().to_vec();
+        let metric_coords = axes.location(settings.iter().copied()).coords().to_vec();
+        let mut coords = metric_coords.clone();
         let avar = font.avar().ok();
         let coupled = !pinned.iter().all(|p| *p)
             && avar
