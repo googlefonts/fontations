@@ -45,8 +45,7 @@ impl Encoding {
                 }
             }
         }
-        let width = chars.iter().map(|&c| c as usize).sum();
-        let overhead = Self::overhead(&chars);
+        let (width, overhead) = Self::size(chars.iter().copied());
         Self {
             chars,
             items,
@@ -57,9 +56,15 @@ impl Encoding {
     fn width(&self) -> usize {
         self.width
     }
-    fn overhead(chars: &[u8]) -> usize {
-        // Offset32 plus the VarData header and its region-index array.
-        10 + 2 * chars.iter().filter(|&&c| c != 0).count()
+    // Bytes per row, and bytes for Offset32, the header and region indices.
+    fn size(chars: impl Iterator<Item = u8>) -> (usize, usize) {
+        let mut width = 0;
+        let mut columns = 0;
+        for size in chars {
+            width += size as usize;
+            columns += usize::from(size != 0);
+        }
+        (width, 10 + 2 * columns)
     }
     fn gain(&self, other: &Self) -> i64 {
         let additional = other.width as i64 - self.width as i64;
@@ -70,14 +75,9 @@ impl Encoding {
         } else if other.overhead as i64 <= -additional * other.items.len() as i64 {
             return 0;
         }
-        let chars: Vec<_> = self
-            .chars
-            .iter()
-            .zip(&other.chars)
-            .map(|(&a, &b)| a.max(b))
-            .collect();
-        let width: usize = chars.iter().map(|&c| c as usize).sum();
-        (self.overhead + other.overhead - Self::overhead(&chars)) as i64
+        let (width, overhead) =
+            Self::size(self.chars.iter().zip(&other.chars).map(|(&a, &b)| a.max(b)));
+        (self.overhead + other.overhead - overhead) as i64
             - ((width - self.width()) * self.items.len()) as i64
             - ((width - other.width()) * other.items.len()) as i64
     }
@@ -86,8 +86,7 @@ impl Encoding {
         for (a, b) in self.chars.iter_mut().zip(other.chars) {
             *a = (*a).max(b);
         }
-        self.width = self.chars.iter().map(|&c| c as usize).sum();
-        self.overhead = Self::overhead(&self.chars);
+        (self.width, self.overhead) = Self::size(self.chars.iter().copied());
     }
 }
 
@@ -158,6 +157,16 @@ pub(super) fn optimize(
         if !items.is_empty() {
             encodings.push(Encoding::new(items, &rows, columns));
         }
+    }
+    // Bound the pairwise column scans separately from the row matrix. Many
+    // sparse groups can have a small matrix but an expensive merge search.
+    // Count after deduplication so duplicate groups can still be optimized.
+    let pairs = encodings
+        .len()
+        .saturating_mul(encodings.len().saturating_sub(1))
+        / 2;
+    if pairs.saturating_mul(columns) > 4_000_000 {
+        return Ok((source, identity));
     }
     // HarfBuzz's array comparison reverses its arguments; the encoding
     // comparator reverses them again, giving lexicographic column widths.
@@ -445,5 +454,46 @@ mod tests {
         assert_eq!(map[&0], 0);
         assert_eq!(map[&(1 << 16)], 1 << 16);
         assert_eq!(map[&(1 << 16 | 1)], 1 << 16 | 1);
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use write_fonts::{tables::variations::*, types::F2Dot14};
+
+    fn sparse_store(duplicates: bool) -> ItemVariationStore {
+        let axis = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE);
+        ItemVariationStore::new(
+            VariationRegionList::new(1, vec![VariationRegion::new(vec![axis]); 256]),
+            (0..256)
+                .map(|i| {
+                    Some(ItemVariationData {
+                        item_count: 1,
+                        word_delta_count: 0,
+                        region_indexes: vec![if duplicates { 0 } else { i }],
+                        delta_sets: vec![1],
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn expensive_merge_search_preserves_the_source_but_deduplication_still_runs() {
+        let original = sparse_store(false);
+        let (result, map) = optimize(original.clone()).unwrap();
+        assert!(
+            result == original,
+            "over-budget optimization must preserve its input"
+        );
+        assert_eq!(map.len(), 256);
+        assert!(map.iter().all(|(old, new)| old == new));
+
+        // The same number of source groups can be cheap after deduplication.
+        let (result, map) = optimize(sparse_store(true)).unwrap();
+        assert_eq!(result.item_variation_data.len(), 1);
+        assert_eq!(result.variation_region_list.variation_regions.len(), 1);
+        assert!(map.values().all(|&index| index == 0));
     }
 }
