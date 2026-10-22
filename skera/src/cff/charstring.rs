@@ -483,6 +483,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
     fn pop(&mut self) -> Result<Value> {
         self.stack.pop().ok_or(Error)
     }
+    #[inline]
     fn push(&mut self, v: Value) -> Result<()> {
         if self.stack.len() >= F::STACK_LIMIT || !v.default.is_finite() {
             return Err(Error);
