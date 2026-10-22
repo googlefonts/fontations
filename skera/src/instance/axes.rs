@@ -302,6 +302,12 @@ impl AxisPlan {
         if coupled {
             let reachability = super::avar2::reachable_ranges(font, &plan)?;
             plan.reachable = reachability.ranges;
+            // VARC component overrides can reach coordinates outside the
+            // font-level box. Match HarfBuzz's protection for all final-space
+            // stores and tuples, while still detecting constant user pins.
+            if font.data_for_tag(Tag::new(b"VARC")).is_some() {
+                plan.reachable.fill(None);
+            }
             for (i, pin) in reachability.pins.into_iter().enumerate() {
                 if let Some(coord) = pin {
                     plan.pinned[i] = true;
