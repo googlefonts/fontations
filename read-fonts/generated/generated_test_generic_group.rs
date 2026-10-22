@@ -106,22 +106,23 @@ impl<'a, T> MyLookup<'a, T> {
     }
 
     pub fn lookup_type_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn sub_table_count_byte_range(&self) -> Range<usize> {
         let start = self.lookup_type_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subtable_offsets_byte_range(&self) -> Range<usize> {
         let sub_table_count = self.sub_table_count();
         let start = self.sub_table_count_byte_range().end;
-        let end =
-            start + (transforms::to_usize(sub_table_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(sub_table_count)).saturating_mul(Offset16::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -262,14 +263,14 @@ impl<'a> MySubtableFormat1<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -358,21 +359,22 @@ impl<'a> MySubtableFormat2<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn values_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.count_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end =
+            start.saturating_add((transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN));
         start..end
     }
 }
@@ -482,14 +484,14 @@ impl<'a> ContainsLookupGroup<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn lookup_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 }

@@ -312,6 +312,27 @@ mod tests {
     }
 
     #[test]
+    fn overflowing_record_ranges_do_not_wrap_or_panic() {
+        for minor in [0, 1] {
+            let bytes = [0, 1, 0, minor, 0xff, 0xff, 0xff, 0xff];
+            let table = FeatureVariations::read(bytes.as_slice().into()).unwrap();
+            // A missing, oversized array stays unreadable on 32-bit hosts.
+            assert!(table.feature_variation_records().is_empty());
+            let range = table.feature_variation_records_byte_range();
+            assert!(range.end > bytes.len());
+            if minor == 1 {
+                // Fields following the oversized array must not wrap back
+                // into the header, including a conditional scalar field.
+                let next = table.lookup_variation_record_count_byte_range();
+                assert!(next.start >= range.end);
+                assert!(next.end >= next.start);
+                assert_eq!(table.lookup_variation_record_count(), None);
+                assert!(table.lookup_variation_records().is_none());
+            }
+        }
+    }
+
+    #[test]
     fn lookup_variations_truncated_arrays_and_invalid_offsets() {
         let bytes = [
             0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0xff, 0xff, 0xff, 0xff,

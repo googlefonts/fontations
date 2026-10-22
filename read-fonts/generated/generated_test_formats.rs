@@ -72,20 +72,20 @@ impl<'a> Table1<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn heft_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flex_byte_range(&self) -> Range<usize> {
         let start = self.heft_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -171,21 +171,22 @@ impl<'a> Table2<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn value_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn values_byte_range(&self) -> Range<usize> {
         let value_count = self.value_count();
         let start = self.value_count_byte_range().end;
-        let end = start + (transforms::to_usize(value_count)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(value_count)).saturating_mul(u16::RAW_BYTE_LEN));
         start..end
     }
 }
@@ -252,14 +253,14 @@ impl<'a> Table3<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn something_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 }

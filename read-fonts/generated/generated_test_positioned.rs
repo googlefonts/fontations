@@ -82,31 +82,31 @@ impl<'a> PositionedTable<'a> {
     }
 
     pub fn positioned_size_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn solo_byte_range(&self) -> Range<usize> {
         let start = self.positioned_size_byte_range().end;
-        let end =
-            start + <Positioned as ComputeSize>::compute_size(self.positioned_size()).unwrap_or(0);
+        let end = start.saturating_add(
+            <Positioned as ComputeSize>::compute_size(self.positioned_size()).unwrap_or(0),
+        );
         start..end
     }
 
     pub fn pair_count_byte_range(&self) -> Range<usize> {
         let start = self.solo_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn pairs_byte_range(&self) -> Range<usize> {
         let pair_count = self.pair_count();
         let start = self.pair_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(pair_count)).saturating_mul(
-                <PositionedPair as ComputeSize>::compute_size(self.positioned_size()).unwrap_or(0),
-            );
+        let end = start.saturating_add((transforms::to_usize(pair_count)).saturating_mul(
+            <PositionedPair as ComputeSize>::compute_size(self.positioned_size()).unwrap_or(0),
+        ));
         start..end
     }
 }
@@ -280,34 +280,35 @@ impl<'a> NestedPositionedTable<'a> {
     }
 
     pub fn positioned_size_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn pairs_per_group_byte_range(&self) -> Range<usize> {
         let start = self.positioned_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn group_count_byte_range(&self) -> Range<usize> {
         let start = self.pairs_per_group_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn groups_byte_range(&self) -> Range<usize> {
         let group_count = self.group_count();
         let start = self.group_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(group_count)).saturating_mul(
+        let end = start.saturating_add(
+            (transforms::to_usize(group_count)).saturating_mul(
                 <PositionedGroup as ComputeSize>::compute_size((
                     self.pairs_per_group(),
                     self.positioned_size(),
                 ))
                 .unwrap_or(0),
-            );
+            ),
+        );
         start..end
     }
 }

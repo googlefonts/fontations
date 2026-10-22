@@ -80,31 +80,31 @@ impl<'a> Kerx<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn padding_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
         let start = self.padding_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subtables_byte_range(&self) -> Range<usize> {
         let n_tables = self.n_tables();
         let start = self.n_tables_byte_range().end;
-        let end = start + {
+        let end = start.saturating_add({
             let data = self.offset_data().split_off(start).unwrap_or_default();
             <Subtable as VarSize>::total_len_for_count(data, transforms::to_usize(n_tables))
                 .unwrap_or(0)
-        };
+        });
         start..end
     }
 }
@@ -196,27 +196,28 @@ impl<'a> Subtable<'a> {
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn tuple_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.tuple_count_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -315,34 +316,35 @@ impl<'a> Subtable0<'a> {
     }
 
     pub fn n_pairs_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_pairs_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn pairs_byte_range(&self) -> Range<usize> {
         let n_pairs = self.n_pairs();
         let start = self.range_shift_byte_range().end;
-        let end =
-            start + (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

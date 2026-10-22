@@ -75,21 +75,22 @@ impl<'a> OtKern<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
         let start = self.n_tables_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -175,21 +176,22 @@ impl<'a> AatKern<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
         let start = self.n_tables_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -281,27 +283,28 @@ impl<'a> OtSubtable<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.coverage_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -393,27 +396,28 @@ impl<'a> AatSubtable<'a> {
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn tuple_index_byte_range(&self) -> Range<usize> {
         let start = self.coverage_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.tuple_index_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -512,34 +516,35 @@ impl<'a> Subtable0<'a> {
     }
 
     pub fn n_pairs_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_pairs_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn pairs_byte_range(&self) -> Range<usize> {
         let n_pairs = self.n_pairs();
         let start = self.range_shift_byte_range().end;
-        let end =
-            start + (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -626,21 +631,22 @@ impl<'a> Subtable2ClassTable<'a> {
     }
 
     pub fn first_glyph_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + GlyphId16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(GlyphId16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn n_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
         let n_glyphs = self.n_glyphs();
         let start = self.n_glyphs_byte_range().end;
-        let end = start + (transforms::to_usize(n_glyphs)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(n_glyphs)).saturating_mul(u16::RAW_BYTE_LEN));
         start..end
     }
 }
@@ -777,54 +783,57 @@ impl<'a> Subtable3<'a> {
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn kern_value_count_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn left_class_count_byte_range(&self) -> Range<usize> {
         let start = self.kern_value_count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn right_class_count_byte_range(&self) -> Range<usize> {
         let start = self.left_class_count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.right_class_count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn kern_value_byte_range(&self) -> Range<usize> {
         let kern_value_count = self.kern_value_count();
         let start = self.flags_byte_range().end;
-        let end =
-            start + (transforms::to_usize(kern_value_count)).saturating_mul(i16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(kern_value_count)).saturating_mul(i16::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn left_class_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.kern_value_byte_range().end;
-        let end = start + (transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN));
         start..end
     }
 
     pub fn right_class_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.left_class_byte_range().end;
-        let end = start + (transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN));
         start..end
     }
 
@@ -832,9 +841,10 @@ impl<'a> Subtable3<'a> {
         let left_class_count = self.left_class_count();
         let right_class_count = self.right_class_count();
         let start = self.right_class_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(left_class_count, 0_usize, right_class_count))
-                .saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::add_multiply(left_class_count, 0_usize, right_class_count))
+                .saturating_mul(u8::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
