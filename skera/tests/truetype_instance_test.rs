@@ -1,11 +1,101 @@
 //! Compare stored TrueType outlines and metrics with HarfBuzz instances.
 use skera::{instance_font, parse_axis_limits, subset_font, Plan, SubsetFlags};
+use write_fonts::from_obj::FromTableRef;
 use write_fonts::read::{
     collections::IntSet,
     tables::glyf::Glyph,
     types::{GlyphId, NameId},
     FontRef, TableProvider,
 };
+
+#[test]
+fn tuple_scalars_match_harfbuzz_float_evaluation() {
+    let source = include_bytes!("../test-data/fonts/tt-tuple-precision.ttf");
+    let font = FontRef::new(source).unwrap();
+    // Ratios and products rounded to f32 produce 1376.4998779296875.
+    // Double accumulation followed by one f32 cast instead produces 1376.5.
+    let pins = "AXA1=0.2579345703125,AXB2=0.15985107421875,AXC3=0.0418701171875";
+    for request in [pins.to_owned(), format!("{pins},AXD4=0")] {
+        let bytes = instance_font(&font, &parse_axis_limits(&request).unwrap()).unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        let glyf = actual.glyf().unwrap();
+        let loca = actual.loca(None).unwrap();
+        let Some(Glyph::Simple(glyph)) = loca.get(GlyphId::new(1), &glyf).unwrap().into_glyph()
+        else {
+            panic!("expected a simple glyph");
+        };
+        assert_eq!(
+            glyph.points().map(|p| p.x).collect::<Vec<_>>(),
+            [1376, 1386, 1376],
+            "{request}"
+        );
+        assert_eq!(actual.cvt().unwrap()[0].get(), 1376);
+    }
+}
+
+#[test]
+fn residual_iup_matches_harfbuzz_float_evaluation() {
+    let source = include_bytes!("../test-data/fonts/tt-tuple-precision.ttf");
+    let bytes = instance_font(
+        &FontRef::new(source).unwrap(),
+        &parse_axis_limits("AXA1=0").unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let gvar = actual.gvar().unwrap();
+    let data = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
+    let tuple = data.tuples().next().unwrap();
+    let delta = tuple.deltas().find(|d| d.position == 1).unwrap();
+    // IUP's float interpolation gives 3035.5; double gives 3035.499755859375.
+    assert_eq!([delta.x_delta, delta.y_delta], [3036, 0]);
+}
+
+#[test]
+fn residual_tents_match_harfbuzz_float_rebasing() {
+    let source = include_bytes!("../test-data/fonts/tt-tuple-precision.ttf");
+    let request = "AXA1=0.4146728515625:0.6053466796875:0.81060791015625";
+    let bytes = instance_font(
+        &FontRef::new(source).unwrap(),
+        &parse_axis_limits(request).unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let gvar = actual.gvar().unwrap();
+    let data = gvar.glyph_variation_data(GlyphId::new(3)).unwrap().unwrap();
+    let tuple = data.tuples().next().unwrap();
+    // Float tent splitting places this shared boundary at 3595 / 16384.
+    assert_eq!(
+        tuple.intermediate_end().unwrap().get(0).unwrap().to_bits(),
+        3595
+    );
+}
+
+#[test]
+fn changed_avar_maps_use_float_renormalization() {
+    let source = std::fs::read("test-data/fonts/MPLUS1-Variable.ttf").unwrap();
+    let bytes = instance_font(
+        &FontRef::new(&source).unwrap(),
+        &parse_axis_limits("wght=100:428:900").unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let avar = actual.avar().unwrap();
+    let map = avar.axis_segment_maps().iter().next().unwrap().unwrap();
+    let knot = map
+        .axis_value_maps()
+        .iter()
+        .find(|knot| knot.from_coordinate().to_bits() == -6393)
+        .unwrap();
+    assert_eq!(knot.to_coordinate().to_bits(), -9275);
+    let full = instance_font(&actual, &parse_axis_limits("wght=300").unwrap()).unwrap();
+    let full = FontRef::new(&full).unwrap();
+    let glyf = full.glyf().unwrap();
+    let loca = full.loca(None).unwrap();
+    let Some(Glyph::Simple(glyph)) = loca.get(GlyphId::new(99), &glyf).unwrap().into_glyph() else {
+        panic!("expected a simple glyph");
+    };
+    assert_eq!(glyph.points().nth(3).unwrap().y, 74);
+}
 
 #[test]
 fn zero_contour_instructions_survive_subsetting_and_composition() {
@@ -223,4 +313,113 @@ fn fractional_sparse_tuples_match_harfbuzz_float_operation_order() {
         compared += 1;
     }
     assert!(compared >= 3);
+}
+
+fn assert_same_outline_and_metrics(actual: &FontRef, expected: &FontRef) {
+    let (ag, eg) = (actual.glyf().unwrap(), expected.glyf().unwrap());
+    let (al, el) = (actual.loca(None).unwrap(), expected.loca(None).unwrap());
+    assert_eq!(
+        actual.maxp().unwrap().num_glyphs(),
+        expected.maxp().unwrap().num_glyphs()
+    );
+    for gid in 0..actual.maxp().unwrap().num_glyphs() {
+        let gid = GlyphId::new(gid as u32);
+        let a = al
+            .get(gid, &ag)
+            .unwrap()
+            .into_glyph()
+            .map(|g| write_fonts::tables::glyf::Glyph::from_table_ref(&g));
+        let e = el
+            .get(gid, &eg)
+            .unwrap()
+            .into_glyph()
+            .map(|g| write_fonts::tables::glyf::Glyph::from_table_ref(&g));
+        assert_eq!(a, e, "{gid:?}");
+        assert_eq!(
+            actual.hmtx().unwrap().advance(gid),
+            expected.hmtx().unwrap().advance(gid),
+            "{gid:?}"
+        );
+        assert_eq!(
+            actual.hmtx().unwrap().side_bearing(gid),
+            expected.hmtx().unwrap().side_bearing(gid),
+            "{gid:?}"
+        );
+    }
+    if let Ok(a) = actual.cvt() {
+        assert_eq!(a, expected.cvt().unwrap());
+    }
+}
+
+#[test]
+fn partial_instances_and_second_stage_instances_match_harfbuzz() {
+    for (file, request, expected) in [
+        ("NotoSans-VF.abc.ttf", "wght=650", "tt-partial-pin.ttf"),
+        (
+            "NotoSans-VF.abc.ttf",
+            "wght=300:550:800,wdth=80:95",
+            "tt-partial-range.ttf",
+        ),
+        ("Muli-ABC.ttf", "wght=500:700:900", "tt-partial-cvar.ttf"),
+        (
+            "Roboto-Variable.composite.ttf",
+            "wght=200:650:850",
+            "tt-partial-composite.ttf",
+        ),
+        ("Recursive-ABC.ttf", "MONO=0.65", "tt-partial-recursive.ttf"),
+    ] {
+        let source = std::fs::read(format!("test-data/fonts/{file}")).unwrap();
+        let reference = std::fs::read(format!("test-data/fonts/{expected}")).unwrap();
+        let bytes = instance_font(
+            &FontRef::new(&source).unwrap(),
+            &parse_axis_limits(request).unwrap(),
+        )
+        .unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        let expected = FontRef::new(&reference).unwrap();
+        assert_same_outline_and_metrics(&actual, &expected);
+        assert_eq!(
+            actual.fvar().unwrap().axes().unwrap(),
+            expected.fvar().unwrap().axes().unwrap()
+        );
+        assert_eq!(
+            actual
+                .avar()
+                .unwrap()
+                .axis_segment_maps()
+                .iter()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+            expected
+                .avar()
+                .unwrap()
+                .axis_segment_maps()
+                .iter()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+        );
+        assert_eq!(
+            actual.gvar().unwrap().axis_count(),
+            actual.fvar().unwrap().axis_count()
+        );
+        for fraction in [0., 0.25, 0.5, 0.75, 1.] {
+            let limits = expected
+                .fvar()
+                .unwrap()
+                .axes()
+                .unwrap()
+                .iter()
+                .map(|a| {
+                    let min = a.min_value().to_f64();
+                    let max = a.max_value().to_f64();
+                    format!("{}={}", a.axis_tag(), min + (max - min) * fraction)
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            let limits = parse_axis_limits(&limits).unwrap();
+            let a = instance_font(&actual, &limits).unwrap();
+            let e = instance_font(&expected, &limits).unwrap();
+            assert_same_outline_and_metrics(&FontRef::new(&a).unwrap(), &FontRef::new(&e).unwrap());
+        }
+    }
 }

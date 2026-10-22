@@ -1,7 +1,11 @@
 //! TrueType instancing keeps point order, component references, and bytecode.
 //! Follows HarfBuzz's gvar accumulator and OT/glyf/Glyph.hh point traversal,
 //! glyph compilation, bounds, and phantom-point metric updates.
-use super::{metrics, AxisPlan};
+use super::{
+    metrics,
+    tuple::{compile_gvar, TupleVariations},
+    AxisPlan,
+};
 use crate::SubsetError;
 use read_fonts::{
     tables::{glyf::Glyph as ReadGlyph, gvar::GlyphDelta, variations::TupleVariation},
@@ -25,6 +29,7 @@ fn round(value: f32) -> i32 {
 fn coord(value: f32) -> i16 {
     round(value).clamp(-32768, 32767) as i16
 }
+
 fn put(data: &mut [u8], offset: usize, value: i16) -> Result<(), SubsetError> {
     data.get_mut(offset..offset + 2)
         .ok_or_else(|| error(b"head"))?
@@ -162,6 +167,7 @@ pub(super) fn instance(
         return Err(error(b"gvar"));
     }
     let mut glyphs = Vec::with_capacity(count);
+    let mut variations = Vec::with_capacity(count);
     for i in 0..count {
         let gid = GlyphId::new(i as u32);
         let source = loca
@@ -203,6 +209,7 @@ pub(super) fn instance(
             ],
         ]);
         let orig_points = points.clone();
+        let mut residual = TupleVariations::new();
         if let Some(gvar) = &gvar {
             if let Some(data) = gvar.glyph_variation_data(gid).map_err(|_| error(b"gvar"))? {
                 let private = any_private_points(
@@ -215,6 +222,17 @@ pub(super) fn instance(
                 let mut pending = vec![[0.; 2]; points.len()];
                 let mut flush = false;
                 for tuple in data.tuples() {
+                    if !axes.all_pinned() {
+                        let mut deltas = vec![[0.; 2]; orig_points.len()];
+                        let mut referenced = vec![false; orig_points.len()];
+                        for d in tuple.deltas() {
+                            let i = d.position as usize;
+                            *deltas.get_mut(i).ok_or_else(|| error(b"gvar"))? =
+                                [d.x_delta as f32, d.y_delta as f32];
+                            referenced[i] = true;
+                        }
+                        residual.add(&tuple, axes.pinned.len(), deltas, referenced)?;
+                    }
                     let Some(scalar) = tuple.compute_scalar_f32(&axes.metric_coords) else {
                         continue;
                     };
@@ -237,6 +255,10 @@ pub(super) fn instance(
                 }
             }
         }
+        if !axes.all_pinned() {
+            residual.instantiate(font, axes, Some((&orig_points, &contours)))?;
+        }
+        variations.push(residual);
         let phantoms = points.split_off(points.len() - 4).try_into().unwrap();
         glyphs.push(InstanceGlyph {
             glyph,
@@ -295,7 +317,17 @@ pub(super) fn instance(
     }
     tables.insert(Tag::new(b"glyf"), glyf_out);
     tables.insert(Tag::new(b"loca"), loca_out);
-    tables.remove(&Tag::new(b"gvar"));
+    if axes.all_pinned() {
+        tables.remove(&Tag::new(b"gvar"));
+    } else if gvar.is_some() {
+        tables.insert(
+            Tag::new(b"gvar"),
+            compile_gvar(
+                &variations,
+                axes.pinned.iter().filter(|&&p| !p).count() as u16,
+            )?,
+        );
+    }
     let head = tables
         .get_mut(&Tag::new(b"head"))
         .ok_or_else(|| error(b"head"))?;
@@ -616,10 +648,21 @@ fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result
         return Err(error(b"cvt "));
     }
     let mut deltas = vec![0f32; cvt.len() / 2];
+    let mut residual = TupleVariations::new();
     let data = cvar
         .variation_data(axes.pinned.len() as u16)
         .ok_or_else(|| error(b"cvar"))?;
     for tuple in data.tuples() {
+        if !axes.all_pinned() {
+            let mut values = vec![[0.; 2]; deltas.len()];
+            let mut referenced = vec![false; deltas.len()];
+            for d in tuple.deltas() {
+                let i = d.position as usize;
+                values.get_mut(i).ok_or_else(|| error(b"cvar"))?[0] = d.value as f32;
+                referenced[i] = true;
+            }
+            residual.add(&tuple, axes.pinned.len(), values, referenced)?;
+        }
         let Some(scalar) = tuple.compute_scalar_f32(&axes.metric_coords) else {
             continue;
         };
@@ -633,7 +676,19 @@ fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result
         let value = i16::from_be_bytes(bytes.try_into().unwrap()) as f32;
         bytes.copy_from_slice(&coord(value + delta).to_be_bytes());
     }
-    tables.remove(&Tag::new(b"cvar"));
+    if axes.all_pinned() {
+        tables.remove(&Tag::new(b"cvar"));
+    } else {
+        residual.instantiate(font, axes, None)?;
+        let data = residual.compile_bytes(&BTreeMap::new(), false)?;
+        if data.is_empty() {
+            tables.remove(&Tag::new(b"cvar"));
+        } else {
+            let mut bytes = vec![0, 1, 0, 0];
+            bytes.extend(data);
+            tables.insert(Tag::new(b"cvar"), bytes);
+        }
+    }
     Ok(())
 }
 
