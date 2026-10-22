@@ -730,7 +730,8 @@ fn partial_condition(
             let Some(data) = data.filter(|data| (v.var_index as u16) < data.item_count()) else {
                 return Ok(PartialCondition::Constant(value > 0.));
             };
-            let transform = &c.store_plan()?.unwrap().transforms[(v.var_index >> 16) as usize];
+            let plan = c.store_plan()?.unwrap();
+            let transform = &plan.transforms[(v.var_index >> 16) as usize];
             let deltas: Vec<_> = data
                 .delta_set(v.var_index as u16)
                 .map(|d| d as f64)
@@ -740,6 +741,11 @@ fn partial_condition(
             // positioning row rounds to zero and loses its devices.
             if residual.iter().all(|&delta| delta == 0.) {
                 return Ok(PartialCondition::Constant(value > 0.));
+            }
+            // A subnormal pinned scalar can round to zero at some surviving
+            // coordinates. Rescaling the residual loses that source boundary.
+            if plan.has_subnormal_pins(&data, v.var_index as u16) {
+                return Err(err());
             }
             // Positive rescaling preserves the Boolean boundary. Prefer exact
             // integers, otherwise use the available signed 32-bit precision.
