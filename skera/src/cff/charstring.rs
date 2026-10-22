@@ -28,6 +28,12 @@ pub(super) struct Value {
     origin: Option<Origin>,
 }
 impl Value {
+    pub fn plain(default: f64) -> Self {
+        Self {
+            default,
+            ..Self::default()
+        }
+    }
     fn number(v: f64, origin: Origin) -> Self {
         Self {
             default: v,

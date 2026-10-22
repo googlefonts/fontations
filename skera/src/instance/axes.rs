@@ -1,3 +1,4 @@
+use super::rebase::{renormalize, Triple};
 use crate::SubsetError;
 use read_fonts::{
     types::{F2Dot14, Tag},
@@ -74,13 +75,32 @@ pub(crate) struct AxisPlan {
     pub metric_coords: Vec<F2Dot14>,
     pub pinned: Vec<bool>,
     pub values: Vec<(Tag, f32)>,
+    pub normalized: Vec<Triple>,
+    pub distances: Vec<(f64, f64)>,
+    user: Vec<Triple>,
 }
 impl AxisPlan {
     pub fn new(font: &FontRef, limits: &[AxisLimits]) -> Result<Self, SubsetError> {
         let axes = font.axes();
+        if axes
+            .iter()
+            .any(|a| a.min_value() > a.default_value() || a.default_value() > a.max_value())
+        {
+            return Err(SubsetError::SubsetTableError(Tag::new(b"fvar")));
+        }
         let mut pinned = vec![false; axes.len()];
         let mut settings = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
+        let mut user: Vec<_> = axes
+            .iter()
+            .map(|a| {
+                Triple(
+                    a.min_value() as f64,
+                    a.default_value() as f64,
+                    a.max_value() as f64,
+                )
+            })
+            .collect();
         for &limit in limits {
             let tag = limit.tag();
             let axis = axes
@@ -121,54 +141,236 @@ impl AxisPlan {
                 return Err(SubsetError::InvalidAxis(format!("invalid value for {tag}")));
             }
             settings.push((tag, value.clamp(axis.min_value(), axis.max_value())));
+            user[axis.index()] = match limit {
+                AxisLimits::Range { min, max, .. } => Triple(min as f64, value as f64, max as f64),
+                _ => {
+                    let value = value.clamp(axis.min_value(), axis.max_value()) as f64;
+                    Triple(value, value, value)
+                }
+            };
         }
         if font.fvar().is_err() {
             return Err(SubsetError::InvalidAxis(
                 "font has no variation axes".into(),
             ));
         }
-        // Font metrics use 16.16 normalization before conversion to 2.14.
         let metric_coords = axes.location(settings.iter().copied()).coords().to_vec();
-        let mut coords = Vec::with_capacity(axes.len());
+        let mut coords = metric_coords.clone();
         let avar = font.avar().ok();
-        if avar.as_ref().is_some_and(|a| a.var_store().is_some()) {
-            // Axis coupling is introduced by the avar2 stack member.
-            return Err(SubsetError::SubsetTableError(Tag::new(b"avar")));
+        if !pinned.iter().all(|p| *p)
+            && avar
+                .as_ref()
+                .is_some_and(|a| a.version().major >= 2 && a.var_store().is_some())
+        {
+            return Err(SubsetError::InvalidAxis(
+                "partial instancing of avar version 2 is not supported".into(),
+            ));
         }
         let maps = avar
             .as_ref()
             .map(|a| a.axis_segment_maps().iter().collect::<Result<Vec<_>, _>>())
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+        let mut normalized = Vec::new();
+        let mut distances = Vec::new();
         for axis in axes.iter() {
-            let value = settings
-                .iter()
-                .find(|(tag, _)| *tag == axis.tag())
-                .map_or(axis.default_value(), |(_, value)| *value);
-            let n = normalized_coord(axis_to_normalized(
-                value as f64,
-                axis.min_value() as f64,
-                axis.default_value() as f64,
-                axis.max_value() as f64,
-            ));
-            coords.push(
+            let i = axis.index();
+            let u = user[i];
+            let map = |v: f64| {
+                let n = normalized_coord(
+                    axis_to_normalized(
+                        v,
+                        axis.min_value() as f64,
+                        axis.default_value() as f64,
+                        axis.max_value() as f64,
+                    )
+                    .clamp(-1., 1.),
+                );
                 maps.as_ref()
-                    .and_then(|m| m.get(axis.index()))
-                    .map_or(n, |m| normalized_coord(map_float(m, n.to_f64(), false))),
-            );
+                    .and_then(|m| m.get(i))
+                    .map_or(n.to_f64(), |m| {
+                        normalized_coord(map_float(m, n.to_f64(), false)).to_f64()
+                    })
+            };
+            coords[i] = F2Dot14::from_f64(map(u.1));
+            normalized.push(Triple(map(u.0), coords[i].to_f64(), map(u.2)));
+            distances.push((
+                (axis.default_value() - axis.min_value()) as f64,
+                (axis.max_value() - axis.default_value()) as f64,
+            ));
+        }
+        if let Some(avar) = avar.as_ref() {
+            if let Some(store) = avar.var_store() {
+                let store = store.map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                let index_map = avar
+                    .axis_index_map()
+                    .transpose()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                let input = coords.clone();
+                for (i, coord) in coords.iter_mut().enumerate() {
+                    let index = if let Some(map) = &index_map {
+                        map.get(i as u32)
+                            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?
+                    } else {
+                        read_fonts::tables::variations::DeltaSetIndex {
+                            outer: 0,
+                            inner: i as u16,
+                        }
+                    };
+                    let delta = store
+                        .compute_delta(index, &input)
+                        .map_or(0, |d| d.to_f64().round() as i32);
+                    *coord = F2Dot14::from_bits(
+                        (coord.to_bits() as i32 + delta.clamp(-32768, 32768)).clamp(-16384, 16384)
+                            as i16,
+                    );
+                }
+            }
         }
         Ok(Self {
             coords,
             metric_coords,
             pinned,
             values: settings,
+            normalized,
+            distances,
+            user,
         })
     }
     pub fn all_pinned(&self) -> bool {
         self.pinned.iter().all(|&p| p)
     }
-}
+    pub fn new_index(&self, old: usize) -> Option<usize> {
+        if *self.pinned.get(old)? {
+            None
+        } else {
+            Some(self.pinned[..old].iter().filter(|&&p| !p).count())
+        }
+    }
+    pub fn update_tables(
+        &self,
+        font: &FontRef,
+        tables: &mut std::collections::BTreeMap<Tag, Vec<u8>>,
+    ) -> Result<(), SubsetError> {
+        use read_fonts::types::Fixed;
+        use write_fonts::{
+            from_obj::ToOwnedTable,
+            tables::{
+                avar::{Avar, AxisValueMap, SegmentMaps},
+                fvar::Fvar,
+            },
+        };
 
+        let err = |tag| SubsetError::SubsetTableError(Tag::new(tag));
+        let original = font.fvar().map_err(|_| err(b"fvar"))?;
+        let mut fvar: Fvar = original.to_owned_table();
+        let old_axes = fvar.axis_instance_arrays.axes.clone();
+        fvar.axis_instance_arrays.axes = old_axes
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !self.pinned[*i])
+            .map(|(i, a)| {
+                let mut a = a.clone();
+                // Untouched fixed-point fields must not round-trip through f32.
+                if self.values.iter().any(|(tag, _)| *tag == a.axis_tag) {
+                    a.min_value = Fixed::from_f64(self.user[i].0);
+                    a.default_value = Fixed::from_f64(self.user[i].1);
+                    a.max_value = Fixed::from_f64(self.user[i].2);
+                }
+                a
+            })
+            .collect();
+        fvar.axis_instance_arrays.instances.retain(|inst| {
+            inst.coordinates.len() == self.user.len()
+                && inst.coordinates.iter().enumerate().all(|(i, v)| {
+                    let v = v.to_f64();
+                    v >= self.user[i].0 && v <= self.user[i].2
+                })
+        });
+        for inst in &mut fvar.axis_instance_arrays.instances {
+            inst.coordinates = inst
+                .coordinates
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !self.pinned[*i])
+                .map(|(_, v)| *v)
+                .collect();
+        }
+        tables.insert(
+            Tag::new(b"fvar"),
+            write_fonts::dump_table(&fvar).map_err(|_| err(b"fvar"))?,
+        );
+        let avar = font.avar().ok();
+        let maps = avar
+            .as_ref()
+            .map(|a| a.axis_segment_maps().iter().collect::<Result<Vec<_>, _>>())
+            .transpose()
+            .map_err(|_| err(b"avar"))?;
+        let mut segment_maps = Vec::new();
+        for (i, axis) in old_axes
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !self.pinned[*i])
+        {
+            let u = self.user[i];
+            let normalize = |v| {
+                F2Dot14::from_f64(axis_to_normalized(
+                    v,
+                    axis.min_value.to_f64(),
+                    axis.default_value.to_f64(),
+                    axis.max_value.to_f64(),
+                ))
+                .to_f64()
+            };
+            let map = maps.as_ref().and_then(|m| m.get(i));
+            let pre = if let Some(map) = map {
+                let n = self.normalized[i];
+                Triple(
+                    map_float(map, n.0, true),
+                    map_float(map, n.1, true),
+                    map_float(map, n.2, true),
+                )
+            } else {
+                Triple(normalize(u.0), normalize(u.1), normalize(u.2))
+            };
+            let mut knots = Vec::new();
+            if let Some(map) = map {
+                knots.extend(
+                    map.axis_value_maps()
+                        .iter()
+                        .map(|v| v.from_coordinate().to_f64())
+                        .filter(|v| *v >= pre.0 && *v <= pre.2),
+                );
+            }
+            knots.sort_by(f64::total_cmp);
+            knots.dedup();
+            let mut values = std::collections::BTreeMap::new();
+            for v in knots {
+                let to = map.map_or(v, |m| map_float(m, v, false));
+                let from = F2Dot14::from_f64(renormalize(v, pre, self.distances[i]));
+                let to = F2Dot14::from_f64(
+                    renormalize(to, self.normalized[i], self.distances[i]).clamp(-1., 1.),
+                );
+                values.insert(from, to);
+            }
+            for v in [-1., 0., 1.] {
+                let v = F2Dot14::from_f64(v);
+                values.insert(v, v);
+            }
+            segment_maps.push(SegmentMaps::new(
+                values
+                    .into_iter()
+                    .map(|(from, to)| AxisValueMap::new(from, to))
+                    .collect(),
+            ));
+        }
+        tables.insert(
+            Tag::new(b"avar"),
+            write_fonts::dump_table(&Avar::new(segment_maps)).map_err(|_| err(b"avar"))?,
+        );
+        Ok(())
+    }
+}
 pub(super) fn axis_to_normalized(v: f64, min: f64, def: f64, max: f64) -> f64 {
     // HarfBuzz normalizes the user value in float before rounding to 2.14.
     // Double intermediates can land on the other side of a half-unit tie.
@@ -195,7 +397,7 @@ pub(super) fn normalized_coord(value: f64) -> F2Dot14 {
 
 // HarfBuzz reconstructs the pre-avar interval from the quantized mapped
 // interval. Use the same float interpolation, including duplicate-cap recovery.
-pub(super) fn map_float(map: &read_fonts::tables::avar::SegmentMaps, v: f64, inverse: bool) -> f64 {
+fn map_float(map: &read_fonts::tables::avar::SegmentMaps, v: f64, inverse: bool) -> f64 {
     let v = v as f32;
     let mut pairs: Vec<_> = map
         .axis_value_maps()
@@ -254,6 +456,7 @@ pub(super) fn map_float(map: &read_fonts::tables::avar::SegmentMaps, v: f64, inv
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn axis_request_syntax() {
         assert_eq!(
