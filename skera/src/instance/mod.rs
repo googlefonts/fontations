@@ -58,6 +58,9 @@ pub fn instance_font_with_flags(
         ));
     }
     let axes = AxisPlan::new(font, limits)?;
+    if axes.values.is_empty() {
+        return Ok(copy_font(font));
+    }
     check_supported_tables(font)?;
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()

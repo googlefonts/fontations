@@ -233,7 +233,6 @@ impl AxisPlan {
                 return Err(SubsetError::InvalidAxis(format!("invalid value for {tag}")));
             }
             let value = value.clamp(axis.min_value(), axis.max_value());
-            settings.push((tag, value));
             user[axis.index()] = match limit {
                 AxisLimits::Range { min, max, .. } => Triple(min as f64, value as f64, max as f64),
                 _ => {
@@ -241,6 +240,16 @@ impl AxisPlan {
                     Triple(value, value, value)
                 }
             };
+            // An explicit original range requires no instancing, including
+            // when the axis is referenced by VARC.
+            let original = Triple(
+                axis.min_value() as f64,
+                axis.default_value() as f64,
+                axis.max_value() as f64,
+            );
+            if pinned[axis.index()] || user[axis.index()] != original {
+                settings.push((tag, value));
+            }
         }
         if font.fvar().is_err() {
             return Err(SubsetError::InvalidAxis(
