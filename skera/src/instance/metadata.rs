@@ -1,6 +1,6 @@
 //! fvar and avar own their output metadata; AxisPlan is read-only input.
 use super::{
-    axes::{axis_to_normalized, map_float},
+    axes::{axis_to_normalized, map_float, normalized_coord},
     rebase::{renormalize, Triple},
     FontContext, Instance,
 };
@@ -166,11 +166,14 @@ pub(super) fn rebuild_avar(
         knots.sort_by(f64::total_cmp);
         knots.dedup();
         let mut values = std::collections::BTreeMap::new();
+        let distances = (axes.distances[i].0 as f32, axes.distances[i].1 as f32);
         for v in knots {
             let to = map.map_or(v, |m| map_float(m, v, false));
-            let from = F2Dot14::from_f64(renormalize(v, pre, axes.distances[i]));
-            let to = F2Dot14::from_f64(
-                renormalize(to, axes.normalized[i], axes.distances[i]).clamp(-1., 1.),
+            let from =
+                normalized_coord(renormalize(v as f32, pre.map(|v| v as f32), distances) as f64);
+            let to = normalized_coord(
+                renormalize(to as f32, axes.normalized[i].map(|v| v as f32), distances)
+                    .clamp(-1., 1.) as f64,
             );
             values.insert(from, to);
         }

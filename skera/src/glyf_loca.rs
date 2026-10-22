@@ -258,18 +258,20 @@ struct SimpleSubsetGlyph<'a> {
 
 impl<'a> SimpleSubsetGlyph<'a> {
     fn new(g: &SimpleGlyph<'a>, plan: &Plan) -> Option<Self> {
-        let num_coords = g.end_pts_of_contours().last().map_or(0, |p| p.get() + 1);
+        let num_coords = g.num_points();
         let glyph_data = g.glyph_data();
         let glyph_data = glyph_data.get(..trim_simple_glyph_padding(glyph_data, num_coords))?;
-        if glyph_data.is_empty() && g.instruction_length() == 0 {
+        let drop_hinting = plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
+        // Zero-contour glyphs can carry instructions for phantom points.
+        if glyph_data.is_empty() && (num_coords != 0 || drop_hinting || g.instructions().is_empty())
+        {
             return None;
         }
 
         let glyph_bytes = g.offset_data().as_bytes();
         let header_len = 10 + 2 * g.end_pts_of_contours().len() + 2;
-        let drop_hinting = plan
-            .subset_flags
-            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
         let set_overlaps_flag = num_coords != 0
             && plan
                 .subset_flags
@@ -484,15 +486,11 @@ fn component_gid(bytes: &[u8], flags: CompositeGlyphFlags) -> Option<(GlyphId, u
 }
 
 // trim padding bytes for simple glyphs, return trimmed length of the raw data for flags & x/y coordinates
-fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
-    if num_coords == 0 {
-        return 0;
-    }
+fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: usize) -> usize {
     const REPEAT: u8 = SimpleGlyphFlags::REPEAT_FLAG.bits();
     // Flags are processed in runs of up to this many bytes.
     const RUN: usize = 64;
 
-    let num_coords = num_coords as usize;
     let length = glyph_data.len();
     let mut coord_bytes: usize = 0;
     let mut coords_with_flags: usize = 0;
@@ -560,6 +558,22 @@ fn subset_head(head: &Head, loca_format: u8) -> Vec<u8> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn subset_simple_glyph_accepts_the_maximum_contour_endpoint() {
+        use read_fonts::FontRead;
+        let mut bytes = vec![0; 10];
+        bytes[1] = 1;
+        bytes.extend(u16::MAX.to_be_bytes());
+        bytes.extend([0, 0]);
+        for _ in 0..256 {
+            bytes.extend([0x39, 255]);
+        }
+        let glyph = SimpleGlyph::read(bytes.as_slice().into()).unwrap();
+        assert_eq!(glyph.num_points(), 65536);
+        let subset = SimpleSubsetGlyph::new(&glyph, &Plan::default()).unwrap();
+        assert_eq!(subset.len(), bytes.len());
+    }
 
     /// The original, flag-at-a-time implementation, kept as a reference.
     fn reference_trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
@@ -674,7 +688,7 @@ mod test {
             }
             .min(u16::MAX as u32) as u16;
             assert_eq!(
-                trim_simple_glyph_padding(&data, num_coords),
+                trim_simple_glyph_padding(&data, num_coords as usize),
                 reference_trim_simple_glyph_padding(&data, num_coords),
                 "case {case}"
             );
