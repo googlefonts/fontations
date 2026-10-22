@@ -316,7 +316,11 @@ pub(super) fn instance(
     for gid in 0..count {
         let mut budget = 1_000_000usize;
         let points = get_points(gid, &glyphs, 0, &mut budget)?;
-        bounds.push(point_bounds(&points));
+        // A composite remains a glyph for header statistics even when all
+        // its components have no contour points, as in HarfBuzz's compiler.
+        bounds.push(point_bounds(&points).or_else(|| {
+            matches!(&glyphs[gid].glyph, Glyph::Composite(_)).then_some(Bbox::default())
+        }));
     }
     let mut glyf_out = Vec::new();
     let mut offsets = Vec::with_capacity(count + 1);
@@ -573,7 +577,7 @@ fn encode_simple(
     points: &[Point],
     out: &mut Vec<u8>,
 ) -> Result<(), SubsetError> {
-    if g.contours.is_empty() {
+    if g.contours.is_empty() && g.instructions.is_empty() {
         return Ok(());
     }
     out.extend(
@@ -600,7 +604,11 @@ fn encode_simple(
     );
     out.extend(&g.instructions);
     for (i, p) in g.contours.iter().flat_map(|c| c.iter()).enumerate() {
-        out.push(u8::from(p.on_curve) | if i == 0 && g.overlaps { 0x40 } else { 0 });
+        out.push(
+            u8::from(p.on_curve)
+                | if p.cubic { 0x80 } else { 0 }
+                | if i == 0 && g.overlaps { 0x40 } else { 0 },
+        );
     }
     for axis in 0..2 {
         let mut prev = 0i16;
@@ -734,6 +742,26 @@ fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result
 mod tests {
     use super::*;
     use write_fonts::tables::glyf::{Component, ComponentFlags, CompositeGlyph, Transform};
+
+    #[test]
+    fn simple_glyph_serialization_keeps_cubic_flags() {
+        let bytes = font_test_data::extended::simple_glyph(&[
+            (0, 0, 0x81),
+            (20, 80, 0x80),
+            (60, 80, 0x80),
+            (80, 0, 0x81),
+        ]);
+        let source = read_fonts::tables::glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
+        let original = source.points().collect::<Vec<_>>();
+        let points = original
+            .iter()
+            .map(|p| [p.x as f32, p.y as f32])
+            .collect::<Vec<_>>();
+        let mut out = Vec::new();
+        encode_simple(&source.to_owned_table(), &points, &mut out).unwrap();
+        let actual = read_fonts::tables::glyf::SimpleGlyph::read(out.as_slice().into()).unwrap();
+        assert_eq!(actual.points().collect::<Vec<_>>(), original);
+    }
 
     #[test]
     fn cyclic_composites_return_an_error() {

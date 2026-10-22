@@ -24,3 +24,8 @@ generated with the local HarfBuzz subsetter using `--gids=* --notdef-outline
 The `tt-partial-*.ttf` references use the same HarfBuzz command with pin and
 range requests listed in `tests/truetype_instance_test.rs`. Tests compare the
 default outlines, axis records, and second-stage instances at retained locations.
+
+`fonts/tt-zero-contour-instructions.ttf` exercises instructions for phantom
+points and a varying advance without outline points. Regenerate it with
+`fonts/generate-tt-zero-contour-instructions.py` using FontTools with support
+for preserving zero-contour instructions.
