@@ -261,6 +261,19 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
             }
         }
 
+        // The high bit is the LONG_WORDS flag, so a narrow representation
+        // cannot encode more than 32767 word columns. In that case all
+        // nonzero columns fit the 16-bit tail of a long representation.
+        if !has_long && new_word_count > 0x7FFF {
+            has_long = true;
+            new_word_count = 0;
+            for size in &mut delta_sz {
+                if *size == DeltaSize::Word {
+                    *size = DeltaSize::NonWord;
+                }
+            }
+        }
+
         let mut word_index: u16 = 0;
         let mut non_word_index = new_word_count;
         let mut new_ri_count: u16 = 0;
@@ -548,6 +561,46 @@ impl<'a> Serialize<'a> for DeltaSetIndexMap<'a> {
 mod test {
     use super::*;
     use skrifa::raw::{FontData, FontRead};
+
+    #[test]
+    fn long_store_narrowing_preserves_word_count_boundaries() {
+        for count in [32767, 32768, 32769] {
+            let source = write_fonts::tables::variations::ItemVariationData {
+                item_count: 1,
+                word_delta_count: 0x8000,
+                region_indexes: vec![0; count + 3],
+                delta_sets: (0..count)
+                    .map(|_| 128i16)
+                    .chain([1; 3])
+                    .flat_map(i16::to_be_bytes)
+                    .collect(),
+            };
+            let bytes = write_fonts::dump_table(&source).unwrap();
+            let source = ItemVariationData::read(FontData::new(&bytes)).unwrap();
+            assert!(source.delta_set(0).take(count).all(|delta| delta == 128));
+            let mut rows = IncBiMap::default();
+            rows.add(0);
+            let mut regions = IncBiMap::default();
+            regions.add(0);
+            let mut serializer = Serializer::new(262144);
+            serializer.start_serialize().unwrap();
+            source
+                .subset(&Plan::default(), &mut serializer, (&rows, &regions))
+                .unwrap();
+            serializer.end_serialize();
+            assert!(!serializer.in_error());
+            let bytes = serializer.copy_bytes();
+            let output = ItemVariationData::read(FontData::new(&bytes)).unwrap();
+            let deltas = output.delta_set(0).collect::<Vec<_>>();
+            assert_eq!(deltas.len(), count + 3);
+            assert!(
+                deltas[..count].iter().all(|&delta| delta == 128),
+                "first deltas: {:?}",
+                &deltas[..4]
+            );
+            assert_eq!(&deltas[count..], &[1; 3]);
+        }
+    }
 
     fn subset_delta_rows(rows: &[[i32; 3]], keep: &[u32]) -> Vec<u8> {
         let source = write_fonts::tables::variations::ItemVariationData {
