@@ -144,8 +144,7 @@ impl Context<'_> {
         if base == u32::MAX {
             return Ok(true);
         }
-        let store = self.store.as_ref().ok_or_else(error)?;
-        let plan = StorePlan::new(store, self.axes).map_err(|_| error())?;
+        let mut plan = None;
         for offset in 0..count {
             let index = base.checked_add(offset).ok_or_else(error)?;
             let index = if let Some(map) = &self.map {
@@ -159,6 +158,11 @@ impl Context<'_> {
             if index == DeltaSetIndex::NO_VARIATION_INDEX {
                 continue;
             }
+            let store = self.store.as_ref().ok_or_else(error)?;
+            let plan = match &mut plan {
+                Some(plan) => plan,
+                slot @ None => slot.insert(StorePlan::new(store, self.axes).map_err(|_| error())?),
+            };
             let data = store
                 .item_variation_data()
                 .get(index.outer as usize)
