@@ -1,6 +1,95 @@
 //! Compare stored TrueType outlines and metrics with HarfBuzz instances.
-use skera::{instance_font, parse_axis_limits};
-use write_fonts::read::{tables::glyf::Glyph, types::GlyphId, FontRef, TableProvider};
+use skera::{instance_font, parse_axis_limits, subset_font, Plan, SubsetFlags};
+use write_fonts::read::{
+    collections::IntSet,
+    tables::glyf::Glyph,
+    types::{GlyphId, NameId},
+    FontRef, TableProvider,
+};
+
+#[test]
+fn zero_contour_instructions_survive_subsetting_and_composition() {
+    let source = include_bytes!("../test-data/fonts/tt-zero-contour-instructions.ttf");
+    let font = FontRef::new(source).unwrap();
+    let limits = parse_axis_limits("wght=1").unwrap();
+    let full = instance_font(&font, &limits).unwrap();
+    let instructions = |font: &FontRef| {
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        match loca.get(GlyphId::new(1), &glyf).unwrap().into_glyph() {
+            Some(Glyph::Simple(g)) => g.instructions().to_vec(),
+            None => Vec::new(),
+            _ => panic!("expected a simple glyph"),
+        }
+    };
+    for (data, advance) in [(source.as_slice(), 500), (full.as_slice(), 600)] {
+        let input = FontRef::new(data).unwrap();
+        for flags in [
+            SubsetFlags::default(),
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING,
+            SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG,
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING | SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG,
+        ] {
+            let plan = Plan::new(
+                &IntSet::all(),
+                &IntSet::empty(),
+                &input,
+                flags | SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+                &IntSet::empty(),
+                &IntSet::all(),
+                &IntSet::all(),
+                &IntSet::<NameId>::all(),
+                &IntSet::all(),
+            );
+            let output = subset_font(&input, &plan).unwrap();
+            let output = FontRef::new(&output).unwrap();
+            let expected = if flags.contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING) {
+                Vec::new()
+            } else {
+                vec![0xb0, 0, 0x2f]
+            };
+            assert_eq!(instructions(&output), expected);
+            assert_eq!(
+                output.hmtx().unwrap().advance(GlyphId::new(1)),
+                Some(advance)
+            );
+            if advance == 500 {
+                let full = instance_font(&output, &limits).unwrap();
+                let full = FontRef::new(&full).unwrap();
+                assert_eq!(instructions(&full), expected);
+                assert_eq!(full.hmtx().unwrap().advance(GlyphId::new(1)), Some(600));
+            }
+        }
+    }
+}
+
+#[test]
+fn zero_contour_instructions_survive_full_instancing() {
+    let source = include_bytes!("../test-data/fonts/tt-zero-contour-instructions.ttf");
+    let source = FontRef::new(source).unwrap();
+    for (request, advance) in [("wght=0", 500), ("wght=1", 600)] {
+        let bytes = instance_font(&source, &parse_axis_limits(request).unwrap()).unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        let glyf = actual.glyf().unwrap();
+        let loca = actual.loca(None).unwrap();
+        let Some(Glyph::Simple(glyph)) = loca.get(GlyphId::new(1), &glyf).unwrap().into_glyph()
+        else {
+            panic!("zero-contour glyph with instructions was discarded");
+        };
+        assert_eq!(glyph.number_of_contours(), 0);
+        assert_eq!(glyph.num_points(), 0);
+        assert_eq!(glyph.instructions(), [0xb0, 0, 0x2f]);
+        assert_eq!(
+            actual.hmtx().unwrap().advance(GlyphId::new(1)),
+            Some(advance)
+        );
+        let head = actual.head().unwrap();
+        assert_eq!(
+            [head.x_min(), head.y_min(), head.x_max(), head.y_max()],
+            [0; 4]
+        );
+    }
+}
 
 #[test]
 fn full_instances_match_harfbuzz() {
@@ -31,6 +120,16 @@ fn full_instances_match_harfbuzz() {
         .unwrap();
         let actual = FontRef::new(&bytes).unwrap();
         let expected = FontRef::new(&reference).unwrap();
+        let header_metrics = |font: &FontRef| {
+            let header = font.hhea().unwrap();
+            (
+                header.advance_width_max(),
+                header.min_left_side_bearing(),
+                header.min_right_side_bearing(),
+                header.x_max_extent(),
+            )
+        };
+        assert_eq!(header_metrics(&actual), header_metrics(&expected), "{file}");
         assert!(actual.fvar().is_err());
         assert!(actual.gvar().is_err());
         assert!(actual.cvar().is_err());
