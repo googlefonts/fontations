@@ -178,7 +178,7 @@ pub(super) fn rebase<T: Scalar>(
     }
     if limit.0 == limit.2 {
         let gain = scalar(limit.1, tent);
-        return if gain == 0. {
+        return if gain == zero {
             vec![]
         } else {
             vec![(gain, None)]
