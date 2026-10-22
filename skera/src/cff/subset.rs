@@ -8,7 +8,7 @@ use super::{
     Error, Result,
 };
 use crate::{Plan, SubsetFlags};
-use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
+use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId, MinByteRange};
 use std::collections::{BTreeMap, BTreeSet};
 
 fn gid_list(plan: &Plan, num_glyphs: usize) -> Vec<usize> {
@@ -474,14 +474,42 @@ pub(super) fn assemble<F: CffFlavor>(
         dict::offset(&top, 24, 0)?
             .map(|offset| {
                 let data = source.font.data();
-                let size = u16::from_be_bytes(
-                    data.get(offset..offset + 2)
+                let mut size = u16::from_be_bytes(
+                    data.get(offset..offset.checked_add(2).ok_or(Error)?)
                         .ok_or(Error)?
                         .try_into()
                         .map_err(|_| Error)?,
                 ) as usize;
-                data.get(offset..offset.checked_add(size + 2).ok_or(Error)?)
-                    .ok_or(Error)
+                if size == u16::MAX as usize {
+                    // OFF 2026 5.3.3.11.2: the saturated length can describe
+                    // a larger store. Copy through its last referenced byte.
+                    let store = source.font.var_store().ok_or(Error)?;
+                    let regions = store.variation_region_list().map_err(|_| Error)?;
+                    size = store.min_byte_range().end.max(
+                        (store.variation_region_list_offset().to_u32() as usize)
+                            .checked_add(regions.min_byte_range().end)
+                            .ok_or(Error)?,
+                    );
+                    for (offset, table) in store
+                        .item_variation_data_offsets()
+                        .iter()
+                        .zip(store.item_variation_data().iter())
+                    {
+                        if let Some(table) = table {
+                            let table = table.map_err(|_| Error)?;
+                            size = size.max(
+                                (offset.get().offset().to_u32() as usize)
+                                    .checked_add(table.min_byte_range().end)
+                                    .ok_or(Error)?,
+                            );
+                        }
+                    }
+                }
+                let end = offset
+                    .checked_add(2)
+                    .and_then(|start| start.checked_add(size))
+                    .ok_or(Error)?;
+                data.get(offset..end).ok_or(Error)
             })
             .transpose()?
     } else {
