@@ -163,8 +163,7 @@ impl AxisPlan {
                 "font has no variation axes".into(),
             ));
         }
-        let metric_coords = axes.location(settings.iter().copied()).coords().to_vec();
-        let mut coords = metric_coords.clone();
+        let mut coords = vec![F2Dot14::ZERO; axes.len()];
         let avar = font.avar().ok();
         let coupled = !pinned.iter().all(|p| *p)
             && avar
@@ -483,11 +482,15 @@ impl AxisPlan {
             knots.sort_by(f64::total_cmp);
             knots.dedup();
             let mut values = std::collections::BTreeMap::new();
+            let distances = (self.distances[i].0 as f32, self.distances[i].1 as f32);
             for v in knots {
                 let to = map.map_or(v, |m| map_float(m, v, false));
-                let from = F2Dot14::from_f64(renormalize(v, pre, self.distances[i]));
-                let to = F2Dot14::from_f64(
-                    renormalize(to, self.normalized[i], self.distances[i]).clamp(-1., 1.),
+                let from = normalized_coord(
+                    renormalize(v as f32, pre.map(|v| v as f32), distances) as f64,
+                );
+                let to = normalized_coord(
+                    renormalize(to as f32, self.normalized[i].map(|v| v as f32), distances)
+                        .clamp(-1., 1.) as f64,
                 );
                 values.insert(from, to);
             }
