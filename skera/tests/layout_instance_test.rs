@@ -366,3 +366,196 @@ fn partial_instances_drop_devices_whose_residual_deltas_vanish() {
         }
     }
 }
+
+#[test]
+fn partial_conditions_keep_fractional_sign_boundaries_without_changing_positions() {
+    for (gain, delta) in [(0i32, -1i32), (0, 1), (1, -2)] {
+        let original = synthetic_font(6, 0);
+        let font = FontRef::new(&original).unwrap();
+        let mut gdef: Gdef = font.gdef().unwrap().to_owned_table();
+        let data = gdef.item_var_store.as_mut().unwrap().item_variation_data[0]
+            .as_mut()
+            .unwrap();
+        data.delta_sets[6 * 16..6 * 16 + 4].copy_from_slice(&gain.to_be_bytes());
+        data.delta_sets[6 * 16 + 12..7 * 16].copy_from_slice(&delta.to_be_bytes());
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+        }
+        builder.add_table(&gdef).unwrap();
+        let source = builder.build();
+        for weight in [525, 650, 900] {
+            let partial = instance_font(
+                &FontRef::new(&source).unwrap(),
+                &parse_axis_limits(&format!("wght={weight}")).unwrap(),
+            )
+            .unwrap();
+            let partial = subset(&partial);
+            let font = FontRef::new(&partial).unwrap();
+            let variations = font.gsub().unwrap().feature_variations().unwrap().unwrap();
+            assert_eq!(variations.feature_variation_record_count(), 1);
+            let set = variations.feature_variation_records()[0]
+                .condition_set(variations.offset_data())
+                .unwrap()
+                .unwrap();
+            assert_eq!(set.condition_count(), 1);
+            for width in [100, 99, 87, 75] {
+                let second = instance_font(
+                    &FontRef::new(&partial).unwrap(),
+                    &parse_axis_limits(&format!("wdth={width}")).unwrap(),
+                )
+                .unwrap();
+                let direct = instance_font(
+                    &FontRef::new(&source).unwrap(),
+                    &parse_axis_limits(&format!("wght={weight},wdth={width}")).unwrap(),
+                )
+                .unwrap();
+                assert_eq!(
+                    selected_glyph(&second),
+                    selected_glyph(&direct),
+                    "gain={gain} delta={delta} weight={weight} width={width}",
+                );
+                let position = |bytes: &[u8]| {
+                    let font = FontRef::new(bytes).unwrap();
+                    let table: Gpos = font.gpos().unwrap().to_owned_table();
+                    let PositionLookup::Single(lookup) =
+                        table.lookup_list.as_ref().unwrap().lookups[5].as_ref()
+                    else {
+                        panic!()
+                    };
+                    let SinglePos::Format1(pos) = lookup.subtables[0].as_ref() else {
+                        panic!()
+                    };
+                    pos.value_record.x_advance
+                };
+                // Positioning rounds at each instancing stage. At weight 525
+                // the residual +/-0.25 vanishes, while the condition varies.
+                if weight == 525 && gain == 0 {
+                    assert_eq!(position(&second), Some(100));
+                    assert_eq!(position(&direct), Some(100));
+                }
+            }
+        }
+    }
+}
+
+fn many_axis_condition_font(default: i16) -> Vec<u8> {
+    use write_fonts::tables::fvar::{AxisInstanceArrays, Fvar, VariationAxisRecord};
+    use write_fonts::types::{Fixed, NameId};
+
+    let bytes = synthetic_font(0, default);
+    let source = FontRef::new(&bytes).unwrap();
+    let tags: Vec<_> = (0..19)
+        .map(|i| Tag::new(format!("A{i:03}").as_bytes().try_into().unwrap()))
+        .chain([Tag::new(b"ZZZZ")])
+        .collect();
+    let fvar = Fvar::new(AxisInstanceArrays::new(
+        tags.iter()
+            .map(|&tag| {
+                VariationAxisRecord::new(
+                    tag,
+                    Fixed::ZERO,
+                    Fixed::ZERO,
+                    Fixed::ONE,
+                    0,
+                    NameId::new(256),
+                )
+            })
+            .collect(),
+        vec![],
+    ));
+    let positive = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE);
+    let gdef = Gdef {
+        item_var_store: ItemVariationStore {
+            variation_region_list: VariationRegionList::new(
+                20,
+                vec![VariationRegion::new(vec![positive; 20])],
+            )
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: 1,
+                word_delta_count: 1,
+                region_indexes: vec![0],
+                delta_sets: 1i16.to_be_bytes().to_vec(),
+            }
+            .into()],
+        }
+        .into(),
+        ..Default::default()
+    };
+    let replaced = [
+        b"fvar", b"avar", b"gvar", b"HVAR", b"VVAR", b"MVAR", b"cvar", b"STAT", b"GDEF", b"GPOS",
+        b"MATH",
+    ]
+    .map(Tag::new);
+    let mut builder = FontBuilder::new();
+    for record in source.table_directory().table_records() {
+        if !replaced.contains(&record.tag()) {
+            builder.add_raw(record.tag(), source.data_for_tag(record.tag()).unwrap());
+        }
+    }
+    builder.add_table(&fvar).unwrap();
+    builder.add_table(&gdef).unwrap();
+    builder.build()
+}
+
+#[test]
+fn partial_conditions_do_not_revive_regions_with_zero_float_scalars() {
+    for default in [-1, 0, 1] {
+        let bytes = many_axis_condition_font(default);
+        let tags: Vec<_> = (0..19)
+            .map(|i| Tag::new(format!("A{i:03}").as_bytes().try_into().unwrap()))
+            .collect();
+        let source = FontRef::new(&bytes).unwrap();
+        let pins = tags[..19]
+            .iter()
+            .map(|tag| format!("{tag}=0.00390625"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let partial = instance_font(&source, &parse_axis_limits(&pins).unwrap()).unwrap();
+        for remaining in [0., 0.25, 0.5, 1.] {
+            let full = instance_font(
+                &source,
+                &parse_axis_limits(&format!("{pins},ZZZZ={remaining}")).unwrap(),
+            )
+            .unwrap();
+            let composed = instance_font(
+                &FontRef::new(&partial).unwrap(),
+                &parse_axis_limits(&format!("ZZZZ={remaining}")).unwrap(),
+            )
+            .unwrap();
+            // 19 factors of 1/256 underflow to zero in the source float32
+            // scalar, for every remaining location. HarfBuzz agrees.
+            let expected = if default > 0 { 3 } else { 2 };
+            assert_eq!(selected_glyph(&full), expected);
+            assert_eq!(
+                selected_glyph(&composed),
+                expected,
+                "default={default}, remaining={remaining}"
+            );
+        }
+    }
+}
+
+#[test]
+fn partial_conditions_reject_subnormal_pinned_scalars() {
+    let bytes = many_axis_condition_font(0);
+    let source = FontRef::new(&bytes).unwrap();
+    let pins = (0..18)
+        .map(|i| format!("A{i:03}=0.00390625"))
+        .chain(["A018=0.03125".to_string()])
+        .collect::<Vec<_>>()
+        .join(",");
+    // The pinned product is the smallest nonzero float32. The remaining
+    // factor rounds it to zero at 1/4, but not at the peak. Positive rescaling
+    // cannot preserve that underflow boundary in the residual store.
+    for (remaining, expected) in [(0.25, 2), (1., 3)] {
+        let full = instance_font(
+            &source,
+            &parse_axis_limits(&format!("{pins},ZZZZ={remaining}")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(selected_glyph(&full), expected);
+    }
+    assert!(instance_font(&source, &parse_axis_limits(&pins).unwrap()).is_err());
+}
