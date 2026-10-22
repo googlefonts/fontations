@@ -34,9 +34,17 @@ struct Args {
     #[arg(short, long, action = clap::ArgAction::Append)]
     gids: Vec<String>,
 
+    /// Read gids selections from a file, or - for standard input.
+    #[arg(long, action = clap::ArgAction::Append)]
+    gids_file: Vec<String>,
+
     /// Glyph names or glyph strings (for example A,gid42,uni0041).
     #[arg(long, action = clap::ArgAction::Append)]
     glyphs: Vec<String>,
+
+    /// Read glyphs selections from a file, or - for standard input.
+    #[arg(long, action = clap::ArgAction::Append)]
+    glyphs_file: Vec<String>,
 
     /// Start with all glyphs, names, layout items, and tables selected.
     #[arg(long)]
@@ -50,9 +58,17 @@ struct Args {
     #[arg(short, long, action = clap::ArgAction::Append)]
     unicodes: Vec<String>,
 
+    /// Read unicodes selections from a file, or - for standard input.
+    #[arg(long, action = clap::ArgAction::Append)]
+    unicodes_file: Vec<String>,
+
     /// Text whose Unicode characters will be included in the subset.
     #[arg(short = 't', long, action = clap::ArgAction::Append)]
     text: Vec<String>,
+
+    /// Read text selections from a file, or - for standard input.
+    #[arg(long, action = clap::ArgAction::Append)]
+    text_file: Vec<String>,
 
     /// The output font file
     #[arg(short, long)]
@@ -168,15 +184,31 @@ fn main() {
     };
     // Like HarfBuzz's parse_text/parse_unicodes, each plain selector replaces
     // the current Unicode set. Apply mixed selectors in command-line order.
-    for (_, name, input) in selector_values(&matches, &["unicodes", "text"]) {
-        unicodes = if name == "text" {
-            input.chars().map(u32::from).collect()
+    for (_, name, input) in selector_values(
+        &matches,
+        &["unicodes", "text", "unicodes_file", "text_file"],
+    ) {
+        let from_file = name.ends_with("_file");
+        let inputs = if from_file {
+            read_selector_file(input, !name.starts_with("text"))
         } else {
-            parse_unicodes(input).unwrap_or_else(|err| {
-                eprintln!("{err}");
-                std::process::exit(1);
-            })
+            vec![input.to_owned()]
         };
+        for input in inputs {
+            let selected = if name.starts_with("text") {
+                input.chars().map(u32::from).collect()
+            } else {
+                parse_unicodes(&input).unwrap_or_else(|err| {
+                    eprintln!("{err}");
+                    std::process::exit(1);
+                })
+            };
+            if from_file {
+                unicodes.union(&selected);
+            } else {
+                unicodes = selected;
+            }
+        }
     }
 
     let font_bytes = std::fs::read(&args.path)
@@ -188,16 +220,31 @@ fn main() {
     } else {
         IntSet::empty()
     };
-    for (_, name, input) in selector_values(&matches, &["gids", "glyphs"]) {
-        gids = if name == "glyphs" {
-            parse_glyph_names(&font, input)
+    for (_, name, input) in
+        selector_values(&matches, &["gids", "glyphs", "gids_file", "glyphs_file"])
+    {
+        let from_file = name.ends_with("_file");
+        let inputs = if from_file {
+            read_selector_file(input, true)
         } else {
-            populate_gids(input)
+            vec![input.to_owned()]
+        };
+        for input in inputs {
+            let selected = if name.starts_with("glyphs") {
+                parse_glyph_names(&font, &input)
+            } else {
+                populate_gids(&input)
+            }
+            .unwrap_or_else(|err| {
+                eprintln!("{err}");
+                std::process::exit(1);
+            });
+            if from_file {
+                gids.union(&selected);
+            } else {
+                gids = selected;
+            }
         }
-        .unwrap_or_else(|err| {
-            eprintln!("{err}");
-            std::process::exit(1);
-        });
     }
     gids.extend(glyph_mapping.iter().map(|&(old, _)| old));
     let drop_tables = match &args.drop_tables {
@@ -490,4 +537,30 @@ fn selector_values<'a>(
     }
     values.sort_unstable_by_key(|v| v.0);
     values
+}
+
+// HarfBuzz's file callbacks append each line. Numeric/name files allow #
+// comments; text files retain # and omit only their line-feed separators.
+fn read_selector_file(path: &str, comments: bool) -> Vec<String> {
+    use std::io::Read;
+    let input = if path == "-" {
+        let mut input = String::new();
+        std::io::stdin().read_to_string(&mut input).map(|_| input)
+    } else {
+        std::fs::read_to_string(path)
+    }
+    .unwrap_or_else(|err| {
+        eprintln!("Failed reading selector file {path:?}: {err}");
+        std::process::exit(1);
+    });
+    input
+        .split('\n')
+        .map(|line| {
+            if comments {
+                line.split('#').next().unwrap_or("").to_owned()
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect()
 }

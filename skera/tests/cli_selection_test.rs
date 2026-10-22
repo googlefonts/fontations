@@ -154,3 +154,110 @@ fn glyph_name_selectors_resolve_post_cff_and_string_fallbacks() {
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("Invalid input glyph name missing"));
 }
+
+#[test]
+fn selection_files_add_lines_and_keep_text_hash_characters() {
+    let directory = tempfile::tempdir().unwrap();
+    for (kind, input, contents, expected) in [
+        (
+            "gids",
+            "test-data/fonts/Roboto-Regular.abc.ttf",
+            "1 2\n# comment\n3 # tail\n",
+            "--gids=1,2,3",
+        ),
+        (
+            "unicodes",
+            "test-data/fonts/Roboto-Regular.abc.ttf",
+            "U+0061,0062\n# comment\n0063 # tail\n",
+            "--unicodes=61,62,63",
+        ),
+        (
+            "glyphs",
+            "test-data/fonts/AlegreyaSans-BlackItalic.ttf",
+            "A B\n# comment\nC\n",
+            "--gids=3,31,32",
+        ),
+        (
+            "text",
+            "test-data/fonts/Roboto-Regular.abc.ttf",
+            "a#b\nc\n",
+            "--unicodes=61,23,62,63",
+        ),
+    ] {
+        let file = directory.path().join(format!("{kind}.txt"));
+        std::fs::write(&file, contents).unwrap();
+        let option = format!("--{kind}-file={}", file.display());
+        assert_eq!(
+            cli_subset(input, &[&option]),
+            cli_subset(input, &[expected])
+        );
+    }
+    let file = directory.path().join("more.txt");
+    std::fs::write(&file, "b\n").unwrap();
+    let option = format!("--text-file={}", file.display());
+    let input = "test-data/fonts/Roboto-Regular.abc.ttf";
+    assert_eq!(
+        cli_subset(input, &["--text=a", &option]),
+        cli_subset(input, &["--text=ab"])
+    );
+    assert_eq!(
+        cli_subset(input, &[&option, "--text=c"]),
+        cli_subset(input, &["--text=c"])
+    );
+}
+
+#[test]
+fn selector_files_can_read_standard_input_and_report_missing_files() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let input = "test-data/fonts/Roboto-Regular.abc.ttf";
+    let directory = tempfile::tempdir().unwrap();
+    let output = directory.path().join("subset.ttf");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_skera"))
+        .args(["--path", input, "--gids-file=-", "--output-file"])
+        .arg(&output)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"1 2\n3 # comment\n")
+        .unwrap();
+    assert!(child.wait().unwrap().success());
+    assert_eq!(
+        std::fs::read(&output).unwrap(),
+        cli_subset(input, &["--gids=1,2,3"])
+    );
+    let missing = format!(
+        "--text-file={}",
+        directory.path().join("missing.txt").display()
+    );
+    let result = Command::new(env!("CARGO_BIN_EXE_skera"))
+        .args(["--path", input, &missing, "--output-file"])
+        .arg(output)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("Failed reading selector file"));
+}
+
+#[test]
+fn wildcard_lines_in_selector_files_keep_the_complete_set() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("all.txt");
+    std::fs::write(&file, "* # all\n1\n").unwrap();
+    let option = format!("--gids-file={}", file.display());
+    let input = "test-data/fonts/Roboto-Regular.abc.ttf";
+    assert_eq!(
+        cli_subset(input, &[&option]),
+        cli_subset(input, &["--gids=*"])
+    );
+    std::fs::write(&file, "*\n0061\n").unwrap();
+    let option = format!("--unicodes-file={}", file.display());
+    assert_eq!(
+        cli_subset(input, &[&option]),
+        cli_subset(input, &["--unicodes=*"])
+    );
+}
