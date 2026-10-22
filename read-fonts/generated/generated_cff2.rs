@@ -106,48 +106,52 @@ impl<'a> Cff2Header<'a> {
     }
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn header_size_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn top_dict_length_byte_range(&self) -> Range<usize> {
         let start = self.header_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _padding_byte_range(&self) -> Range<usize> {
         let header_size = self.header_size();
         let start = self.top_dict_length_byte_range().end;
-        let end =
-            start + (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn top_dict_data_byte_range(&self) -> Range<usize> {
         let top_dict_length = self.top_dict_length();
         let start = self._padding_byte_range().end;
-        let end = start + (transforms::to_usize(top_dict_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(top_dict_length)).saturating_mul(u8::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.top_dict_data_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -242,14 +246,14 @@ impl<'a> Index<'a> {
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
@@ -257,15 +261,17 @@ impl<'a> Index<'a> {
         let count = self.count();
         let off_size = self.off_size();
         let start = self.off_size_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }

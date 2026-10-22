@@ -164,45 +164,45 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn nonnullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn nullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.nonnullable_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn array_offset_count_byte_range(&self) -> Range<usize> {
         let start = self.nullable_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn array_offset_byte_range(&self) -> Range<usize> {
         let start = self.array_offset_count_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn record_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.array_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn versioned_nullable_record_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.record_array_offset_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset16::RAW_BYTE_LEN
+            start.saturating_add(Offset16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -212,7 +212,7 @@ impl<'a> KindsOfOffsets<'a> {
     pub fn versioned_nonnullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.versioned_nullable_record_array_offset_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset16::RAW_BYTE_LEN
+            start.saturating_add(Offset16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -222,7 +222,7 @@ impl<'a> KindsOfOffsets<'a> {
     pub fn versioned_nullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.versioned_nonnullable_offset_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset32::RAW_BYTE_LEN
+            start.saturating_add(Offset32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -365,28 +365,30 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn nonnullable_offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.count_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN));
         start..end
     }
 
     pub fn nullable_offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.nonnullable_offsets_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN));
         start..end
     }
 
@@ -394,7 +396,9 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
         let count = self.count();
         let start = self.nullable_offsets_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
-            start + (transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -405,7 +409,9 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
         let count = self.count();
         let start = self.versioned_nonnullable_offsets_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
-            start + (transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(count)).saturating_mul(Offset16::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -519,28 +525,30 @@ impl<'a> KindsOfArrays<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn scalars_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.count_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end =
+            start.saturating_add((transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN));
         start..end
     }
 
     pub fn records_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.scalars_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(Shmecord::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(count)).saturating_mul(Shmecord::RAW_BYTE_LEN));
         start..end
     }
 
@@ -548,7 +556,7 @@ impl<'a> KindsOfArrays<'a> {
         let count = self.count();
         let start = self.records_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start + (transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN)
+            start.saturating_add((transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN))
         } else {
             start
         };
@@ -559,7 +567,9 @@ impl<'a> KindsOfArrays<'a> {
         let count = self.count();
         let start = self.versioned_scalars_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start + (transforms::to_usize(count)).saturating_mul(Shmecord::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(count)).saturating_mul(Shmecord::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -647,25 +657,25 @@ impl<'a> VarLenHaver<'a> {
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn var_len_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.count_byte_range().end;
-        let end = start + {
+        let end = start.saturating_add({
             let data = self.offset_data().split_off(start).unwrap_or_default();
             <VarSizeDummy as VarSize>::total_len_for_count(data, transforms::to_usize(count))
                 .unwrap_or(0)
-        };
+        });
         start..end
     }
 
     pub fn other_field_byte_range(&self) -> Range<usize> {
         let start = self.var_len_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -788,33 +798,34 @@ impl<'a> OffsetAfterArray<'a> {
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn values_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.count_byte_range().end;
-        let end = start + (transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end =
+            start.saturating_add((transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN));
         start..end
     }
 
     pub fn item_offset_byte_range(&self) -> Range<usize> {
         let start = self.values_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn short_offset_byte_range(&self) -> Range<usize> {
         let start = self.item_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn medium_offset_byte_range(&self) -> Range<usize> {
         let start = self.short_offset_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset24::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -886,14 +897,14 @@ impl<'a> Dummy<'a> {
     }
 
     pub fn value_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 }

@@ -79,20 +79,20 @@ impl<'a> Svg<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.svg_document_list_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -173,16 +173,17 @@ impl<'a> SVGDocumentList<'a> {
     }
 
     pub fn num_entries_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn document_records_byte_range(&self) -> Range<usize> {
         let num_entries = self.num_entries();
         let start = self.num_entries_byte_range().end;
-        let end = start
-            + (transforms::to_usize(num_entries)).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(num_entries)).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

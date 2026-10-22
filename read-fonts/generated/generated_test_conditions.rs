@@ -78,21 +78,21 @@ impl<'a> MajorMinorVersion<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn always_present_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn if_11_byte_range(&self) -> Range<usize> {
         let start = self.always_present_byte_range().end;
         let end = if self.version().compatible((1u16, 1u16)) {
-            start + u16::RAW_BYTE_LEN
+            start.saturating_add(u16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -102,7 +102,7 @@ impl<'a> MajorMinorVersion<'a> {
     pub fn if_20_byte_range(&self) -> Range<usize> {
         let start = self.if_11_byte_range().end;
         let end = if self.version().compatible((2u16, 0u16)) {
-            start + u32::RAW_BYTE_LEN
+            start.saturating_add(u32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -493,21 +493,21 @@ impl<'a> FlagDay<'a> {
     }
 
     pub fn volume_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.volume_byte_range().end;
-        let end = start + GotFlags::RAW_BYTE_LEN;
+        let end = start.saturating_add(GotFlags::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn foo_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
         let end = if self.flags().contains(GotFlags::FOO) {
-            start + u16::RAW_BYTE_LEN
+            start.saturating_add(u16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -517,7 +517,7 @@ impl<'a> FlagDay<'a> {
     pub fn bar_byte_range(&self) -> Range<usize> {
         let start = self.foo_byte_range().end;
         let end = if self.flags().contains(GotFlags::BAR) {
-            start + u16::RAW_BYTE_LEN
+            start.saturating_add(u16::RAW_BYTE_LEN)
         } else {
             start
         };
