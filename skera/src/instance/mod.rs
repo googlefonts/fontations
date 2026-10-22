@@ -61,6 +61,7 @@ pub fn instance_font_with_flags(
     if axes.values.is_empty() {
         return Ok(copy_font(font));
     }
+    check_supported_tables(font)?;
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
         .table_records()
@@ -143,6 +144,17 @@ fn round_f32(value: f32) -> f64 {
     (value as f64 + 0.5).floor()
 }
 
+// Adding a table handler must also remove its guard here. Consuming fvar or
+// GDEF's store while preserving an unhandled consumer would freeze stale data.
+fn check_supported_tables(font: &FontRef) -> Result<(), SubsetError> {
+    for tag in [b"GLYF", b"GVAR", b"HMTX", b"HHEA", b"VMTX", b"VHEA"] {
+        let tag = Tag::new(tag);
+        if font.data_for_tag(tag).is_some() {
+            return Err(SubsetError::SubsetTableError(tag));
+        }
+    }
+    Ok(())
+}
 fn copy_font(font: &FontRef) -> Vec<u8> {
     let mut builder = FontBuilder::new();
     for record in font.table_directory().table_records() {
