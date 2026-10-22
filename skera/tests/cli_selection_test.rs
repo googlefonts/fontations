@@ -511,3 +511,96 @@ fn metadata_operations_filter_actual_names_layout_items_and_tables() {
         assert_eq!(gpos.lookup_list().unwrap().lookup_count(), 0);
     }
 }
+
+#[test]
+fn keep_everything_resets_selections_and_flags_in_command_line_order() {
+    let input = "test-data/fonts/Roboto-Regular.abc.ttf";
+    for (options, expected) in [
+        (
+            vec!["--no-hinting", "--keep-everything"],
+            vec!["--keep-everything"],
+        ),
+        (
+            vec!["--retain-gids", "--keep-everything", "--gids=", "--text=c"],
+            vec!["--keep-everything", "--gids=", "--text=c"],
+        ),
+        (
+            vec!["--keep-everything", "--no-hinting"],
+            vec!["--keep-everything", "--no-hinting"],
+        ),
+        (
+            vec!["--no-hinting", "--keep-everything", "--no-hinting"],
+            vec!["--keep-everything", "--no-hinting"],
+        ),
+        (
+            vec![
+                "--gids=1",
+                "--unicodes=61",
+                "--name-IDs=",
+                "--name-languages=",
+                "--layout-features=",
+                "--layout-scripts=",
+                "--drop-tables=name",
+                "--keep-everything",
+            ],
+            vec!["--keep-everything"],
+        ),
+        (
+            vec![
+                "--keep-everything",
+                "--gids=1",
+                "--unicodes=61",
+                "--name-IDs=",
+                "--no-hinting",
+                "--keep-everything",
+            ],
+            vec!["--keep-everything"],
+        ),
+        (
+            vec![
+                "--keep-everything",
+                "--gids=1",
+                "--unicodes=61",
+                "--keep-everything",
+                "--gids-=*",
+                "--unicodes-=61-62",
+            ],
+            vec!["--keep-everything", "--gids=", "--text=c"],
+        ),
+    ] {
+        assert_eq!(
+            cli_subset(input, &options),
+            cli_subset(input, &expected),
+            "{options:?}"
+        );
+    }
+    // A reset also restores layout selections excluded earlier.
+    let input = "test-data/fonts/layout-feature-dedup.ttf";
+    assert_eq!(
+        cli_subset(
+            input,
+            &[
+                "--layout-features=",
+                "--layout-scripts=",
+                "--keep-everything"
+            ]
+        ),
+        cli_subset(input, &["--keep-everything"])
+    );
+    // The CFF2 downgrade flag follows the same reset semantics as other flags.
+    let input = "test-data/fonts/AdobeVFPrototype.otf";
+    assert_eq!(
+        cli_subset(
+            input,
+            &[
+                "--downgrade-cff2",
+                "--keep-everything",
+                "--instance=wght=650,CNTR=drop"
+            ]
+        ),
+        cli_subset(
+            input,
+            &["--keep-everything", "--instance=wght=650,CNTR=drop"]
+        )
+    );
+}
