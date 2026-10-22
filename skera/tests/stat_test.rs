@@ -236,7 +236,10 @@ fn invalid_axis_indices_and_missing_value_arrays_are_rejected() {
     null_array[14..18].fill(0);
     let mut truncated = write_fonts::dump_table(&stat()).unwrap();
     truncated.truncate(20);
-    for raw in [invalid_index, null_array, truncated] {
+    let mut overflowing_axes = write_fonts::dump_table(&stat()).unwrap();
+    overflowing_axes[4..8].copy_from_slice(&[0xff; 4]);
+    overflowing_axes[8..12].copy_from_slice(&u32::MAX.to_be_bytes());
+    for raw in [invalid_index, null_array, truncated, overflowing_axes] {
         let bytes = source(raw);
         let font = FontRef::new(&bytes).unwrap();
         assert!(
