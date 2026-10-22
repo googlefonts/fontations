@@ -484,6 +484,54 @@ fn zero_byte_pair_matrices_survive_full_instancing() {
 }
 
 #[test]
+fn zero_byte_single_records_survive_direct_and_extension_instancing() {
+    use read_fonts::types::GlyphId16;
+    let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+    let font = FontRef::new(&bytes).unwrap();
+    let axes = AxisPlan::new(
+        &font,
+        &crate::parse_axis_limits("wght=900,CNTR=100").unwrap(),
+    )
+    .unwrap();
+    let coverage = CoverageTable::from_iter([GlyphId16::new(1), GlyphId16::new(2)]);
+    for single in [
+        SinglePos::format_2(coverage.clone(), vec![ValueRecord::new(); 2]),
+        SinglePos::format_4(coverage, vec![ValueRecord::new(); 2]),
+    ] {
+        for extension in [false, true] {
+            let lookup = if extension {
+                PositionLookup::Extension(Lookup::new(
+                    LookupFlag::empty(),
+                    vec![ExtensionSubtable::Single(ExtensionPosFormat1::new(
+                        1,
+                        single.clone(),
+                    ))],
+                ))
+            } else {
+                PositionLookup::Single(Lookup::new(LookupFlag::empty(), vec![single.clone()]))
+            };
+            let gpos = Gpos::new(
+                ScriptList::default(),
+                FeatureList::default(),
+                LookupList::new(vec![lookup]),
+            );
+            let mut builder = write_fonts::FontBuilder::new();
+            for record in font.table_directory().table_records() {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+            builder.add_table(&gpos).unwrap();
+            let source = builder.build();
+            let font = FontRef::new(&source).unwrap();
+            let tables = instance_layout(&font, &axes).unwrap();
+            let borrowed =
+                read_fonts::tables::gpos::Gpos::read(FontData::new(tables.gpos.as_ref().unwrap()))
+                    .unwrap();
+            assert_eq!(own_gpos(&borrowed).unwrap(), gpos);
+        }
+    }
+}
+
+#[test]
 fn long_word_deltas_saturate_fields_and_preserve_condition_sign() {
     let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
     let font = FontRef::new(&bytes).unwrap();
