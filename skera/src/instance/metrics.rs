@@ -204,6 +204,11 @@ pub(super) fn instance(
             );
         }
     }
+    update_os2(axes, tables);
+    Ok(())
+}
+
+pub(super) fn update_os2(axes: &AxisPlan, tables: &mut Tables) {
     if let Some(os2) = tables.get_mut(&Tag::new(b"OS/2")) {
         for &(tag, value) in &axes.values {
             let (offset, value) = if tag == Tag::new(b"wght") {
@@ -226,7 +231,6 @@ pub(super) fn instance(
             }
         }
     }
-    Ok(())
 }
 
 fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<(), SubsetError> {
