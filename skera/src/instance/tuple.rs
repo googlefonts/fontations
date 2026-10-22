@@ -24,7 +24,7 @@ fn rounded(value: f32) -> Result<i32, SubsetError> {
 }
 
 struct TupleDeltaData {
-    tents: Vec<Option<Triple>>,
+    tents: Vec<Option<Triple<f32>>>,
     deltas: Vec<Point>,
     referenced: Vec<bool>,
 }
@@ -47,15 +47,15 @@ impl TupleVariations {
         }
         let mut tents = Vec::with_capacity(axis_count);
         for i in 0..axis_count {
-            let peak = tuple.peak().get(i).ok_or_else(error)?.to_f64();
+            let peak = tuple.peak().get(i).ok_or_else(error)?.to_f32();
             let start = tuple
                 .intermediate_start()
                 .and_then(|t| t.get(i))
-                .map_or(peak.min(0.), |c| c.to_f64());
+                .map_or(peak.min(0.), |c| c.to_f32());
             let end = tuple
                 .intermediate_end()
                 .and_then(|t| t.get(i))
-                .map_or(peak.max(0.), |c| c.to_f64());
+                .map_or(peak.max(0.), |c| c.to_f32());
             tents.push((peak != 0.).then_some(Triple(start, peak, end)));
         }
         self.tuples.push(TupleDeltaData {
@@ -95,12 +95,15 @@ impl TupleVariations {
                 if tent.0 > tent.1 || tent.1 > tent.2 || tent.0 < 0. && tent.2 > 0. {
                     continue;
                 }
-                let solutions = rebase::rebase(tent, axes.normalized[axis], axes.distances[axis]);
+                let solutions = rebase::rebase(
+                    tent,
+                    axes.normalized[axis].map(|v| v as f32),
+                    (axes.distances[axis].0 as f32, axes.distances[axis].1 as f32),
+                );
                 if next.len().saturating_add(solutions.len()) > 65535 {
                     return Err(error());
                 }
                 for (gain, tent) in solutions {
-                    let gain = gain as f32;
                     let mut deltas = tuple.deltas.clone();
                     for (delta, &referenced) in deltas.iter_mut().zip(&tuple.referenced) {
                         if referenced {
@@ -150,7 +153,7 @@ impl TupleVariations {
                 .iter()
                 .map(|t| {
                     let t = t.unwrap_or(Triple(0., 0., 0.));
-                    let bits = |v: f64| if v == 0. { 0 } else { v.to_bits() };
+                    let bits = |v: f32| if v == 0. { 0 } else { v.to_bits() };
                     (bits(t.0), bits(t.1), bits(t.2))
                 })
                 .collect();
@@ -242,7 +245,7 @@ impl TupleVariations {
 
 impl TupleDeltaData {
     fn coords(&self) -> (Vec<i16>, Vec<i16>, Vec<i16>) {
-        let encode = |v: f64| ((v as f32 * 16384. + 0.5).floor().clamp(-32768., 32767.)) as i16;
+        let encode = |v: f32| ((v * 16384. + 0.5).floor().clamp(-32768., 32767.)) as i16;
         let mut start = Vec::new();
         let mut peak = Vec::new();
         let mut end = Vec::new();
@@ -274,15 +277,15 @@ impl TupleDeltaData {
                 let mut i = if a == end { start } else { a + 1 };
                 while i != b {
                     for axis in 0..2 {
-                        // The subsetter infers rebased deltas in double, then
-                        // stores the result as float, unlike runtime gvar IUP.
+                        // Match the subsetter's float interpolation before
+                        // rounding residual deltas to their stored integers.
                         self.deltas[i][axis] = infer_delta(
-                            points[i][axis] as f64,
-                            points[a][axis] as f64,
-                            points[b][axis] as f64,
-                            self.deltas[a][axis] as f64,
-                            self.deltas[b][axis] as f64,
-                        ) as f32;
+                            points[i][axis],
+                            points[a][axis],
+                            points[b][axis],
+                            self.deltas[a][axis],
+                            self.deltas[b][axis],
+                        );
                     }
                     i = if i == end { start } else { i + 1 };
                 }
@@ -294,7 +297,7 @@ impl TupleDeltaData {
     }
 }
 
-fn infer_delta(v: f64, a: f64, b: f64, da: f64, db: f64) -> f64 {
+fn infer_delta(v: f32, a: f32, b: f32, da: f32, db: f32) -> f32 {
     if a == b {
         return if da == db { da } else { 0. };
     }
