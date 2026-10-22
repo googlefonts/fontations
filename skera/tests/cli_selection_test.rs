@@ -632,3 +632,61 @@ fn variation_options_accept_open_bounds_wildcards_and_repeated_requests() {
         );
     }
 }
+
+#[test]
+fn varc_preliminary_subsets_keep_inputs_until_instancing_and_selection_finish() {
+    use write_fonts::{
+        from_obj::ToOwnedTable,
+        read::TableProvider,
+        tables::{glyf::Glyph, hmtx::Hmtx},
+        types::{GlyphId, Tag},
+    };
+    let input = "test-data/fonts/varc-unrelated-axis.ttf";
+    let common = ["--gids=3", "--instance=*=drop,DUMY=0.5", "--notdef-outline"];
+    let reference = cli_subset(input, &common);
+    let expected = FontRef::new(&reference).unwrap();
+    let outlines = |font: &FontRef| {
+        let (glyf, loca) = (font.glyf().unwrap(), font.loca(None).unwrap());
+        (0..font.maxp().unwrap().num_glyphs())
+            .map(|gid| {
+                loca.get(GlyphId::from(gid), &glyf)
+                    .unwrap()
+                    .into_glyph()
+                    .map(|glyph| {
+                        let glyph: Glyph = glyph.to_owned_table();
+                        glyph
+                    })
+            })
+            .collect::<Vec<_>>()
+    };
+    for tag in [
+        "fvar", "gvar", "avar", "cvar", "HVAR", "VVAR", "MVAR", "GDEF",
+    ] {
+        let mut options = common.to_vec();
+        let drop = format!("--drop-tables={tag}");
+        options.push(&drop);
+        let bytes = cli_subset(input, &options);
+        let actual = FontRef::new(&bytes).unwrap();
+        assert!(actual
+            .data_for_tag(Tag::new(tag.as_bytes().try_into().unwrap()))
+            .is_none());
+        assert_eq!(outlines(&actual), outlines(&expected), "{tag}");
+        let actual_metrics: Hmtx = actual.hmtx().unwrap().to_owned_table();
+        let expected_metrics: Hmtx = expected.hmtx().unwrap().to_owned_table();
+        assert_eq!(actual_metrics, expected_metrics, "{tag}");
+    }
+    // Removing cmap should retain glyphs selected through the original cmap.
+    let common = ["--text=각", "--instance=DUMY=0.5", "--notdef-outline"];
+    let reference = cli_subset(input, &common);
+    let expected = FontRef::new(&reference).unwrap();
+    let mut options = common.to_vec();
+    options.push("--drop-tables=cmap");
+    let bytes = cli_subset(input, &options);
+    let actual = FontRef::new(&bytes).unwrap();
+    assert!(actual.cmap().is_err());
+    assert_eq!(outlines(&actual), outlines(&expected));
+    assert_eq!(
+        actual.maxp().unwrap().num_glyphs(),
+        expected.maxp().unwrap().num_glyphs()
+    );
+}
