@@ -115,6 +115,7 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
+        lookup_indices.union(&plan.jstf_gsub_lookups);
         // Glyphs outside the font must not make further lookups reachable.
         let num_glyphs = u32::try_from(plan.font_num_glyphs).unwrap_or(u32::MAX);
         if !plan

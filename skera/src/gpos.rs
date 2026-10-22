@@ -121,6 +121,7 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
+        lookup_indices.union(&plan.jstf_gpos_lookups);
         if self
             .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
             .is_err()

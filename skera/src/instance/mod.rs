@@ -150,11 +150,6 @@ fn check_supported_tables(font: &FontRef) -> Result<(), SubsetError> {
             return Err(SubsetError::SubsetTableError(tag));
         }
     }
-    if font.gdef().ok().and_then(|g| g.item_var_store()).is_some()
-        && font.data_for_tag(Tag::new(b"JSTF")).is_some()
-    {
-        return Err(SubsetError::SubsetTableError(Tag::new(b"JSTF")));
-    }
     Ok(())
 }
 fn copy_font(font: &FontRef) -> Vec<u8> {

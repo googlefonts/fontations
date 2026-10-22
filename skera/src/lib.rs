@@ -21,6 +21,7 @@ mod hmtx;
 mod hvar;
 mod inc_bimap;
 mod instance;
+mod jstf;
 pub use instance::{
     downgrade_cff2, instance_font, instance_font_with_flags, parse_axis_limits,
     parse_axis_limits_for_font, AxisLimits,
@@ -358,6 +359,9 @@ pub struct Plan {
     glyphset_colred: IntSet<GlyphId>,
     glyphset_varced: IntSet<GlyphId>,
     varc_closure_failed: bool,
+    jstf_closure_failed: bool,
+    jstf_gsub_lookups: IntSet<u16>,
+    jstf_gpos_lookups: IntSet<u16>,
     glyphset: IntSet<GlyphId>,
     /// Old->New glyph id mapping,
     glyph_map: FastHashMap<GlyphId, GlyphId>,
@@ -774,6 +778,10 @@ impl Plan {
         }
         self.glyphset_cmaped = self.glyphset_gsub.clone();
 
+        if !self.drop_tables.contains(JSTF) && font.data_for_tag(JSTF).is_some() {
+            self.jstf_closure_failed = jstf::closure(font, self).is_err();
+        }
+
         // HarfBuzz closes math variants before layout, color and components.
         if !self.drop_tables.contains(Math::TAG) {
             math::closure(font, &mut self.glyphset_gsub);
@@ -1060,6 +1068,9 @@ impl Plan {
 
         if !self.drop_tables.contains(Tag::new(b"MATH")) {
             math::collect_variation_indices(font, self, &mut varidx_set);
+        }
+        if !self.drop_tables.contains(JSTF) {
+            jstf::collect_variation_indices(font, self, &mut varidx_set);
         }
 
         let vardata_count = var_store.item_variation_data_count() as u32;
@@ -1424,6 +1435,9 @@ trait Serialize<'a> {
 }
 
 pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
+    if !plan.drop_tables.contains(JSTF) && plan.jstf_closure_failed {
+        return Err(SubsetError::SubsetTableError(JSTF));
+    }
     if !plan.drop_tables.contains(Varc::TAG)
         && (plan.varc_closure_failed
             || (font.data_for_tag(Varc::TAG).is_some()
@@ -1482,7 +1496,7 @@ pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, Subse
 
         // TODO: add more tags with dependencies for instancing
         match tag {
-            Gpos::TAG => tags_with_dependencies.push((tag, record.length())),
+            Gpos::TAG | JSTF => tags_with_dependencies.push((tag, record.length())),
             _ => subset(tag, font, plan, &mut builder, record.length(), &mut state)?,
         }
     }
@@ -1587,6 +1601,7 @@ fn subset_table<'a>(
         Cff2::TAG => cff::subset(font, plan, s, true),
         Varc::TAG => varc::subset(font, plan, s),
         Math::TAG => math::subset(font, plan, s),
+        JSTF => jstf::subset(font, plan, state, s),
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
