@@ -137,9 +137,7 @@ impl TestCaseParser {
                 //TODO: remove once we support those options
                 let line = next.trim();
                 match line {
-                    "downgrade-cff2.txt" | "desubroutinize.txt" | "iftb_requirements.txt" => {
-                        continue
-                    }
+                    "downgrade-cff2.txt" | "desubroutinize.txt" => continue,
                     _ => self.case.profiles.push(line.to_owned()),
                 }
             }
@@ -206,7 +204,7 @@ impl TestCaseParser {
 
 #[allow(clippy::too_many_arguments)]
 // TODO: support more options:
-// --downgrade-cff2,--desubroutinize, --iftb-requirements
+// --downgrade-cff2,--desubroutinize
 fn parse_profile_options(
     profile: &str,
     subset_flags: &mut SubsetFlags,
@@ -241,6 +239,9 @@ fn parse_profile_options(
                 "--no-bidi-closure" => *subset_flags |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE,
                 "--retain-num-glyphs" => {
                     *subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS
+                }
+                "--iftb-requirements" => {
+                    *subset_flags |= SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS
                 }
                 _ => continue,
             },

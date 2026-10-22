@@ -273,6 +273,11 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// If set enforce requirements on the output subset to allow it to be used with incremental
+    /// font transfer IFTB patches. Primarily, this forces all outline data to use long (32 bit)
+    /// offsets.
+    pub const SUBSET_FLAGS_IFTB_REQUIREMENTS: Self = Self(0x1000);
+
     /// If this flag is set along side SUBSET_FLAGS_RETAIN_GIDS then the number of glyphs in the
     /// font won't be reduced as a result of subsetting. If necessary empty glyphs will be included
     /// at the end of the font to keep the number of glyphs unchanged.
