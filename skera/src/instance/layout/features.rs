@@ -337,6 +337,13 @@ pub(super) fn own_feature_variations(
     let err = || SubsetError::SubsetTableError(tag);
     let mut remaining = 200_000;
     if let Some(vars) = vars {
+        // Check before calling the generated range getter on 32-bit hosts.
+        if vars.version().major != 1
+            || u64::from(vars.feature_variation_record_count()) * 8
+                > vars.offset_data().len().saturating_sub(8) as u64
+        {
+            return Err(err());
+        }
         if vars.feature_variation_records().len() != vars.feature_variation_record_count() as usize
         {
             return Err(err());
