@@ -248,7 +248,7 @@ impl MarkBasePosFormat1 {
 
     fn check_class_count_conformance(&self, ctx: &mut ValidationCtx) {
         validate_mark_class_matrix(
-            &self.mark_array,
+            self.mark_array.minimum_class_count(),
             self.compute_mark_class_count(),
             self.base_array
                 .base_records
@@ -269,7 +269,7 @@ impl MarkMarkPosFormat1 {
 
     fn check_class_count_conformance(&self, ctx: &mut ValidationCtx) {
         validate_mark_class_matrix(
-            &self.mark1_array,
+            self.mark1_array.minimum_class_count(),
             self.compute_mark_class_count(),
             self.mark2_array
                 .mark2_records
@@ -295,7 +295,7 @@ impl MarkLigPosFormat1 {
 
     fn check_class_count_conformance(&self, ctx: &mut ValidationCtx) {
         validate_mark_class_matrix(
-            &self.mark_array,
+            self.mark_array.minimum_class_count(),
             self.compute_mark_class_count(),
             self.ligature_array
                 .ligature_attaches
@@ -308,7 +308,7 @@ impl MarkLigPosFormat1 {
 }
 
 fn validate_mark_class_matrix(
-    marks: &MarkArray,
+    minimum_class_count: usize,
     class_count: usize,
     mut row_widths: impl Iterator<Item = usize>,
     ctx: &mut ValidationCtx,
@@ -316,7 +316,7 @@ fn validate_mark_class_matrix(
     if class_count > usize::from(u16::MAX) {
         ctx.report("mark class count exceeds u16::MAX");
     }
-    if marks.minimum_class_count() > class_count {
+    if minimum_class_count > class_count {
         ctx.report("mark classes must be less than the mark class count");
     }
     if row_widths.any(|width| width != class_count) {
@@ -706,69 +706,71 @@ impl PairPosFormat4 {
 }
 
 impl MarkBasePosFormat2 {
-    fn compute_mark_class_count(&self) -> u16 {
-        self.mark_array
-            .class_count()
-            .try_into()
-            .expect("mark class count exceeds 16 bits")
+    fn compute_mark_class_count(&self) -> usize {
+        self.base_array.base_records.first().map_or_else(
+            || self.mark_array.class_count() as usize,
+            |record| record.base_anchors.len(),
+        )
     }
 
     fn check_class_dimensions(&self, ctx: &mut ValidationCtx) {
-        let classes = self.mark_array.class_count() as usize;
-        if (self
-            .base_array
-            .base_records
-            .iter()
-            .map(|rec| rec.base_anchors.len()))
-        .any(|len| len != classes)
-        {
-            ctx.report("anchor arrays must match the mark class count");
-        }
+        validate_mark_class_matrix(
+            self.mark_array.class_count() as usize,
+            self.compute_mark_class_count(),
+            self.base_array
+                .base_records
+                .iter()
+                .map(|record| record.base_anchors.len()),
+            ctx,
+        );
     }
 }
 
 impl MarkMarkPosFormat2 {
-    fn compute_mark_class_count(&self) -> u16 {
-        self.mark1_array
-            .class_count()
-            .try_into()
-            .expect("mark class count exceeds 16 bits")
+    fn compute_mark_class_count(&self) -> usize {
+        self.mark2_array.mark2_records.first().map_or_else(
+            || self.mark1_array.class_count() as usize,
+            |record| record.mark2_anchors.len(),
+        )
     }
 
     fn check_class_dimensions(&self, ctx: &mut ValidationCtx) {
-        let classes = self.mark1_array.class_count() as usize;
-        if (self
-            .mark2_array
-            .mark2_records
-            .iter()
-            .map(|rec| rec.mark2_anchors.len()))
-        .any(|len| len != classes)
-        {
-            ctx.report("anchor arrays must match the mark class count");
-        }
+        validate_mark_class_matrix(
+            self.mark1_array.class_count() as usize,
+            self.compute_mark_class_count(),
+            self.mark2_array
+                .mark2_records
+                .iter()
+                .map(|record| record.mark2_anchors.len()),
+            ctx,
+        );
     }
 }
 
 impl MarkLigPosFormat2 {
-    fn compute_mark_class_count(&self) -> u16 {
-        self.mark_array
-            .class_count()
-            .try_into()
-            .expect("mark class count exceeds 16 bits")
+    fn compute_mark_class_count(&self) -> usize {
+        self.ligature_array
+            .ligature_attaches
+            .iter()
+            .flat_map(|attach| attach.component_records.iter())
+            .next()
+            .map_or_else(
+                || self.mark_array.class_count() as usize,
+                |record| record.ligature_anchors.len(),
+            )
     }
 
     fn check_class_dimensions(&self, ctx: &mut ValidationCtx) {
-        let classes = self.mark_array.class_count() as usize;
-        if (self
-            .ligature_array
-            .ligature_attaches
-            .iter()
-            .flat_map(|lig| lig.component_records.iter())
-            .map(|rec| rec.ligature_anchors.len()))
-        .any(|len| len != classes)
-        {
-            ctx.report("anchor arrays must match the mark class count");
-        }
+        validate_mark_class_matrix(
+            self.mark_array.class_count() as usize,
+            self.compute_mark_class_count(),
+            self.ligature_array
+                .ligature_attaches
+                .iter()
+                .flat_map(|attach| attach.component_records.iter())
+                .map(|record| record.ligature_anchors.len()),
+            ctx,
+        );
     }
 }
 
@@ -1190,6 +1192,60 @@ mod tests {
                 .mark_class_count(),
             3
         );
+    }
+
+    #[test]
+    fn extended_marks_preserve_unused_trailing_classes() {
+        let marks = MarkArray2::new(vec![MarkRecord2::new(2, AnchorTable::format_1(10, 20))]);
+        let coverage = || [GlyphId16::new(5)].into_iter().collect();
+        let anchors = || vec![None, None, Some(AnchorTable::format_1(30, 40)), None];
+        let base = MarkBasePosFormat2::new(
+            coverage(),
+            coverage(),
+            marks.clone(),
+            BaseArray2::new(vec![BaseRecord2::new(anchors())]),
+        );
+        let lig = MarkLigPosFormat2::new(
+            coverage(),
+            coverage(),
+            marks.clone(),
+            LigatureArray2::new(vec![LigatureAttach2::new(vec![ComponentRecord2::new(
+                anchors(),
+            )])]),
+        );
+        let mark = MarkMarkPosFormat2::new(
+            coverage(),
+            coverage(),
+            marks,
+            Mark2Array2::new(vec![Mark2Record2::new(anchors())]),
+        );
+        let bytes = crate::dump_table(&base).unwrap();
+        let read = read_gpos::MarkBasePosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.mark_class_count(), 4);
+        let owned: MarkBasePosFormat2 = read.to_owned_table();
+        assert_eq!(owned, base);
+        assert!(crate::dump_table(&owned).is_ok());
+        let bytes = crate::dump_table(&lig).unwrap();
+        let read = read_gpos::MarkLigPosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.mark_class_count(), 4);
+        let owned: MarkLigPosFormat2 = read.to_owned_table();
+        assert_eq!(owned, lig);
+        assert!(crate::dump_table(&owned).is_ok());
+        let bytes = crate::dump_table(&mark).unwrap();
+        let read = read_gpos::MarkMarkPosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.mark_class_count(), 4);
+        let owned: MarkMarkPosFormat2 = read.to_owned_table();
+        assert_eq!(owned, mark);
+        assert!(crate::dump_table(&owned).is_ok());
+        let mut invalid = base.clone();
+        invalid
+            .base_array
+            .base_records
+            .push(BaseRecord2::new(vec![None; 3]));
+        assert!(crate::dump_table(&invalid).is_err());
+        let mut invalid = base;
+        invalid.mark_array.mark_records[0].mark_class = 4;
+        assert!(crate::dump_table(&invalid).is_err());
     }
 
     #[test]
