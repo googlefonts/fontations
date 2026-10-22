@@ -165,10 +165,8 @@ impl AxisPlan {
         }
         let mut coords = vec![F2Dot14::ZERO; axes.len()];
         let avar = font.avar().ok();
-        let coupled = !pinned.iter().all(|p| *p)
-            && avar
-                .as_ref()
-                .is_some_and(|a| a.version().major >= 2 && a.var_store().is_some());
+        let coupled =
+            !pinned.iter().all(|p| *p) && avar.as_ref().is_some_and(|a| a.version().major >= 2);
         let maps = avar
             .as_ref()
             .map(|a| a.axis_segment_maps().iter().collect::<Result<Vec<_>, _>>())
