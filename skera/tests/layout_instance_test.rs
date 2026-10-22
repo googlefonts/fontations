@@ -480,3 +480,124 @@ fn partial_conditions_keep_fractional_sign_boundaries_without_changing_positions
         }
     }
 }
+
+fn many_axis_condition_font(default: i16) -> Vec<u8> {
+    use write_fonts::tables::fvar::{AxisInstanceArrays, Fvar, VariationAxisRecord};
+    use write_fonts::types::{Fixed, NameId};
+
+    let bytes = synthetic_font(0, default);
+    let source = FontRef::new(&bytes).unwrap();
+    let tags: Vec<_> = (0..19)
+        .map(|i| Tag::new(format!("A{i:03}").as_bytes().try_into().unwrap()))
+        .chain([Tag::new(b"ZZZZ")])
+        .collect();
+    let fvar = Fvar::new(AxisInstanceArrays::new(
+        tags.iter()
+            .map(|&tag| {
+                VariationAxisRecord::new(
+                    tag,
+                    Fixed::ZERO,
+                    Fixed::ZERO,
+                    Fixed::ONE,
+                    0,
+                    NameId::new(256),
+                )
+            })
+            .collect(),
+        vec![],
+    ));
+    let positive = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE);
+    let gdef = Gdef {
+        item_var_store: ItemVariationStore {
+            variation_region_list: VariationRegionList::new(
+                20,
+                vec![VariationRegion::new(vec![positive; 20])],
+            )
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: 1,
+                word_delta_count: 1,
+                region_indexes: vec![0],
+                delta_sets: 1i16.to_be_bytes().to_vec(),
+            }
+            .into()],
+        }
+        .into(),
+        ..Default::default()
+    };
+    let replaced = [
+        b"fvar", b"avar", b"gvar", b"HVAR", b"VVAR", b"MVAR", b"cvar", b"STAT", b"GDEF", b"GPOS",
+        b"MATH",
+    ]
+    .map(Tag::new);
+    let mut builder = FontBuilder::new();
+    for record in source.table_directory().table_records() {
+        if !replaced.contains(&record.tag()) {
+            builder.add_raw(record.tag(), source.data_for_tag(record.tag()).unwrap());
+        }
+    }
+    builder.add_table(&fvar).unwrap();
+    builder.add_table(&gdef).unwrap();
+    builder.build()
+}
+
+#[test]
+fn partial_conditions_do_not_revive_regions_with_zero_float_scalars() {
+    for default in [-1, 0, 1] {
+        let bytes = many_axis_condition_font(default);
+        let tags: Vec<_> = (0..19)
+            .map(|i| Tag::new(format!("A{i:03}").as_bytes().try_into().unwrap()))
+            .collect();
+        let source = FontRef::new(&bytes).unwrap();
+        let pins = tags[..19]
+            .iter()
+            .map(|tag| format!("{tag}=0.00390625"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let partial = instance_font(&source, &parse_axis_limits(&pins).unwrap()).unwrap();
+        for remaining in [0., 0.25, 0.5, 1.] {
+            let full = instance_font(
+                &source,
+                &parse_axis_limits(&format!("{pins},ZZZZ={remaining}")).unwrap(),
+            )
+            .unwrap();
+            let composed = instance_font(
+                &FontRef::new(&partial).unwrap(),
+                &parse_axis_limits(&format!("ZZZZ={remaining}")).unwrap(),
+            )
+            .unwrap();
+            // 19 factors of 1/256 underflow to zero in the source float32
+            // scalar, for every remaining location. HarfBuzz agrees.
+            let expected = if default > 0 { 3 } else { 2 };
+            assert_eq!(selected_glyph(&full), expected);
+            assert_eq!(
+                selected_glyph(&composed),
+                expected,
+                "default={default}, remaining={remaining}"
+            );
+        }
+    }
+}
+
+#[test]
+fn partial_conditions_reject_subnormal_pinned_scalars() {
+    let bytes = many_axis_condition_font(0);
+    let source = FontRef::new(&bytes).unwrap();
+    let pins = (0..18)
+        .map(|i| format!("A{i:03}=0.00390625"))
+        .chain(["A018=0.03125".to_string()])
+        .collect::<Vec<_>>()
+        .join(",");
+    // The pinned product is the smallest nonzero float32. The remaining
+    // factor rounds it to zero at 1/4, but not at the peak. Positive rescaling
+    // cannot preserve that underflow boundary in the residual store.
+    for (remaining, expected) in [(0.25, 2), (1., 3)] {
+        let full = instance_font(
+            &source,
+            &parse_axis_limits(&format!("{pins},ZZZZ={remaining}")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(selected_glyph(&full), expected);
+    }
+    assert!(instance_font(&source, &parse_axis_limits(&pins).unwrap()).is_err());
+}

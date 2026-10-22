@@ -90,6 +90,7 @@ impl Transform {
 pub(crate) struct StorePlan {
     pub transforms: Vec<Transform>,
     regions: Vec<Region>,
+    subnormal_pins: Vec<bool>,
     axis_count: u16,
 }
 impl StorePlan {
@@ -99,11 +100,13 @@ impl StorePlan {
             return Err(error());
         }
         let mut expanded = Vec::new();
+        let mut subnormal_pins = Vec::new();
         let mut regions = Vec::new();
         let mut region_map = BTreeMap::new();
         for region in region_list.variation_regions().iter() {
             let region = region.map_err(|_| error())?;
             let mut terms = vec![(1., Vec::new())];
+            let mut pinned_scalar = 1f32;
             for (i, t) in region.region_axes().iter().enumerate() {
                 let t = Triple(
                     t.start_coord().to_f64(),
@@ -111,7 +114,17 @@ impl StorePlan {
                     t.end_coord().to_f64(),
                 );
                 let rebased = if axes.pinned[i] {
-                    vec![(rebase::scalar(axes.coords[i].to_f64(), t), None)]
+                    let gain = rebase::scalar(axes.coords[i].to_f64(), t);
+                    // Source region scalars multiply in float32. Once the
+                    // pinned factors reach zero, no remaining factor can
+                    // revive the region. Do not rescale a double residual
+                    // into an active condition after float underflow.
+                    pinned_scalar *= gain as f32;
+                    if pinned_scalar == 0. {
+                        terms.clear();
+                        break;
+                    }
+                    vec![(gain, None)]
                 } else {
                     rebase::rebase(t, axes.normalized[i], axes.distances[i])
                 };
@@ -155,6 +168,7 @@ impl StorePlan {
                 };
                 *residual.entry(idx).or_insert(0.) += g;
             }
+            subnormal_pins.push(pinned_scalar.is_subnormal() && !residual.is_empty());
             expanded.push((gain, residual));
         }
         let mut transforms = Vec::new();
@@ -191,9 +205,21 @@ impl StorePlan {
         Ok(Self {
             transforms,
             regions,
+            subnormal_pins,
             axis_count: axes.pinned.iter().filter(|&&p| !p).count() as u16,
         })
     }
+    pub fn has_subnormal_pins(
+        &self,
+        data: &read_fonts::tables::variations::ItemVariationData,
+        inner: u16,
+    ) -> bool {
+        data.region_indexes()
+            .iter()
+            .zip(data.delta_set(inner))
+            .any(|(index, delta)| delta != 0 && self.subnormal_pins[index.get() as usize])
+    }
+
     /// A constant region lets CFF2 express sums of variable blend operands
     /// without changing the glyph's active vsindex or adding arithmetic ops.
     pub fn add_constant_region(
