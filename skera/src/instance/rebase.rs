@@ -177,7 +177,12 @@ pub(super) fn rebase<T: Scalar>(
         return vec![(one, None)];
     }
     if limit.0 == limit.2 {
-        return vec![(scalar(limit.1, tent), None)];
+        let gain = scalar(limit.1, tent);
+        return if gain == zero {
+            vec![]
+        } else {
+            vec![(gain, None)]
+        };
     }
     solve(tent, limit)
         .into_iter()
