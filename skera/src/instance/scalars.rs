@@ -5,27 +5,7 @@ use read_fonts::{
 };
 
 pub(crate) fn region_scalar(region: &VariationRegion, coords: &[F2Dot14]) -> f32 {
-    let mut gain = 1f32;
-    for (i, axis) in region.region_axes().iter().enumerate() {
-        let (start, peak, end) = (
-            axis.start_coord().to_bits() as i32,
-            axis.peak_coord().to_bits() as i32,
-            axis.end_coord().to_bits() as i32,
-        );
-        let coord = coords.get(i).copied().unwrap_or_default().to_bits() as i32;
-        if peak == 0 || coord == peak || start > peak || peak > end || start < 0 && end > 0 {
-            continue;
-        }
-        if coord <= start || coord >= end {
-            return 0.;
-        }
-        gain *= if coord < peak {
-            (coord - start) as f32 / (peak - start) as f32
-        } else {
-            (end - coord) as f32 / (end - peak) as f32
-        };
-    }
-    gain
+    region.compute_scalar_f32(coords)
 }
 
 pub(super) struct VariationScalars(Vec<f32>);
