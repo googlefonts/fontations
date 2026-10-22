@@ -162,8 +162,7 @@ impl AxisPlan {
                 "font has no variation axes".into(),
             ));
         }
-        let metric_coords = axes.location(settings.iter().copied()).coords().to_vec();
-        let mut coords = metric_coords.clone();
+        let mut coords = vec![F2Dot14::ZERO; axes.len()];
         let avar = font.avar().ok();
         let coupled = !pinned.iter().all(|p| *p)
             && avar
@@ -210,6 +209,8 @@ impl AxisPlan {
                     .transpose()
                     .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
                 let input = coords.clone();
+                let scalars = super::scalars::VariationScalars::new(&store, &input)
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"avar")))?;
                 for (i, coord) in coords.iter_mut().enumerate() {
                     let index = if let Some(map) = &index_map {
                         map.get(i as u32)
@@ -220,9 +221,9 @@ impl AxisPlan {
                             inner: i as u16,
                         }
                     };
-                    let delta = store
-                        .compute_delta(index, &input)
-                        .map_or(0, |d| d.to_f64().round() as i32);
+                    let delta = scalars
+                        .delta(&store, index)
+                        .map_or(0, |d| (d.clamp(-32768., 32768.) + 0.5).floor() as i32);
                     *coord = F2Dot14::from_bits(
                         (coord.to_bits() as i32 + delta.clamp(-32768, 32768)).clamp(-16384, 16384)
                             as i16,
@@ -231,6 +232,59 @@ impl AxisPlan {
             }
         }
         let user_pinned = pinned.clone();
+        // HarfBuzz uses its font's 16.16 normalization path for CFF bounds and
+        // advances, while outline/store instancing uses the 2.14 plan above.
+        let mut metric_coords: Vec<i32> = axes
+            .iter()
+            .map(|axis| {
+                let n = axis_to_normalized(
+                    user[axis.index()].1,
+                    axis.min_value() as f64,
+                    axis.default_value() as f64,
+                    axis.max_value() as f64,
+                ) as f32;
+                (n * 65536. + 0.5).floor() as i32
+            })
+            .collect();
+        if let Some(maps) = &maps {
+            for (coord, map) in metric_coords.iter_mut().zip(maps) {
+                let mapped = map_float(map, *coord as f64 / 65536., false) as f32;
+                *coord = (mapped * 65536. + 0.5).floor() as i32;
+            }
+        }
+        if let Some(avar) = &avar {
+            if let Some(store) = avar.var_store() {
+                let store = store.map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                let intermediate: Vec<_> = metric_coords
+                    .iter()
+                    .map(|c| F2Dot14::from_bits(((c + 2) >> 2) as i16))
+                    .collect();
+                let scalars = super::scalars::VariationScalars::new(&store, &intermediate)
+                    .ok_or(SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                let map = avar
+                    .axis_index_map()
+                    .transpose()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?;
+                for (i, coord) in metric_coords.iter_mut().enumerate() {
+                    let index = if let Some(map) = &map {
+                        map.get(i as u32)
+                            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"avar")))?
+                    } else {
+                        read_fonts::tables::variations::DeltaSetIndex {
+                            outer: 0,
+                            inner: i as u16,
+                        }
+                    };
+                    let delta =
+                        (scalars.delta(&store, index).unwrap_or(0.) * 4.).clamp(-131072., 131072.);
+                    *coord = (*coord + (delta + 0.5).floor() as i32).clamp(-65536, 65536);
+                }
+            }
+        }
+        let metric_coords = metric_coords
+            .into_iter()
+            .map(|c| F2Dot14::from_bits(((c + 2) >> 2) as i16))
+            .collect();
         if coupled {
             pinned.fill(false);
         }

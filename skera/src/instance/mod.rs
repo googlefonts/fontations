@@ -5,6 +5,7 @@ mod color;
 mod layout;
 mod metrics;
 mod rebase;
+pub(crate) mod scalars;
 mod store;
 pub(crate) use axes::AxisPlan;
 pub use axes::{parse_axis_limits, AxisLimits};
