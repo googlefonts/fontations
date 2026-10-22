@@ -46,8 +46,8 @@ fn residual_iup_matches_harfbuzz_float_evaluation() {
     let data = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
     let tuple = data.tuples().next().unwrap();
     let delta = tuple.deltas().find(|d| d.position == 1).unwrap();
-    // IUP's float interpolation gives 28101.5; double gives 28101.498046875.
-    assert_eq!([delta.x_delta, delta.y_delta], [28102, 0]);
+    // IUP's float interpolation gives 3035.5; double gives 3035.499755859375.
+    assert_eq!([delta.x_delta, delta.y_delta], [3036, 0]);
 }
 
 #[test]
@@ -68,6 +68,33 @@ fn residual_tents_match_harfbuzz_float_rebasing() {
         tuple.intermediate_end().unwrap().get(0).unwrap().to_bits(),
         3595
     );
+}
+
+#[test]
+fn changed_avar_maps_use_float_renormalization() {
+    let source = std::fs::read("test-data/fonts/MPLUS1-Variable.ttf").unwrap();
+    let bytes = instance_font(
+        &FontRef::new(&source).unwrap(),
+        &parse_axis_limits("wght=100:428:900").unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let avar = actual.avar().unwrap();
+    let map = avar.axis_segment_maps().iter().next().unwrap().unwrap();
+    let knot = map
+        .axis_value_maps()
+        .iter()
+        .find(|knot| knot.from_coordinate().to_bits() == -6393)
+        .unwrap();
+    assert_eq!(knot.to_coordinate().to_bits(), -9275);
+    let full = instance_font(&actual, &parse_axis_limits("wght=300").unwrap()).unwrap();
+    let full = FontRef::new(&full).unwrap();
+    let glyf = full.glyf().unwrap();
+    let loca = full.loca(None).unwrap();
+    let Some(Glyph::Simple(glyph)) = loca.get(GlyphId::new(99), &glyf).unwrap().into_glyph() else {
+        panic!("expected a simple glyph");
+    };
+    assert_eq!(glyph.points().nth(3).unwrap().y, 74);
 }
 
 #[test]
