@@ -12,9 +12,10 @@ use read_fonts::{
     FontRef, TopLevelTable,
 };
 use skera::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
-    subset_font, Plan, SubsetError, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC,
-    JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
+    parse_glyph_map, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids, subset_font, FastHashMap, Plan, SubsetError, SubsetFlags,
+    DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT,
+    SILF, SILL,
 };
 
 #[derive(Parser, Debug)]
@@ -30,6 +31,11 @@ struct Args {
 
     #[command(flatten)]
     lists: ListArgs,
+
+    /// Specify a glyph mapping to use, any unmapped gids will be automatically assigned.
+    /// List of pairs old_gid1:new_gid1,old_gid2:new_gid2,...
+    #[arg(long)]
+    gid_map: Vec<String>,
 
     /// drop hints
     #[arg(long)]
@@ -166,17 +172,9 @@ enum ListOp {
     Remove,
 }
 
-/// Applies the values of list option `id` and its `+`/`-` variants (`<id>_add`, `<id>_remove`)
-/// to `set`, in command line order. `parse` turns `*` into the set of all values.
-///
-/// Port of the list option callbacks in hb-subset:
-/// <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/util/hb-subset.cc#L200>
-fn apply_list_args<T: Domain>(
-    matches: &ArgMatches,
-    id: &str,
-    set: &mut IntSet<T>,
-    parse: fn(&str) -> Result<IntSet<T>, SubsetError>,
-) {
+/// Returns the values of list option `id` and its `+`/`-` variants (`<id>_add`, `<id>_remove`)
+/// with their command line indices, in command line order.
+fn list_args<'a>(matches: &'a ArgMatches, id: &str) -> Vec<(usize, ListOp, &'a str)> {
     let mut values = Vec::new();
     for (arg_id, op) in [
         (id.to_string(), ListOp::Replace),
@@ -187,21 +185,48 @@ fn apply_list_args<T: Domain>(
             matches.indices_of(&arg_id),
             matches.get_many::<String>(&arg_id),
         ) {
-            values.extend(indices.zip(args).map(|(index, arg)| (index, op, arg)));
+            values.extend(
+                indices
+                    .zip(args)
+                    .map(|(index, arg)| (index, op, arg.as_str())),
+            );
         }
     }
     values.sort_unstable_by_key(|(index, _, _)| *index);
+    values
+}
 
-    for (_, op, arg) in values {
-        let parsed = parse(arg).unwrap_or_else(|e| {
-            eprintln!("{e}");
-            std::process::exit(1);
-        });
-        match op {
-            ListOp::Replace => *set = parsed,
-            ListOp::Add => set.union(&parsed),
-            ListOp::Remove => set.subtract(&parsed),
-        }
+/// Applies one value of a list option to `set`. `parse` turns `*` into the set of all values.
+///
+/// Port of the list option callbacks in hb-subset:
+/// <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/util/hb-subset.cc#L200>
+fn apply_list_arg<T: Domain>(
+    set: &mut IntSet<T>,
+    op: ListOp,
+    arg: &str,
+    parse: fn(&str) -> Result<IntSet<T>, SubsetError>,
+) {
+    let parsed = parse(arg).unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1);
+    });
+    match op {
+        ListOp::Replace => *set = parsed,
+        ListOp::Add => set.union(&parsed),
+        ListOp::Remove => set.subtract(&parsed),
+    }
+}
+
+/// Applies the values of list option `id` and its `+`/`-` variants to `set`, in command line
+/// order.
+fn apply_list_args<T: Domain>(
+    matches: &ArgMatches,
+    id: &str,
+    set: &mut IntSet<T>,
+    parse: fn(&str) -> Result<IntSet<T>, SubsetError>,
+) {
+    for (_, op, arg) in list_args(matches, id) {
+        apply_list_arg(set, op, arg, parse);
     }
 }
 
@@ -211,7 +236,40 @@ fn main() {
 
     let subset_flags = parse_subset_flags(&args);
     let mut gids = IntSet::<GlyphId>::empty();
-    apply_list_args(&matches, "gids", &mut gids, populate_gids);
+    let mut glyph_map = FastHashMap::<GlyphId, GlyphId>::default();
+    // Like hb-subset, --gid-map also adds the glyphs it maps to the glyph set, at its position in
+    // the command line order relative to the --gids options.
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/util/hb-subset.cc#L725>
+    let mut gid_args: Vec<_> = list_args(&matches, "gids")
+        .into_iter()
+        .map(|(index, op, arg)| (index, Some(op), arg))
+        .collect();
+    if let (Some(indices), Some(args)) = (
+        matches.indices_of("gid_map"),
+        matches.get_many::<String>("gid_map"),
+    ) {
+        gid_args.extend(
+            indices
+                .zip(args)
+                .map(|(index, arg)| (index, None, arg.as_str())),
+        );
+    }
+    gid_args.sort_unstable_by_key(|(index, _, _)| *index);
+    for (_, op, arg) in gid_args {
+        match op {
+            Some(op) => apply_list_arg(&mut gids, op, arg, populate_gids),
+            // --gid-map
+            None => {
+                let mut entries = FastHashMap::default();
+                parse_glyph_map(arg, &mut entries).unwrap_or_else(|e| {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                });
+                gids.extend(entries.keys().copied());
+                glyph_map.extend(entries);
+            }
+        }
+    }
 
     let mut unicodes = IntSet::<u32>::empty();
     apply_list_args(&matches, "unicodes", &mut unicodes, parse_unicodes);
@@ -284,7 +342,7 @@ fn main() {
 
     let mut output_bytes = Vec::new();
     for _ in 0..args.num_iterations.unwrap_or(1) {
-        let plan = Plan::new(
+        let plan = Plan::new_with_glyph_map(
             &gids,
             &unicodes,
             &font,
@@ -294,7 +352,12 @@ fn main() {
             &layout_features,
             &name_ids,
             &name_languages,
-        );
+            &glyph_map,
+        )
+        .unwrap_or_else(|e| {
+            eprintln!("{e}");
+            std::process::exit(1);
+        });
         match subset_font(&font, &plan) {
             Ok(out) => {
                 output_bytes = out;

@@ -9,7 +9,8 @@
 use rayon::prelude::*;
 use rstest::rstest;
 use skera::{
-    parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES,
+    parse_glyph_map, parse_unicodes, subset_font, FastHashMap, Plan, SubsetFlags,
+    DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES,
 };
 use std::fmt::Write;
 use std::fs;
@@ -136,10 +137,9 @@ impl TestCaseParser {
                 //TODO: remove once we support those options
                 let line = next.trim();
                 match line {
-                    "downgrade-cff2.txt"
-                    | "desubroutinize.txt"
-                    | "iftb_requirements.txt"
-                    | "glyph_map_roboto.txt" => continue,
+                    "downgrade-cff2.txt" | "desubroutinize.txt" | "iftb_requirements.txt" => {
+                        continue
+                    }
                     _ => self.case.profiles.push(line.to_owned()),
                 }
             }
@@ -206,7 +206,7 @@ impl TestCaseParser {
 
 #[allow(clippy::too_many_arguments)]
 // TODO: support more options:
-// --downgrade-cff2,--desubroutinize, --iftb-requirements, --gid-map
+// --downgrade-cff2,--desubroutinize, --iftb-requirements
 fn parse_profile_options(
     profile: &str,
     subset_flags: &mut SubsetFlags,
@@ -487,7 +487,10 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
         &mut drop_tables,
         &mut name_languages,
     );
-    let plan = Plan::new(
+    let glyph_map = parse_profile_glyph_map(profile);
+    // Like hb-subset, also retain the glyphs that --gid-map maps.
+    gids.extend(glyph_map.keys().copied());
+    let plan = Plan::new_with_glyph_map(
         &gids,
         &unicodes,
         &font,
@@ -497,13 +500,28 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
         &layout_features,
         &name_ids,
         &name_languages,
-    );
+        &glyph_map,
+    )
+    .unwrap();
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();
     //TODO: re-enable OTS check
     //assert_has_ots_exec();
     //assert_check_ots(&output_file);
+}
+
+/// Parses the --gid-map options of a profile.
+fn parse_profile_glyph_map(profile: &str) -> FastHashMap<GlyphId, GlyphId> {
+    let file_path = Path::new(TEST_DATA_DIR).join("profiles").join(profile);
+    let input = std::fs::read_to_string(file_path).unwrap();
+    let mut glyph_map = FastHashMap::default();
+    for line in input.lines() {
+        if let Some(list) = line.trim().strip_prefix("--gid-map=") {
+            parse_glyph_map(list, &mut glyph_map).unwrap();
+        }
+    }
+    glyph_map
 }
 
 fn convert_text_to_unicodes(text: &str) -> String {
