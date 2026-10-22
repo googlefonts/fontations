@@ -1,6 +1,6 @@
 //! Resolve CFF2 charstring and Private DICT blends through the same region scalars.
 use super::{
-    charstring::{self, Interpreter, Program, Recorder},
+    charstring::{self, Flattener, Interpreter, Program},
     dict, encoding,
     source::{Cff2, Source},
     subset::{self, Programs},
@@ -11,7 +11,11 @@ use read_fonts::{
     collections::IntSet, tables::variations::ItemVariationStore, types::NameId, FontRef,
 };
 
-fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<f64>> {
+pub(super) fn gains(
+    store: &ItemVariationStore,
+    ivs: usize,
+    coords: &[read_fonts::types::F2Dot14],
+) -> Result<Vec<f64>> {
     let data = store
         .item_variation_data()
         .get(ivs)
@@ -27,22 +31,15 @@ fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<
             Ok(regions
                 .get(idx.get() as usize)
                 .map_err(|_| Error)?
-                .compute_scalar(&axes.coords)
-                .to_f64())
+                .compute_scalar_f32(coords) as f64)
         })
         .collect()
 }
-fn fold(default: f64, deltas: &[f64], gains: &[f64]) -> Result<f64> {
+pub(super) fn resolve(default: f64, deltas: &[f64], gains: &[f64]) -> Result<f64> {
     if deltas.len() != gains.len() {
         return Err(Error);
     }
-    Ok(default
-        + deltas
-            .iter()
-            .zip(gains)
-            .map(|(d, g)| d * g)
-            .sum::<f64>()
-            .round())
+    Ok(default + deltas.iter().zip(gains).map(|(d, g)| d * g).sum::<f64>())
 }
 
 pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
@@ -54,13 +51,13 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
     let mut transforms = Vec::new();
     if let Some(store) = source.font.var_store() {
         for i in 0..store.item_variation_data_count() as usize {
-            transforms.push(gains(store, i, axes)?);
+            transforms.push(gains(store, i, &axes.coords)?);
         }
     }
     let mut chars = Vec::new();
     for gid in 0..source.font.num_glyphs() as usize {
         let fd = source.fd(read_fonts::types::GlyphId::new(gid as u32))?;
-        let mut rec = Recorder::default();
+        let mut rec = Flattener::default();
         let mut interp =
             Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, source.fds[fd].ivs, false);
         interp.run(
@@ -71,7 +68,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
             for value in &mut command.args {
                 if let Some((ivs, deltas)) = value.blend.take() {
                     value.default =
-                        fold(value.default, &deltas, transforms.get(ivs).ok_or(Error)?)?;
+                        resolve(value.default, &deltas, transforms.get(ivs).ok_or(Error)?)?.round();
                 }
             }
         }
@@ -125,7 +122,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                 }
             }
             let mut e = entry.clone();
-            e.raw = raw;
+            e.raw = raw.into();
             entries.push(e);
         }
         fd.private = entries;

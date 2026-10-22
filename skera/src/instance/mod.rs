@@ -29,6 +29,7 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
             "partial instancing is not available yet".into(),
         ));
     }
+    check_supported_tables(font)?;
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
         .table_records()
@@ -49,6 +50,33 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         builder.add_raw(tag, data);
     }
     Ok(builder.build())
+}
+
+// Adding a table handler must also remove its guard here. Consuming fvar or
+// GDEF's store while preserving an unhandled consumer would freeze stale data.
+fn check_supported_tables(font: &FontRef) -> Result<(), SubsetError> {
+    for tag in [
+        b"VARC", b"GLYF", b"GVAR", b"HMTX", b"HHEA", b"VMTX", b"VHEA",
+    ] {
+        let tag = Tag::new(tag);
+        if font.data_for_tag(tag).is_some() {
+            return Err(SubsetError::SubsetTableError(tag));
+        }
+    }
+    if let Ok(colr) = font.colr() {
+        if colr.item_variation_store().is_some() {
+            return Err(SubsetError::SubsetTableError(Tag::new(b"COLR")));
+        }
+    }
+    if font.gdef().ok().and_then(|g| g.item_var_store()).is_some() {
+        for tag in [b"MATH", b"JSTF"] {
+            let tag = Tag::new(tag);
+            if font.data_for_tag(tag).is_some() {
+                return Err(SubsetError::SubsetTableError(tag));
+            }
+        }
+    }
+    Ok(())
 }
 fn copy_font(font: &FontRef) -> Vec<u8> {
     let mut builder = FontBuilder::new();

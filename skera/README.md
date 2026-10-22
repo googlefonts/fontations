@@ -116,3 +116,16 @@ perf (Linux-only): The standard system profiler on Linux, useful for command-lin
 perf record -g -- target/release/skera
 perf report
 ```
+
+At this stack boundary, instancing requires all CFF2 axes to be pinned. Fonts
+with variable COLR paints, coupled avar2 mappings, extended glyph or metric
+tables, or unhandled consumers of GDEF's variation store return an error.
+Their handlers are introduced by later stack members; preserving their old
+variation data after removing the axes would produce an incorrect font.
+
+CFF2 outline blends round the complete resolved operand using floating-point
+region scalars. Metrics measure the continuous source outline with double
+coordinates before rounding its bounds; measuring the rounded emitted outline
+can change bearings. Outline/store and metric consumers retain their distinct
+normalization paths. The CFF interpreter supplies bounds as an action alongside
+retained recording and flattening, so all three share bytecode validation.
