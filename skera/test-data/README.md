@@ -29,3 +29,8 @@ default outlines, axis records, and second-stage instances at retained locations
 points and a varying advance without outline points. Regenerate it with
 `fonts/generate-tt-zero-contour-instructions.py` using FontTools with support
 for preserving zero-contour instructions.
+
+`fonts/tt-tuple-precision.ttf` covers float rounding boundaries in tuple scalars,
+residual IUP interpolation, and rebased tent coordinates. Regenerate it with
+`fonts/generate-tt-tuple-precision.py`; the assertions in
+`tests/truetype_instance_test.rs` use independently checked HarfBuzz results.

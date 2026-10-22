@@ -9,6 +9,68 @@ use write_fonts::read::{
 };
 
 #[test]
+fn tuple_scalars_match_harfbuzz_float_evaluation() {
+    let source = include_bytes!("../test-data/fonts/tt-tuple-precision.ttf");
+    let font = FontRef::new(source).unwrap();
+    // Ratios and products rounded to f32 produce 1376.4998779296875.
+    // Double accumulation followed by one f32 cast instead produces 1376.5.
+    let pins = "AXA1=0.2579345703125,AXB2=0.15985107421875,AXC3=0.0418701171875";
+    for request in [pins.to_owned(), format!("{pins},AXD4=0")] {
+        let bytes = instance_font(&font, &parse_axis_limits(&request).unwrap()).unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        let glyf = actual.glyf().unwrap();
+        let loca = actual.loca(None).unwrap();
+        let Some(Glyph::Simple(glyph)) = loca.get(GlyphId::new(1), &glyf).unwrap().into_glyph()
+        else {
+            panic!("expected a simple glyph");
+        };
+        assert_eq!(
+            glyph.points().map(|p| p.x).collect::<Vec<_>>(),
+            [1376, 1386, 1376],
+            "{request}"
+        );
+        assert_eq!(actual.cvt().unwrap()[0].get(), 1376);
+    }
+}
+
+#[test]
+fn residual_iup_matches_harfbuzz_float_evaluation() {
+    let source = include_bytes!("../test-data/fonts/tt-tuple-precision.ttf");
+    let bytes = instance_font(
+        &FontRef::new(source).unwrap(),
+        &parse_axis_limits("AXA1=0").unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let gvar = actual.gvar().unwrap();
+    let data = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
+    let tuple = data.tuples().next().unwrap();
+    let delta = tuple.deltas().find(|d| d.position == 1).unwrap();
+    // IUP's float interpolation gives 28101.5; double gives 28101.498046875.
+    assert_eq!([delta.x_delta, delta.y_delta], [28102, 0]);
+}
+
+#[test]
+fn residual_tents_match_harfbuzz_float_rebasing() {
+    let source = include_bytes!("../test-data/fonts/tt-tuple-precision.ttf");
+    let request = "AXA1=0.4146728515625:0.6053466796875:0.81060791015625";
+    let bytes = instance_font(
+        &FontRef::new(source).unwrap(),
+        &parse_axis_limits(request).unwrap(),
+    )
+    .unwrap();
+    let actual = FontRef::new(&bytes).unwrap();
+    let gvar = actual.gvar().unwrap();
+    let data = gvar.glyph_variation_data(GlyphId::new(3)).unwrap().unwrap();
+    let tuple = data.tuples().next().unwrap();
+    // Float tent splitting places this shared boundary at 3595 / 16384.
+    assert_eq!(
+        tuple.intermediate_end().unwrap().get(0).unwrap().to_bits(),
+        3595
+    );
+}
+
+#[test]
 fn zero_contour_instructions_survive_subsetting_and_composition() {
     let source = include_bytes!("../test-data/fonts/tt-zero-contour-instructions.ttf");
     let font = FontRef::new(source).unwrap();

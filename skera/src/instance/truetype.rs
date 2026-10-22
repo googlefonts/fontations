@@ -8,12 +8,8 @@ use super::{
 };
 use crate::SubsetError;
 use read_fonts::{
-    tables::{
-        glyf::Glyph as ReadGlyph,
-        gvar::GlyphDelta,
-        variations::{TupleDelta, TupleVariation},
-    },
-    types::{F2Dot14, GlyphId, Tag},
+    tables::{glyf::Glyph as ReadGlyph, gvar::GlyphDelta, variations::TupleVariation},
+    types::{GlyphId, Tag},
     FontRead, FontRef, TableProvider,
 };
 use std::collections::BTreeMap;
@@ -34,48 +30,6 @@ fn coord(value: f32) -> i16 {
     round(value).clamp(-32768, 32767) as i16
 }
 
-// TupleVariationHeader::calculate_scalar accumulates in double precision;
-// HarfBuzz's outline/CVT consumers cast the final result to float once.
-fn tuple_scalar<T: TupleDelta>(tuple: &TupleVariation<T>, coords: &[F2Dot14]) -> Option<f32> {
-    let peak = tuple.peak();
-    if peak.len() != coords.len() {
-        return None;
-    }
-    let start = tuple.intermediate_start();
-    let end = tuple.intermediate_end();
-    let mut scalar = 1f64;
-    for (i, coord) in coords.iter().enumerate() {
-        let v = coord.to_bits() as i32;
-        let p = peak.get(i)?.to_bits() as i32;
-        if p == 0 || v == p {
-            continue;
-        }
-        if v == 0 {
-            return None;
-        }
-        if let (Some(start), Some(end)) = (&start, &end) {
-            let s = start.get(i)?.to_bits() as i32;
-            let e = end.get(i)?.to_bits() as i32;
-            if s > p || p > e || (s < 0 && e > 0) {
-                continue;
-            }
-            if v < s || v > e {
-                return None;
-            }
-            if v < p {
-                scalar *= (v - s) as f64 / (p - s) as f64;
-            } else {
-                scalar *= (e - v) as f64 / (e - p) as f64;
-            }
-        } else {
-            if v < p.min(0) || v > p.max(0) {
-                return None;
-            }
-            scalar *= v as f64 / p as f64;
-        }
-    }
-    Some(scalar as f32)
-}
 fn put(data: &mut [u8], offset: usize, value: i16) -> Result<(), SubsetError> {
     data.get_mut(offset..offset + 2)
         .ok_or_else(|| error(b"head"))?
@@ -279,7 +233,7 @@ pub(super) fn instance(
                         }
                         residual.add(&tuple, axes.pinned.len(), deltas, referenced)?;
                     }
-                    let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
+                    let Some(scalar) = tuple.compute_scalar_f32(&axes.metric_coords) else {
                         continue;
                     };
                     let deltas = calc_inferred_deltas(&tuple, &orig_points, &contours, scalar)?;
@@ -709,7 +663,7 @@ fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result
             }
             residual.add(&tuple, axes.pinned.len(), values, referenced)?;
         }
-        let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
+        let Some(scalar) = tuple.compute_scalar_f32(&axes.metric_coords) else {
             continue;
         };
         for d in tuple.deltas() {
