@@ -11,12 +11,12 @@ use crate::{Plan, SubsetFlags};
 use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId, MinByteRange};
 use std::collections::{BTreeMap, BTreeSet};
 
-fn gid_list(plan: &Plan) -> Vec<usize> {
+fn gid_list(plan: &Plan, num_glyphs: usize) -> Vec<usize> {
     (0..plan.num_output_glyphs)
         .map(|i| {
             plan.reverse_glyph_map
                 .get(&GlyphId::new(i as u32))
-                .map_or(i, |g| g.to_u32() as usize)
+                .map_or(if i < num_glyphs { i } else { 0 }, |g| g.to_u32() as usize)
         })
         .collect()
 }
@@ -387,7 +387,7 @@ pub(super) fn assemble<F: CffFlavor>(
     let nohint = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-    let old_gids = gid_list(plan);
+    let old_gids = gid_list(plan, source.font.num_glyphs() as usize);
     let mut fd_map = BTreeMap::new();
     let old_fds = old_gids
         .iter()

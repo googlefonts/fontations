@@ -2,6 +2,12 @@
 
 `skera` is a Rust library and binary for subsetting a font file according to provided input.
 
+Custom glyph IDs are supported through `--gid-map 1:4,2:7` or
+`Plan::set_glyph_mapping`. Unspecified retained glyphs follow the highest
+requested output ID; gaps become empty glyphs. The final mapping must preserve
+original glyph order, keep `.notdef` at zero, and use unique output IDs.
+Custom mappings cannot be combined with `--retain-gids`.
+
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
 retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,
