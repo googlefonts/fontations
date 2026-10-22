@@ -959,8 +959,7 @@ fn partial_feature_conditions_keep_priority_and_remap_axes() {
 #[test]
 fn feature_variation_headers_are_checked_before_owning() {
     let features = write_fonts::dump_table(&FeatureList::default()).unwrap();
-    let features =
-        read_fonts::tables::layout::FeatureList::read(FontData::new(&features)).unwrap();
+    let features = read_fonts::tables::layout::FeatureList::read(FontData::new(&features)).unwrap();
     for (major, minor, count) in [(1u16, 0u16, u32::MAX), (2, 0, 0)] {
         let bytes = major
             .to_be_bytes()
@@ -973,8 +972,6 @@ fn feature_variation_headers_are_checked_before_owning() {
         assert!(own_feature_variations(Some(vars), &features, Tag::new(b"GSUB")).is_err());
     }
     let empty = [0, 1, 0, 0, 0, 0, 0, 0];
-    let vars =
-        read_fonts::tables::layout::FeatureVariations::read(FontData::new(&empty)).unwrap();
+    let vars = read_fonts::tables::layout::FeatureVariations::read(FontData::new(&empty)).unwrap();
     assert!(own_feature_variations(Some(vars), &features, Tag::new(b"GSUB")).is_ok());
 }
-

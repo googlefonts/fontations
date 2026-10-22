@@ -387,7 +387,18 @@ lists. Full instancing applies the first matching alternate feature, then unions
 the matching lookup lists with the defaults when requested. Partial instancing
 simplifies each condition and remaps its surviving store indices along with the
 classic conditions. Parsing uses the existing condition-depth and expansion
-budgets. See [the integration regressions](../src/instance/layout/beyond64k_tests.rs).
+budgets. Before owning feature variations, the layout handler rejects unsupported
+major versions and checks that the declared record array fits in the table. This
+check precedes generated range access so malformed counts return an error on
+32-bit hosts as well. The native and i686 regressions exercise both malformed
+counts and unsupported versions. The shared generated-reader overflow has its
+own [font-codegen/read-fonts fix](https://github.com/googlefonts/fontations/pull/2392).
+See [the integration regressions](../src/instance/layout/beyond64k_tests.rs).
+
+Alternate feature parameters are resolved using their original feature tag, and
+names referenced by retained alternates remain in the font. All eight GSUB/GPOS
+reference comparisons now include complete parameter tables; their ordinary and
+partial-subset references were refreshed after the upstream HarfBuzz fixes.
 
 JSTF's `JstfMax` uses the original Offset16 positioning lookup list independently
 of GPOS header selection. This alias is generated through the shared codegen
@@ -412,8 +423,13 @@ The width pass runs variation tests and all-target compilation until its
 source matches the already validated later correction, then verifies exact
 tree equality at the remaining boundaries. The final combined tip also runs the full package suites, Clippy, Rust 1.85
 workspace checks, documentation, code generation, formatting, and repository
-scripts. These propagation checks do not mark the ongoing per-PR
-design and performance review complete.
+scripts. The subsequent feature-ownership pass changes only Skera: all affected
+boundaries compile with every target and feature and run the malformed-header
+and complete feature-parameter comparisons. Its final tip passes the full Skera
+suite, Clippy, Rust 1.85 all-target/all-feature checks, formatting, and typo checks;
+the malformed-header regression also passes on i686. The other five packages
+retain the previously tested sources. These propagation checks do not mark the
+ongoing per-PR design and performance review complete.
 
 The TrueType review compares 204 full instances without semantic differences
 against HarfBuzz. A further 132 partial cases and 660 second-stage locations
