@@ -1,6 +1,6 @@
 //! Continuous CFF2 control bounds with float scalars and double coordinates.
 use super::{
-    charstring::{BlendScalars, CharStringActions, Interpreter, Program, Value},
+    charstring::{CharStringActions, Interpreter, Program, Value},
     instance::gains,
     source::{Cff2, Source},
     Error, Result,
@@ -11,23 +11,14 @@ use read_fonts::{
     FontRef, TableProvider,
 };
 
-struct ContinuousScalars(Vec<Vec<f64>>);
-impl BlendScalars for ContinuousScalars {
-    fn scalars(&self, ivs: usize) -> Result<&[f64]> {
-        self.0.as_slice().scalars(ivs)
-    }
-    fn finish_blend(&self, value: f64) -> f64 {
-        value
-    }
-}
-
 struct Bounds<'a> {
-    scalars: &'a ContinuousScalars,
+    scalars: &'a [Vec<f64>],
+    args: Vec<f64>,
     point: [f64; 2],
     extent: Option<[f64; 4]>,
     open: bool,
-    remaining: usize,
     result: Result<()>,
+    remaining: usize,
 }
 impl Bounds<'_> {
     fn include(&mut self, point: [f64; 2]) {
@@ -170,26 +161,30 @@ impl CharStringActions<'_> for Bounds<'_> {
         if self.result.is_err() {
             return;
         }
+        // Keep capacity between drawing commands; bounds need numeric values
+        // but do not need to retain a command stream.
+        let mut values = std::mem::take(&mut self.args);
+        values.clear();
         self.result = (|| {
-            let args = args
-                .iter()
-                .map(|v| v.resolve(self.scalars, &mut self.remaining))
-                .collect::<Result<Vec<_>>>()?;
-            self.path(op, &args)
+            for v in args {
+                values.push(v.resolve_continuous(self.scalars, &mut self.remaining)?);
+            }
+            self.path(op, &values)
         })();
+        self.args = values;
     }
 }
 
 pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64; 4]>>> {
     let data = font.data_for_tag(Tag::new(b"CFF2")).ok_or(Error)?;
     let source = Source::new(data.as_bytes())?;
-    let scalars = ContinuousScalars(if let Some(store) = source.font.var_store() {
+    let scalars = if let Some(store) = source.font.var_store() {
         (0..store.item_variation_data_count() as usize)
             .map(|i| gains(store, i, &axes.metric_coords))
             .collect::<Result<_>>()?
     } else {
         vec![]
-    });
+    };
     (0..font.maxp().map_err(|_| Error)?.num_glyphs() as usize)
         .map(|gid| {
             if gid >= source.font.num_glyphs() as usize {
@@ -198,11 +193,12 @@ pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64;
             let fd = source.fd(GlyphId::new(gid as u32))?;
             let mut bounds = Bounds {
                 scalars: &scalars,
+                args: Vec::new(),
                 point: [0.; 2],
                 extent: None,
                 open: false,
-                remaining: 200_000,
                 result: Ok(()),
+                remaining: 200_000,
             };
             Interpreter::<Cff2, _, _>::new(&source, &mut bounds, fd, source.fds[fd].ivs, false)
                 .run(
@@ -287,7 +283,7 @@ mod tests {
 
     #[test]
     fn control_bounds_cover_every_type2_path_operator() {
-        let scalars = ContinuousScalars(vec![]);
+        let scalars = Vec::<Vec<f64>>::new();
         let empty = Index::Empty;
         let context = (&[][..], &empty, &empty, &empty);
         for (op, counts) in [
@@ -319,6 +315,7 @@ mod tests {
                         .collect();
                     let mut bounds = Bounds {
                         scalars: &scalars,
+                        args: Vec::new(),
                         point: [0.; 2],
                         extent: None,
                         open: false,
