@@ -607,6 +607,42 @@ fn nested_cff2_blends_survive_subsetting_and_instancing() {
         paths(&FontRef::new(&full).unwrap(), &[]),
         paths(&FontRef::new(&reference).unwrap(), &[])
     );
+    // Independent formulas also cover cases a flat symbolic reference loses:
+    // 100 + (10 + 20*wght)*wdth, and round(round(wght) + wght).
+    for (weight, rounded) in [(0.25, 0.), (0.5, 2.)] {
+        let full_request = format!("wght={weight},wdth=1");
+        let full =
+            skera::instance_font(&font, &skera::parse_axis_limits(&full_request).unwrap()).unwrap();
+        let expected = paths(&FontRef::new(&full).unwrap(), &[]);
+        assert_eq!(
+            expected[2][1],
+            PathElement::LineTo {
+                x: 110. + 20. * weight,
+                y: 0.
+            }
+        );
+        assert!(expected[3].contains(&PathElement::LineTo {
+            x: rounded,
+            y: 100.
+        }));
+        for (first, second) in [
+            (format!("wght={weight}"), "wdth=1".to_owned()),
+            ("wdth=1".to_owned(), format!("wght={weight}")),
+        ] {
+            let partial =
+                skera::instance_font(&font, &skera::parse_axis_limits(&first).unwrap()).unwrap();
+            let composed = skera::instance_font(
+                &FontRef::new(&partial).unwrap(),
+                &skera::parse_axis_limits(&second).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                paths(&FontRef::new(&composed).unwrap(), &[]),
+                expected,
+                "{first} then {second}"
+            );
+        }
+    }
     // Metrics are computed from continuous source bounds, with negative ties
     // rounded toward positive infinity, independently of blend fold rounding.
     for (coordinate, bearing) in [(0.25, -99), (0.75, -98)] {
