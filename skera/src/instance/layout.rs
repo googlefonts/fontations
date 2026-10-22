@@ -105,40 +105,15 @@ impl Context<'_> {
         }
         // HarfBuzz evaluates an absent store or missing delta row as zero.
         // Subsetting can remove a store once all its residual regions vanish.
-        if self.axes.all_pinned() {
-            return Ok(self
-                .store
-                .as_ref()
-                .zip(self.scalars())
-                .and_then(|(store, scalars)| scalars.delta(store, DeltaSetIndex { outer, inner }))
-                .map(|delta| (delta + 0.5).floor() as i64)
-                .unwrap_or(0));
-        }
-        let Some(data) = self
+        Ok(self
             .store
             .as_ref()
-            .and_then(|s| s.item_variation_data().get(outer as usize))
-            .and_then(Result::ok)
-        else {
-            return Ok(0);
-        };
-        if inner >= data.item_count() {
-            return Ok(0);
-        }
-        let Some(transform) = self
-            .store_plan()?
-            .and_then(|p| p.transforms.get(outer as usize))
-        else {
-            return Ok(0);
-        };
-        let delta = transform
-            .gains
-            .iter()
-            .zip(data.delta_set(inner))
-            .map(|(gain, delta)| gain * delta as f64)
-            .sum::<f64>();
-        Ok((delta + 0.5).floor() as i64)
+            .zip(self.scalars())
+            .and_then(|(store, scalars)| scalars.delta(store, DeltaSetIndex { outer, inner }))
+            .map(|delta| (delta + 0.5).floor() as i64)
+            .unwrap_or(0))
     }
+
     fn delta(&self, outer: u16, inner: u16) -> Result<i32, SubsetError> {
         Ok(self
             .wide_delta(outer, inner)?
