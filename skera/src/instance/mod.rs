@@ -134,6 +134,12 @@ pub fn instance_font_with_flags(
         Ok(bytes)
     }
 }
+// HarfBuzz's roundf keeps ties toward positive infinity. Promote only at
+// the rounding boundary: float addition can turn 0.5's predecessor into a
+// tie, or change an already integral value above 2^23.
+fn round_f32(value: f32) -> f64 {
+    (value as f64 + 0.5).floor()
+}
 
 // Adding a table handler must also remove its guard here. Consuming fvar or
 // GDEF's store while preserving an unhandled consumer would freeze stale data.
