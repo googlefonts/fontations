@@ -170,3 +170,44 @@ fn malformed_source_axis_ranges_return_an_error() {
         Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"fvar"))
     );
 }
+
+#[test]
+fn partial_cff2_stores_can_exceed_the_length_field() {
+    use write_fonts::from_obj::ToOwnedTable;
+    for (input, large_final) in [
+        (
+            include_bytes!("../test-data/fonts/cff2_large_store.otf").as_slice(),
+            true,
+        ),
+        (
+            include_bytes!("../test-data/fonts/cff2_unused_regions.otf").as_slice(),
+            false,
+        ),
+    ] {
+        let font = FontRef::new(input).unwrap();
+        let bytes = instance_font(&font, &parse_axis_limits("wght=0:0.1:1").unwrap()).unwrap();
+        let output = FontRef::new(&bytes).unwrap();
+        let data = output.data_for_tag(Tag::new(b"CFF2")).unwrap();
+        let cff = CffFontRef::new(data.as_bytes(), 0, None).unwrap();
+        let store = cff.var_store().unwrap();
+        let owned: write_fonts::tables::variations::ItemVariationStore = store.to_owned_table();
+        let actual_length = write_fonts::dump_table(&owned).unwrap().len();
+        assert_eq!(actual_length > u16::MAX as usize, large_final);
+        let start =
+            store.offset_data().as_bytes().as_ptr() as usize - data.as_bytes().as_ptr() as usize;
+        let length = u16::from_be_bytes(data.as_bytes()[start - 2..start].try_into().unwrap());
+        assert_eq!(length as usize, actual_length.min(u16::MAX as usize));
+        for weight in [0., 0.5, 1.] {
+            let mut coords = vec![
+                read_fonts::types::F2Dot14::ZERO;
+                output.fvar().unwrap().axes().unwrap().len()
+            ];
+            coords[0] = read_fonts::types::F2Dot14::from_f64(weight);
+            let subfont = cff.subfont(0, &coords).unwrap();
+            let mut path = Vec::<PathElement>::new();
+            cff.draw(&subfont, GlyphId::new(1), &coords, None, &mut path)
+                .unwrap();
+            assert!(path.len() >= 4);
+        }
+    }
+}

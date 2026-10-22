@@ -147,7 +147,8 @@ impl AxisPlan {
             if !value.is_finite() {
                 return Err(SubsetError::InvalidAxis(format!("invalid value for {tag}")));
             }
-            settings.push((tag, value.clamp(axis.min_value(), axis.max_value())));
+            let value = value.clamp(axis.min_value(), axis.max_value());
+            settings.push((tag, value));
             user[axis.index()] = match limit {
                 AxisLimits::Range { min, max, .. } => Triple(min as f64, value as f64, max as f64),
                 _ => {
@@ -481,6 +482,53 @@ pub(super) fn map_float(map: &read_fonts::tables::avar::SegmentMaps, v: f64, inv
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nonfinite_api_ranges_return_errors() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (min, max) in [
+            (f32::NAN, f32::NAN),
+            (f32::NAN, 900.),
+            (f32::NEG_INFINITY, f32::INFINITY),
+            (900., 100.),
+        ] {
+            assert!(matches!(
+                crate::instance_font(
+                    &font,
+                    &[AxisLimits::Range {
+                        tag: Tag::new(b"wght"),
+                        min,
+                        default: None,
+                        max,
+                    }]
+                ),
+                Err(SubsetError::InvalidAxis(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn invalid_source_axis_bounds_return_an_error() {
+        use write_fonts::FontBuilder;
+        use write_fonts::{from_obj::ToOwnedTable, tables::fvar::Fvar};
+
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut fvar: Fvar = font.fvar().unwrap().to_owned_table();
+        fvar.axis_instance_arrays.axes[0].min_value = read_fonts::types::Fixed::from_f64(1000.);
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+        }
+        builder.add_table(&fvar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(matches!(
+            crate::instance_font(&font, &parse_axis_limits("wght=700").unwrap()),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"fvar")
+        ));
+    }
 
     #[test]
     fn axis_request_syntax() {
