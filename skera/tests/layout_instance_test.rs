@@ -229,9 +229,8 @@ fn full_instances_match_harfbuzz_for_small_and_cancelling_deltas() {
                     _ => unreachable!(),
                 }
             }
-            // HarfBuzz drops MATH variation devices without folding their
-            // deltas. Check these values against the matching GPOS rows,
-            // whose results have just been verified against HarfBuzz.
+            // MATH and GPOS consume the same shared GDEF rows. Check their
+            // folded values agree, including negative half-unit rounding.
             let gpos: Gpos = font.gpos().unwrap().to_owned_table();
             let advance = |i: usize| {
                 let PositionLookup::Single(lookup) =
