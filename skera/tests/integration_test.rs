@@ -206,7 +206,7 @@ impl TestCaseParser {
 
 #[allow(clippy::too_many_arguments)]
 // TODO: support more options:
-// --downgrade-cff2,--desubroutinize, --iftb-requirements, --retian-num-glyphs, --gid-map
+// --downgrade-cff2,--desubroutinize, --iftb-requirements, --gid-map
 fn parse_profile_options(
     profile: &str,
     subset_flags: &mut SubsetFlags,
@@ -239,6 +239,9 @@ fn parse_profile_options(
                 }
                 "--notdef-outline" => *subset_flags |= SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
                 "--no-bidi-closure" => *subset_flags |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE,
+                "--retain-num-glyphs" => {
+                    *subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS
+                }
                 _ => continue,
             },
             Some((option_str, list)) => {
@@ -395,7 +398,7 @@ impl SubsetTestCase {
             let line = line.trim();
             if line.starts_with("--downgrade-cff2")
                 || line.starts_with("--iftb-requirements")
-                || line.starts_with("--retian-num-glyphs")
+                || line.starts_with("--retain-num-glyphs")
                 || line.starts_with("--gid-map")
                 || line.starts_with("--desubroutinize")
             {

@@ -75,6 +75,10 @@ struct Args {
     #[arg(long)]
     passthrough_tables: bool,
 
+    /// When retain gids is set also don't change the number of glyphs in the input font
+    #[arg(long)]
+    retain_num_glyphs: bool,
+
     /// Perform IUP delta optimization on the resulting gvar table's deltas
     #[arg(long)]
     optimize: bool,
@@ -353,6 +357,10 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
 
     if args.passthrough_tables {
         flags |= SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED;
+    }
+
+    if args.retain_num_glyphs {
+        flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS;
     }
 
     if args.optimize {

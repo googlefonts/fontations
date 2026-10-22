@@ -271,6 +271,11 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// If this flag is set along side SUBSET_FLAGS_RETAIN_GIDS then the number of glyphs in the
+    /// font won't be reduced as a result of subsetting. If necessary empty glyphs will be included
+    /// at the end of the font to keep the number of glyphs unchanged.
+    pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
+
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
     pub const fn contains(&self, other: Self) -> bool {
@@ -463,6 +468,14 @@ impl Plan {
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
+
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L750>
+        if this.subset_flags.contains(
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        ) {
+            // We've been requested to maintain the num glyphs count from the input font.
+            this.num_output_glyphs = this.font_num_glyphs;
+        }
 
         this.create_glyph_map_gsub();
         //update the unicode to new gid list
