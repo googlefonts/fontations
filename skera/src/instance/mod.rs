@@ -60,6 +60,7 @@ pub fn instance_font_with_flags(
             "instancing fonts with VARC components is not supported".into(),
         ));
     }
+    check_supported_tables(font)?;
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
         .table_records()
@@ -109,6 +110,23 @@ pub fn instance_font_with_flags(
     } else {
         Ok(bytes)
     }
+}
+
+// Adding a table handler must also remove its guard here. Consuming fvar or
+// GDEF's store while preserving an unhandled consumer would freeze stale data.
+fn check_supported_tables(font: &FontRef) -> Result<(), SubsetError> {
+    for tag in [b"GLYF", b"GVAR", b"HMTX", b"HHEA", b"VMTX", b"VHEA"] {
+        let tag = Tag::new(tag);
+        if font.data_for_tag(tag).is_some() {
+            return Err(SubsetError::SubsetTableError(tag));
+        }
+    }
+    if font.gdef().ok().and_then(|g| g.item_var_store()).is_some()
+        && font.data_for_tag(Tag::new(b"JSTF")).is_some()
+    {
+        return Err(SubsetError::SubsetTableError(Tag::new(b"JSTF")));
+    }
+    Ok(())
 }
 fn copy_font(font: &FontRef) -> Vec<u8> {
     let mut builder = FontBuilder::new();
