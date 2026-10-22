@@ -17,8 +17,8 @@ custom and expert encodings, glyph names, and `seac` component closure.
 Retained-subroutine output requires each call's subroutine number to be an
 immediately preceding literal in the same program. Fonts using caller-supplied
 or computed targets require `--desubroutinize`; retained mode rejects them.
-Hint removal flattens individual glyphs when deleting their operands would
-modify a shared producer.
+Hint removal flattens individual glyphs when deleting their operands or changing
+caller-dependent mask boundaries would modify a shared program.
 
 VARC subsetting closes component references and remaps glyphs, conditions,
 axis-index lists, variation rows, and sparse regions. Packed component values,
@@ -147,3 +147,15 @@ perf (Linux-only): The standard system profiler on Linux, useful for command-lin
 perf record -g -- target/release/skera
 perf report
 ```
+
+At this stack boundary, instancing supports full and partial CFF2 fonts,
+including variable COLR paints and coupled avar2 locations. Extended glyph
+or metric tables and unhandled consumers of GDEF's variation store return an
+error until their handlers are introduced.
+
+CFF2 outline blends round the complete resolved operand using floating-point
+region scalars. Metrics measure the continuous source outline with double
+coordinates before rounding its bounds; measuring the rounded emitted outline
+can change bearings. Outline/store and metric consumers retain their distinct
+normalization paths. The CFF interpreter supplies bounds as an action alongside
+retained recording and flattening, so all three share bytecode validation.
