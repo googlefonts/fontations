@@ -31,10 +31,16 @@ impl Context<'_> {
         let Some(store) = self.store.as_ref() else {
             return Ok(0.);
         };
+        if index.outer >= store.item_variation_data_count() {
+            return Ok(0.);
+        }
         let Some(data) = store.item_variation_data().get(index.outer as usize) else {
             return Ok(0.);
         };
         let data = data.map_err(|_| error())?;
+        if index.inner >= data.item_count() {
+            return Ok(0.);
+        }
         let regions = store.variation_region_list().map_err(|_| error())?;
         data.region_indexes()
             .iter()
@@ -901,18 +907,19 @@ mod tests {
                 axes: &axes,
                 condition_biases: RefCell::new(Vec::new()),
             };
-            assert_eq!(c.wide_delta(0, 1).unwrap(), 0);
-            assert_eq!(c.wide_delta(1, 0).unwrap(), 0);
-            assert_eq!(
-                c.condition_delta(DeltaSetIndex { outer: 0, inner: 1 })
-                    .unwrap(),
-                0.
-            );
-            assert_eq!(
-                c.condition_delta(DeltaSetIndex { outer: 1, inner: 0 })
-                    .unwrap(),
-                0.
-            );
+            for (outer, inner) in [
+                (0, 1),
+                (1, 0),
+                (0, u16::MAX),
+                (u16::MAX, 0),
+                (u16::MAX, u16::MAX),
+            ] {
+                assert_eq!(c.wide_delta(outer, inner).unwrap(), 0);
+                assert_eq!(
+                    c.condition_delta(DeltaSetIndex { outer, inner }).unwrap(),
+                    0.
+                );
+            }
         }
     }
 
