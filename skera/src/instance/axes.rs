@@ -162,7 +162,8 @@ impl AxisPlan {
                 "font has no variation axes".into(),
             ));
         }
-        let mut coords = axes.location(settings.iter().copied()).coords().to_vec();
+        let metric_coords = axes.location(settings.iter().copied()).coords().to_vec();
+        let mut coords = metric_coords.clone();
         let avar = font.avar().ok();
         let coupled = !pinned.iter().all(|p| *p)
             && avar
@@ -334,9 +335,12 @@ impl AxisPlan {
             .filter(|(i, _)| !self.pinned[*i])
             .map(|(i, a)| {
                 let mut a = a.clone();
-                a.min_value = Fixed::from_f64(self.user[i].0);
-                a.default_value = Fixed::from_f64(self.user[i].1);
-                a.max_value = Fixed::from_f64(self.user[i].2);
+                // Untouched fixed-point fields must not round-trip through f32.
+                if self.values.iter().any(|(tag, _)| *tag == a.axis_tag) {
+                    a.min_value = Fixed::from_f64(self.user[i].0);
+                    a.default_value = Fixed::from_f64(self.user[i].1);
+                    a.max_value = Fixed::from_f64(self.user[i].2);
+                }
                 if self.coupled && self.user_pinned[i] {
                     a.flags |= 1; // Hidden, but its final coordinate can still vary.
                 }
