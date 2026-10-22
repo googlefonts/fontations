@@ -73,9 +73,9 @@ impl super::Instance<super::FontContext<'_>> for read_fonts::tables::stat::Stat<
             if start == 0 {
                 return Err(err());
             }
-            data.as_bytes()
-                .get(start..start + axis_count * axis_size)
-                .ok_or_else(err)?
+            let len = axis_count.checked_mul(axis_size).ok_or_else(err)?;
+            let end = start.checked_add(len).ok_or_else(err)?;
+            data.as_bytes().get(start..end).ok_or_else(err)?
         };
         let ranges = font
             .axes()
