@@ -145,7 +145,10 @@ reachability bound.
 [the rebasing solver](../src/instance/rebase.rs) express a source region as its
 contribution at the new default plus residual regions over retained axes. The
 same transformation supports item rows, CFF2 blends, and glyph tuples, with
-each consumer's encoding and rounding rules.
+each consumer's encoding and rounding rules. The solver is generic over its
+scalar type: TrueType tuples use `Triple<f32>`, while the existing CFF2 and
+item-store consumers retain their double representation. The algorithm has
+one implementation.
 
 The layout transaction has two passes. First, table handlers apply default
 deltas, simplify references and feature conditions, and collect any additional
@@ -231,6 +234,44 @@ blends without operand rounding. Full instancing rounds at each blend boundary;
 partial operands, residual deltas, and cumulative Private DICT values have
 separate rounding rules.
 
+Variation-store width reduction cannot encode more than 32767 short columns
+without setting LONG_WORDS. When that boundary is crossed, Skera emits a long
+representation with a 16-bit tail so the header and payload agree. The existing
+#2338 correction and boundary regression now live in #2276. HarfBuzz and
+FontTools preserve the same decoded deltas in the public-font counterexamples.
+
+GPOS ownership preserves zero-byte value-record counts in SinglePos formats
+2 and 4, including extension lookups. Empty PairPos matrices charge their row
+allocations even when the column count is zero; a zero-row matrix does not
+allocate a discarded temporary column vector. The corrections live at #2274,
+where empty-record recovery is introduced.
+
+STAT design-axis byte ranges use checked multiplication and addition before
+borrowing the source slice. Oversized declared counts or offsets return a
+table error, including on 32-bit hosts.
+
+TrueType tuple scalars reuse `TupleVariation::compute_scalar_f32`. Residual
+IUP interpolation and tent splitting also use float arithmetic, matching
+current HarfBuzz. Changed avar segment maps renormalize in float and encode
+half-unit ties toward positive infinity. The public regressions cover cases
+where double intermediates changed stored outline/CVT values, inferred deltas,
+region boundaries, and a second-stage instance.
+
+Zero-contour glyphs can contain instructions for phantom points. Instancing,
+ordinary subsetting, shared glyph conversion, and write-fonts serialization
+preserve those programs unless hint removal is requested. A composition test
+covers both operation orders and overlap/hint flags. Point counts use `usize`,
+including a contour ending at point 65535. Cubic flags come from the existing
+owned `CurvePoint.cubic` field; no parallel point-flag vector is needed.
+
+Empty composites still participate in header metric statistics with a zero
+bounding box. All-empty TrueType instances use zero global bounds; the
+corresponding HarfBuzz fix is [#6435](https://github.com/harfbuzz/harfbuzz/pull/6435).
+A later instance recomputes glyph bounds even at the new default, where stored
+child points and component offsets may have rounded independently. The
+HarfBuzz shortcut retained stale glyph headers in that case; [#6436](https://github.com/harfbuzz/harfbuzz/pull/6436)
+recomputes them.
+
 ## CFF interpreter passes
 
 The [Type 2 interpreter](../src/cff/charstring.rs) has separate actions for
@@ -290,14 +331,21 @@ Retained and closure passes do not materialize blend expressions. The nested
 value representation shares one identity node per interpreter in those modes.
 A synthetic interpreter-only benchmark (1,000 glyphs, each with 100 two-result
 blends over 40 regions) uses 8,167 allocation calls, compared with 307,167 before
-the allocation correction. This is not a throughput claim: the nested value
-representation was slower in the local timing comparison and needs profiling.
-See the [measurements on #2264](https://github.com/googlefonts/fontations/pull/2264#issuecomment-6330031356).
+the allocation correction, and allocates 16,190,632 rather than 742,842,544
+bytes. Profiling traced the initial slowdown to the operand push helper being
+called out of line. Marking that small helper inline reduced the nested
+implementation from 69.5–73.8 ms to 38.0–39.4 ms; the earlier allocation-heavy
+implementation took 49.7–51.7 ms in the same local synthetic comparison. These
+interpreter-only measurements exclude table serialization and font assembly.
+See the [profile and fix on #2264](https://github.com/googlefonts/fontations/pull/2264#issuecomment-6330408690).
 
-Nested partial instancing also needs further rounding review. All 36 sampled
-full instances agree with HarfBuzz, while partial cases expose both rounding
-differences and a HarfBuzz loss of nested variable-delta contributions. Source
-expressions provide an independent oracle for those cases; see the
+All 36 sampled nested full instances agree with HarfBuzz. Independent source
+expressions check partial variable-delta products and per-blend rounding in
+both pin orders, including quarter and half locations. HarfBuzz partial
+instancing lost a variable-delta product in these cases; [HarfBuzz #6434](https://github.com/harfbuzz/harfbuzz/pull/6434)
+rejects that unsupported operation instead of silently dropping its product.
+It does not implement arbitrary symbolic products. Re-encoding residuals
+still has the quantization limits described above; see the
 [review findings](https://github.com/googlefonts/fontations/pull/2264#issuecomment-6330089655).
 
 ## Review order for the stack
@@ -349,14 +397,31 @@ ID width before writing it.
 
 ## Validation and remaining limits
 
-The October 21 self-review integration passes 2,873 tests across the six
-packages below, plus eight normally ignored Skera tests (seven repacker cases
-and the Noto Nastaliq Urdu layout test), for 2,881 tests in total. All 58 downstream PR
-merges compile with Rust 1.89; the preceding reviewed PRs are also validated
-at their own boundaries. The new regressions cover large CFF2 stores,
-fractional blend scalars, dotsection operands, shared mask tokenization,
-Private DICT hint values, and expanded class matrices. These checks do not
-mark the ongoing per-PR design and performance review complete.
+The current self-review integration is checked across the six packages below,
+including the eight normally ignored Skera tests (seven repacker cases and
+the Noto Nastaliq Urdu layout test). TrueType propagation runs Skera unit
+tests, TrueType integration regressions, the shared-writer zero-contour
+regression, and all-target/all-feature compilation at every affected boundary.
+Full Skera suites additionally run at the reviewed PRs and selected integration
+boundaries. A separate STAT pass runs its integration suite at each affected
+boundary and verifies that all other sources match the validated TrueType
+commit. A layout pass moves existing empty-record ownership corrections to
+#2274, runs its unit/integration suites and all-target compilation at each
+subsequent boundary, and verifies that other sources match the preceding pass.
+The width pass runs variation tests and all-target compilation until its
+source matches the already validated later correction, then verifies exact
+tree equality at the remaining boundaries. The final combined tip also runs the full package suites, Clippy, Rust 1.85
+workspace checks, documentation, code generation, formatting, and repository
+scripts. These propagation checks do not mark the ongoing per-PR
+design and performance review complete.
+
+The TrueType review compares 204 full instances without semantic differences
+against HarfBuzz. A further 132 partial cases and 660 second-stage locations
+exposed the float-rounding regressions above. The two default-pin glyph-bounds
+discrepancies match after the HarfBuzz #6436 fix. The self-contained avar2 pin
+policy is handled by the later axis-compensation work. VARC subsetting also
+matches all 14 references regenerated with current HarfBuzz, and its source
+outline comparisons cover conditions, axes, transforms, and component closure.
 
 ```sh
 cargo test -p skera -p skrifa -p write-fonts -p read-fonts \
