@@ -4,9 +4,8 @@ use crate::SubsetError;
 use read_fonts::{
     tables::variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore},
     types::{F2Dot14, FWord, Fixed, Tag, UfWord},
-    FontRef, TableProvider,
 };
-use std::{cell::OnceCell, collections::BTreeMap};
+use std::cell::OnceCell;
 use write_fonts::{from_obj::ToOwnedTable, tables::colr::*};
 
 fn error() -> SubsetError {
@@ -712,128 +711,126 @@ fn validate_paint(
         VarSkewAroundCenter
     )
 }
-pub(super) fn instance(
-    font: &FontRef,
-    axes: &AxisPlan,
-    tables: &mut BTreeMap<Tag, Vec<u8>>,
-) -> Result<(), SubsetError> {
-    let Ok(colr) = font.colr() else {
-        return Ok(());
-    };
-    if colr.version() == 0 {
-        return Ok(());
-    }
-    let mut remaining = 200_000;
-    if let Some(list) = colr.base_glyph_list().transpose().map_err(|_| error())? {
-        for record in list.base_glyph_paint_records() {
-            validate_paint(
-                record.paint(list.offset_data()).map_err(|_| error())?,
-                0,
-                &mut remaining,
-            )?;
+impl super::Instance<super::FontContext<'_>> for read_fonts::tables::colr::Colr<'_> {
+    type Output = super::TableChange;
+    fn instance(&self, context: &mut super::FontContext<'_>) -> Result<Self::Output, SubsetError> {
+        use super::TableChange;
+        let axes = context.axes;
+        let colr = self;
+        if colr.version() == 0 {
+            return Ok(TableChange::Keep);
         }
-    }
-    if let Some(list) = colr.layer_list().transpose().map_err(|_| error())? {
-        for paint in list.paints().iter() {
-            validate_paint(paint.map_err(|_| error())?, 0, &mut remaining)?;
-        }
-    }
-    let c = Context {
-        axes,
-        store: colr
-            .item_variation_store()
-            .transpose()
-            .map_err(|_| error())?,
-        map: colr.var_index_map().transpose().map_err(|_| error())?,
-        scalars: OnceCell::new(),
-    };
-    let mut table: Colr = colr.to_owned_table();
-    if let Some(list) = table.base_glyph_list.as_mut() {
-        for rec in &mut list.base_glyph_paint_records {
-            c.paint(&mut rec.paint, 0)?;
-        }
-    }
-    if let Some(list) = table.layer_list.as_mut() {
-        for paint in &mut list.paints {
-            c.paint(paint, 0)?;
-        }
-    }
-    if let Some(list) = table.clip_list.as_mut() {
-        for clip in &mut list.clips {
-            if let ClipBox::Format2(v) = clip.clip_box.as_mut() {
-                for (i, value) in [&mut v.x_min, &mut v.y_min, &mut v.x_max, &mut v.y_max]
-                    .into_iter()
-                    .enumerate()
-                {
-                    c.clip_edge(v.var_index_base, i as u32, value)?;
-                }
-                if axes.all_pinned() {
-                    *clip.clip_box = ClipBox::Format1(ClipBoxFormat1 {
-                        x_min: v.x_min,
-                        y_min: v.y_min,
-                        x_max: v.x_max,
-                        y_max: v.y_max,
-                    });
-                }
+        let mut remaining = 200_000;
+        if let Some(list) = colr.base_glyph_list().transpose().map_err(|_| error())? {
+            for record in list.base_glyph_paint_records() {
+                validate_paint(
+                    record.paint(list.offset_data()).map_err(|_| error())?,
+                    0,
+                    &mut remaining,
+                )?;
             }
         }
-    }
-    if axes.all_pinned() {
-        table.var_index_map = Default::default();
-        table.item_variation_store = Default::default();
-    } else {
-        let mut residual = c
-            .store
-            .as_ref()
-            .map(|s| {
-                let mut plan = StorePlan::new(s, axes)?;
-                plan.preserve_original_region_order(s, axes)?;
-                plan.rebuild(s)
-            })
-            .transpose()?;
-        if let (Some(store), Some(map)) = (residual.as_mut(), c.map.as_ref()) {
-            let count = match map {
-                DeltaSetIndexMap::Format0(map) => u64::from(map.map_count()),
-                DeltaSetIndexMap::Format1(map) => u64::from(map.map_count()),
-            };
-            // Empty maps have implicit identity indices, like a missing map.
-            // Keep them stable; bound allocation for explicit map rebuilding.
-            if count != 0 && count <= 4_000_000 {
-                let (optimized, indices) =
-                    optimize::optimize(std::mem::take(store)).map_err(|_| error())?;
-                let mapping = (0..count as u32)
-                    .map(|i| {
-                        let old = map.get(i).map_err(|_| error())?;
-                        let old = (u32::from(old.outer) << 16) | u32::from(old.inner);
-                        Ok(indices.get(&old).copied().unwrap_or(u32::MAX))
-                    })
-                    .collect::<Result<Vec<_>, SubsetError>>()?;
-                table.var_index_map = Some(
-                    mapping
+        if let Some(list) = colr.layer_list().transpose().map_err(|_| error())? {
+            for paint in list.paints().iter() {
+                validate_paint(paint.map_err(|_| error())?, 0, &mut remaining)?;
+            }
+        }
+        let c = Context {
+            axes,
+            store: colr
+                .item_variation_store()
+                .transpose()
+                .map_err(|_| error())?,
+            map: colr.var_index_map().transpose().map_err(|_| error())?,
+            scalars: OnceCell::new(),
+        };
+        let mut table: Colr = colr.to_owned_table();
+        if let Some(list) = table.base_glyph_list.as_mut() {
+            for rec in &mut list.base_glyph_paint_records {
+                c.paint(&mut rec.paint, 0)?;
+            }
+        }
+        if let Some(list) = table.layer_list.as_mut() {
+            for paint in &mut list.paints {
+                c.paint(paint, 0)?;
+            }
+        }
+        if let Some(list) = table.clip_list.as_mut() {
+            for clip in &mut list.clips {
+                if let ClipBox::Format2(v) = clip.clip_box.as_mut() {
+                    for (i, value) in [&mut v.x_min, &mut v.y_min, &mut v.x_max, &mut v.y_max]
                         .into_iter()
-                        .collect::<write_fonts::tables::variations::DeltaSetIndexMap>(),
-                )
-                .into();
-                *store = optimized;
-                if store.item_variation_data.is_empty() {
-                    residual = None;
+                        .enumerate()
+                    {
+                        c.clip_edge(v.var_index_base, i as u32, value)?;
+                    }
+                    if axes.all_pinned() {
+                        *clip.clip_box = ClipBox::Format1(ClipBoxFormat1 {
+                            x_min: v.x_min,
+                            y_min: v.y_min,
+                            x_max: v.x_max,
+                            y_max: v.y_max,
+                        });
+                    }
                 }
             }
         }
-        // Without an index map, paint fields address consecutive rows directly;
-        // retain those row indices instead of applying store optimization.
-        table.item_variation_store = residual.map(Into::into).unwrap_or_default();
+        if axes.all_pinned() {
+            table.var_index_map = Default::default();
+            table.item_variation_store = Default::default();
+        } else {
+            let mut residual = c
+                .store
+                .as_ref()
+                .map(|s| {
+                    let mut plan = StorePlan::new(s, axes)?;
+                    plan.preserve_original_region_order(s, axes)?;
+                    plan.rebuild(s)
+                })
+                .transpose()?;
+            if let (Some(store), Some(map)) = (residual.as_mut(), c.map.as_ref()) {
+                let count = match map {
+                    DeltaSetIndexMap::Format0(map) => u64::from(map.map_count()),
+                    DeltaSetIndexMap::Format1(map) => u64::from(map.map_count()),
+                };
+                // Empty maps have implicit identity indices, like a missing map.
+                // Keep them stable; bound allocation for explicit map rebuilding.
+                if count != 0 && count <= 4_000_000 {
+                    let (optimized, indices) =
+                        optimize::optimize(std::mem::take(store)).map_err(|_| error())?;
+                    let mapping = (0..count as u32)
+                        .map(|i| {
+                            let old = map.get(i).map_err(|_| error())?;
+                            let old = (u32::from(old.outer) << 16) | u32::from(old.inner);
+                            Ok(indices.get(&old).copied().unwrap_or(u32::MAX))
+                        })
+                        .collect::<Result<Vec<_>, SubsetError>>()?;
+                    table.var_index_map = Some(
+                        mapping
+                            .into_iter()
+                            .collect::<write_fonts::tables::variations::DeltaSetIndexMap>(),
+                    )
+                    .into();
+                    *store = optimized;
+                    if store.item_variation_data.is_empty() {
+                        residual = None;
+                    }
+                }
+            }
+            // Without an index map, paint fields address consecutive rows directly;
+            // retain those row indices instead of applying store optimization.
+            table.item_variation_store = residual.map(Into::into).unwrap_or_default();
+        }
+        Ok(TableChange::Replace(
+            write_fonts::dump_table(&table).map_err(|_| error())?,
+        ))
     }
-    tables.insert(
-        Tag::new(b"COLR"),
-        write_fonts::dump_table(&table).map_err(|_| error())?,
-    );
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use read_fonts::{FontRef, TableProvider};
     use write_fonts::tables::variations::*;
     use write_fonts::FontBuilder;
 

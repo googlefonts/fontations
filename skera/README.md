@@ -2,6 +2,9 @@
 
 `skera` is a Rust library and binary for subsetting a font file according to provided input.
 
+For the architecture, table dependencies, and stack review guide, see the
+[subsetting and instancing design](docs/design.md).
+
 Use `--keep-everything` or the library's `Plan::keep_everything` to select all
 glyphs, Unicode mappings, names, layout items, and tables. The preset also
 preserves glyph names, legacy naming records, the `.notdef` outline, and
@@ -205,13 +208,12 @@ perf record -g -- target/release/skera
 perf report
 ```
 
-At this stack boundary, instancing supports full and partial CFF2 fonts,
-including variable COLR paints and coupled avar2 locations. Extended glyph
-or metric tables and unhandled consumers of GDEF's variation store return an
-error until their handlers are introduced.
+Instancing currently rejects the uppercase outline and metric table families;
+ordinary subsetting supports the expanded formats described above.
 
-CFF2 outline blends round the complete resolved operand using floating-point
-region scalars. Metrics measure the continuous source outline with double
+Full CFF2 instancing rounds each complete resolved blend operand using float
+region scalars. Partial instancing and Private DICTs retain separate folding
+and rounding rules. Metrics measure the continuous source outline with double
 coordinates before rounding its bounds; measuring the rounded emitted outline
 can change bearings. Outline/store and metric consumers retain their distinct
 normalization paths. The CFF interpreter supplies bounds as an action alongside

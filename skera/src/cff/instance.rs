@@ -115,12 +115,12 @@ fn complex_blends(source: &Source) -> Result<BTreeSet<usize>> {
     Ok(collector.0)
 }
 
-pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
-    use read_fonts::TableProvider;
-    let data = font
-        .data_for_tag(read_fonts::types::Tag::new(b"CFF2"))
-        .ok_or(Error)?;
-    let mut source = Source::new(data.as_bytes())?;
+pub(super) fn instance(
+    font: &FontRef,
+    axes: &AxisPlan,
+    table: &read_fonts::tables::cff2::Cff2,
+) -> Result<Vec<u8>> {
+    let mut source = Source::new(table.offset_data().as_bytes())?;
     let partial = !axes.all_pinned();
     let mut store_plan = if partial {
         source

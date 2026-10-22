@@ -1,5 +1,5 @@
 //! Keep STAT axes and filter axis values as in HarfBuzz's hb-ot-stat-table.hh.
-use super::{rebase::Triple, AxisPlan};
+use super::rebase::Triple;
 use crate::{
     offset::SerializeCopy,
     repack::resolve_overflows,
@@ -9,7 +9,6 @@ use crate::{
 use read_fonts::{
     tables::stat::AxisValue,
     types::{Fixed, Offset16, Offset32, Tag},
-    FontRef, TableProvider,
 };
 use skrifa::MetadataProvider;
 use std::collections::BTreeMap;
@@ -47,92 +46,90 @@ fn keep_axis_value(
     }
 }
 
-pub(super) fn instance(
-    font: &FontRef,
-    axes: &AxisPlan,
-    tables: &mut BTreeMap<Tag, Vec<u8>>,
-) -> Result<(), SubsetError> {
-    let Some(data) = font.data_for_tag(TAG) else {
-        return Ok(());
-    };
-    let err = || SubsetError::SubsetTableError(TAG);
-    let stat = font.stat().map_err(|_| err())?;
-    if stat.version().major != 1 {
-        return Err(err());
-    }
-    let header = data
-        .as_bytes()
-        .get(..stat.elided_fallback_name_id_byte_range().end)
-        .ok_or_else(err)?;
-    let axis_size = stat.design_axis_size() as usize;
-    let axis_count = stat.design_axis_count() as usize;
-    if axis_count != 0 && axis_size < 8 {
-        return Err(err());
-    }
-    let design_axes = if axis_count == 0 {
-        &[][..]
-    } else {
-        let start = stat.design_axes_offset().to_u32() as usize;
-        if start == 0 {
+impl super::Instance<super::FontContext<'_>> for read_fonts::tables::stat::Stat<'_> {
+    type Output = Vec<u8>;
+    fn instance(&self, context: &mut super::FontContext<'_>) -> Result<Self::Output, SubsetError> {
+        let font = context.font;
+        let axes = context.axes;
+        let err = || SubsetError::SubsetTableError(TAG);
+        let stat = self;
+        let data = self.offset_data();
+        if stat.version().major != 1 {
             return Err(err());
         }
-        let len = axis_count.checked_mul(axis_size).ok_or_else(err)?;
-        let end = start.checked_add(len).ok_or_else(err)?;
-        data.as_bytes().get(start..end).ok_or_else(err)?
-    };
-    let ranges = font
-        .axes()
-        .iter()
-        .filter(|axis| axes.values.iter().any(|(tag, _)| *tag == axis.tag()))
-        .map(|axis| (axis.tag(), axes.user[axis.index()]))
-        .collect();
-    let mut values = Vec::new();
-    if let Some(array) = stat.offset_to_axis_values() {
-        let array = array.map_err(|_| err())?;
-        for value in array.axis_values().iter() {
-            let value = value.map_err(|_| err())?;
-            if keep_axis_value(&value, design_axes, axis_size, &ranges).map_err(|_| err())? {
-                values.push(value);
+        let header = data
+            .as_bytes()
+            .get(..stat.elided_fallback_name_id_byte_range().end)
+            .ok_or_else(err)?;
+        let axis_size = stat.design_axis_size() as usize;
+        let axis_count = stat.design_axis_count() as usize;
+        if axis_count != 0 && axis_size < 8 {
+            return Err(err());
+        }
+        let design_axes = if axis_count == 0 {
+            &[][..]
+        } else {
+            let start = stat.design_axes_offset().to_u32() as usize;
+            if start == 0 {
+                return Err(err());
             }
-        }
-    } else if stat.axis_value_count() != 0 {
-        return Err(err());
-    }
-    // Preserve the original version, fallback name, axis records, and every
-    // retained value verbatim. Axis indices refer to STAT axes, not fvar axes.
-    let mut s = Serializer::new(data.len() * 2 + 64);
-    let serialize = |s: &mut Serializer| -> Result<(), SerializeErrorFlags> {
-        s.start_serialize()?;
-        s.embed_bytes(header)?;
-        s.copy_assign(8, 0u32);
-        s.copy_assign(12, values.len() as u16);
-        s.copy_assign(14, 0u32);
-        if !design_axes.is_empty() {
-            Offset32::serialize_copy_from_bytes(design_axes, s, 8)?;
-        }
-        if !values.is_empty() {
-            s.push()?;
-            for value in &values {
-                let pos = s.embed(0u16)?;
-                Offset16::serialize_copy(value, s, pos)?;
+            let len = axis_count.checked_mul(axis_size).ok_or_else(err)?;
+            let end = start.checked_add(len).ok_or_else(err)?;
+            data.as_bytes().get(start..end).ok_or_else(err)?
+        };
+        let ranges = font
+            .axes()
+            .iter()
+            .filter(|axis| axes.values.iter().any(|(tag, _)| *tag == axis.tag()))
+            .map(|axis| (axis.tag(), axes.user[axis.index()]))
+            .collect();
+        let mut values = Vec::new();
+        if let Some(array) = stat.offset_to_axis_values() {
+            let array = array.map_err(|_| err())?;
+            for value in array.axis_values().iter() {
+                let value = value.map_err(|_| err())?;
+                if keep_axis_value(&value, design_axes, axis_size, &ranges).map_err(|_| err())? {
+                    values.push(value);
+                }
             }
-            let obj = s.pop_pack(true).ok_or_else(|| s.error())?;
-            s.add_link(14..18, obj, OffsetWhence::Head, 0, false)?;
+        } else if stat.axis_value_count() != 0 {
+            return Err(err());
         }
-        s.end_serialize();
-        Ok(())
-    };
-    serialize(&mut s).map_err(|_| err())?;
-    if s.in_error() && !s.only_offset_overflow() {
-        return Err(err());
+        // Preserve the original version, fallback name, axis records, and every
+        // retained value verbatim. Axis indices refer to STAT axes, not fvar axes.
+        let mut s = Serializer::new(data.len() * 2 + 64);
+        let serialize = |s: &mut Serializer| -> Result<(), SerializeErrorFlags> {
+            s.start_serialize()?;
+            s.embed_bytes(header)?;
+            s.copy_assign(8, 0u32);
+            s.copy_assign(12, values.len() as u16);
+            s.copy_assign(14, 0u32);
+            if !design_axes.is_empty() {
+                Offset32::serialize_copy_from_bytes(design_axes, s, 8)?;
+            }
+            if !values.is_empty() {
+                s.push()?;
+                for value in &values {
+                    let pos = s.embed(0u16)?;
+                    Offset16::serialize_copy(value, s, pos)?;
+                }
+                let obj = s.pop_pack(true).ok_or_else(|| s.error())?;
+                s.add_link(14..18, obj, OffsetWhence::Head, 0, false)?;
+            }
+            s.end_serialize();
+            Ok(())
+        };
+        serialize(&mut s).map_err(|_| err())?;
+        if s.in_error() && !s.only_offset_overflow() {
+            return Err(err());
+        }
+        let bytes = if s.offset_overflow() {
+            resolve_overflows(s, TAG, 32).map_err(|_| err())?
+        } else {
+            s.copy_bytes()
+        };
+        Ok(bytes)
     }
-    let bytes = if s.offset_overflow() {
-        resolve_overflows(s, TAG, 32).map_err(|_| err())?
-    } else {
-        s.copy_bytes()
-    };
-    tables.insert(TAG, bytes);
-    Ok(())
 }
 
 #[cfg(test)]

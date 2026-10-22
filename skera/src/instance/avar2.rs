@@ -442,8 +442,8 @@ pub(super) fn instance(
     font: &FontRef,
     axes: &AxisPlan,
     segment_maps: Vec<SegmentMaps>,
+    old: &read_fonts::tables::avar::Avar,
 ) -> Result<Avar, SubsetError> {
-    let old = font.avar().map_err(|_| error())?;
     let empty = empty_store(axes)?;
     let store = old
         .var_store()
