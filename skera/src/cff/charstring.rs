@@ -61,6 +61,9 @@ pub(super) struct Command {
 }
 
 pub(super) trait CharStringActions<'s> {
+    // Retaining original bytes and finding closure need blend identity and
+    // validation, while consumers that emit values need the actual deltas.
+    const MATERIALIZE_BLENDS: bool = true;
     fn program(&mut self, _key: Program, _data: &'s [u8]) {}
     fn call(
         &mut self,
@@ -73,11 +76,14 @@ pub(super) trait CharStringActions<'s> {
         Ok(())
     }
     fn width(&mut self, _origin: Option<Origin>) {}
+    fn mask(&mut self, _key: Program, _start: usize, _end: usize) {}
     fn hint(&mut self, _key: Program, _start: usize, _end: usize, _args: &[Value]) {}
     fn command(&mut self, _op: u16, _args: &[Value], _mask: &[u8]) {}
 }
 // seac closure only needs the interpreter's result.
-impl CharStringActions<'_> for () {}
+impl CharStringActions<'_> for () {
+    const MATERIALIZE_BLENDS: bool = false;
+}
 
 #[derive(Default)]
 pub(super) struct Flattener {
@@ -98,9 +104,11 @@ struct Edit {
     end: usize,
     call: Option<Program>,
 }
+#[derive(PartialEq, Eq)]
 struct RecordedProgram<'s> {
     data: &'s [u8],
     edits: BTreeMap<usize, Edit>,
+    masks: BTreeMap<usize, usize>,
 }
 #[derive(Default)]
 pub(super) struct Recorder<'s> {
@@ -108,10 +116,13 @@ pub(super) struct Recorder<'s> {
     pub needs_flatten: bool,
 }
 impl<'s> CharStringActions<'s> for Recorder<'s> {
+    const MATERIALIZE_BLENDS: bool = false;
+
     fn program(&mut self, key: Program, data: &'s [u8]) {
         self.programs.entry(key).or_insert_with(|| RecordedProgram {
             data,
             edits: BTreeMap::new(),
+            masks: BTreeMap::new(),
         });
     }
     fn call(
@@ -146,6 +157,16 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
             self.needs_flatten = true;
         }
     }
+    fn mask(&mut self, key: Program, start: usize, end: usize) {
+        let old = self
+            .programs
+            .get_mut(&key)
+            .unwrap()
+            .masks
+            .entry(start)
+            .or_insert(end);
+        self.needs_flatten |= *old != end;
+    }
     fn hint(&mut self, key: Program, start: usize, end: usize, args: &[Value]) {
         let mut first = start;
         for value in args.iter().rev() {
@@ -162,7 +183,25 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         self.edit(key, first, Edit { end, call: None });
     }
 }
-impl Recorder<'_> {
+impl<'s> Recorder<'s> {
+    pub fn merge(&mut self, other: Self) -> bool {
+        // Validate the entire glyph before modifying any shared program.
+        // Flattening must discard every staged edit, including later edits
+        // made after the interpreter first discovered an incompatible mask.
+        if other.needs_flatten
+            || other
+                .programs
+                .iter()
+                .any(|(key, program)| self.programs.get(key).is_some_and(|old| old != program))
+        {
+            return false;
+        }
+        for (key, program) in other.programs {
+            self.programs.entry(key).or_insert(program);
+        }
+        true
+    }
+
     fn edit(&mut self, key: Program, start: usize, edit: Edit) {
         let edits = &mut self.programs.get_mut(&key).unwrap().edits;
         // A mask's byte length can depend on its caller's stem count, too.
@@ -392,6 +431,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                     let end = p.checked_add(self.hints.div_ceil(8)).ok_or(Error)?;
                     mask = data.get(p..end).ok_or(Error)?;
                     p = end;
+                    self.actions.mask(key, start, p);
                 }
             }
             match op {
@@ -435,21 +475,34 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                     self.seen_blend = true;
                     let n = usize::try_from(self.pop()?.int()?).map_err(|_| Error)?;
                     let k = self.source.region_count(self.ivs)?;
-                    let count = n.checked_mul(k + 1).ok_or(Error)?;
+                    let count = n.checked_mul(k.checked_add(1).ok_or(Error)?).ok_or(Error)?;
                     let group_start = self.stack.len().checked_sub(count).ok_or(Error)?;
-                    let values = self.stack.split_off(group_start);
                     for i in 0..n {
-                        let mut value = values[i].clone();
-                        if value.blend.is_some() {
+                        if self.stack[group_start + i].blend.is_some() {
                             return Err(Error);
                         }
-                        let deltas = &values[n + i * k..n + (i + 1) * k];
+                        let deltas =
+                            &self.stack[group_start + n + i * k..group_start + n + (i + 1) * k];
                         if deltas.iter().any(|v| v.blend.is_some()) {
                             return Err(Error);
                         }
-                        value.blend = Some((self.ivs, deltas.iter().map(|v| v.default).collect()));
+                        let deltas = if A::MATERIALIZE_BLENDS {
+                            deltas.iter().map(|v| v.default).collect()
+                        } else {
+                            Vec::new()
+                        };
+                        let mut value = std::mem::take(&mut self.stack[group_start + i]);
+                        value.blend = Some((self.ivs, deltas));
                         value.origin = None;
-                        self.push(value)?;
+                        self.stack[group_start + i] = value;
+                    }
+                    self.stack.truncate(group_start + n);
+                }
+                0x100 => {
+                    // dotsection is a deprecated no-op. Its live operands
+                    // belong to the next command, even when hints are removed.
+                    if self.drop_hints {
+                        self.actions.hint(key, start, p, &[]);
                     }
                 }
                 0x103..=0x105
@@ -478,7 +531,6 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                 | 27
                 | 30
                 | 31
-                | 0x100
                 | 0x122..=0x125 => {
                     if op == 14 && !F::CFF2 && self.stack.len() == 4 {
                         self.seac = Some((
@@ -486,7 +538,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                             u8::try_from(self.stack[3].int()?).map_err(|_| Error)?,
                         ));
                     }
-                    let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23 | 0x100);
+                    let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23);
                     if hint && self.drop_hints {
                         self.actions.hint(key, start, p, &self.stack);
                     } else if !(F::CFF2 && op == 14) {

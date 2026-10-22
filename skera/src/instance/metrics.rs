@@ -2,7 +2,6 @@
 use super::{AxisPlan, StorePlan};
 use crate::SubsetError;
 use read_fonts::{
-    ps::cff::CffFontRef,
     types::{GlyphId, Tag},
     FontRef, TableProvider,
 };
@@ -24,7 +23,9 @@ fn put(data: &mut [u8], offset: usize, value: i32) -> Result<(), SubsetError> {
     Ok(())
 }
 fn rounded(value: f64) -> i32 {
-    value.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
+    (value + 0.5)
+        .floor()
+        .clamp(i32::MIN as f64, i32::MAX as f64) as i32
 }
 
 pub(super) fn instance(
@@ -32,14 +33,7 @@ pub(super) fn instance(
     axes: &AxisPlan,
     tables: &mut Tables,
 ) -> Result<(), SubsetError> {
-    let tag = Tag::new(b"CFF2");
-    let data = font.data_for_tag(tag).ok_or_else(|| error(tag))?;
-    let cff = CffFontRef::new(
-        data.as_bytes(),
-        0,
-        font.head().ok().map(|h| h.units_per_em() as i32),
-    )
-    .map_err(|_| error(tag))?;
+    let source_bounds = crate::cff::instance_bounds(font, axes)?;
     let count = font
         .maxp()
         .map_err(|_| error(Tag::new(b"maxp")))?
@@ -51,30 +45,8 @@ pub(super) fn instance(
     let vorg = font.vorg().ok();
     let mut bounds = Vec::new();
     let mut union: Option<[i32; 4]> = None;
-    for gid in 0..count {
-        let gid = GlyphId::new(gid as u32);
-        let bound = if gid.to_u32() < cff.num_glyphs() {
-            let sf = cff
-                .subfont(
-                    cff.subfont_index(gid).ok_or_else(|| error(tag))?,
-                    &axes.coords,
-                )
-                .map_err(|_| error(tag))?;
-            let mut bounds = read_fonts::ps::charstring::ControlBoundsSink::new();
-            let mut sink = read_fonts::ps::charstring::NopFilterSink::new(&mut bounds);
-            cff.evaluate_charstring(&sf, gid, &axes.coords, &mut sink)
-                .map_err(|_| error(tag))?;
-            bounds.bounding_box().map(|b| {
-                [
-                    rounded(b.x_min.to_f64()),
-                    rounded(b.y_min.to_f64()),
-                    rounded(b.x_max.to_f64()),
-                    rounded(b.y_max.to_f64()),
-                ]
-            })
-        } else {
-            None
-        };
+    for bound in source_bounds {
+        let bound = bound.map(|b| b.map(rounded));
         if let Some(b) = bound {
             union = Some(match union {
                 None => b,
@@ -113,10 +85,10 @@ pub(super) fn instance(
             .unwrap_or(0) as i32;
             let delta = if vertical {
                 vvar.as_ref()
-                    .and_then(|v| v.advance_delta(gid, &axes.coords))
+                    .and_then(|v| v.advance_delta(gid, &axes.metric_coords))
             } else {
                 hvar.as_ref()
-                    .and_then(|v| v.advance_delta(gid, &axes.coords))
+                    .and_then(|v| v.advance_delta(gid, &axes.metric_coords))
             }
             .map_or(0, |d| rounded(d.to_f64()));
             let advance = base.saturating_add(delta).clamp(0, 65535);
@@ -132,7 +104,7 @@ pub(super) fn instance(
                     |v| v.vertical_origin_y(gid) as i32,
                 ) + vvar
                     .as_ref()
-                    .and_then(|v| v.v_origin_y_delta(gid, &axes.coords))
+                    .and_then(|v| v.v_origin_y_delta(gid, &axes.metric_coords))
                     .map_or(0, |d| rounded(d.to_f64()));
                 origins.push((gid, origin));
                 origin
@@ -265,7 +237,7 @@ fn apply_mvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result<()
     let Ok(mvar) = font.mvar() else {
         return Ok(());
     };
-    let Some(instance) = mvar.at(&axes.coords) else {
+    let Some(instance) = mvar.at(&axes.metric_coords) else {
         return Ok(());
     };
     let sync = [(b"hasc", 4, 68), (b"hdsc", 6, 70), (b"hlgp", 8, 72)].map(|(tag, h, os)| {

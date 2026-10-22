@@ -4,7 +4,7 @@ use write_fonts::read::{
     collections::IntSet,
     model::glyph::outline::PathElement,
     ps::cff::CffFontRef,
-    types::{GlyphId, NameId, Tag},
+    types::{F2Dot14, GlyphId, NameId, Tag},
     FontRef, TableProvider,
 };
 
@@ -20,6 +20,81 @@ fn plan(font: &FontRef, flags: SubsetFlags, unicodes: &str) -> Plan {
         &IntSet::<NameId>::all(),
         &IntSet::all(),
     )
+}
+
+fn assert_review_outlines_preserved(filename: &str) {
+    let bytes = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+    let font = FontRef::new(&bytes).unwrap();
+    let tag = Tag::new(if font.cff2().is_ok() {
+        b"CFF2"
+    } else {
+        b"CFF "
+    });
+    let source = CffFontRef::new(font.data_for_tag(tag).unwrap().as_bytes(), 0, None).unwrap();
+    for flags in [
+        SubsetFlags::default(),
+        SubsetFlags::SUBSET_FLAGS_NO_HINTING,
+        SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
+        SubsetFlags::SUBSET_FLAGS_NO_HINTING | SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
+    ] {
+        let p = plan(&font, flags, "41,42");
+        let output = subset_font(&font, &p).unwrap();
+        let output = FontRef::new(&output).unwrap();
+        let subset =
+            CffFontRef::new(output.data_for_tag(tag).unwrap().as_bytes(), 0, None).unwrap();
+        for coord in [F2Dot14::ZERO, F2Dot14::from_f32(0.5), F2Dot14::ONE] {
+            for (old, new) in p
+                .old_to_new_glyph_mapping()
+                .filter(|(_, g)| g.to_u32() != 0)
+            {
+                let coords = [coord];
+                let mut original_path = Vec::<PathElement>::new();
+                let mut subset_path = Vec::<PathElement>::new();
+                source
+                    .draw(
+                        &source.subfont(0, &coords).unwrap(),
+                        old,
+                        &coords,
+                        None,
+                        &mut original_path,
+                    )
+                    .unwrap();
+                subset
+                    .draw(
+                        &subset.subfont(0, &coords).unwrap(),
+                        new,
+                        &coords,
+                        None,
+                        &mut subset_path,
+                    )
+                    .unwrap();
+                assert_eq!(
+                    original_path, subset_path,
+                    "{filename} {flags:?} {old:?} {coord:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn dotsection_preserves_live_operands() {
+    assert_review_outlines_preserved("cff1_dotsection_live_args.otf");
+}
+
+#[test]
+fn shared_mask_fallback_is_independent_of_glyph_order() {
+    for file in [
+        "cff1_contextual_masks_forward.otf",
+        "cff1_contextual_masks_reverse.otf",
+    ] {
+        assert_review_outlines_preserved(file);
+    }
+}
+
+#[test]
+fn symbolic_blends_preserve_prefixes_and_zero_value_groups() {
+    assert_review_outlines_preserved("cff2_blend_identity.otf");
 }
 
 #[test]
