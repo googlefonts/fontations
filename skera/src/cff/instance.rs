@@ -11,45 +11,19 @@ use crate::{
     Plan, SubsetFlags,
 };
 use read_fonts::{
-    collections::IntSet,
-    tables::variations::{ItemVariationStore, VariationRegion},
-    types::{F2Dot14, NameId},
-    FontRef,
+    collections::IntSet, tables::variations::ItemVariationStore, types::NameId, FontRef,
 };
 
-// HarfBuzz evaluates CFF2 blend scalars in float, then accumulates their
-// products with operands in double. A 16.16 intermediate can move half-unit
-// operands across the rounding boundary and shift the rest of a contour.
-fn region_gain(region: &VariationRegion, coords: &[F2Dot14]) -> f64 {
-    let mut gain = 1f32;
-    for (i, axis) in region.region_axes().iter().enumerate() {
-        let (start, peak, end) = (
-            axis.start_coord().to_bits() as i32,
-            axis.peak_coord().to_bits() as i32,
-            axis.end_coord().to_bits() as i32,
-        );
-        let coord = coords.get(i).copied().unwrap_or_default().to_bits() as i32;
-        if peak == 0 || coord == peak || start > peak || peak > end || start < 0 && end > 0 {
-            continue;
-        }
-        if coord <= start || coord >= end {
-            return 0.;
-        }
-        gain *= if coord < peak {
-            (coord - start) as f32 / (peak - start) as f32
-        } else {
-            (end - coord) as f32 / (end - peak) as f32
-        };
-    }
-    gain as f64
-}
-
-fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<f64>> {
-    let data = store.item_variation_data().get(ivs);
-    let Some(data) = data else {
-        return Ok(vec![]);
-    };
-    let data = data.map_err(|_| Error)?;
+pub(super) fn gains(
+    store: &ItemVariationStore,
+    ivs: usize,
+    coords: &[read_fonts::types::F2Dot14],
+) -> Result<Vec<f64>> {
+    let data = store
+        .item_variation_data()
+        .get(ivs)
+        .ok_or(Error)?
+        .map_err(|_| Error)?;
     let regions = store
         .variation_region_list()
         .map_err(|_| Error)?
@@ -57,18 +31,18 @@ fn gains(store: &ItemVariationStore, ivs: usize, axes: &AxisPlan) -> Result<Vec<
     data.region_indexes()
         .iter()
         .map(|idx| {
-            Ok(region_gain(
-                &regions.get(idx.get() as usize).map_err(|_| Error)?,
-                &axes.coords,
-            ))
+            Ok(regions
+                .get(idx.get() as usize)
+                .map_err(|_| Error)?
+                .compute_scalar_f32(coords) as f64)
         })
         .collect()
 }
-fn fold(default: f64, deltas: &[f64], gains: &[f64]) -> Result<f64> {
+pub(super) fn resolve(default: f64, deltas: &[f64], gains: &[f64]) -> Result<f64> {
     if deltas.len() != gains.len() {
         return Err(Error);
     }
-    Ok((default + deltas.iter().zip(gains).map(|(d, g)| d * g).sum::<f64>()).round())
+    Ok(default + deltas.iter().zip(gains).map(|(d, g)| d * g).sum::<f64>())
 }
 
 pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
@@ -87,7 +61,7 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
     let mut transforms = Vec::new();
     if let Some(store) = source.font.var_store() {
         for i in 0..store.item_variation_data_count() as usize {
-            transforms.push(gains(store, i, axes)?);
+            transforms.push(gains(store, i, &axes.coords)?);
         }
     }
     let mut chars = Vec::new();
@@ -110,7 +84,8 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                             .transforms
                             .get(ivs)
                             .ok_or(Error)?;
-                        value.default += fold(0., &deltas, transforms.get(ivs).ok_or(Error)?)?;
+                        value.default +=
+                            resolve(0., &deltas, transforms.get(ivs).ok_or(Error)?)?.round();
                         let residual: Vec<_> = transform
                             .residual(&deltas)
                             .map_err(|_| Error)?
@@ -122,7 +97,8 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                         }
                     } else {
                         value.default =
-                            fold(value.default, &deltas, transforms.get(ivs).ok_or(Error)?)?;
+                            resolve(value.default, &deltas, transforms.get(ivs).ok_or(Error)?)?
+                                .round();
                     }
                 }
             }
@@ -261,8 +237,9 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                 }
             }
             let bytes = write_fonts::dump_table(&table).map_err(|_| Error)?;
+            // OFF 2026 5.3.3.11.2: larger stores use length=65535.
             let mut data = u16::try_from(bytes.len())
-                .map_err(|_| Error)?
+                .unwrap_or(u16::MAX)
                 .to_be_bytes()
                 .to_vec();
             data.extend(bytes);
@@ -392,8 +369,9 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
             }
         }
         let data = write_fonts::dump_table(&table).map_err(|_| Error)?;
+        // The length field saturates; all store bytes must still be written.
         let mut bytes = u16::try_from(data.len())
-            .map_err(|_| Error)?
+            .unwrap_or(u16::MAX)
             .to_be_bytes()
             .to_vec();
         bytes.extend(data);
@@ -448,7 +426,7 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use read_fonts::{FontData, FontRead};
+    use read_fonts::{types::F2Dot14, FontData, FontRead};
     use write_fonts::tables::variations::*;
 
     #[test]
@@ -463,10 +441,10 @@ mod tests {
         let list = read_fonts::tables::variations::VariationRegionList::read(FontData::new(&bytes))
             .unwrap();
         let region = list.variation_regions().get(0).unwrap();
-        let gain = region_gain(&region, &[F2Dot14::from_f64(0.25)]);
-        assert_eq!(fold(0., &[1.5], &[gain]).unwrap(), 1.);
-        assert_eq!(fold(0., &[-1.5], &[gain]).unwrap(), -1.);
-        assert_eq!(fold(0.25, &[0.5], &[gain]).unwrap(), 0.);
-        assert_eq!(fold(0.25, &[1.], &[gain]).unwrap(), 1.);
+        let gain = region.compute_scalar_f32(&[F2Dot14::from_f64(0.25)]) as f64;
+        assert_eq!(resolve(0., &[1.5], &[gain]).unwrap().round(), 1.);
+        assert_eq!(resolve(0., &[-1.5], &[gain]).unwrap().round(), -1.);
+        assert_eq!(resolve(0.25, &[0.5], &[gain]).unwrap().round(), 0.);
+        assert_eq!(resolve(0.25, &[1.], &[gain]).unwrap().round(), 1.);
     }
 }
