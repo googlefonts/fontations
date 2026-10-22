@@ -7,6 +7,7 @@ mod metrics;
 mod rebase;
 pub(crate) mod scalars;
 mod serialize;
+mod stat;
 mod store;
 mod truetype;
 mod tuple;
@@ -69,9 +70,8 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
     } else {
         axes.update_tables(font, &mut tables)?;
     }
-    for tag in [b"STAT", b"DSIG"] {
-        tables.remove(&Tag::new(tag));
-    }
+    stat::instance(font, &axes, &mut tables)?;
+    tables.remove(&Tag::new(b"DSIG"));
     let mut builder = FontBuilder::new();
     for (tag, data) in tables {
         builder.add_raw(tag, data);
