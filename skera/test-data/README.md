@@ -34,3 +34,12 @@ The `expected/math/*.bin` references are MATH tables extracted from HarfBuzz
 subsets of `STIXTwoMath-Regular.ttf`, with the Unicode selections and retain-GID
 modes in `tests/math_test.rs`, using `--notdef-outline --name-IDs=*`. They retain
 the source fixture's license.
+`fonts/tt-zero-contour-instructions.ttf` exercises instructions for phantom
+points and a varying advance without outline points. Regenerate it with
+`fonts/generate-tt-zero-contour-instructions.py` using FontTools with support
+for preserving zero-contour instructions.
+
+`fonts/tt-tuple-precision.ttf` covers float rounding boundaries in tuple scalars,
+residual IUP interpolation, and rebased tent coordinates. Regenerate it with
+`fonts/generate-tt-tuple-precision.py`; the assertions in
+`tests/truetype_instance_test.rs` use independently checked HarfBuzz results.
