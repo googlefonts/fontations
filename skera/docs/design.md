@@ -217,6 +217,20 @@ Composition tests exercise both axis orders and the supported precision rules.
 Quantized mappings and intermediate rounding prevent a universal claim of exact
 mathematical equivalence for every sequence of restrictions.
 
+CFF2 VariationStores can exceed 65,535 bytes. OFF 2026 section 5.3.3.11.2
+requires the length field to be 65535 in that case. Both intermediate and
+final instancing writes preserve the full store. Ordinary subsetting finds
+its extent from the referenced region list and VarData byte ranges, rather
+than truncating at the saturated field.
+
+The shared `VariationRegion::compute_scalar_f32` reader helper computes float
+region gains without an intermediate 16.16 quantization. CFF2 operands and
+feature-condition signs use double products and accumulation; metric consumers
+retain their own accumulation policy. Continuous source bounds resolve nested
+blends without operand rounding. Full instancing rounds at each blend boundary;
+partial operands, residual deltas, and cumulative Private DICT values have
+separate rounding rules.
+
 ## CFF interpreter passes
 
 The [Type 2 interpreter](../src/cff/charstring.rs) has separate actions for
@@ -272,6 +286,20 @@ boundary reflects existing serializers and implementation complexity; it is
 not a measured guarantee that owned paths are cheap. Table boundaries permit
 changing a handler's writer without changing font coordination.
 
+Retained and closure passes do not materialize blend expressions. The nested
+value representation shares one identity node per interpreter in those modes.
+A synthetic interpreter-only benchmark (1,000 glyphs, each with 100 two-result
+blends over 40 regions) uses 8,167 allocation calls, compared with 307,167 before
+the allocation correction. This is not a throughput claim: the nested value
+representation was slower in the local timing comparison and needs profiling.
+See the [measurements on #2264](https://github.com/googlefonts/fontations/pull/2264#issuecomment-6330031356).
+
+Nested partial instancing also needs further rounding review. All 36 sampled
+full instances agree with HarfBuzz, while partial cases expose both rounding
+differences and a HarfBuzz loss of nested variable-delta contributions. Source
+expressions provide an independent oracle for those cases; see the
+[review findings](https://github.com/googlefonts/fontations/pull/2264#issuecomment-6330089655).
+
 ## Review order for the stack
 
 Start with the trait, result types, and coordinator. Then review algorithms by
@@ -320,6 +348,14 @@ through the same paint traversal, and composite serialization checks the glyph
 ID width before writing it.
 
 ## Validation and remaining limits
+
+The October 21 self-review integration passes 2,873 tests across the six
+packages below, plus seven slow Skera repacker tests. All 58 downstream PR
+merges compile with Rust 1.89; the preceding reviewed PRs are also validated
+at their own boundaries. The new regressions cover large CFF2 stores,
+fractional blend scalars, dotsection operands, shared mask tokenization,
+Private DICT hint values, and expanded class matrices. These checks do not
+mark the ongoing per-PR design and performance review complete.
 
 ```sh
 cargo test -p skera -p skrifa -p write-fonts -p read-fonts \

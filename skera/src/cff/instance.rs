@@ -12,30 +12,20 @@ use crate::{
     Plan, SubsetFlags,
 };
 use read_fonts::{
-    collections::IntSet,
-    tables::variations::{ItemVariationStore, VariationRegion},
-    types::{F2Dot14, NameId},
-    FontRef,
+    collections::IntSet, tables::variations::ItemVariationStore, types::NameId, FontRef,
 };
 use std::collections::BTreeSet;
-
-// HarfBuzz evaluates CFF2 blend scalars in float, then accumulates their
-// products with operands in double. A 16.16 intermediate can move half-unit
-// operands across the rounding boundary and shift the rest of a contour.
-fn region_gain(region: &VariationRegion, coords: &[F2Dot14]) -> f64 {
-    crate::instance::scalars::region_scalar(region, coords) as f64
-}
 
 pub(super) fn gains(
     store: &ItemVariationStore,
     ivs: usize,
-    coords: &[F2Dot14],
+    coords: &[read_fonts::types::F2Dot14],
 ) -> Result<Vec<f64>> {
-    let data = store.item_variation_data().get(ivs);
-    let Some(data) = data else {
-        return Ok(vec![]);
-    };
-    let data = data.map_err(|_| Error)?;
+    let data = store
+        .item_variation_data()
+        .get(ivs)
+        .ok_or(Error)?
+        .map_err(|_| Error)?;
     let regions = store
         .variation_region_list()
         .map_err(|_| Error)?
@@ -43,10 +33,10 @@ pub(super) fn gains(
     data.region_indexes()
         .iter()
         .map(|idx| {
-            Ok(region_gain(
-                &regions.get(idx.get() as usize).map_err(|_| Error)?,
-                coords,
-            ))
+            Ok(regions
+                .get(idx.get() as usize)
+                .map_err(|_| Error)?
+                .compute_scalar_f32(coords) as f64)
         })
         .collect()
 }
@@ -257,8 +247,9 @@ pub(super) fn instance(
                 }
             }
             let bytes = write_fonts::dump_table(&table).map_err(|_| Error)?;
+            // OFF 2026 5.3.3.11.2: larger stores use length=65535.
             let mut data = u16::try_from(bytes.len())
-                .map_err(|_| Error)?
+                .unwrap_or(u16::MAX)
                 .to_be_bytes()
                 .to_vec();
             data.extend(bytes);
@@ -388,8 +379,9 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
             }
         }
         let data = write_fonts::dump_table(&table).map_err(|_| Error)?;
+        // The length field saturates; all store bytes must still be written.
         let mut bytes = u16::try_from(data.len())
-            .map_err(|_| Error)?
+            .unwrap_or(u16::MAX)
             .to_be_bytes()
             .to_vec();
         bytes.extend(data);
@@ -442,7 +434,7 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use read_fonts::{FontData, FontRead};
+    use read_fonts::{types::F2Dot14, FontData, FontRead};
     use write_fonts::tables::variations::*;
 
     #[test]
@@ -565,7 +557,7 @@ mod tests {
         let list = read_fonts::tables::variations::VariationRegionList::read(FontData::new(&bytes))
             .unwrap();
         let region = list.variation_regions().get(0).unwrap();
-        let gain = region_gain(&region, &[F2Dot14::from_f64(0.25)]);
+        let gain = region.compute_scalar_f32(&[F2Dot14::from_f64(0.25)]) as f64;
         let fold = |default, deltas: &[f64], gains: &[f64]| {
             Value::blended(
                 &Value::plain(default),
