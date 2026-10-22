@@ -350,7 +350,8 @@ ID width before writing it.
 ## Validation and remaining limits
 
 The October 21 self-review integration passes 2,873 tests across the six
-packages below, plus seven slow Skera repacker tests. All 58 downstream PR
+packages below, plus eight normally ignored Skera tests (seven repacker cases
+and the Noto Nastaliq Urdu layout test), for 2,881 tests in total. All 58 downstream PR
 merges compile with Rust 1.89; the preceding reviewed PRs are also validated
 at their own boundaries. The new regressions cover large CFF2 stores,
 fractional blend scalars, dotsection operands, shared mask tokenization,
