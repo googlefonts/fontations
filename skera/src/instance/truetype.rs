@@ -8,12 +8,8 @@ use super::{
 };
 use crate::SubsetError;
 use read_fonts::{
-    tables::{
-        glyf::{Glyph as ReadGlyph, PointFlags},
-        gvar::GlyphDelta,
-        variations::{TupleDelta, TupleVariation},
-    },
-    types::{F2Dot14, GlyphId, Tag},
+    tables::{glyf::Glyph as ReadGlyph, gvar::GlyphDelta, variations::TupleVariation},
+    types::{GlyphId, Tag},
     FontRead, FontRef, TableProvider,
 };
 use std::collections::BTreeMap;
@@ -34,48 +30,6 @@ fn coord(value: f32) -> i16 {
     round(value).clamp(-32768, 32767) as i16
 }
 
-// TupleVariationHeader::calculate_scalar accumulates in double precision;
-// HarfBuzz's outline/CVT consumers cast the final result to float once.
-fn tuple_scalar<T: TupleDelta>(tuple: &TupleVariation<T>, coords: &[F2Dot14]) -> Option<f32> {
-    let peak = tuple.peak();
-    if peak.len() != coords.len() {
-        return None;
-    }
-    let start = tuple.intermediate_start();
-    let end = tuple.intermediate_end();
-    let mut scalar = 1f64;
-    for (i, coord) in coords.iter().enumerate() {
-        let v = coord.to_bits() as i32;
-        let p = peak.get(i)?.to_bits() as i32;
-        if p == 0 || v == p {
-            continue;
-        }
-        if v == 0 {
-            return None;
-        }
-        if let (Some(start), Some(end)) = (&start, &end) {
-            let s = start.get(i)?.to_bits() as i32;
-            let e = end.get(i)?.to_bits() as i32;
-            if s > p || p > e || (s < 0 && e > 0) {
-                continue;
-            }
-            if v < s || v > e {
-                return None;
-            }
-            if v < p {
-                scalar *= (v - s) as f64 / (p - s) as f64;
-            } else {
-                scalar *= (e - v) as f64 / (e - p) as f64;
-            }
-        } else {
-            if v < p.min(0) || v > p.max(0) {
-                return None;
-            }
-            scalar *= v as f64 / p as f64;
-        }
-    }
-    Some(scalar as f32)
-}
 fn put(data: &mut [u8], offset: usize, value: i16) -> Result<(), SubsetError> {
     data.get_mut(offset..offset + 2)
         .ok_or_else(|| error(b"head"))?
@@ -86,7 +40,6 @@ fn put(data: &mut [u8], offset: usize, value: i16) -> Result<(), SubsetError> {
 struct InstanceGlyph {
     glyph: Glyph,
     points: Vec<Point>,
-    curve_flags: Vec<PointFlags>,
     phantoms: [Point; 4],
 }
 
@@ -224,16 +177,13 @@ pub(super) fn instance(
             .into_glyph();
         let mut points = Vec::new();
         let mut contours = Vec::new();
-        let mut curve_flags = Vec::new();
         let glyph = match source {
             None => Glyph::Empty,
             Some(ReadGlyph::Simple(g)) => {
-                let mut raw_points =
-                    vec![read_fonts::types::Point::<i32>::default(); g.num_points()];
-                curve_flags.resize(g.num_points(), PointFlags::default());
-                g.read_points_fast(&mut raw_points, &mut curve_flags)
-                    .map_err(|_| error(b"glyf"))?;
-                points.extend(raw_points.iter().map(|p| [p.x as f32, p.y as f32]));
+                points.extend(g.points().map(|p| [p.x as f32, p.y as f32]));
+                if points.len() != g.num_points() {
+                    return Err(error(b"glyf"));
+                }
                 contours.extend(g.end_pts_of_contours().iter().map(|n| n.get() as usize));
                 Glyph::Simple(g.to_owned_table())
             }
@@ -284,7 +234,7 @@ pub(super) fn instance(
                         }
                         residual.add(&tuple, axes.pinned.len(), deltas, referenced)?;
                     }
-                    let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
+                    let Some(scalar) = tuple.compute_scalar_f32(&axes.metric_coords) else {
                         continue;
                     };
                     let deltas = calc_inferred_deltas(&tuple, &orig_points, &contours, scalar)?;
@@ -323,7 +273,6 @@ pub(super) fn instance(
         glyphs.push(InstanceGlyph {
             glyph,
             points,
-            curve_flags,
             phantoms,
         });
     }
@@ -331,7 +280,11 @@ pub(super) fn instance(
     for gid in 0..count {
         let mut budget = 1_000_000usize;
         let points = get_points(gid, &glyphs, 0, &mut budget)?;
-        bounds.push(point_bounds(&points));
+        // A composite remains a glyph for header statistics even when all
+        // its components have no contour points, as in HarfBuzz's compiler.
+        bounds.push(point_bounds(&points).or_else(|| {
+            matches!(&glyphs[gid].glyph, Glyph::Composite(_)).then_some(Bbox::default())
+        }));
     }
     let mut glyf_out = Vec::new();
     let mut offsets = Vec::with_capacity(count + 1);
@@ -343,7 +296,7 @@ pub(super) fn instance(
                 simple.bbox = bbox.unwrap_or_default();
                 // Encode coordinate differences with wrapping arithmetic: the
                 // format stores signed 16-bit deltas even across the full range.
-                encode_simple(simple, &g.points, &g.curve_flags, &mut glyf_out)?;
+                encode_simple(simple, &g.points, &mut glyf_out)?;
             }
             Glyph::Composite(composite) => {
                 composite.bbox = bbox.unwrap_or_default();
@@ -586,10 +539,9 @@ fn encode_composite(
 fn encode_simple(
     g: &write_fonts::tables::glyf::SimpleGlyph,
     points: &[Point],
-    curve_flags: &[PointFlags],
     out: &mut Vec<u8>,
 ) -> Result<(), SubsetError> {
-    if g.contours.is_empty() {
+    if g.contours.is_empty() && g.instructions.is_empty() {
         return Ok(());
     }
     out.extend(
@@ -615,13 +567,10 @@ fn encode_simple(
             .to_be_bytes(),
     );
     out.extend(&g.instructions);
-    // HarfBuzz's simple-glyph compiler preserves the curve-kind bits while
-    // rebuilding coordinate and repeat flags. The owned glyph representation
-    // only stores on-curve booleans, so retain these bits from the reader.
-    for (i, flags) in curve_flags.iter().enumerate() {
+    for (i, p) in g.contours.iter().flat_map(|c| c.iter()).enumerate() {
         out.push(
-            u8::from(flags.is_on_curve())
-                | if flags.is_off_curve_cubic() { 0x80 } else { 0 }
+            u8::from(p.on_curve)
+                | if p.cubic { 0x80 } else { 0 }
                 | if i == 0 && g.overlaps { 0x40 } else { 0 },
         );
     }
@@ -724,7 +673,7 @@ fn instance_cvar(font: &FontRef, axes: &AxisPlan, tables: &mut Tables) -> Result
             }
             residual.add(&tuple, axes.pinned.len(), values, referenced)?;
         }
-        let Some(scalar) = tuple_scalar(&tuple, &axes.metric_coords) else {
+        let Some(scalar) = tuple.compute_scalar_f32(&axes.metric_coords) else {
             continue;
         };
         for d in tuple.deltas() {
@@ -759,6 +708,26 @@ mod tests {
     use write_fonts::tables::glyf::{Component, ComponentFlags, CompositeGlyph, Transform};
 
     #[test]
+    fn simple_glyph_serialization_keeps_cubic_flags() {
+        let bytes = font_test_data::extended::simple_glyph(&[
+            (0, 0, 0x81),
+            (20, 80, 0x80),
+            (60, 80, 0x80),
+            (80, 0, 0x81),
+        ]);
+        let source = read_fonts::tables::glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
+        let original = source.points().collect::<Vec<_>>();
+        let points = original
+            .iter()
+            .map(|p| [p.x as f32, p.y as f32])
+            .collect::<Vec<_>>();
+        let mut out = Vec::new();
+        encode_simple(&source.to_owned_table(), &points, &mut out).unwrap();
+        let actual = read_fonts::tables::glyf::SimpleGlyph::read(out.as_slice().into()).unwrap();
+        assert_eq!(actual.points().collect::<Vec<_>>(), original);
+    }
+
+    #[test]
     fn cyclic_composites_return_an_error() {
         let glyph = InstanceGlyph {
             glyph: Glyph::Composite(CompositeGlyph::new(
@@ -771,7 +740,6 @@ mod tests {
                 Bbox::default(),
             )),
             points: vec![[0.; 2]],
-            curve_flags: Vec::new(),
             phantoms: [[0.; 2]; 4],
         };
         assert!(get_points(0, &[glyph], 0, &mut 1000).is_err());
