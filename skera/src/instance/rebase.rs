@@ -21,63 +21,100 @@
 // Ported from HarfBuzz's hb-subset-instancer-solver.cc, itself a port of
 // fontTools.varLib.instancer.solver. Keep the OTS-compatible split-tent policy.
 
+use std::ops::{Add, Div, Mul, Neg, Sub};
+
+// Keep one solver while allowing each consumer to retain its arithmetic policy.
+pub(super) trait Scalar:
+    Copy
+    + From<f32>
+    + PartialOrd
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
+    + Neg<Output = Self>
+{
+    fn max(self, other: Self) -> Self;
+}
+impl Scalar for f32 {
+    fn max(self, other: Self) -> Self {
+        self.max(other)
+    }
+}
+impl Scalar for f64 {
+    fn max(self, other: Self) -> Self {
+        self.max(other)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Triple(pub f64, pub f64, pub f64);
-impl Triple {
-    fn reverse(self) -> Self {
+pub(crate) struct Triple<T = f64>(pub T, pub T, pub T);
+impl<T> Triple<T> {
+    pub(super) fn map<U>(self, f: impl Fn(T) -> U) -> Triple<U> {
+        Triple(f(self.0), f(self.1), f(self.2))
+    }
+    fn reverse(self) -> Self
+    where
+        T: Neg<Output = T>,
+    {
         Self(-self.2, -self.1, -self.0)
     }
 }
-pub(super) fn scalar(v: f64, t: Triple) -> f64 {
+pub(super) fn scalar<T: Scalar>(v: T, t: Triple<T>) -> T {
+    let zero = T::from(0.);
+    let one = T::from(1.);
     let Triple(start, peak, end) = t;
     if start > peak
         || peak > end
-        || (start < 0. && end > 0. && peak != 0.)
-        || peak == 0.
+        || (start < zero && end > zero && peak != zero)
+        || peak == zero
         || v == peak
     {
-        1.
+        one
     } else if v <= start || v >= end {
-        0.
+        zero
     } else if v < peak {
         (v - start) / (peak - start)
     } else {
         (end - v) / (end - peak)
     }
 }
-pub(super) fn renormalize(v: f64, t: Triple, dist: (f64, f64)) -> f64 {
+pub(super) fn renormalize<T: Scalar>(v: T, t: Triple<T>, dist: (T, T)) -> T {
+    let zero = T::from(0.);
+    let one = T::from(1.);
     let Triple(min, def, max) = t;
     if v == def {
-        return 0.;
+        return zero;
     }
-    if def < 0. {
+    if def < zero {
         return -renormalize(-v, t.reverse(), (dist.1, dist.0));
     }
     if v > def {
         return if max == def {
-            1.
+            one
         } else {
             (v - def) / (max - def)
         };
     }
-    if min >= 0. {
+    if min >= zero {
         return if min == def {
-            -1.
+            -one
         } else {
             (v - def) / (def - min)
         };
     }
     let total = dist.0 * (-min) + dist.1 * def;
-    if total == 0. {
-        return 0.;
+    if total == zero {
+        return zero;
     }
-    -(if v >= 0. {
+    -(if v >= zero {
         (def - v) * dist.1
     } else {
         (-v) * dist.0 + dist.1 * def
     }) / total
 }
-fn solve(tent: Triple, limit: Triple) -> Vec<(f64, Option<Triple>)> {
+fn solve<T: Scalar>(tent: Triple<T>, limit: Triple<T>) -> Vec<(T, Option<Triple<T>>)> {
+    let one = T::from(1.);
     let Triple(min, def, max) = limit;
     let Triple(mut lower, peak, mut upper) = tent;
     if def > peak {
@@ -100,19 +137,19 @@ fn solve(tent: Triple, limit: Triple) -> Vec<(f64, Option<Triple>)> {
     let out_gain = scalar(max, tent);
     let mut out = vec![(gain, None)];
     if gain >= out_gain {
-        let crossing = peak + (1. - gain) * (upper - peak);
-        out.push((1. - gain, Some(Triple(lower.max(def), peak, crossing))));
+        let crossing = peak + (one - gain) * (upper - peak);
+        out.push((one - gain, Some(Triple(lower.max(def), peak, crossing))));
         if upper >= max {
             out.push((out_gain - gain, Some(Triple(crossing, max, max))));
         } else {
             if upper == def {
-                upper += 1. / 16384.;
+                upper = upper + T::from(1. / 16384.);
             }
             out.push((-gain, Some(Triple(crossing, upper, max))));
             out.push((-gain, Some(Triple(upper, max, max))));
         }
     } else {
-        out.push((1. - gain, Some(Triple(lower.max(def), peak, max))));
+        out.push((one - gain, Some(Triple(lower.max(def), peak, max))));
         if peak < max {
             out.push((out_gain - gain, Some(Triple(peak, max, max))));
         }
@@ -121,17 +158,23 @@ fn solve(tent: Triple, limit: Triple) -> Vec<(f64, Option<Triple>)> {
         out.push((scalar(min, tent) - gain, Some(Triple(min, min, def))));
     } else {
         if lower == def {
-            lower -= 1. / 16384.;
+            lower = lower - T::from(1. / 16384.);
         }
         out.push((-gain, Some(Triple(min, lower, def))));
         out.push((-gain, Some(Triple(min, min, lower))));
     }
     out
 }
-pub(super) fn rebase(tent: Triple, limit: Triple, dist: (f64, f64)) -> Vec<(f64, Option<Triple>)> {
+pub(super) fn rebase<T: Scalar>(
+    tent: Triple<T>,
+    limit: Triple<T>,
+    dist: (T, T),
+) -> Vec<(T, Option<Triple<T>>)> {
+    let zero = T::from(0.);
+    let one = T::from(1.);
     // Invalid and neutral axes have no influence on a region's scalar.
-    if tent.0 > tent.1 || tent.1 > tent.2 || tent.1 == 0. || (tent.0 < 0. && tent.2 > 0.) {
-        return vec![(1., None)];
+    if tent.0 > tent.1 || tent.1 > tent.2 || tent.1 == zero || (tent.0 < zero && tent.2 > zero) {
+        return vec![(one, None)];
     }
     if limit.0 == limit.2 {
         let gain = scalar(limit.1, tent);
@@ -143,7 +186,7 @@ pub(super) fn rebase(tent: Triple, limit: Triple, dist: (f64, f64)) -> Vec<(f64,
     }
     solve(tent, limit)
         .into_iter()
-        .filter(|(g, _)| *g != 0.)
+        .filter(|(g, _)| *g != zero)
         .map(|(g, t)| {
             (
                 g,
