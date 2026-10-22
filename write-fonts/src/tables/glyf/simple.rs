@@ -283,8 +283,8 @@ impl FontWrite for SimpleGlyph {
         assert!(self.contours.len() < i16::MAX as usize);
         assert!(self.instructions.len() < u16::MAX as usize);
         let n_contours = self.contours.len() as i16;
-        if n_contours == 0 {
-            // we don't bother writing empty glyphs
+        if n_contours == 0 && self.instructions.is_empty() {
+            // A zero-contour glyph can still carry phantom-point instructions.
             return;
         }
         n_contours.write_into(writer);
@@ -646,6 +646,28 @@ mod tests {
     use read_fonts::{tables::glyf as read_glyf, FontRef, TableProvider};
 
     use super::*;
+
+    #[test]
+    fn zero_contour_instructions_survive_serialization_and_conversion() {
+        let simple = SimpleGlyph {
+            instructions: vec![0xb0, 0, 0x2f],
+            ..Default::default()
+        };
+        let glyph: super::super::Glyph = simple.clone().into();
+        assert!(matches!(glyph, super::super::Glyph::Simple(_)));
+        for bytes in [
+            crate::dump_table(&simple).unwrap(),
+            crate::dump_table(&glyph).unwrap(),
+        ] {
+            let actual = read_glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
+            assert_eq!(actual.number_of_contours(), 0);
+            assert_eq!(actual.num_points(), 0);
+            assert_eq!(actual.instructions(), simple.instructions);
+        }
+        assert!(crate::dump_table(&SimpleGlyph::default())
+            .unwrap()
+            .is_empty());
+    }
 
     #[test]
     fn roundtrip_cubic_flags_in_extended_simple_glyph() {
