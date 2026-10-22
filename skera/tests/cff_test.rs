@@ -129,6 +129,7 @@ fn cff2_subsetting_preserves_variation_locations() {
     for filename in [
         "AdobeVFPrototype.otf",
         "SourceSerif4Variable-Roman-HelloWorld.otf",
+        "cff2_large_store.otf",
     ] {
         let data = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
         let font = FontRef::new(&data).unwrap();

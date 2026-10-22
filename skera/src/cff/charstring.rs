@@ -109,6 +109,21 @@ impl Value {
         scalars: &S,
         remaining: &mut usize,
     ) -> Result<f64> {
+        self.resolve_with_rounding(scalars, remaining, true)
+    }
+    pub fn resolve_continuous<S: BlendScalars + ?Sized>(
+        &self,
+        scalars: &S,
+        remaining: &mut usize,
+    ) -> Result<f64> {
+        self.resolve_with_rounding(scalars, remaining, false)
+    }
+    fn resolve_with_rounding<S: BlendScalars + ?Sized>(
+        &self,
+        scalars: &S,
+        remaining: &mut usize,
+        round: bool,
+    ) -> Result<f64> {
         *remaining = remaining.checked_sub(1).ok_or(Error)?;
         let Some(blend) = &self.blend else {
             return Ok(self.default);
@@ -119,9 +134,13 @@ impl Value {
         }
         let mut delta_sum = 0.;
         for (delta, gain) in blend.deltas.iter().zip(gains) {
-            delta_sum += delta.resolve(scalars, remaining)? * gain;
+            delta_sum += delta.resolve_with_rounding(scalars, remaining, round)? * gain;
         }
-        Ok((blend.base.resolve(scalars, remaining)? + delta_sum).round())
+        let result = blend
+            .base
+            .resolve_with_rounding(scalars, remaining, round)?
+            + delta_sum;
+        Ok(if round { result.round() } else { result })
     }
     pub fn remap_ivs(&mut self, map: &BTreeMap<usize, usize>) -> Result<()> {
         if let Some(blend) = &mut self.blend {
@@ -154,6 +173,9 @@ pub(super) struct Command {
 }
 
 pub(super) trait CharStringActions<'s> {
+    // Retaining original bytes and finding closure need blend identity and
+    // validation, while consumers that emit values need the actual deltas.
+    const MATERIALIZE_BLENDS: bool = true;
     fn program(&mut self, _key: Program, _data: &'s [u8]) {}
     fn call(
         &mut self,
@@ -171,7 +193,9 @@ pub(super) trait CharStringActions<'s> {
     fn command(&mut self, _op: u16, _args: &[Value], _mask: &[u8]) {}
 }
 // seac closure only needs the interpreter's result.
-impl CharStringActions<'_> for () {}
+impl CharStringActions<'_> for () {
+    const MATERIALIZE_BLENDS: bool = false;
+}
 
 #[derive(Default)]
 pub(super) struct Flattener {
@@ -204,6 +228,8 @@ pub(super) struct Recorder<'s> {
     pub needs_flatten: bool,
 }
 impl<'s> CharStringActions<'s> for Recorder<'s> {
+    const MATERIALIZE_BLENDS: bool = false;
+
     fn program(&mut self, key: Program, data: &'s [u8]) {
         self.programs.entry(key).or_insert_with(|| RecordedProgram {
             data,
@@ -271,6 +297,9 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
 }
 impl<'s> Recorder<'s> {
     pub fn merge(&mut self, other: Self) -> bool {
+        // Validate the entire glyph before modifying any shared program.
+        // Flattening must discard every staged edit, including later edits
+        // made after the interpreter first discovered an incompatible mask.
         if other.needs_flatten
             || other
                 .programs
@@ -420,6 +449,7 @@ pub(super) struct Interpreter<'a, 's, F, S, A> {
     ivs: usize,
     seen_ivs: bool,
     seen_blend: bool,
+    blend_identity: Option<Rc<Blend>>,
     width_read: bool,
     pub width: Option<f64>,
     pub seac: Option<(u8, u8)>,
@@ -441,6 +471,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             ivs,
             seen_ivs: false,
             seen_blend: false,
+            blend_identity: None,
             width_read: F::CFF2,
             width: None,
             seac: None,
@@ -514,7 +545,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                     let end = p.checked_add(self.hints.div_ceil(8)).ok_or(Error)?;
                     mask = data.get(p..end).ok_or(Error)?;
                     p = end;
-                    self.actions.mask(key, start, end);
+                    self.actions.mask(key, start, p);
                 }
             }
             match op {
@@ -558,13 +589,39 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                     self.seen_blend = true;
                     let n = usize::try_from(self.pop()?.int()?).map_err(|_| Error)?;
                     let k = self.source.region_count(self.ivs)?;
-                    let count = n.checked_mul(k + 1).ok_or(Error)?;
+                    let count = n.checked_mul(k.checked_add(1).ok_or(Error)?).ok_or(Error)?;
                     let group_start = self.stack.len().checked_sub(count).ok_or(Error)?;
-                    let values = self.stack.split_off(group_start);
                     for i in 0..n {
-                        let deltas = &values[n + i * k..n + (i + 1) * k];
-                        let value = Value::blended(&values[i], deltas, self.ivs)?;
-                        self.push(value)?;
+                        let value = if A::MATERIALIZE_BLENDS {
+                            let deltas =
+                                &self.stack[group_start + n + i * k..group_start + n + (i + 1) * k];
+                            Value::blended(&self.stack[group_start + i], deltas, self.ivs)?
+                        } else {
+                            // Retained bytes need only a nonconstant identity.
+                            // Share one marker instead of allocating each expression.
+                            let identity = self.blend_identity.get_or_insert_with(|| {
+                                Rc::new(Blend {
+                                    ivs: 0,
+                                    base: Value::default(),
+                                    deltas: Vec::new(),
+                                    depth: 0,
+                                    expanded_size: 1,
+                                })
+                            });
+                            Value {
+                                default: self.stack[group_start + i].default,
+                                blend: Some(identity.clone()),
+                                origin: None,
+                            }
+                        };
+                        self.stack[group_start + i] = value;
+                    }
+                    self.stack.truncate(group_start + n);
+                }
+                0x100 => {
+                    // dotsection is a deprecated no-op; operands stay live.
+                    if self.drop_hints {
+                        self.actions.hint(key, start, p, &[]);
                     }
                 }
                 0x103..=0x105
@@ -593,7 +650,6 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                 | 27
                 | 30
                 | 31
-                | 0x100
                 | 0x122..=0x125 => {
                     if op == 14 && !F::CFF2 && self.stack.len() == 4 {
                         self.seac = Some((
@@ -601,7 +657,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                             u8::try_from(self.stack[3].int()?).map_err(|_| Error)?,
                         ));
                     }
-                    let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23 | 0x100);
+                    let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23);
                     if hint && self.drop_hints {
                         self.actions.hint(key, start, p, &self.stack);
                     } else if !(F::CFF2 && op == 14) {
@@ -1035,6 +1091,12 @@ mod tests {
         let value = &recorder.commands[1].args[0];
         assert!(value.nested());
         assert_eq!(value.resolve(&[vec![0.6]][..], &mut 200_000).unwrap(), 2.);
+        assert_eq!(
+            value
+                .resolve_continuous(&[vec![0.6]][..], &mut 200_000)
+                .unwrap(),
+            1.2
+        );
         let flattened = flatten(&recorder.commands, None, true, 0).unwrap();
         let mut reread = Flattener::default();
         Interpreter::<Cff2, _, _>::new(&source, &mut reread, 0, 0, false)

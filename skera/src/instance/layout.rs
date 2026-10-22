@@ -21,6 +21,30 @@ struct Context<'a> {
     condition_biases: RefCell<Vec<(DeltaSetIndex, i64)>>,
 }
 impl Context<'_> {
+    // A feature condition tests the sign before rounding. Float region
+    // scalars and double accumulation also preserve cancellation, as in HB.
+    fn condition_delta(&self, index: DeltaSetIndex) -> Result<f64, SubsetError> {
+        if index == DeltaSetIndex::NO_VARIATION_INDEX {
+            return Ok(0.);
+        }
+        let error = || SubsetError::SubsetTableError(Tag::new(b"GDEF"));
+        let store = self.store.as_ref().ok_or_else(error)?;
+        let Some(data) = store.item_variation_data().get(index.outer as usize) else {
+            return Ok(0.);
+        };
+        let data = data.map_err(|_| error())?;
+        let regions = store.variation_region_list().map_err(|_| error())?;
+        data.region_indexes()
+            .iter()
+            .zip(data.delta_set(index.inner))
+            .try_fold(0., |sum, (index, delta)| {
+                let region = regions
+                    .variation_regions()
+                    .get(index.get() as usize)
+                    .map_err(|_| error())?;
+                Ok(sum + delta as f64 * region.compute_scalar_f32(self.coords) as f64)
+            })
+    }
     fn wide_delta(&self, outer: u16, inner: u16) -> Result<i64, SubsetError> {
         if (DeltaSetIndex { outer, inner }) == DeltaSetIndex::NO_VARIATION_INDEX {
             return Ok(0);
@@ -292,8 +316,12 @@ fn condition(cond: &Condition, c: &Context, depth: usize) -> Result<bool, Subset
             coord >= v.filter_range_min_value && coord <= v.filter_range_max_value
         }
         Condition::Format2VariableValue(v) => {
-            v.default_value as i64 + c.wide_delta((v.var_index >> 16) as u16, v.var_index as u16)?
-                > 0
+            v.default_value as f64
+                + c.condition_delta(DeltaSetIndex {
+                    outer: (v.var_index >> 16) as u16,
+                    inner: v.var_index as u16,
+                })?
+                > 0.
         }
         Condition::Format3And(v) => {
             let mut result = true;
@@ -645,27 +673,42 @@ fn own_empty_pairs(
     source: read_fonts::tables::gpos::PairPos,
     target: &mut PairPos,
 ) -> Result<(), SubsetError> {
-    if let (read_fonts::tables::gpos::PairPos::Format2(source), PairPos::Format2(target)) =
-        (source, target)
-    {
-        if source.value_format1().is_empty() && source.value_format2().is_empty() {
-            let rows = source.class1_count() as usize;
-            let columns = source.class2_count() as usize;
-            if rows.saturating_mul(columns) > 200_000 {
-                return Err(SubsetError::SubsetTableError(Tag::new(b"GPOS")));
-            }
-            target.class1_records = vec![
-                Class1Record::new(vec![
-                    Class2Record::new(
-                        ValueRecord::new(),
-                        ValueRecord::new()
-                    );
-                    columns
-                ]);
-                rows
-            ];
+    use read_fonts::tables::gpos::PairPos as ReadPairPos;
+    let (rows, columns, records) = match (source, target) {
+        (ReadPairPos::Format2(source), PairPos::Format2(target))
+            if source.value_format1().is_empty() && source.value_format2().is_empty() =>
+        {
+            (
+                source.class1_count(),
+                source.class2_count(),
+                &mut target.class1_records,
+            )
         }
+        (ReadPairPos::Format4(source), PairPos::Format4(target))
+            if source.value_format1().is_empty() && source.value_format2().is_empty() =>
+        {
+            (
+                source.class1_count(),
+                source.class2_count(),
+                &mut target.class1_records,
+            )
+        }
+        _ => return Ok(()),
+    };
+    let (rows, columns) = (rows as usize, columns as usize);
+    if rows.saturating_mul(columns) > 200_000 {
+        return Err(SubsetError::SubsetTableError(Tag::new(b"GPOS")));
     }
+    *records = vec![
+        Class1Record::new(vec![
+            Class2Record::new(
+                ValueRecord::new(),
+                ValueRecord::new()
+            );
+            columns
+        ]);
+        rows
+    ];
     Ok(())
 }
 
@@ -817,6 +860,27 @@ mod tests {
     }
 
     #[test]
+    fn fractional_condition_deltas_keep_their_sign() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(
+            &font,
+            &crate::parse_axis_limits("wght=900,CNTR=100").unwrap(),
+        )
+        .unwrap();
+        let bytes = store_bytes(&[[1, 0], [-1, 0]]);
+        let coords = [F2Dot14::from_f64(0.25), F2Dot14::ZERO];
+        let context = Context {
+            store: Some(ItemVariationStore::read(FontData::new(&bytes)).unwrap()),
+            coords: &coords,
+            axes: &axes,
+            condition_biases: RefCell::default(),
+        };
+        assert!(condition(&Condition::format_2_variable_value(0, 0), &context, 0).unwrap());
+        assert!(!condition(&Condition::format_2_variable_value(0, 1), &context, 0).unwrap());
+    }
+
+    #[test]
     fn zero_byte_pair_matrices_survive_full_instancing() {
         use read_fonts::types::GlyphId16;
         let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
@@ -841,42 +905,63 @@ mod tests {
                 3
             ],
         );
-        let mut oversized = write_fonts::dump_table(&pair).unwrap();
-        oversized[12..16].copy_from_slice(&[0xff; 4]);
-        let borrowed = read_fonts::tables::gpos::PairPos::read(FontData::new(&oversized)).unwrap();
-        let mut owned = borrowed.to_owned_table();
-        assert!(own_empty_pairs(borrowed, &mut owned).is_err());
-        for extension in [false, true] {
-            let lookup = if extension {
-                PositionLookup::Extension(Lookup::new(
-                    LookupFlag::empty(),
-                    vec![ExtensionSubtable::Pair(ExtensionPosFormat1::new(
-                        2,
-                        pair.clone(),
-                    ))],
+        let PairPos::Format2(p) = &pair else { panic!() };
+        let large = PairPos::format_4(
+            p.coverage.as_ref().clone(),
+            p.class_def1.as_ref().clone(),
+            p.class_def2.as_ref().clone(),
+            p.class1_records.clone(),
+        );
+        for pair in [pair, large] {
+            let mut oversized = write_fonts::dump_table(&pair).unwrap();
+            let count_offset =
+                match read_fonts::tables::gpos::PairPos::read(FontData::new(&oversized)).unwrap() {
+                    read_fonts::tables::gpos::PairPos::Format2(p) => {
+                        p.class1_count_byte_range().start
+                    }
+                    read_fonts::tables::gpos::PairPos::Format4(p) => {
+                        p.class1_count_byte_range().start
+                    }
+                    _ => panic!(),
+                };
+            oversized[count_offset..count_offset + 4].copy_from_slice(&[0xff; 4]);
+            let borrowed =
+                read_fonts::tables::gpos::PairPos::read(FontData::new(&oversized)).unwrap();
+            let mut owned = borrowed.to_owned_table();
+            assert!(own_empty_pairs(borrowed, &mut owned).is_err());
+            for extension in [false, true] {
+                let lookup = if extension {
+                    PositionLookup::Extension(Lookup::new(
+                        LookupFlag::empty(),
+                        vec![ExtensionSubtable::Pair(ExtensionPosFormat1::new(
+                            2,
+                            pair.clone(),
+                        ))],
+                    ))
+                } else {
+                    PositionLookup::Pair(Lookup::new(LookupFlag::empty(), vec![pair.clone()]))
+                };
+                let gpos = Gpos::new(
+                    ScriptList::default(),
+                    FeatureList::default(),
+                    LookupList::new(vec![lookup]),
+                );
+                let mut builder = write_fonts::FontBuilder::new();
+                for record in font.table_directory().table_records() {
+                    builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+                }
+                builder.add_table(&gpos).unwrap();
+                let bytes = builder.build();
+                let font = FontRef::new(&bytes).unwrap();
+                let mut tables = BTreeMap::new();
+                instance(&font, &axes, &mut tables).unwrap();
+                let output = read_fonts::tables::gpos::Gpos::read(FontData::new(
+                    &tables[&Tag::new(b"GPOS")],
                 ))
-            } else {
-                PositionLookup::Pair(Lookup::new(LookupFlag::empty(), vec![pair.clone()]))
-            };
-            let gpos = Gpos::new(
-                ScriptList::default(),
-                FeatureList::default(),
-                LookupList::new(vec![lookup]),
-            );
-            let mut builder = write_fonts::FontBuilder::new();
-            for record in font.table_directory().table_records() {
-                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+                .unwrap();
+                let output = own_gpos(&output).unwrap();
+                assert_eq!(output, gpos);
             }
-            builder.add_table(&gpos).unwrap();
-            let bytes = builder.build();
-            let font = FontRef::new(&bytes).unwrap();
-            let mut tables = BTreeMap::new();
-            instance(&font, &axes, &mut tables).unwrap();
-            let output =
-                read_fonts::tables::gpos::Gpos::read(FontData::new(&tables[&Tag::new(b"GPOS")]))
-                    .unwrap();
-            let output = own_gpos(&output).unwrap();
-            assert_eq!(output, gpos);
         }
     }
 
