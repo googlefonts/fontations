@@ -838,4 +838,78 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn computed_hint_calls_consume_their_operand() {
+        let source = Source(vec![vec![1, 11]]);
+        let data = [139, 149, 32, 139, 12, 10, 10, 139, 139, 21, 149, 139, 5, 14];
+        assert!(
+            Interpreter::<Cff1, _, _>::new(&source, &mut Recorder::default(), 0, 0, true)
+                .run(Program::Glyph(0), &data)
+                .is_err()
+        );
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        let bytes = flatten(&flat.commands, None, false, 0).unwrap();
+        let mut result = Flattener::default();
+        let mut decoded = Interpreter::<Cff1, _, _>::new(&source, &mut result, 0, 0, false);
+        decoded.run(Program::Glyph(0), &bytes).unwrap();
+        assert_eq!(decoded.width, None);
+        assert_eq!(
+            result.commands.iter().map(|c| c.op).collect::<Vec<_>>(),
+            [21, 5, 14]
+        );
+        assert_eq!(result.commands[1].args[0].default, 10.);
+    }
+    #[test]
+    fn transient_and_selector_operands_are_removed_with_hints() {
+        let source = Source(vec![]);
+        let data = [159, 139, 12, 20, 139, 12, 21, 139, 1, 139, 139, 21, 14];
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [139, 139, 21, 14]
+        );
+    }
+    #[test]
+    fn shared_hint_and_drawing_operands_require_flattening() {
+        let source = Source(vec![]);
+        let data = [
+            139, 149, 1, 159, 12, 27, 139, 12, 20, 139, 1, 139, 12, 21, 139, 21, 14,
+        ];
+        let mut rec = Recorder::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert!(rec.needs_flatten);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [159, 139, 21, 14]
+        );
+    }
+    #[test]
+    fn duplicated_provenance_does_not_expand_exponentially() {
+        let source = Source(vec![]);
+        let mut data = vec![139];
+        for _ in 0..80 {
+            data.extend([12, 27, 12, 10]);
+        }
+        data.extend([139, 1, 139, 139, 21, 14]);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [139, 139, 21, 14]
+        );
+    }
 }
