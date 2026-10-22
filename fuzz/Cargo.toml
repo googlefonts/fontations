@@ -83,3 +83,21 @@ name = "fuzz_sparse_bit_set_encode"
 path = "fuzz_targets/fuzz_sparse_bit_set_encode.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fuzz_gdef"
+path = "fuzz_targets/fuzz_gdef.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_gpos"
+path = "fuzz_targets/fuzz_gpos.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_gsub"
+path = "fuzz_targets/fuzz_gsub.rs"
+test = false
+doc = false
