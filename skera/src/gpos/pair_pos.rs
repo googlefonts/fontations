@@ -30,6 +30,7 @@ use read_fonts::{
     types::{FixedSize, GlyphId24, Offset16, Offset24, Offset32, Uint24},
     ArrayOfOffsets, FontData, FontRef, MinByteRange, ReadError, TableProvider,
 };
+use std::cmp::Ordering;
 
 impl<'a> SubsetTable<'a> for PairPos<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
@@ -209,40 +210,37 @@ macro_rules! subset_pair_set {
                         let mut hi = pair_value_count as usize;
                         let mut lo = 0;
                         while lo < hi {
-                            // This recommends using usize::midpoint which expands to u128.
-                            // Counts are bounded to 24 bits; widening the midpoint to u128
-                            // is unnecessary.
-                            #[allow(clippy::manual_midpoint)]
-                            let mid = (lo + hi) / 2;
+                            // not usize::midpoint, which widens to u128
+                            let mid = lo + (hi - lo) / 2;
                             let pair_record_offset = data.width() + mid * pair_record_size;
                             let glyph_id = data.second_glyph(pair_record_offset).map_err(|_| {
                                 s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
                             })?;
-                            if glyph_id < g {
-                                lo = mid + 1;
-                            } else if glyph_id > g {
-                                hi = mid;
-                            } else {
-                                let new_gid =
-                                    map_gsub_glyph(glyph_map, glyph_id).ok_or_else(|| {
-                                        s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
-                                    })?;
-                                data.embed_glyph(s, new_gid)?;
+                            match glyph_id.cmp(&g) {
+                                Ordering::Less => lo = mid + 1,
+                                Ordering::Greater => hi = mid,
+                                Ordering::Equal => {
+                                    let new_gid =
+                                        map_gsub_glyph(glyph_map, glyph_id).ok_or_else(|| {
+                                            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
+                                        })?;
+                                    data.embed_glyph(s, new_gid)?;
 
-                                let offset = pair_record_offset + data.width();
-                                let value_record1 =
-                                    ValueRecord::new(font_data, offset, value_format1);
-                                value_record1.subset(plan, s, new_format1)?;
+                                    let offset = pair_record_offset + data.width();
+                                    let value_record1 =
+                                        ValueRecord::new(font_data, offset, value_format1);
+                                    value_record1.subset(plan, s, new_format1)?;
 
-                                let value_record2 = ValueRecord::new(
-                                    font_data,
-                                    offset + record1_size,
-                                    value_format2,
-                                );
-                                value_record2.subset(plan, s, new_format2)?;
+                                    let value_record2 = ValueRecord::new(
+                                        font_data,
+                                        offset + record1_size,
+                                        value_format2,
+                                    );
+                                    value_record2.subset(plan, s, new_format2)?;
 
-                                count += 1;
-                                break;
+                                    count += 1;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -689,28 +687,25 @@ fn collect_pairset_variation_indices(
             let mut hi = pair_value_count as usize;
             let mut lo = 0;
             while lo < hi {
-                // This recommends using usize::midpoint which expands to u128.
-                // Counts are bounded to 24 bits; widening the midpoint to u128
-                // is unnecessary.
-                #[allow(clippy::manual_midpoint)]
-                let mid = (lo + hi) / 2;
+                // not usize::midpoint, which widens to u128
+                let mid = lo + (hi - lo) / 2;
                 let pair_record_offset = pair_set.width() + mid * pair_record_size;
                 let Ok(glyph_id) = pair_set.second_glyph(pair_record_offset) else {
                     return;
                 };
-                if glyph_id < g {
-                    lo = mid + 1;
-                } else if glyph_id > g {
-                    hi = mid;
-                } else {
-                    let offset = pair_record_offset + pair_set.width();
-                    let value_record1 = ValueRecord::new(font_data, offset, value_format1);
-                    value_record1.collect_variation_indices(plan, varidx_set);
+                match glyph_id.cmp(&g) {
+                    Ordering::Less => lo = mid + 1,
+                    Ordering::Greater => hi = mid,
+                    Ordering::Equal => {
+                        let offset = pair_record_offset + pair_set.width();
+                        let value_record1 = ValueRecord::new(font_data, offset, value_format1);
+                        value_record1.collect_variation_indices(plan, varidx_set);
 
-                    let value_record2 =
-                        ValueRecord::new(font_data, offset + record1_size, value_format2);
-                    value_record2.collect_variation_indices(plan, varidx_set);
-                    break;
+                        let value_record2 =
+                            ValueRecord::new(font_data, offset + record1_size, value_format2);
+                        value_record2.collect_variation_indices(plan, varidx_set);
+                        break;
+                    }
                 }
             }
         }

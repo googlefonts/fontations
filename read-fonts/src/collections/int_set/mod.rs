@@ -691,7 +691,7 @@ impl<'de, T: Domain> serde::Deserialize<'de> for IntSet<T> {
         };
 
         if let Some(bad) = bits.iter().find(|val| !T::contains(*val)) {
-            return Err(serde::de::Error::custom(format!(
+            return Err(serde::de::Error::custom(alloc::format!(
                 "value '{bad}' out of range for domain {}",
                 std::any::type_name::<T>(),
             )));

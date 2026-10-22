@@ -541,6 +541,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn lazy_style_set() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         let context = FontRefContext::new(&font, &[]);
@@ -592,6 +593,7 @@ mod tests {
         assert_eq!(all_present, [true; 3]);
     }
 
+    #[cfg(feature = "std")]
     fn lazy_set_presence(style_set: &UnscaledStyleMetricsSet) -> Vec<bool> {
         let UnscaledStyleMetricsSet::Lazy(set) = &style_set else {
             panic!("we definitely made a lazy style set");

@@ -169,7 +169,7 @@ impl Hash for Link {
         state.write_u64(self.objidx as u64);
         state.write_u64(((self.bias as u64) << 32) | self.position as u64);
         state.write_u32(
-            self.width as u32 | (self.is_signed as u32) << 8 | (self.whence as u32) << 16,
+            self.width as u32 | ((self.is_signed as u32) << 8) | ((self.whence as u32) << 16),
         );
     }
 }

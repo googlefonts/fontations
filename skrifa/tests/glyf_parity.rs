@@ -30,6 +30,7 @@ use skrifa::{
     },
     FontRef, MetadataProvider,
 };
+use std::cmp::Ordering;
 
 /// Sizes every comparison runs at. Zero means unscaled.
 const PPEMS: [f32; 5] = [0.0, 8.0, 16.0, 48.0, 144.0];
@@ -169,10 +170,10 @@ struct Report {
 impl Report {
     fn fail(&mut self, what: &str) {
         // Enough to diagnose without burying the count.
-        if self.failures.len() < 20 {
-            self.failures.push(what.to_string());
-        } else if self.failures.len() == 20 {
-            self.failures.push("...".to_string());
+        match self.failures.len().cmp(&20) {
+            Ordering::Less => self.failures.push(what.to_string()),
+            Ordering::Equal => self.failures.push("...".to_string()),
+            Ordering::Greater => (),
         }
     }
 

@@ -242,10 +242,8 @@ impl<'a> PairSet<'a> {
         let records = self.pair_value_records();
         let (mut lo, mut hi) = (0usize, records.len());
         while lo < hi {
-            // deliberately not usize::midpoint, which widens to u128; these
-            // values are bounded by a u16 count
-            #[allow(clippy::manual_midpoint)]
-            let mid = (lo + hi) / 2;
+            // not usize::midpoint, which widens to u128
+            let mid = lo + (hi - lo) / 2;
             let record = records.get(mid).ok()?;
             match record.second_glyph().cmp(&second_glyph) {
                 core::cmp::Ordering::Less => lo = mid + 1,

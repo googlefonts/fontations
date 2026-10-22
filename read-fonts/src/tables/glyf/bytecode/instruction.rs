@@ -1,6 +1,9 @@
 /// Decoded representation of a TrueType instruction.
 use super::Opcode;
 
+#[cfg(any(test, feature = "scaler_test"))]
+use alloc::{vec, vec::Vec};
+
 /// Decoded TrueType instruction.
 #[derive(Copy, Clone, Debug)]
 pub struct Instruction<'a> {
