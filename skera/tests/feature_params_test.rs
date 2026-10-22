@@ -265,10 +265,9 @@ fn own_variations(
 
 #[test]
 fn layout_structures_match_harfbuzz() {
-    // HarfBuzz c82300aefb, all glyphs, retained IDs, notdef outline, and
-    // --layout-features=cv01,size,ss01. References contain layout tables only;
-    // HarfBuzz drops alternate parameters and their names. Their preservation
-    // is checked independently above; compare the remaining layout structure.
+    // HarfBuzz 49c2e144a7, all glyphs, retained IDs, notdef outline, and
+    // --layout-features=cv01,size,ss01. Compare complete layout tables,
+    // including alternate parameters preserved by HarfBuzz #6349/#6350.
     let source = synthetic_font();
     for (case, limits) in [
         ("subset", None),
@@ -294,7 +293,6 @@ fn layout_structures_match_harfbuzz() {
             &gsub.feature_list().unwrap(),
         )
         .into();
-        clear_alternate_params(actual.feature_variations.as_mut());
         let expected =
             std::fs::read(format!("test-data/expected/feature-params/{case}-GSUB.bin")).unwrap();
         let expected =
@@ -314,7 +312,6 @@ fn layout_structures_match_harfbuzz() {
             &gpos.feature_list().unwrap(),
         )
         .into();
-        clear_alternate_params(actual.feature_variations.as_mut());
         let expected =
             std::fs::read(format!("test-data/expected/feature-params/{case}-GPOS.bin")).unwrap();
         let expected =
@@ -326,20 +323,5 @@ fn layout_structures_match_harfbuzz() {
         )
         .into();
         assert_eq!(actual, owned, "{case} GPOS");
-    }
-}
-
-fn clear_alternate_params(variations: Option<&mut FeatureVariations>) {
-    if let Some(variations) = variations {
-        for record in &mut variations.feature_variation_records {
-            for substitution in &mut record
-                .feature_table_substitution
-                .as_mut()
-                .unwrap()
-                .substitutions
-            {
-                substitution.alternate_feature.feature_params = Default::default();
-            }
-        }
     }
 }
