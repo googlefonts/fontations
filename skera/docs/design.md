@@ -150,6 +150,26 @@ scalar type: TrueType tuples use `Triple<f32>`, while the existing CFF2 and
 item-store consumers retain their double representation. The algorithm has
 one implementation.
 
+The plan also accumulates pinned region factors in source float32 order. Once
+that product reaches zero, every retained coordinate keeps the region at zero;
+carrying a tiny double residual into condition rescaling would incorrectly
+revive it. Nonzero subnormal products have a different problem: multiplying by
+a retained factor can cross a source underflow boundary that positive rescaling
+cannot preserve. Partial variable-value conditions referencing those regions
+return an error; full instancing remains available. The regression covers the
+zero product, nonzero defaults, and explicit subnormal rejection. The matching
+upstream fix is [HarfBuzz #6441](https://github.com/harfbuzz/harfbuzz/pull/6441).
+FontTools currently lacks these condition formats; [#4348](https://github.com/fonttools/fonttools/pull/4348)
+rejects them before mutating the font instead of discarding a matching rule.
+
+Store optimization has independent budgets for its dense row matrix and its
+pairwise column scans. It checks the merge budget after deduplication so many
+duplicate groups can still be cheap. If the optional search would exceed the
+budget, it retains the source store and identity index map. Pair costs use
+borrowed column iterators and allocate no temporary column vector. Encoding
+ties follow HarfBuzz's forward column ordering. See the
+[optimizer regressions](../src/instance/optimize.rs).
+
 The layout transaction has two passes. First, table handlers apply default
 deltas, simplify references and feature conditions, and collect any additional
 condition rows needed in the residual store. The coordinator rebuilds and
@@ -428,8 +448,12 @@ boundaries compile with every target and feature and run the malformed-header
 and complete feature-parameter comparisons. Its final tip passes the full Skera
 suite, Clippy, Rust 1.85 all-target/all-feature checks, formatting, and typo checks;
 the malformed-header regression also passes on i686. The other five packages
-retain the previously tested sources. These propagation checks do not mark the
-ongoing per-PR design and performance review complete.
+retain the previously tested sources. The later scalar and optimizer passes
+run their regressions and all-target/all-feature compilation at each affected
+boundary. The combined tip runs the full Skera suite, its normally ignored
+tests, Clippy, Rust 1.85 checks, formatting, and typo checks. Other packages
+retain the preceding validated sources. These propagation checks do not mark
+the ongoing per-PR design and performance review complete.
 
 The TrueType review compares 204 full instances without semantic differences
 against HarfBuzz. A further 132 partial cases and 660 second-stage locations
