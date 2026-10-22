@@ -847,6 +847,13 @@ fn own_feature_variations(
     let err = || SubsetError::SubsetTableError(tag);
     let mut remaining = 200_000;
     if let Some(vars) = vars {
+        // Check before calling the generated range getter on 32-bit hosts.
+        if vars.version().major != 1
+            || u64::from(vars.feature_variation_record_count()) * 8
+                > vars.offset_data().len().saturating_sub(8) as u64
+        {
+            return Err(err());
+        }
         if vars.feature_variation_records().len() != vars.feature_variation_record_count() as usize
         {
             return Err(err());
@@ -2432,6 +2439,28 @@ mod tests {
             };
             assert_eq!(pos.value_record.x_advance, Some(expected));
         }
+    }
+
+    #[test]
+    fn feature_variation_headers_are_checked_before_owning() {
+        let features = write_fonts::dump_table(&FeatureList::default()).unwrap();
+        let features =
+            read_fonts::tables::layout::FeatureList::read(FontData::new(&features)).unwrap();
+        for (major, minor, count) in [(1u16, 0u16, u32::MAX), (2, 0, 0)] {
+            let bytes = major
+                .to_be_bytes()
+                .into_iter()
+                .chain(minor.to_be_bytes())
+                .chain(count.to_be_bytes())
+                .collect::<Vec<_>>();
+            let vars =
+                read_fonts::tables::layout::FeatureVariations::read(FontData::new(&bytes)).unwrap();
+            assert!(own_feature_variations(Some(vars), &features, Tag::new(b"GSUB")).is_err());
+        }
+        let empty = [0, 1, 0, 0, 0, 0, 0, 0];
+        let vars =
+            read_fonts::tables::layout::FeatureVariations::read(FontData::new(&empty)).unwrap();
+        assert!(own_feature_variations(Some(vars), &features, Tag::new(b"GSUB")).is_ok());
     }
 
     #[test]
