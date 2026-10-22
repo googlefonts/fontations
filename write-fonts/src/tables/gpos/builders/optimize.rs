@@ -55,7 +55,9 @@
 //!       creates are guessed to cost less than its cells.
 //!    2. *Group rows into subtables* ([`Grid::group_rows_into_subtables`]):
 //!       start with a class-based subtable for each live row, and merge
-//!       subtables while that makes them smaller in total.
+//!       subtables while that makes them smaller in total. If there are
+//!       still more than the caller's limit, keep merging the pairs whose
+//!       merge costs least until there aren't.
 //!    3. *Drop rows better as exceptions*
 //!       ([`ClassSubtable::drop_rows_better_as_exceptions`]): take a row out
 //!       of its subtable if its pairs cost less as exceptions.
@@ -139,20 +141,54 @@ const CLASS_SUBTABLE_OVERHEAD: usize = 16 + 2;
 /// The glyph pair exceptions come first, followed by class-based subtables
 /// with disjoint coverage. Every pair of glyphs is adjusted exactly as it
 /// would be by the normal build. The result is usually smaller, but this is
-/// not guaranteed, and it may have more subtables, which can make shaping
-/// slower.
+/// not guaranteed, and it may have more subtables.
 ///
 /// If a class-based rule adjusts the second glyph, each builder is built
-/// normally instead: such a subtable adjusts the second glyph of every pair
-/// it covers, which can't be expressed as a set of glyph pairs.
+/// normally instead, and `max_class_subtables` doesn't apply: such a
+/// subtable adjusts the second glyph of every pair it covers, which can't be
+/// expressed as a set of glyph pairs.
+///
+/// # Choosing `max_class_subtables`
+///
+/// `max_class_subtables` is the most class-based subtables the lookup may
+/// have, or 0 for no limit. Any limit can be met, by grouping the classes
+/// into fewer, bigger subtables at some cost in size. The glyph pair
+/// subtables of exceptions aren't counted; there are usually one or two.
+///
+/// The limit trades size for shaping speed. A shaper tries a lookup's
+/// subtables in order until one applies, so each subtable adds work for the
+/// glyphs that get past it, and HarfBuzz, for one, only keeps caches for the
+/// first 8 subtables of a lookup. Without a limit, a lookup with many classes
+/// can end up with dozens of class-based subtables, and shape noticeably
+/// slower than the normal build.
+///
+/// - 0 (no limit) gives the smallest lookups, for when size matters much
+///   more than shaping speed.
+/// - 7 keeps nearly all of the size saved, and with one glyph pair subtable
+///   still fits in HarfBuzz's 8 cached subtables.
+/// - 3 keeps the subtable count close to the normal build's, whose lookups
+///   rarely have more than three subtables, and shaping closest to its
+///   speed, for a somewhat smaller saving. For fonts that are served
+///   compressed, as in WOFF2, the extra saving of a higher limit mostly
+///   compresses away, so 3 is the better choice there.
+/// - Below 3 rarely helps: it gives up much more size without making shaping
+///   noticeably faster.
+///
+/// Values from 3 to 7 make good defaults.
 ///
 /// [`LookupBuilder::force_subtable_break`]: crate::tables::layout::builders::LookupBuilder::force_subtable_break
 /// [`build`]: Builder::build
 pub fn optimize_pairpos(
     builders: impl IntoIterator<Item = PairPosBuilder>,
+    max_class_subtables: usize,
     var_store: &mut VariationStoreBuilder,
 ) -> Vec<PairPos> {
     let builders = builders.into_iter().collect::<Vec<_>>();
+    // 0 means no limit
+    let max_class_subtables = match max_class_subtables {
+        0 => usize::MAX,
+        n => n,
+    };
     // the rules can't be flattened, so build them normally
     if class_rule_adjusts_second_glyph(&builders) {
         return builders
@@ -171,7 +207,14 @@ pub fn optimize_pairpos(
     // keep the smallest.
     let best_plan = CELLS_PER_VALUE_GUESSES
         .into_iter()
-        .map(|cells_per_value| Plan::new(&flat, exact_grid.clone(), cells_per_value))
+        .map(|cells_per_value| {
+            Plan::new(
+                &flat,
+                exact_grid.clone(),
+                cells_per_value,
+                max_class_subtables,
+            )
+        })
         .min_by_key(|plan| plan.size)
         .expect("there is at least one guess");
 
@@ -224,17 +267,25 @@ impl Plan {
     /// Make a plan from the exact grid (step 3).
     ///
     /// This runs once for each of the [`CELLS_PER_VALUE_GUESSES`], each time
-    /// on a copy of the exact grid.
-    fn new(flat: &FlattenedLookup, mut grid: Grid, cells_per_value: usize) -> Self {
+    /// on a copy of the exact grid. The plan has at most
+    /// `max_class_subtables` class-based subtables.
+    fn new(
+        flat: &FlattenedLookup,
+        mut grid: Grid,
+        cells_per_value: usize,
+        max_class_subtables: usize,
+    ) -> Self {
         let values = &flat.values;
 
         // 3.1. Fold small classes into bigger ones, or drop them, where the
         // exceptions that creates cost less than their cells.
         grid.fold_small_classes(values, cells_per_value);
 
-        // 3.2. Group the rows into class-based subtables.
+        // 3.2. Group the rows into class-based subtables, no more than
+        // `max_class_subtables` of them. Later steps can only remove
+        // subtables.
         let summaries = ClassSummaries::new(&grid);
-        let mut subtables = grid.group_rows_into_subtables(&summaries, values);
+        let mut subtables = grid.group_rows_into_subtables(&summaries, values, max_class_subtables);
 
         // 3.3. Take out rows whose pairs cost less as exceptions, and then
         // any subtables left with no rows.
@@ -747,11 +798,14 @@ impl Grid {
     ///
     /// It starts with a subtable for each live row, and repeatedly merges
     /// the two subtables whose merge saves the most bytes, until no merge
-    /// saves any.
+    /// saves any. If that leaves more than `max_class_subtables`, it keeps
+    /// merging, each time the two whose merge adds the fewest bytes, until
+    /// there are `max_class_subtables`.
     fn group_rows_into_subtables(
         &self,
         summaries: &ClassSummaries,
         values: &Values,
+        max_class_subtables: usize,
     ) -> Vec<ClassSubtable> {
         // A subtable for each live row. When subtable `i` is merged with
         // `j`, the result takes slot `i`, and slot `j` is left `None`.
@@ -788,16 +842,20 @@ impl Grid {
             .collect::<Vec<_>>();
 
         // Merge the pair that saves the most, the lowest `i` on a tie, until
-        // no merge saves anything.
+        // no merge saves anything and there are few enough subtables. Past
+        // the point where merges save nothing, the best pair is the one
+        // whose merge costs least.
+        let mut n_subtables = subtables.len();
         while let Some((i, (merge_saving, j))) = best_partner_of
             .iter()
             .enumerate()
             .filter_map(|(i, best)| best.map(|best| (i, best)))
             .max_by_key(|(i, (saving, _))| (*saving, Reverse(*i)))
         {
-            if merge_saving <= 0 {
+            if merge_saving <= 0 && n_subtables <= max_class_subtables {
                 break;
             }
+            n_subtables -= 1;
             let merged = subtables[i].take().unwrap().merge(
                 subtables[j].take().unwrap(),
                 self,
@@ -1397,6 +1455,16 @@ mod tests {
             )
         }
 
+        /// The size of all of the subtables, in bytes.
+        fn size(&self) -> usize {
+            self.0.iter().map(Vec::len).sum()
+        }
+
+        /// The number of class-based (format 2) subtables.
+        fn class_subtables(&self) -> usize {
+            self.0.iter().filter(|bytes| bytes[..2] == [0, 2]).count()
+        }
+
         /// Apply the lookup to a pair, as a shaper would.
         fn apply(&self, g1: GlyphId16, g2: GlyphId16) -> Effect {
             let effect = |record: &rgpos::ValueRecord, adjusts_second| {
@@ -1447,14 +1515,18 @@ mod tests {
     /// adjusted the same.
     ///
     /// Each boundary between `builders` is an explicit subtable break.
-    fn assert_equivalent(builders: Vec<PairPosBuilder>, n_glyphs: u16) -> (usize, usize) {
+    fn assert_equivalent(
+        builders: Vec<PairPosBuilder>,
+        max_class_subtables: usize,
+        n_glyphs: u16,
+    ) -> (Compiled, Compiled) {
         let mut var_store = VariationStoreBuilder::new(0);
         let normal = builders
             .clone()
             .into_iter()
             .flat_map(|builder| builder.build(&mut var_store))
             .collect::<Vec<_>>();
-        let optimized = optimize_pairpos(builders, &mut var_store);
+        let optimized = optimize_pairpos(builders, max_class_subtables, &mut var_store);
         let (normal, optimized) = (Compiled::new(&normal), Compiled::new(&optimized));
         for g1 in (0..n_glyphs).map(gid) {
             for g2 in (0..n_glyphs).map(gid) {
@@ -1465,8 +1537,7 @@ mod tests {
                 );
             }
         }
-        let size = |compiled: &Compiled| compiled.0.iter().map(Vec::len).sum();
-        (size(&normal), size(&optimized))
+        (normal, optimized)
     }
 
     #[test]
@@ -1484,7 +1555,7 @@ mod tests {
         let mut second = PairPosBuilder::default();
         second.insert_pair(gid(1), advance(30), gid(7), none());
         second.insert_classes(glyphs([2, 3, 4]), advance(-40), glyphs([5, 6, 7]), none());
-        assert_equivalent(vec![first, second], 10);
+        assert_equivalent(vec![first, second], 0, 10);
     }
 
     #[test]
@@ -1493,7 +1564,7 @@ mod tests {
         builder.insert_pair(gid(1), advance(-10), gid(2), advance(0));
         builder.insert_pair(gid(1), advance(-10), gid(3), none());
         builder.insert_classes(glyphs([1, 4]), advance(-20), glyphs([2, 3, 5]), none());
-        assert_equivalent(vec![builder], 8);
+        assert_equivalent(vec![builder], 0, 8);
     }
 
     #[test]
@@ -1503,7 +1574,7 @@ mod tests {
         builder.insert_pair(gid(4), advance(-20), gid(3), none());
         let mut var_store = VariationStoreBuilder::new(0);
         let normal = builder.clone().build(&mut var_store);
-        let optimized = builder.build_optimized(&mut var_store);
+        let optimized = builder.build_optimized(0, &mut var_store);
         assert_eq!(normal, optimized);
     }
 
@@ -1528,7 +1599,8 @@ mod tests {
                 builder
             })
             .collect::<Vec<_>>();
-        let (normal, optimized) = assert_equivalent(builders, 40);
+        let (normal, optimized) = assert_equivalent(builders, 0, 40);
+        let (normal, optimized) = (normal.size(), optimized.size());
         assert!(optimized < normal, "{optimized} >= {normal}");
     }
 
@@ -1556,28 +1628,76 @@ mod tests {
         }
     }
 
+    /// The builders of a lookup with random glyph pair and class-based rules.
+    ///
+    /// The rules use glyphs below `n_glyphs`, and each builder has fewer than
+    /// `max_rules` rules of each kind.
+    fn random_lookup(seed: u64, n_glyphs: u16, max_rules: u64) -> Vec<PairPosBuilder> {
+        let mut rng = Lcg(seed);
+        (0..1 + rng.next(3))
+            .map(|_| {
+                let mut builder = PairPosBuilder::default();
+                for _ in 0..rng.next(max_rules) {
+                    let g1 = rng.next(n_glyphs as u64) as u16;
+                    let g2 = rng.next(n_glyphs as u64) as u16;
+                    let record2 = if rng.next(8) == 0 { advance(0) } else { none() };
+                    builder.insert_pair(gid(g1), rng.value(), gid(g2), record2);
+                }
+                for _ in 0..rng.next(max_rules) {
+                    let class1 = rng.glyphs(n_glyphs, 6);
+                    let class2 = rng.glyphs(n_glyphs, 8);
+                    builder.insert_classes(class1, rng.value(), class2, none());
+                }
+                builder
+            })
+            .collect()
+    }
+
     #[test]
     fn random_lookups_are_equivalent() {
-        const N_GLYPHS: u16 = 30;
         for seed in 0..200 {
-            let mut rng = Lcg(seed);
-            let builders = (0..1 + rng.next(3))
-                .map(|_| {
-                    let mut builder = PairPosBuilder::default();
-                    for _ in 0..rng.next(12) {
-                        let (g1, g2) = (rng.next(30) as u16, rng.next(30) as u16);
-                        let record2 = if rng.next(8) == 0 { advance(0) } else { none() };
-                        builder.insert_pair(gid(g1), rng.value(), gid(g2), record2);
-                    }
-                    for _ in 0..rng.next(12) {
-                        let class1 = rng.glyphs(N_GLYPHS, 6);
-                        let class2 = rng.glyphs(N_GLYPHS, 8);
-                        builder.insert_classes(class1, rng.value(), class2, none());
-                    }
-                    builder
-                })
-                .collect();
-            assert_equivalent(builders, N_GLYPHS);
+            assert_equivalent(random_lookup(seed, 30, 12), 0, 30);
+        }
+    }
+
+    /// Six blocks of glyphs, each kerned only within itself, which are
+    /// smallest as six class-based subtables.
+    fn kerning_blocks() -> Vec<PairPosBuilder> {
+        let mut builder = PairPosBuilder::default();
+        for block in 0..6u16 {
+            let (first, second) = (8 * block, 48 + 8 * block);
+            for i in 0..4 {
+                for j in 0..4 {
+                    let class1 = glyphs([first + 2 * i, first + 2 * i + 1]);
+                    let class2 = glyphs([second + 2 * j, second + 2 * j + 1]);
+                    let value = advance(-((block * 16 + i * 4 + j) as i16) - 1);
+                    builder.insert_classes(class1, value, class2, none());
+                }
+            }
+        }
+        vec![builder]
+    }
+
+    #[test]
+    fn class_subtables_stay_within_the_limit() {
+        let (_, unlimited) = assert_equivalent(kerning_blocks(), 0, 96);
+        assert_eq!(unlimited.class_subtables(), 6);
+        for max_class_subtables in 1..=5 {
+            let (_, limited) = assert_equivalent(kerning_blocks(), max_class_subtables, 96);
+            assert_eq!(limited.class_subtables(), max_class_subtables);
+        }
+        // random lookups, bigger than above so that more have several
+        // class-based subtables
+        for max_class_subtables in 1..=3 {
+            for seed in 0..20 {
+                let builders = random_lookup(seed, 60, 40);
+                let (_, limited) = assert_equivalent(builders, max_class_subtables, 60);
+                let n = limited.class_subtables();
+                assert!(
+                    n <= max_class_subtables,
+                    "seed {seed}: {n} > {max_class_subtables}"
+                );
+            }
         }
     }
 }
