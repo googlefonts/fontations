@@ -356,11 +356,7 @@ fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
         out.extend(u32::try_from(fds.len()).map_err(|_| Error)?.to_be_bytes());
         return Ok(out);
     }
-    if 1 + fds.len() < 5 + ranges.len() * 3 {
-        let mut out = vec![0];
-        out.extend(fds.iter().map(|&fd| fd as u8));
-        return Ok(out);
-    }
+    // Like harfbuzz, never use format 0, even when it would be smaller.
     let mut out = vec![3];
     out.extend((ranges.len() as u16).to_be_bytes());
     for (gid, fd) in ranges {
@@ -437,7 +433,12 @@ pub(super) fn assemble<F: CffFlavor>(
     let string_index = encoding::IndexLayout::new(&strings, false)?;
     let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
     let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
-    let select = fdselect(&fds, F::CFF2)?;
+    // Only CFF2 and CID-keyed fonts reference an FDSelect.
+    let select = if F::CFF2 || source.cid {
+        fdselect(&fds, F::CFF2)?
+    } else {
+        vec![]
+    };
     let charset = if F::CFF2 { vec![] } else { charset(&codes)? };
     let enc = if F::CFF2 || source.cid {
         None
