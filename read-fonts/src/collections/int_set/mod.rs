@@ -170,6 +170,29 @@ impl<T: Domain> IntSet<T> {
         self.range((Bound::Excluded(value), Bound::Unbounded))
     }
 
+    /// Returns the smallest member of this set that is after `value`, if any.
+    ///
+    /// Equivalent to `self.iter_after(value).next()`, but cheaper since it doesn't construct an
+    /// iterator. Inverted sets over a discontinuous domain are the exception: they still use
+    /// `iter_after`.
+    pub fn next_after(&self, value: T) -> Option<T> {
+        match &self.0 {
+            Membership::Inclusive(s) => s
+                .next_after(value.to_u32())
+                .map(|v| T::from_u32(InDomain(v))),
+            // In a continuous domain every u32 value between the domain's min and max is a
+            // member of the domain, so the next member is the next value missing from `s`,
+            // if it doesn't exceed the max.
+            Membership::Exclusive(s) if T::is_continuous() => {
+                let max = T::ordered_values().next_back()?;
+                s.next_absent_after(value.to_u32())
+                    .filter(|v| *v <= max)
+                    .map(|v| T::from_u32(InDomain(v)))
+            }
+            Membership::Exclusive(_) => self.iter_after(value).next(),
+        }
+    }
+
     /// Returns an iterator over members of this set that are in `range`.
     pub fn range<R: RangeBounds<T>>(&self, range: R) -> impl Iterator<Item = T> + '_ {
         let (first, it) = match range.start_bound() {
@@ -1962,6 +1985,93 @@ mod test {
                 .collect::<Vec<EvenInts>>(),
             vec![EvenInts(u16::MAX - 5), EvenInts(u16::MAX - 3),]
         );
+    }
+
+    #[test]
+    fn next_after() {
+        let mut set = IntSet::<u32>::empty();
+        assert_eq!(set.next_after(0), None);
+
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+        assert_eq!(set.next_after(0), Some(5));
+        assert_eq!(set.next_after(5), Some(7));
+        assert_eq!(set.next_after(700), Some(1250));
+        assert_eq!(set.next_after(3001), None);
+        assert_eq!(set.next_after(u32::MAX), None);
+
+        for value in (0..=3100).chain([u32::MAX - 1, u32::MAX]) {
+            assert_eq!(
+                set.next_after(value),
+                set.iter_after(value).next(),
+                "value {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn next_after_exclusive() {
+        let mut set = IntSet::<u32>::empty();
+        set.extend([5, 7, 10, 1250, 1300, 3001]);
+        set.invert();
+
+        assert_eq!(set.next_after(3), Some(4));
+        assert_eq!(set.next_after(4), Some(6));
+        assert_eq!(set.next_after(9), Some(11));
+        assert_eq!(set.next_after(u32::MAX - 1), Some(u32::MAX));
+        assert_eq!(set.next_after(u32::MAX), None);
+
+        // Skips a run of excluded values that spans pages.
+        set.remove_range(4000..=5000);
+        assert_eq!(set.next_after(3999), Some(5001));
+
+        for value in (0..=5100).chain([u32::MAX - 1, u32::MAX]) {
+            assert_eq!(
+                set.next_after(value),
+                set.iter_after(value).next(),
+                "value {value}"
+            );
+        }
+
+        set.remove_range(u32::MAX - 600..=u32::MAX);
+        assert_eq!(set.next_after(u32::MAX - 602), Some(u32::MAX - 601));
+        assert_eq!(set.next_after(u32::MAX - 601), None);
+    }
+
+    #[test]
+    fn next_after_exclusive_respects_domain_max() {
+        // The excluded set doesn't reach the domain max of u16, but the u32 values above it
+        // aren't in the domain.
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(u16::MAX - 600..=u16::MAX);
+        assert_eq!(set.next_after(u16::MAX - 602), Some(u16::MAX - 601));
+        assert_eq!(set.next_after(u16::MAX - 601), None);
+
+        let mut set = IntSet::<u8>::all();
+        assert_eq!(set.next_after(254), Some(255));
+        assert_eq!(set.next_after(255), None);
+        set.remove(255);
+        assert_eq!(set.next_after(254), None);
+        for value in 0..=u8::MAX {
+            assert_eq!(
+                set.next_after(value),
+                set.iter_after(value).next(),
+                "value {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn next_after_discontinuous() {
+        let mut set = IntSet::<EvenInts>::empty();
+        set.extend([EvenInts(6), EvenInts(10)]);
+        assert_eq!(set.next_after(EvenInts(2)), Some(EvenInts(6)));
+        assert_eq!(set.next_after(EvenInts(6)), Some(EvenInts(10)));
+        assert_eq!(set.next_after(EvenInts(10)), None);
+
+        set.invert();
+        assert_eq!(set.next_after(EvenInts(2)), Some(EvenInts(4)));
+        assert_eq!(set.next_after(EvenInts(4)), Some(EvenInts(8)));
+        assert_eq!(set.next_after(EvenInts(u16::MAX - 1)), None);
     }
 
     #[test]
