@@ -4,6 +4,7 @@
 mod bounds;
 mod charstring;
 mod dict;
+mod downgrade;
 mod encoding;
 mod instance;
 mod source;
@@ -76,6 +77,10 @@ pub(crate) fn instance(
     axes: &crate::instance::AxisPlan,
 ) -> std::result::Result<Vec<u8>, SubsetError> {
     instance::instance(font, axes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+}
+
+pub(crate) fn downgrade(font: &FontRef) -> std::result::Result<Vec<u8>, SubsetError> {
+    downgrade::convert(font).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
 }
 
 pub(crate) fn instance_bounds(
