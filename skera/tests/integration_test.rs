@@ -3,8 +3,7 @@
 //! This reads test configs from harfbuzz subset test suite,
 //! generate a group of tests to perform, run and then compare the output against the stored expected result
 //!
-//! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
-//! environment variable.
+//! To generate the expected output files, use test-data/generate-expected-outputs.py.
 
 use rayon::prelude::*;
 use rstest::rstest;
@@ -27,7 +26,6 @@ use write_fonts::{
 };
 
 static TEST_DATA_DIR: &str = "./test-data";
-static GEN_EXPECTED_OUTPUTS_VAR: &str = "GEN_EXPECTED_OUTPUTS";
 
 #[derive(Default)]
 struct SubsetTestCase {
@@ -46,9 +44,6 @@ struct SubsetTestCase {
     //command line args for instancer
     //TODO: add support for instancing
     //instances: Vec<String>,
-    ///compare against fonttools or not
-    fonttool_options: bool,
-
     ///IUP optimize or not
     iup_optimize: Vec<bool>,
 }
@@ -114,7 +109,7 @@ impl TestCaseParser {
                 "PROFILES:" => self.parse_profiles(&mut lines),
                 "SUBSETS:" => self.parse_subsets(&mut lines),
                 "INSTANCES:" => self.parse_instances(&mut lines),
-                "OPTIONS:" => self.parse_fonttools_options(&mut lines),
+                "OPTIONS:" => self.parse_options(&mut lines),
                 "IUP_OPTIONS:" => self.parse_iup_options(&mut lines),
                 other => panic!("unexpected heading '{other}'"),
             }
@@ -168,18 +163,10 @@ impl TestCaseParser {
         }
     }
 
-    fn parse_fonttools_options(&mut self, lines: &mut LinesIter) {
+    fn parse_options(&mut self, lines: &mut LinesIter) {
+        // The options only matter for generating the expected outputs.
         while !lines.is_end() {
-            if let Some(next) = lines.next() {
-                match next {
-                    "no_fonttools" => {
-                        self.case.fonttool_options = true;
-                    }
-                    _ => {
-                        continue;
-                    }
-                }
-            }
+            lines.next();
         }
     }
 
@@ -328,23 +315,6 @@ impl SubsetTestCase {
         })
     }
 
-    fn gen_expected_output(&self) {
-        let output_temp_dir = TempDir::new_in(".").unwrap();
-        let output_dir = output_temp_dir.path();
-        for font in &self.fonts {
-            for profile in &self.profiles {
-                for subset in &self.subsets {
-                    //TODO: add support for instances/iup_options
-                    self.gen_expected_output_for_one_test(font, subset, profile, output_dir);
-                }
-            }
-        }
-        let expected_dir = Path::new(TEST_DATA_DIR)
-            .join("expected")
-            .join(&self.expected_dir);
-        fs::rename(output_dir, expected_dir).unwrap();
-    }
-
     fn run_one_test(&self, font: &str, subset: &str, profile: &str, output_dir: &Path) {
         let subset_font_name = gen_subset_font_name(font, subset, profile);
         let output_file = output_dir.join(&subset_font_name);
@@ -355,96 +325,6 @@ impl SubsetTestCase {
             .join(&self.expected_dir)
             .join(&subset_font_name);
         compare_with_expected(output_dir, &output_file, &expected_file);
-    }
-
-    fn gen_expected_output_for_one_test(
-        &self,
-        font: &str,
-        subset: &str,
-        profile: &str,
-        output_dir: &Path,
-    ) {
-        let subset_font_name = gen_subset_font_name(font, subset, profile);
-        let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, profile, &output_file);
-
-        assert_has_ttx_exec();
-        let mut expected_file_name = String::from(&subset_font_name);
-        expected_file_name.push_str(".expected");
-        let expected_file = output_dir.join(expected_file_name);
-
-        let mut args = Vec::new();
-        args.push(String::from("subset"));
-
-        let org_font_file = Path::new(TEST_DATA_DIR).join("fonts").join(font);
-        args.push(String::from(org_font_file.as_os_str().to_str().unwrap()));
-
-        if !subset.is_empty() {
-            let mut unicodes_option = String::from("--unicodes=");
-            unicodes_option.push_str(subset);
-            args.push(unicodes_option);
-        }
-
-        args.push(String::from("--drop-tables+=DSIG,BASE,MATH,CFF,CFF2"));
-        args.push(String::from("--no-harfbuzz-repacker"));
-
-        let mut output_option = String::from("--output-file=");
-        output_option.push_str(expected_file.to_str().unwrap());
-        args.push(output_option);
-
-        let profile_path = Path::new(TEST_DATA_DIR).join("profiles").join(profile);
-        let profile_input = std::fs::read_to_string(profile_path).unwrap();
-        //TODO: add --desubroutinize back when it's supported
-        for line in profile_input.lines() {
-            let line = line.trim();
-            if line.starts_with("--downgrade-cff2")
-                || line.starts_with("--iftb-requirements")
-                || line.starts_with("--retain-num-glyphs")
-                || line.starts_with("--gid-map")
-                || line.starts_with("--desubroutinize")
-            {
-                continue;
-            }
-            args.push(String::from(line));
-        }
-
-        // TODO: support pruning codepage ranges
-        args.push(String::from("--no-prune-codepage-ranges"));
-
-        Command::new("fonttools")
-            .args(args.clone())
-            .stdout(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .expect("fonttools failed to subset {org_font_file}");
-
-        let expected_ttx = expected_file.with_extension("ttx");
-        Command::new("ttx")
-            .arg("-o")
-            .arg(&expected_ttx)
-            .arg(&expected_file)
-            .stdout(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .expect("ttx failed to parse the expected file {expected_file}");
-
-        let output_ttx = output_file.with_extension("ttx");
-        Command::new("ttx")
-            .arg("-o")
-            .arg(&output_ttx)
-            .arg(output_file)
-            .stdout(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .expect("ttx failed to parse the output file {output_file}");
-
-        let diff = diff_ttx(&expected_ttx, &output_ttx);
-        if !diff.is_empty() {
-            panic!("fonttool args={args:?}, file={expected_file:?}\n{diff}\nError: {expected_file:?} ttx for fonttools and skera does not match.");
-        }
-        fs::remove_file(expected_file).unwrap();
-        fs::remove_file(expected_ttx).unwrap();
-        fs::remove_file(output_ttx).unwrap();
     }
 }
 
@@ -458,10 +338,7 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
     drop_tables.extend_unsorted(DEFAULT_DROP_TABLES.iter().copied());
 
     //TODO: remove drop_tables once we support those tables
-    drop_tables.insert(Tag::new(b"BASE"));
     drop_tables.insert(Tag::new(b"MATH"));
-    drop_tables.insert(Tag::new(b"CFF "));
-    drop_tables.insert(Tag::new(b"CFF2"));
 
     let mut name_ids = IntSet::<NameId>::empty();
     name_ids.insert_range(NameId::from(0)..=NameId::from(6));
@@ -707,10 +584,7 @@ fn test_subset_case(#[files("test-data/tests/*.tests")] path: PathBuf) {
         return;
     }
     let test = SubsetTestCase::new(&path);
-    match std::env::var(GEN_EXPECTED_OUTPUTS_VAR) {
-        Ok(_val) => test.gen_expected_output(),
-        Err(_e) => test.run(),
-    }
+    test.run();
 }
 
 #[test]
@@ -719,10 +593,7 @@ To run manually: cargo test -p skera -- --ignored"#]
 fn test_subset_layout_notonastaliqurdu() {
     let path = Path::new(TEST_DATA_DIR).join(LAYOUT_NOTONASTALIQURDU_TEST);
     let test = SubsetTestCase::new(&path);
-    match std::env::var(GEN_EXPECTED_OUTPUTS_VAR) {
-        Ok(_val) => test.gen_expected_output(),
-        Err(_e) => test.run(),
-    }
+    test.run();
 }
 
 #[test]
