@@ -263,3 +263,107 @@ fn full_cff2_instances_match_harfbuzz() {
         }
     }
 }
+
+#[test]
+fn partial_cff2_instances_match_harfbuzz() {
+    use skrifa::MetadataProvider;
+    use write_fonts::types::F2Dot14;
+    for (i, (filename, request)) in [
+        ("AdobeVFPrototype.otf", "wght=650"),
+        ("AdobeVFPrototype.otf", "CNTR=40"),
+        ("SourceSerif4Variable-Roman-HelloWorld.otf", "wght=650"),
+        (
+            "SourceSerif4Variable-Roman-HelloWorld.otf",
+            "wght=300:550:700,opsz=12:30:48",
+        ),
+        ("Cantarell-VF-ABC.otf", "wght=200:500:700"),
+        ("NotoSansJP-VF.subset.otf", "wght=200:500:700"),
+        (
+            "AdobeVFPrototype_vsindex.otf",
+            "wght=300:500:700,CNTR=25:75",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let bytes = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let bytes =
+            skera::instance_font(&font, &skera::parse_axis_limits(request).unwrap()).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let p = plan(&font, SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE, "*");
+        let out = subset_font(&font, &p).unwrap();
+        let output = FontRef::new(&out).unwrap();
+        let bytes = std::fs::read(format!(
+            "test-data/expected/cff2-instances/hb-partial-{i}.otf"
+        ))
+        .unwrap();
+        let reference = FontRef::new(&bytes).unwrap();
+        let a = CffFontRef::new(
+            output.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        let b = CffFontRef::new(
+            reference
+                .data_for_tag(Tag::new(b"CFF2"))
+                .unwrap()
+                .as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        assert_eq!(output.axes().len(), reference.axes().len());
+        assert_eq!(a.num_glyphs(), b.num_glyphs());
+        for fraction in [0.25, 0.75] {
+            let settings: Vec<_> = output
+                .axes()
+                .iter()
+                .map(|axis| {
+                    (
+                        axis.tag(),
+                        axis.min_value() + (axis.max_value() - axis.min_value()) * fraction,
+                    )
+                })
+                .collect();
+            assert_eq!(
+                output.axes().location(settings.iter().copied()).coords(),
+                reference.axes().location(settings).coords(),
+                "{filename} {request} user fraction={fraction}"
+            );
+        }
+        for coord in [-1., -0.5, 0., 0.5, 1.] {
+            let coords = vec![F2Dot14::from_f64(coord); output.axes().len()];
+            for gid in 0..a.num_glyphs() {
+                let gid = GlyphId::new(gid);
+                let sa = a.subfont(a.subfont_index(gid).unwrap(), &coords).unwrap();
+                let sb = b.subfont(b.subfont_index(gid).unwrap(), &coords).unwrap();
+                let mut pa = Vec::<PathElement>::new();
+                let mut pb = Vec::<PathElement>::new();
+                a.draw(&sa, gid, &coords, None, &mut pa).unwrap();
+                b.draw(&sb, gid, &coords, None, &mut pb).unwrap();
+                assert_eq!(pa, pb, "{filename} {request} {coord} {gid:?}");
+                assert_eq!(
+                    output
+                        .hvar()
+                        .ok()
+                        .and_then(|h| h.advance_delta(gid, &coords))
+                        .map_or(0., |d| d.to_f64()),
+                    reference
+                        .hvar()
+                        .ok()
+                        .and_then(|h| h.advance_delta(gid, &coords))
+                        .map_or(0., |d| d.to_f64()),
+                    "{filename} {request} {coord} {gid:?}"
+                );
+            }
+        }
+        for (a, b) in output.axes().iter().zip(reference.axes().iter()) {
+            assert_eq!(
+                (a.tag(), a.min_value(), a.default_value(), a.max_value()),
+                (b.tag(), b.min_value(), b.default_value(), b.max_value())
+            );
+        }
+    }
+}

@@ -1,9 +1,13 @@
 //! CFF2 instancing and the variation tables that share its axes.
 mod axes;
+mod color;
 mod layout;
 mod metrics;
+mod rebase;
+mod store;
 pub(crate) use axes::AxisPlan;
 pub use axes::{parse_axis_limits, AxisLimits};
+pub(crate) use store::StorePlan;
 
 use crate::{cff, SubsetError};
 use read_fonts::{types::Tag, FontRef, TableProvider};
@@ -24,11 +28,6 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         ));
     }
     let axes = AxisPlan::new(font, limits)?;
-    if !axes.all_pinned() {
-        return Err(SubsetError::InvalidAxis(
-            "partial instancing is not available yet".into(),
-        ));
-    }
     check_supported_tables(font)?;
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
@@ -40,9 +39,15 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
     tables.insert(Tag::new(b"CFF2"), cff2);
     metrics::instance(font, &axes, &mut tables)?;
     layout::instance(font, &axes, &mut tables)?;
-    for tag in [
-        b"fvar", b"avar", b"HVAR", b"VVAR", b"MVAR", b"STAT", b"DSIG",
-    ] {
+    color::instance(font, &axes, &mut tables)?;
+    if axes.all_pinned() {
+        for tag in [b"fvar", b"avar", b"HVAR", b"VVAR", b"MVAR"] {
+            tables.remove(&Tag::new(tag));
+        }
+    } else {
+        axes.update_tables(font, &mut tables)?;
+    }
+    for tag in [b"STAT", b"DSIG"] {
         tables.remove(&Tag::new(tag));
     }
     let mut builder = FontBuilder::new();
@@ -61,11 +66,6 @@ fn check_supported_tables(font: &FontRef) -> Result<(), SubsetError> {
         let tag = Tag::new(tag);
         if font.data_for_tag(tag).is_some() {
             return Err(SubsetError::SubsetTableError(tag));
-        }
-    }
-    if let Ok(colr) = font.colr() {
-        if colr.item_variation_store().is_some() {
-            return Err(SubsetError::SubsetTableError(Tag::new(b"COLR")));
         }
     }
     if font.gdef().ok().and_then(|g| g.item_var_store()).is_some() {

@@ -87,13 +87,21 @@ fn invalid_api_ranges_return_errors() {
 }
 
 #[test]
-fn variable_color_requires_its_instancing_handler() {
-    let bytes = include_bytes!("../test-data/fonts/cff2_variable_color.otf");
-    let font = FontRef::new(bytes).unwrap();
-    assert!(matches!(
-        instance_font(&font, &parse_axis_limits("wght=0.5").unwrap()),
-        Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
-    ));
+fn variable_color_is_resolved_before_removing_axes() {
+    use read_fonts::tables::colr::Paint;
+    let font = FontRef::new(include_bytes!("../test-data/fonts/cff2_variable_color.otf")).unwrap();
+    let bytes = instance_font(&font, &parse_axis_limits("wght=0.5").unwrap()).unwrap();
+    let output = FontRef::new(&bytes).unwrap();
+    assert!(output.fvar().is_err());
+    let colr = output.colr().unwrap();
+    assert!(colr.item_variation_store().is_none());
+    let (Paint::Glyph(glyph), _) = colr.v1_base_glyph(GlyphId::new(1)).unwrap() else {
+        panic!("expected a glyph paint");
+    };
+    let Paint::Solid(solid) = glyph.paint().unwrap() else {
+        panic!("expected resolved static paint");
+    };
+    assert_eq!(solid.alpha().to_f32(), 0.75);
 }
 
 #[test]
@@ -110,4 +118,55 @@ fn normalization_quantizes_before_mapping_and_blending() {
     // HarfBuzz 14.6.0: normalizing through Fixed first changes this y to 660.
     assert!(path.contains(&PathElement::LineTo { x: 614., y: 659. }));
     assert!(!path.contains(&PathElement::LineTo { x: 614., y: 660. }));
+}
+
+#[test]
+fn partial_instances_preserve_untouched_axis_records() {
+    let font = FontRef::new(include_bytes!("../test-data/fonts/AdobeVFPrototype.otf")).unwrap();
+    let original = font.fvar().unwrap();
+    let original = &original.axes().unwrap()[0];
+    assert_ne!(
+        original.default_value().to_f64(),
+        original.default_value().to_f32() as f64
+    );
+    for request in ["CNTR=13.7", "CNTR=25:50:75"] {
+        let bytes = instance_font(&font, &parse_axis_limits(request).unwrap()).unwrap();
+        let output = FontRef::new(&bytes).unwrap();
+        let fvar = output.fvar().unwrap();
+        let retained = &fvar.axes().unwrap()[0];
+        assert_eq!(original, retained);
+    }
+}
+
+#[test]
+fn malformed_source_axis_ranges_return_an_error() {
+    use write_fonts::FontBuilder;
+    let font = FontRef::new(include_bytes!(
+        "../test-data/fonts/cff2_fractional_blends.otf"
+    ))
+    .unwrap();
+    let mut data = font
+        .data_for_tag(Tag::new(b"fvar"))
+        .unwrap()
+        .as_bytes()
+        .to_vec();
+    let axis = u16::from_be_bytes(data[4..6].try_into().unwrap()) as usize;
+    // Make min=2 exceed max=1, without relying on a font writer's validation.
+    data[axis + 4..axis + 8].copy_from_slice(&(2i32 << 16).to_be_bytes());
+    let mut builder = FontBuilder::new();
+    for record in font.table_directory().table_records() {
+        if record.tag() != Tag::new(b"fvar") {
+            builder.add_raw(
+                record.tag(),
+                font.data_for_tag(record.tag()).unwrap().as_bytes(),
+            );
+        }
+    }
+    builder.add_raw(Tag::new(b"fvar"), data);
+    let bytes = builder.build();
+    let font = FontRef::new(&bytes).unwrap();
+    assert!(
+        matches!(instance_font(&font, &parse_axis_limits("wght=0.5").unwrap()),
+        Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"fvar"))
+    );
 }

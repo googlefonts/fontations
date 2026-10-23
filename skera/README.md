@@ -13,10 +13,15 @@ Hint removal flattens individual glyphs when deleting their operands or changing
 caller-dependent mask boundaries would modify a shared program.
 
 CFF2 fonts can be fully instantiated with `--instance wght=650,opsz=48`.
-Every axis must be pinned; `tag=drop` pins an axis at its default. Instancing
-resolves outline blends and variation deltas in metrics and layout tables.
+Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
+instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
+Instancing resolves outline blends and variation deltas in metrics, layout,
+and COLRv1 paint tables.
 The library's `instance_font` preserves glyph IDs; create a `Plan` from the
 returned font to subset the instance.
+
+Full instancing supports `avar` version 2. Partial instancing currently
+requires separable axis maps (`avar` version 1).
 
 ## Installation
 
@@ -117,11 +122,10 @@ perf record -g -- target/release/skera
 perf report
 ```
 
-At this stack boundary, instancing requires all CFF2 axes to be pinned. Fonts
-with variable COLR paints, coupled avar2 mappings, extended glyph or metric
-tables, or unhandled consumers of GDEF's variation store return an error.
-Their handlers are introduced by later stack members; preserving their old
-variation data after removing the axes would produce an incorrect font.
+At this stack boundary, instancing supports full and partial CFF2 fonts,
+including variable COLR paints and full avar2 locations. Partial coupled avar2,
+extended glyph or metric tables, and unhandled consumers of GDEF's variation
+store return an error until their handlers are introduced.
 
 CFF2 outline blends round the complete resolved operand using floating-point
 region scalars. Metrics measure the continuous source outline with double
