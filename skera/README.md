@@ -12,6 +12,10 @@ or computed targets require `--desubroutinize`; retained mode rejects them.
 Hint removal flattens individual glyphs when deleting their operands or changing
 caller-dependent mask boundaries would modify a shared program.
 
+VARC subsetting closes component references and remaps glyphs, conditions,
+axis-index lists, variation rows, and sparse regions. Packed component values,
+transforms, and reserved fields are preserved. VARC instancing is unsupported.
+
 CFF2 and TrueType fonts can be fully instantiated with `--instance wght=650,opsz=48`.
 TrueType instancing preserves composite glyphs, point order, and hint programs,
 and applies `gvar` phantom-point metrics and `cvar` control-value deltas.
