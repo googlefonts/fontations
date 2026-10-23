@@ -23,6 +23,8 @@ fn put(data: &mut [u8], offset: usize, value: i32) -> Result<(), SubsetError> {
     Ok(())
 }
 fn rounded(value: f64) -> i32 {
+    // HarfBuzz's metric/bounds roundf rounds ties toward positive infinity.
+    // Its CFF blend folding instead uses round (ties away from zero).
     (value + 0.5)
         .floor()
         .clamp(i32::MIN as f64, i32::MAX as f64) as i32

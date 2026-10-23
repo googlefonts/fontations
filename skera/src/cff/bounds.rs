@@ -1,7 +1,7 @@
 //! Continuous CFF2 control bounds with float scalars and double coordinates.
 use super::{
     charstring::{CharStringActions, Interpreter, Program, Value},
-    instance::{gains, resolve},
+    instance::gains,
     source::{Cff2, Source},
     Error, Result,
 };
@@ -18,6 +18,7 @@ struct Bounds<'a> {
     extent: Option<[f64; 4]>,
     open: bool,
     result: Result<()>,
+    remaining: usize,
 }
 impl Bounds<'_> {
     fn include(&mut self, point: [f64; 2]) {
@@ -166,11 +167,7 @@ impl CharStringActions<'_> for Bounds<'_> {
         values.clear();
         self.result = (|| {
             for v in args {
-                values.push(if let Some((ivs, deltas)) = &v.blend {
-                    resolve(v.default, deltas, self.scalars.get(*ivs).ok_or(Error)?)?
-                } else {
-                    v.default
-                });
+                values.push(v.resolve_continuous(self.scalars, &mut self.remaining)?);
             }
             self.path(op, &values)
         })();
@@ -201,6 +198,7 @@ pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64;
                 extent: None,
                 open: false,
                 result: Ok(()),
+                remaining: 200_000,
             };
             Interpreter::<Cff2, _, _>::new(&source, &mut bounds, fd, source.fds[fd].ivs, false)
                 .run(
