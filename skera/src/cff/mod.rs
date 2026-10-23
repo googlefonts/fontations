@@ -1,9 +1,11 @@
 //! CFF1 and CFF2 subsetters. Shared interpreter policies mirror HarfBuzz's
 //! template parameters without exposing them as a public extension API.
 
+mod bounds;
 mod charstring;
 mod dict;
 mod encoding;
+mod instance;
 mod source;
 mod subset;
 
@@ -67,4 +69,18 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
             let _ = subset::closure(&source, glyphs);
         }
     }
+}
+
+pub(crate) fn instance(
+    font: &FontRef,
+    axes: &crate::instance::AxisPlan,
+) -> std::result::Result<Vec<u8>, SubsetError> {
+    instance::instance(font, axes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+}
+
+pub(crate) fn instance_bounds(
+    font: &FontRef,
+    axes: &crate::instance::AxisPlan,
+) -> std::result::Result<Vec<Option<[f64; 4]>>, SubsetError> {
+    bounds::bounds(font, axes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
 }
