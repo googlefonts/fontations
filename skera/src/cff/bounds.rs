@@ -210,3 +210,147 @@ pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64;
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cff::charstring::flatten;
+    use crate::cff::charstring::Command;
+    use read_fonts::ps::{cff::index::Index, charstring as cs};
+
+    #[test]
+    fn zero_extents_preserve_the_original_bearing() {
+        use crate::{Plan, SubsetFlags};
+        use read_fonts::{collections::IntSet, types::NameId};
+        use write_fonts::FontBuilder;
+
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/cff2-nested-blends.otf"
+        ))
+        .unwrap();
+        let source = Source::new(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let plan = Plan::new(
+            &IntSet::all(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::<NameId>::all(),
+            &IntSet::all(),
+        );
+        let mut chars: Vec<_> = (0..source.font.num_glyphs() as usize)
+            .map(|gid| source.font.charstrings().get(gid).unwrap().to_vec())
+            .collect();
+        // A drawing operator with zero extents, rather than an empty program.
+        chars[0] = vec![139, 139, 21, 139, 139, 5];
+        let cff = crate::cff::subset::assemble::<Cff2>(
+            &source,
+            &plan,
+            crate::cff::subset::Programs {
+                chars,
+                globals: vec![],
+                locals: vec![vec![]; source.fds.len()],
+            },
+        )
+        .unwrap();
+        let mut metrics = font
+            .data_for_tag(Tag::new(b"hmtx"))
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        metrics[2..4].copy_from_slice(&50i16.to_be_bytes());
+        let mut builder = FontBuilder::new();
+        builder
+            .add_raw(Tag::new(b"CFF2"), cff)
+            .add_raw(Tag::new(b"hmtx"), metrics);
+        let input = builder.copy_missing_tables(font).build();
+        let output = crate::instance_font(
+            &FontRef::new(&input).unwrap(),
+            &crate::parse_axis_limits("wght=0.5,wdth=0.5").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            FontRef::new(&output)
+                .unwrap()
+                .hmtx()
+                .unwrap()
+                .side_bearing(GlyphId::new(0)),
+            Some(50)
+        );
+    }
+
+    #[test]
+    fn control_bounds_cover_every_type2_path_operator() {
+        let scalars = Vec::<Vec<f64>>::new();
+        let empty = Index::Empty;
+        let context = (&[][..], &empty, &empty, &empty);
+        for (op, counts) in [
+            (5, vec![2, 6]),
+            (6, vec![1, 4]),
+            (7, vec![1, 4]),
+            (8, vec![6, 12]),
+            (24, vec![8, 14]),
+            (25, vec![8, 12]),
+            (26, vec![4, 5, 8, 9]),
+            (27, vec![4, 5, 8, 9]),
+            (30, vec![4, 5, 8, 9, 12, 13]),
+            (31, vec![4, 5, 8, 9, 12, 13]),
+            (0x122, vec![7]),
+            (0x123, vec![13]),
+            (0x124, vec![9]),
+            (0x125, vec![11]),
+        ] {
+            for n in counts {
+                for swap in [false, true] {
+                    let args: Vec<_> = (0..n)
+                        .map(|i| {
+                            if (i % 2 == 0) == swap {
+                                (i + 1) as f64
+                            } else {
+                                -((i + 1) as f64)
+                            }
+                        })
+                        .collect();
+                    let mut bounds = Bounds {
+                        scalars: &scalars,
+                        args: Vec::new(),
+                        point: [0.; 2],
+                        extent: None,
+                        open: false,
+                        remaining: 200_000,
+                        result: Ok(()),
+                    };
+                    bounds.path(op, &args).unwrap();
+                    let commands = [
+                        Command {
+                            op: 21,
+                            args: vec![Value::plain(0.); 2],
+                            mask: vec![],
+                        },
+                        Command {
+                            op,
+                            args: args.iter().copied().map(Value::plain).collect(),
+                            mask: vec![],
+                        },
+                    ];
+                    let bytes = flatten(&commands, None, true, 0).unwrap();
+                    let mut reference = cs::ControlBoundsSink::new();
+                    cs::evaluate(&context, None, &bytes, &mut reference).unwrap();
+                    let b = reference.bounding_box().unwrap();
+                    assert_eq!(
+                        bounds.extent,
+                        Some([
+                            b.x_min.to_f64(),
+                            b.y_min.to_f64(),
+                            b.x_max.to_f64(),
+                            b.y_max.to_f64()
+                        ]),
+                        "op={op} n={n} swap={swap}"
+                    );
+                }
+            }
+        }
+    }
+}

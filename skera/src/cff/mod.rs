@@ -80,13 +80,13 @@ pub(crate) fn instance(
     instance::instance(font, axes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
 }
 
-pub(crate) fn downgrade(font: &FontRef) -> std::result::Result<Vec<u8>, SubsetError> {
-    downgrade::convert(font).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
-}
-
 pub(crate) fn instance_bounds(
     font: &FontRef,
     axes: &crate::instance::AxisPlan,
 ) -> std::result::Result<Vec<Option<[f64; 4]>>, SubsetError> {
     bounds::bounds(font, axes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+}
+
+pub(crate) fn downgrade(font: &FontRef) -> std::result::Result<Vec<u8>, SubsetError> {
+    downgrade::convert(font).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
 }
