@@ -71,7 +71,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
     let mut rec = Recorder::default();
-    let mut widths = BTreeMap::new();
+    let mut prefixes = BTreeMap::new();
     let mut roots = Vec::new();
     let mut chars = vec![F::empty_glyph(); plan.num_output_glyphs];
     for &(new, old) in &plan.new_to_old_gid_list {
@@ -94,21 +94,23 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
             let mut interpreter =
                 Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
             interpreter.run(key, data)?;
-            let width = interpreter.width;
+            let prefix = (interpreter.width, interpreter.vsindex());
             if !rec.merge(glyph) {
                 chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
             } else {
                 roots.push(key);
-                widths.insert(orig, width);
+                prefixes.insert(orig, prefix);
             }
         }
     }
     let mut globals = Vec::new();
     let mut locals = vec![Vec::new(); source.fds.len()];
     if !desub {
-        if nohint {
-            rec.remove_hint_calls();
-        }
+        let dropped = if nohint {
+            rec.drop_hints(&roots)?
+        } else {
+            BTreeSet::new()
+        };
         let used = rec.closure(&roots)?;
         let mut remap = BTreeMap::new();
         let mut shared_globals: BTreeMap<usize, Vec<Program>> = BTreeMap::new();
@@ -157,13 +159,18 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         }
         for &(new, old) in &plan.new_to_old_gid_list {
             let orig = old.to_u32() as usize;
-            if !widths.contains_key(&orig) {
+            let Some(&(width, vsindex)) = prefixes.get(&orig) else {
                 continue;
-            }
+            };
             let mut out = Vec::new();
-            if nohint {
-                if let Some(width) = widths[&orig] {
+            // Like harfbuzz, re-insert a width or vsindex removed along with hints.
+            if dropped.contains(&Program::Glyph(orig)) {
+                if let Some(width) = width {
                     encoding::encode(&mut out, width, false)?;
+                }
+                if let Some(ivs) = vsindex {
+                    encoding::integer(&mut out, i32::try_from(ivs).map_err(|_| Error)?);
+                    out.push(15);
                 }
             }
             out.extend(rec.encode(Program::Glyph(orig), &remap, globals.len(), &counts)?);
@@ -349,11 +356,7 @@ fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
         out.extend(u32::try_from(fds.len()).map_err(|_| Error)?.to_be_bytes());
         return Ok(out);
     }
-    if 1 + fds.len() < 5 + ranges.len() * 3 {
-        let mut out = vec![0];
-        out.extend(fds.iter().map(|&fd| fd as u8));
-        return Ok(out);
-    }
+    // Like harfbuzz, never use format 0, even when it would be smaller.
     let mut out = vec![3];
     out.extend((ranges.len() as u16).to_be_bytes());
     for (gid, fd) in ranges {
@@ -430,7 +433,13 @@ pub(super) fn assemble<F: CffFlavor>(
     let string_index = encoding::IndexLayout::new(&strings, false)?;
     let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
     let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
-    let select = fdselect(&fds, F::CFF2)?;
+    // CID-keyed fonts require an FDSelect. Like harfbuzz, CFF2 keeps one only
+    // if the source has one, and other CFF fonts never reference it.
+    let select = if source.cid || (F::CFF2 && source.top.iter().any(|e| e.op == 0x125)) {
+        fdselect(&fds, F::CFF2)?
+    } else {
+        vec![]
+    };
     let charset = if F::CFF2 { vec![] } else { charset(&codes)? };
     let enc = if F::CFF2 || source.cid {
         None
@@ -517,9 +526,14 @@ pub(super) fn assemble<F: CffFlavor>(
         };
         let mut replacements = vec![(17, Some(dict::replacement(17, &[cs])?))];
         if F::CFF2 || source.cid {
+            let fdselect = if select.is_empty() {
+                None
+            } else {
+                Some(dict::replacement(0x125, &[fdselect_pos])?)
+            };
             replacements.extend([
                 (0x124, Some(dict::replacement(0x124, &[fdarray_pos])?)),
-                (0x125, Some(dict::replacement(0x125, &[fdselect_pos])?)),
+                (0x125, fdselect),
             ]);
         } else {
             replacements.push((

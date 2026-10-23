@@ -91,7 +91,7 @@ pub(super) fn replacement(op: u16, args: &[usize]) -> Result<Vec<u8>> {
 }
 
 pub(super) fn is_hint(op: u16) -> bool {
-    matches!(op, 6..=11 | 0x109..=0x10e | 0x112)
+    matches!(op, 6..=11 | 0x109..=0x10e | 0x111..=0x112)
 }
 
 #[cfg(test)]

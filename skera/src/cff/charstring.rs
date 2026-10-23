@@ -1,8 +1,9 @@
 //! Type 2 interpretation with separate closure, retained, and flattened actions.
 //!
 //! Retained programs borrow source bytes and record only edits. Literal spans
-//! are sufficient for the common case. Retained calls require immediate literals;
-//! hint operands crossing program boundaries flatten only the affected glyph.
+//! are sufficient for the common case. Retained calls require immediate literals.
+//! Hints are removed from retained programs by marking whole tokens, as harfbuzz
+//! does, so subroutines stay shared.
 
 use super::{
     encoding,
@@ -68,9 +69,7 @@ pub(super) trait CharStringActions<'s> {
     ) -> Result<()> {
         Ok(())
     }
-    fn width(&mut self, _origin: Option<Origin>) {}
     fn mask(&mut self, _key: Program, _start: usize, _end: usize) {}
-    fn hint(&mut self, _key: Program, _start: usize, _end: usize, _args: &[Value]) {}
     fn command(&mut self, _op: u16, _args: &[Value], _mask: &[u8]) {}
 }
 // seac closure only needs the interpreter's result.
@@ -102,6 +101,21 @@ struct RecordedProgram<'s> {
     data: &'s [u8],
     edits: BTreeMap<usize, Edit>,
     masks: BTreeMap<usize, usize>,
+}
+/// A number, operator (with its mask bytes) or call (with its operand).
+struct Token {
+    start: usize,
+    end: usize,
+    op: Option<u16>,
+    call: Option<Program>,
+    hinting: bool,
+}
+/// Hint dropping state, as in harfbuzz's `drop_hints_param_t`.
+#[derive(Default)]
+struct DropHints {
+    seen_moveto: bool,
+    ends_in_hint: bool,
+    all_dropped: bool,
 }
 #[derive(Default)]
 pub(super) struct Recorder<'s> {
@@ -143,13 +157,6 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         // A caller-supplied target cannot be remapped at this shared offset.
         Err(Error)
     }
-    fn width(&mut self, origin: Option<Origin>) {
-        if let Some((key @ Program::Glyph(_), start, end)) = origin {
-            self.edit(key, start, Edit { end, call: None });
-        } else {
-            self.needs_flatten = true;
-        }
-    }
     fn mask(&mut self, key: Program, start: usize, end: usize) {
         let old = self
             .programs
@@ -159,21 +166,6 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
             .entry(start)
             .or_insert(end);
         self.needs_flatten |= *old != end;
-    }
-    fn hint(&mut self, key: Program, start: usize, end: usize, args: &[Value]) {
-        let mut first = start;
-        for value in args.iter().rev() {
-            let Some((producer, from, to)) = value.origin else {
-                self.needs_flatten = true;
-                return;
-            };
-            if producer != key || to != first {
-                self.needs_flatten = true;
-                return;
-            }
-            first = from;
-        }
-        self.edit(key, first, Edit { end, call: None });
     }
 }
 impl<'s> Recorder<'s> {
@@ -206,42 +198,133 @@ impl<'s> Recorder<'s> {
             edits.insert(start, edit);
         }
     }
-    fn only_hints(&self, key: Program, visiting: &mut BTreeSet<Program>) -> bool {
-        if !visiting.insert(key) {
-            return false;
-        }
-        let result = self.programs.get(&key).is_some_and(|p| {
-            let mut pos = 0;
-            for (&start, edit) in &p.edits {
-                if start < pos
-                    || p.data[pos..start].iter().any(|&b| b != 11)
-                    || edit.call.is_some_and(|t| !self.only_hints(t, visiting))
-                {
-                    return false;
-                }
+    /// Splits a recorded program into numbers, operators and calls, up to its
+    /// first `return` or `endchar`.
+    fn tokens(&self, key: Program) -> Result<Vec<Token>> {
+        let program = self.programs.get(&key).ok_or(Error)?;
+        let data = program.data;
+        let mut tokens = Vec::new();
+        let mut pos = 0;
+        while pos < data.len() {
+            let start = pos;
+            let mut call = None;
+            let op = if let Some(edit) = program.edits.get(&start) {
+                // Before hints are dropped, the only edits are calls.
                 pos = edit.end;
-            }
-            p.data[pos..].iter().all(|&b| b == 11)
-        });
-        visiting.remove(&key);
-        result
-    }
-    pub fn remove_hint_calls(&mut self) {
-        let dead: BTreeSet<_> = self
-            .programs
-            .keys()
-            .copied()
-            .filter(|&p| {
-                !matches!(p, Program::Glyph(_)) && self.only_hints(p, &mut BTreeSet::new())
-            })
-            .collect();
-        for p in self.programs.values_mut() {
-            for edit in p.edits.values_mut() {
-                if edit.call.is_some_and(|p| dead.contains(&p)) {
-                    edit.call = None;
-                }
+                call = edit.call;
+                Some(u16::from(*data.get(pos - 1).ok_or(Error)?))
+            } else if let Some(&end) = program.masks.get(&start) {
+                pos = end;
+                Some(u16::from(data[start]))
+            } else if encoding::number(data, &mut pos, false)?.is_some() {
+                None
+            } else {
+                Some(encoding::op(data, &mut pos)?)
+            };
+            tokens.push(Token {
+                start,
+                end: pos,
+                op,
+                call,
+                hinting: false,
+            });
+            if matches!(op, Some(11 | 14)) {
+                break;
             }
         }
+        Ok(tokens)
+    }
+    /// Marks hint tokens in `key` and the subroutines it calls, mirroring
+    /// harfbuzz's `drop_hints_in_str`. Returns whether a stem hint was seen.
+    fn drop_hints_in(
+        &self,
+        tokens: &mut BTreeMap<Program, Vec<Token>>,
+        key: Program,
+        drop: &mut DropHints,
+        depth: usize,
+    ) -> Result<bool> {
+        if depth > 10 {
+            return Err(Error);
+        }
+        let mut str = match tokens.remove(&key) {
+            Some(str) => str,
+            None => self.tokens(key)?,
+        };
+        let at_end =
+            |str: &[Token], pos: usize| str.get(pos + 1).is_none_or(|token| token.op == Some(11));
+        let mut seen_hint = false;
+        for pos in 0..str.len() {
+            let mut has_hint = false;
+            match (str[pos].op, str[pos].call) {
+                (_, Some(target)) => {
+                    drop.ends_in_hint = false;
+                    has_hint = self.drop_hints_in(tokens, target, drop, depth + 1)?;
+                    // A subroutine ending in a stem hint, or containing only
+                    // hints, is dropped along with its call.
+                    if drop.ends_in_hint {
+                        str[pos].hinting = true;
+                        if !at_end(&str, pos) {
+                            drop.ends_in_hint = false;
+                        }
+                    } else if drop.all_dropped {
+                        str[pos].hinting = true;
+                    }
+                }
+                (Some(4 | 21 | 22), _) => drop.seen_moveto = true,
+                (Some(19 | 20), _) if drop.seen_moveto => str[pos].hinting = true,
+                (Some(1 | 3 | 18 | 19 | 20 | 23), _) => {
+                    has_hint = true;
+                    str[pos].hinting = true;
+                    if at_end(&str, pos) {
+                        drop.ends_in_hint = true;
+                    }
+                }
+                (Some(0x100), _) => str[pos].hinting = true,
+                _ => (),
+            }
+            if has_hint {
+                // Everything since the previous hint is a hint operand.
+                for token in str[..pos].iter_mut().rev() {
+                    if token.hinting {
+                        break;
+                    }
+                    token.hinting = true;
+                }
+                seen_hint = true;
+            }
+        }
+        drop.all_dropped = str
+            .iter()
+            .take_while(|token| token.op != Some(11))
+            .all(|token| token.hinting);
+        tokens.insert(key, str);
+        Ok(seen_hint)
+    }
+    /// Removes hint operators and operands from retained programs the way
+    /// harfbuzz does, keeping subroutines shared. Glyphs are processed in
+    /// order, since marks persist across glyphs. Returns the glyphs that had
+    /// hints dropped, whose width or vsindex must be re-encoded.
+    pub fn drop_hints(&mut self, glyphs: &[Program]) -> Result<BTreeSet<Program>> {
+        let mut tokens = BTreeMap::new();
+        let mut dropped = BTreeSet::new();
+        for &glyph in glyphs {
+            if self.drop_hints_in(&mut tokens, glyph, &mut DropHints::default(), 0)? {
+                dropped.insert(glyph);
+            }
+        }
+        for (key, str) in tokens {
+            let edits = &mut self.programs.get_mut(&key).ok_or(Error)?.edits;
+            for token in str.iter().filter(|token| token.hinting) {
+                edits.insert(
+                    token.start,
+                    Edit {
+                        end: token.end,
+                        call: None,
+                    },
+                );
+            }
+        }
+        Ok(dropped)
     }
     pub fn closure(&self, roots: &[Program]) -> Result<BTreeSet<Program>> {
         let mut used = BTreeSet::new();
@@ -362,6 +445,10 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
     fn pop(&mut self) -> Result<Value> {
         self.stack.pop().ok_or(Error)
     }
+    /// The explicit vsindex of a CFF2 charstring, if any.
+    pub fn vsindex(&self) -> Option<usize> {
+        self.seen_ivs.then_some(self.ivs)
+    }
     fn push(&mut self, v: Value) -> Result<()> {
         if self.stack.len() >= F::STACK_LIMIT || !v.default.is_finite() {
             return Err(Error);
@@ -381,12 +468,8 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
         };
         self.width_read = true;
         if have {
-            let value = self.stack.remove(0);
-            self.width = Some(value.default);
             // Flattening emits the width separately, while recording keeps its original location.
-            if self.drop_hints {
-                self.actions.width(value.origin);
-            }
+            self.width = Some(self.stack.remove(0).default);
         }
         Ok(())
     }
@@ -494,9 +577,6 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                 0x100 => {
                     // dotsection is a deprecated no-op. Its live operands
                     // belong to the next command, even when hints are removed.
-                    if self.drop_hints {
-                        self.actions.hint(key, start, p, &[]);
-                    }
                 }
                 0x103..=0x105
                 | 0x109..=0x10c
@@ -532,9 +612,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                         ));
                     }
                     let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23);
-                    if hint && self.drop_hints {
-                        self.actions.hint(key, start, p, &self.stack);
-                    } else if !(F::CFF2 && op == 14) {
+                    if !(hint && self.drop_hints || F::CFF2 && op == 14) {
                         self.actions.command(op, &self.stack, mask);
                     }
                     self.stack.clear();
@@ -746,7 +824,13 @@ mod tests {
         Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
             .run(Program::Glyph(0), &data)
             .unwrap();
-        assert!(rec.needs_flatten);
+        assert!(!rec.needs_flatten);
+        rec.drop_hints(&[Program::Glyph(0)]).unwrap();
+        assert_eq!(
+            rec.encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
+                .unwrap(),
+            [139, 139, 21, 14]
+        );
         let mut flat = Flattener::default();
         Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
             .run(Program::Glyph(0), &data)
@@ -757,18 +841,29 @@ mod tests {
         );
     }
     #[test]
-    fn shared_hint_producers_require_flattening() {
+    fn shared_hint_producers_drop_only_the_hinting_call() {
         let source = Source(vec![vec![139, 149, 11]]);
         let mut rec = Recorder::default();
         Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
             .run(Program::Glyph(0), &[32, 10, 1, 139, 139, 21, 14])
             .unwrap();
-        assert!(rec.needs_flatten);
-        rec.needs_flatten = false;
         Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
             .run(Program::Glyph(1), &[32, 10, 21, 14])
             .unwrap();
         assert!(!rec.needs_flatten);
+        let dropped = rec
+            .drop_hints(&[Program::Glyph(0), Program::Glyph(1)])
+            .unwrap();
+        assert_eq!(dropped, [Program::Glyph(0)].into());
+        assert_eq!(
+            rec.closure(&[Program::Glyph(0)]).unwrap(),
+            [Program::Glyph(0)].into()
+        );
+        assert_eq!(
+            rec.encode(Program::Glyph(0), &BTreeMap::new(), 0, &[1])
+                .unwrap(),
+            [139, 139, 21, 14]
+        );
         assert_eq!(
             rec.encode(Program::Local(0, 0), &BTreeMap::new(), 0, &[1])
                 .unwrap(),
@@ -783,7 +878,7 @@ mod tests {
             .run(Program::Glyph(0), &[32, 10, 139, 139, 21, 14])
             .unwrap();
         assert!(!rec.needs_flatten);
-        rec.remove_hint_calls();
+        rec.drop_hints(&[Program::Glyph(0)]).unwrap();
         assert_eq!(
             rec.closure(&[Program::Glyph(0)]).unwrap(),
             [Program::Glyph(0)].into()
