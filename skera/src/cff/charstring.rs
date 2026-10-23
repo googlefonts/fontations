@@ -612,7 +612,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                         ));
                     }
                     let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23);
-                    if !(hint && self.drop_hints) && !(F::CFF2 && op == 14) {
+                    if !(hint && self.drop_hints || F::CFF2 && op == 14) {
                         self.actions.command(op, &self.stack, mask);
                     }
                     self.stack.clear();
