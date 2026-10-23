@@ -71,7 +71,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
     let mut rec = Recorder::default();
-    let mut widths = BTreeMap::new();
+    let mut prefixes = BTreeMap::new();
     let mut roots = Vec::new();
     let mut chars = vec![F::empty_glyph(); plan.num_output_glyphs];
     for &(new, old) in &plan.new_to_old_gid_list {
@@ -94,21 +94,23 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
             let mut interpreter =
                 Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
             interpreter.run(key, data)?;
-            let width = interpreter.width;
+            let prefix = (interpreter.width, interpreter.vsindex());
             if !rec.merge(glyph) {
                 chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
             } else {
                 roots.push(key);
-                widths.insert(orig, width);
+                prefixes.insert(orig, prefix);
             }
         }
     }
     let mut globals = Vec::new();
     let mut locals = vec![Vec::new(); source.fds.len()];
     if !desub {
-        if nohint {
-            rec.remove_hint_calls();
-        }
+        let dropped = if nohint {
+            rec.drop_hints(&roots)?
+        } else {
+            BTreeSet::new()
+        };
         let used = rec.closure(&roots)?;
         let mut remap = BTreeMap::new();
         let mut shared_globals: BTreeMap<usize, Vec<Program>> = BTreeMap::new();
@@ -157,13 +159,18 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         }
         for &(new, old) in &plan.new_to_old_gid_list {
             let orig = old.to_u32() as usize;
-            if !widths.contains_key(&orig) {
+            let Some(&(width, vsindex)) = prefixes.get(&orig) else {
                 continue;
-            }
+            };
             let mut out = Vec::new();
-            if nohint {
-                if let Some(width) = widths[&orig] {
+            // Like harfbuzz, re-insert a width or vsindex removed along with hints.
+            if dropped.contains(&Program::Glyph(orig)) {
+                if let Some(width) = width {
                     encoding::encode(&mut out, width, false)?;
+                }
+                if let Some(ivs) = vsindex {
+                    encoding::integer(&mut out, i32::try_from(ivs).map_err(|_| Error)?);
+                    out.push(15);
                 }
             }
             out.extend(rec.encode(Program::Glyph(orig), &remap, globals.len(), &counts)?);
