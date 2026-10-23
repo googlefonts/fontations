@@ -137,6 +137,7 @@ impl TrueTypeHinter {
             .head()
             .map(|head| head.flags().contains(HeadFlags::FORCE_INTEGER_PPEM))
             .unwrap_or_default();
+        let requested_ppem = ppem;
         let ppem = if fractional_sizes {
             ppem
         } else {
@@ -168,12 +169,23 @@ impl TrueTypeHinter {
         self.scale = Some(scale);
         self.ppem = ppem;
         self.pedantic = hinting.pedantic();
-        // FreeType never takes advances from `hdmx` for a fixed pitch font.
-        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/a5877f48fff8dd6cf8d53c505ce055499376aee2/src/truetype/ttgload.c#L2324>
-        let fixed_pitch = tables.post().is_ok_and(|post| post.is_fixed_pitch() != 0);
-        self.hdmx_widths = (!fixed_pitch)
-            .then(|| hdmx_widths(tables, rounded_ppem))
-            .flatten();
+        self.hdmx_widths = if hinting.classic_cleartype() {
+            // The classic behavior takes advances from `hdmx` only at a
+            // requested size that is a whole number of pixels, as
+            // `HintingInstance` does, for a fixed pitch font too.
+            let size = requested_ppem as u8;
+            (size as f32 == requested_ppem)
+                .then(|| hdmx_widths(tables, size as i32))
+                .flatten()
+        } else {
+            // FreeType never takes advances from `hdmx` for a fixed pitch
+            // font.
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/a5877f48fff8dd6cf8d53c505ce055499376aee2/src/truetype/ttgload.c#L2324>
+            let fixed_pitch = tables.post().is_ok_and(|post| post.is_fixed_pitch() != 0);
+            (!fixed_pitch)
+                .then(|| hdmx_widths(tables, rounded_ppem))
+                .flatten()
+        };
         self.scratch_lengths = ScratchLengths {
             stack: hint_tables.max_stack_elements as usize,
             cvt: hint_tables.cvt.len(),

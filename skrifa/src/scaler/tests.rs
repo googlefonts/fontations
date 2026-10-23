@@ -3,7 +3,8 @@ use crate::{
     instance::LocationRef,
     outline::{
         pen::{NullPen, SvgPen},
-        DrawSettings, Engine, HintingInstance, HintingOptions, SmoothMode, Target as OutlineTarget,
+        DrawSettings, Engine, HintingInstance, HintingMode, HintingOptions, SmoothMode,
+        Target as OutlineTarget,
     },
     FontRef, MetadataProvider,
 };
@@ -673,65 +674,82 @@ fn hinting_defaults() {
     assert!(!hinting.pedantic());
 }
 
+/// Returns Tinos with each width in its first `hdmx` record widened by a
+/// pixel, and optionally marked fixed pitch in `post`.
+///
+/// Tinos's device widths are its hinted advances, so widening them tells an
+/// advance taken from `hdmx` apart from a hinted one.
+fn widened_tinos(fixed_pitch: bool) -> Font {
+    use raw::{model::Blob, types::Tag};
+    let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
+        let font = FontRef::new(font_test_data::TINOS_SUBSET).ok()?;
+        let mut data = font.table_data(tag)?.as_bytes().to_vec();
+        if tag == Tag::new(b"hdmx") {
+            let num_widths = font.hdmx().ok()?.records().get(0).ok()?.widths().len();
+            // The header, then the first record's size and maximum.
+            data[10..10 + num_widths]
+                .iter_mut()
+                .for_each(|width| *width += 1);
+        }
+        if tag == Tag::new(b"post") && fixed_pitch {
+            data[12..16].copy_from_slice(&1u32.to_be_bytes());
+        }
+        Some(Blob::from(data))
+    });
+    Font::new(source, 0).unwrap()
+}
+
+/// Returns a bilevel interpreter configuration, which reads `hdmx`; a
+/// smooth one draws in backward compatibility mode, which leaves it alone.
+fn mono(classic: bool) -> HintOptions {
+    HintOptions::interpreter()
+        .with_target(RasterTarget::Mono)
+        .with_classic_cleartype(classic)
+}
+
 // FreeType looks a glyph's `hdmx` advance up by the size rounded to a whole
-// pixel, so a fractional size still takes the device width.
+// pixel, so a fractional size still takes the device width. The classic
+// behavior, like `HintingInstance`, reads `hdmx` only at a whole size.
 #[test]
 fn hdmx_is_looked_up_by_the_rounded_size() {
     let font_ref = FontRef::new(font_test_data::TINOS_SUBSET).unwrap();
-    let hdmx = font_ref.hdmx().unwrap();
-    let record = hdmx.records().get(0).unwrap();
-    let size = record.pixel_size() as f32;
-    // A bilevel target applies the device widths; a smooth one draws in
-    // backward compatibility mode, which leaves them alone.
-    let scaler = ScalerFont::hinted(
-        font(font_test_data::TINOS_SUBSET),
-        size - 0.25,
-        HintOptions::interpreter()
-            .with_target(RasterTarget::Mono)
-            .with_classic_cleartype(true),
+    let record = font_ref.hdmx().unwrap().records().get(0).unwrap();
+    let size = record.pixel_size() as f32 - 0.25;
+    let enhanced = ScalerFont::hinted(widened_tinos(false), size, mono(false));
+    let classic = ScalerFont::hinted(widened_tinos(false), size, mono(true));
+    let (_, instance) = classic_instance(
+        font_test_data::TINOS_SUBSET,
+        Size::new(size),
+        HintingMode::Strong.into(),
     );
-    assert!(scaler.is_hinted());
+    let outlines = font_ref.outline_glyphs();
     for (gid, width) in record.widths().iter().enumerate() {
-        let metrics = draw(&scaler, GlyphId::new(gid as u32), &mut NullPen).unwrap();
-        assert_eq!(metrics.h_advance, Some(*width as f32), "gid {gid}");
+        let gid = GlyphId::new(gid as u32);
+        let advance = |scaler: &ScalerFont| draw(scaler, gid, &mut NullPen).unwrap().h_advance;
+        assert_eq!(advance(&enhanced), Some(*width as f32 + 1.0), "gid {gid}");
+        let expected = outlines
+            .get(gid)
+            .unwrap()
+            .draw(&instance, &mut NullPen)
+            .unwrap()
+            .advance_width;
+        assert_eq!(advance(&classic), expected, "gid {gid}");
+        assert_ne!(advance(&classic), Some(*width as f32 + 1.0), "gid {gid}");
     }
 }
 
 // FreeType takes no advance from `hdmx` for a font whose `post` table says
-// it is fixed pitch.
+// it is fixed pitch. The classic behavior, like `HintingInstance`, does.
 #[test]
 fn hdmx_is_ignored_for_a_fixed_pitch_font() {
-    use raw::{model::Blob, types::Tag};
     let font_ref = FontRef::new(font_test_data::TINOS_SUBSET).unwrap();
     let record = font_ref.hdmx().unwrap().records().get(0).unwrap();
-    let num_widths = record.widths().len();
-    // Tinos's device widths are its hinted advances, so each is widened by
-    // a pixel to tell them apart.
-    let tinos = |fixed_pitch: bool| {
-        let source: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> = Arc::new(move |tag| {
-            let font = FontRef::new(font_test_data::TINOS_SUBSET).ok()?;
-            let mut data = font.table_data(tag)?.as_bytes().to_vec();
-            if tag == Tag::new(b"hdmx") {
-                // The header, then the first record's size and maximum.
-                data[10..10 + num_widths]
-                    .iter_mut()
-                    .for_each(|width| *width += 1);
-            }
-            if tag == Tag::new(b"post") && fixed_pitch {
-                data[12..16].copy_from_slice(&1u32.to_be_bytes());
-            }
-            Some(Blob::from(data))
-        });
-        let hinting = HintOptions::interpreter()
-            .with_target(RasterTarget::Mono)
-            .with_classic_cleartype(true);
-        ScalerFont::hinted(
-            Font::new(source, 0).unwrap(),
-            record.pixel_size() as f32,
-            hinting,
-        )
-    };
-    let (proportional, fixed_pitch) = (tinos(false), tinos(true));
+    let size = record.pixel_size() as f32;
+    let scaler =
+        |fixed_pitch, classic| ScalerFont::hinted(widened_tinos(fixed_pitch), size, mono(classic));
+    let proportional = scaler(false, false);
+    let fixed_pitch = scaler(true, false);
+    let classic_fixed_pitch = scaler(true, true);
     for (gid, width) in record.widths().iter().enumerate() {
         let gid = GlyphId::new(gid as u32);
         let advance = |scaler: &ScalerFont| draw(scaler, gid, &mut NullPen).unwrap().h_advance;
@@ -741,6 +759,11 @@ fn hdmx_is_ignored_for_a_fixed_pitch_font() {
             "gid {gid}"
         );
         assert_eq!(advance(&fixed_pitch), Some(*width as f32), "gid {gid}");
+        assert_eq!(
+            advance(&classic_fixed_pitch),
+            Some(*width as f32 + 1.0),
+            "gid {gid}"
+        );
     }
 }
 

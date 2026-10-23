@@ -135,7 +135,15 @@ impl HintOptions {
     /// positions. With the classic behavior, every glyph is grid fitted, the
     /// symmetric rendering bit of `GETINFO` follows
     /// [`symmetric_rendering`](Self::symmetric_rendering) alone, and
-    /// horizontal moves round to whole pixels. This is the behavior of
+    /// horizontal moves round to whole pixels.
+    ///
+    /// The setting also chooses when an advance comes from the `hdmx` table.
+    /// By default, as in FreeType, the table is read at the size rounded to
+    /// a whole pixel and ignored for a font that `post` marks as fixed
+    /// pitch. With the classic behavior, it is read only at a whole pixel
+    /// size, for any font.
+    ///
+    /// The classic behavior is that of
     /// [`HintingInstance`](crate::outline::HintingInstance). Defaults to off.
     ///
     /// See <https://github.com/googlefonts/fontations/issues/2112>.
