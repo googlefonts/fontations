@@ -284,7 +284,7 @@ impl AxisPlan {
         let metric_coords = metric_coords
             .into_iter()
             .map(|c| F2Dot14::from_bits(((c + 2) >> 2) as i16))
-            .collect();
+            .collect::<Vec<_>>();
         if coupled {
             pinned.fill(false);
         }
@@ -379,6 +379,32 @@ impl AxisPlan {
             .filter(|(i, _)| !self.pinned[*i])
         {
             let u = self.user[i];
+            // SegmentMaps::subset copies maps for axes absent from the
+            // requested location. Inverting and rebuilding those maps can
+            // alter flat segments even though the axis was left unchanged.
+            if !self.values.iter().any(|(tag, _)| *tag == axis.axis_tag) {
+                segment_maps.push(maps.as_ref().and_then(|m| m.get(i)).map_or_else(
+                    || {
+                        SegmentMaps::new(
+                            [-1., 0., 1.]
+                                .into_iter()
+                                .map(|v| {
+                                    AxisValueMap::new(F2Dot14::from_f64(v), F2Dot14::from_f64(v))
+                                })
+                                .collect(),
+                        )
+                    },
+                    |m| {
+                        SegmentMaps::new(
+                            m.axis_value_maps()
+                                .iter()
+                                .map(|v| AxisValueMap::new(v.from_coordinate(), v.to_coordinate()))
+                                .collect(),
+                        )
+                    },
+                ));
+                continue;
+            }
             if self.coupled && self.user_pinned[i] {
                 segment_maps.push(SegmentMaps::new(
                     [-1., 0., 1.]
@@ -420,11 +446,15 @@ impl AxisPlan {
             knots.sort_by(f64::total_cmp);
             knots.dedup();
             let mut values = std::collections::BTreeMap::new();
+            let distances = (self.distances[i].0 as f32, self.distances[i].1 as f32);
             for v in knots {
                 let to = map.map_or(v, |m| map_float(m, v, false));
-                let from = F2Dot14::from_f64(renormalize(v, pre, self.distances[i]));
-                let to = F2Dot14::from_f64(
-                    renormalize(to, self.normalized[i], self.distances[i]).clamp(-1., 1.),
+                let from = normalized_coord(
+                    renormalize(v as f32, pre.map(|v| v as f32), distances) as f64,
+                );
+                let to = normalized_coord(
+                    renormalize(to as f32, self.normalized[i].map(|v| v as f32), distances)
+                        .clamp(-1., 1.) as f64,
                 );
                 values.insert(from, to);
             }

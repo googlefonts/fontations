@@ -28,11 +28,19 @@ impl Context<'_> {
             return Ok(0.);
         }
         let error = || SubsetError::SubsetTableError(Tag::new(b"GDEF"));
-        let store = self.store.as_ref().ok_or_else(error)?;
+        let Some(store) = self.store.as_ref() else {
+            return Ok(0.);
+        };
+        if index.outer >= store.item_variation_data_count() {
+            return Ok(0.);
+        }
         let Some(data) = store.item_variation_data().get(index.outer as usize) else {
             return Ok(0.);
         };
         let data = data.map_err(|_| error())?;
+        if index.inner >= data.item_count() {
+            return Ok(0.);
+        }
         let regions = store.variation_region_list().map_err(|_| error())?;
         data.region_indexes()
             .iter()
@@ -49,11 +57,14 @@ impl Context<'_> {
         if (DeltaSetIndex { outer, inner }) == DeltaSetIndex::NO_VARIATION_INDEX {
             return Ok(0);
         }
-        self.store
+        // HarfBuzz evaluates an absent store or missing delta row as zero.
+        // Subsetting can remove a store once all its residual regions vanish.
+        Ok(self
+            .store
             .as_ref()
             .and_then(|s| s.compute_delta(DeltaSetIndex { outer, inner }, self.coords))
             .map(|v| v.to_f64().round() as i64)
-            .ok_or(SubsetError::SubsetTableError(Tag::new(b"GDEF")))
+            .unwrap_or(0))
     }
     fn delta(&self, outer: u16, inner: u16) -> Result<i32, SubsetError> {
         Ok(self
@@ -857,6 +868,36 @@ mod tests {
             .into()],
         })
         .unwrap()
+    }
+
+    #[test]
+    fn removed_variation_stores_and_rows_evaluate_to_zero() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=900").unwrap()).unwrap();
+        let bytes = store_bytes(&[[10, 20]]);
+        let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
+        for store in [None, Some(store)] {
+            let c = Context {
+                store,
+                coords: &axes.coords,
+                axes: &axes,
+                condition_biases: RefCell::new(Vec::new()),
+            };
+            for (outer, inner) in [
+                (0, 1),
+                (1, 0),
+                (0, u16::MAX),
+                (u16::MAX, 0),
+                (u16::MAX, u16::MAX),
+            ] {
+                assert_eq!(c.wide_delta(outer, inner).unwrap(), 0);
+                assert_eq!(
+                    c.condition_delta(DeltaSetIndex { outer, inner }).unwrap(),
+                    0.
+                );
+            }
+        }
     }
 
     #[test]
