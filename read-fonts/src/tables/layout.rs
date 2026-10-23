@@ -953,39 +953,33 @@ impl<'a> ClassDefFormat2<'a> {
         }
 
         // An empty ClassDef assigns class 0 to every glyph. This needs to be
-        // handled up front: with no ranges the class 0 walk below starts from
-        // `first + 1` and so misses `first` itself.
+        // handled up front: with no ranges the class 0 walk below never looks
+        // at a glyph, and so reports no intersection.
         if self.class_range_count() == 0 {
             return class == 0;
         }
 
         let first = glyphs.first().unwrap().to_u32();
         if class == 0 {
-            let mut last_end = first;
-            for (i, range) in self.class_range_records().iter().enumerate() {
-                let range_start = range.start_glyph_id().to_u32();
-                let range_end = range.end_glyph_id().to_u32();
-                if i == 0 {
-                    if first < range_start {
-                        return true;
-                    }
-                    last_end = range_end;
-                    continue;
-                }
-
-                if range_start == last_end + 1 {
-                    last_end = range_end;
-                    continue;
-                }
-
-                if glyphs
-                    .intersects_range(GlyphId::from(last_end + 1)..=GlyphId::from(range_start - 1))
-                {
-                    return true;
+            // Matches if there's any glyph that is not covered by a range: the next glyph
+            // after the previous range is before a range's start, or after the last range.
+            let records = self.class_range_records();
+            // the end of the previous range, `None` before the first range
+            let mut g: Option<GlyphId> = None;
+            for range in records {
+                let next = match g {
+                    None => glyphs.first(),
+                    Some(g) => glyphs.next_after(g),
                 };
-                last_end = range_end + 1;
+                let Some(next) = next else {
+                    break;
+                };
+                if next.to_u32() < range.start_glyph_id().to_u32() {
+                    return true;
+                }
+                g = Some(GlyphId::new(range.end_glyph_id().to_u32()));
             }
-            if glyphs.next_after(GlyphId::from(last_end + 1)).is_some() {
+            if g.is_some_and(|g| glyphs.next_after(g).is_some()) {
                 return true;
             }
         }
@@ -1610,6 +1604,84 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![0]
         );
+    }
+
+    // Class 0 intersects exactly when some glyph isn't covered by any range, including
+    // the glyphs right after a range's end.
+    #[test]
+    fn classdef_format2_intersects_class_zero() {
+        // ranges 10..=20, 30..=40 and 41..=50, all class 1
+        let classdef = ClassDefFormat2::read(FontData::new(&[
+            0, 2, 0, 3, 0, 10, 0, 20, 0, 1, 0, 30, 0, 40, 0, 1, 0, 41, 0, 50, 0, 1,
+        ]))
+        .unwrap();
+        for (gids, expected) in [
+            // covered glyphs
+            (vec![10u32], false),
+            (vec![15, 20, 30, 40, 41, 50], false),
+            // before the first range
+            (vec![9, 15], true),
+            // in the gap between ranges, right after a range
+            (vec![21], true),
+            (vec![29], true),
+            // after the last range, right after it
+            (vec![51], true),
+            (vec![52], true),
+            (vec![15, 51], true),
+        ] {
+            let glyphs: IntSet<GlyphId> = gids.iter().copied().map(GlyphId::new).collect();
+            assert_eq!(
+                classdef.intersects_class_glyphs(&glyphs, 0),
+                expected,
+                "{gids:?}"
+            );
+            // class 0 intersects exactly when some glyph isn't covered by a range
+            assert_eq!(
+                classdef.intersect_classes(&glyphs).contains(0),
+                expected,
+                "{gids:?}"
+            );
+        }
+
+        // ranges 10..=20 and 30..=40, class 1
+        let classdef = ClassDefFormat2::read(FontData::new(&[
+            0, 2, 0, 2, 0, 10, 0, 20, 0, 1, 0, 30, 0, 40, 0, 1,
+        ]))
+        .unwrap();
+        for (gids, expected) in [
+            (vec![35u32], false),
+            (vec![41], true),
+            (vec![42], true),
+            (vec![35, 41], true),
+        ] {
+            let glyphs: IntSet<GlyphId> = gids.iter().copied().map(GlyphId::new).collect();
+            assert_eq!(
+                classdef.intersects_class_glyphs(&glyphs, 0),
+                expected,
+                "{gids:?}"
+            );
+        }
+
+        // ranges 0..=5 and 10..=20, class 1: a first range starting at glyph 0
+        // covers its glyphs too.
+        let classdef = ClassDefFormat2::read(FontData::new(&[
+            0, 2, 0, 2, 0, 0, 0, 5, 0, 1, 0, 10, 0, 20, 0, 1,
+        ]))
+        .unwrap();
+        for (gids, expected) in [
+            (vec![15u32], false),
+            (vec![3], false),
+            (vec![0, 3, 15], false),
+            (vec![7], true),
+            (vec![3, 21], true),
+        ] {
+            let glyphs: IntSet<GlyphId> = gids.iter().copied().map(GlyphId::new).collect();
+            assert_eq!(
+                classdef.intersects_class_glyphs(&glyphs, 0),
+                expected,
+                "{gids:?}"
+            );
+        }
     }
 
     // Both spellings of an empty ClassDef must behave identically.
