@@ -84,7 +84,8 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                             .transforms
                             .get(ivs)
                             .ok_or(Error)?;
-                        value.default += transform.fold(&deltas).map_err(|_| Error)?.round();
+                        value.default +=
+                            resolve(0., &deltas, transforms.get(ivs).ok_or(Error)?)?.round();
                         let residual: Vec<_> = transform
                             .residual(&deltas)
                             .map_err(|_| Error)?
@@ -156,7 +157,10 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
                                 .transforms
                                 .get(ivs)
                                 .ok_or(Error)?;
-                            let f = t.fold(&deltas).map_err(|_| Error)?;
+                            if deltas.len() != g.len() {
+                                return Err(Error);
+                            }
+                            let f: f64 = deltas.iter().zip(g).map(|(d, s)| d * s).sum();
                             fold_exact += f;
                             let emitted = fold_exact.round();
                             value.default += emitted - fold_emitted;
@@ -224,10 +228,18 @@ pub(super) fn instance(font: &FontRef, axes: &AxisPlan) -> Result<Vec<u8>> {
     }
     if partial {
         if let (Some(plan), Some(store)) = (&store_plan, source.font.var_store()) {
-            let table = plan.rebuild(store).map_err(|_| Error)?;
+            let mut table = plan.rebuild(store).map_err(|_| Error)?;
+            // CFF2 stores carry region indexes only; blend deltas live in
+            // charstrings/DICTs, so both itemCount and wordDeltaCount are zero.
+            for data in &mut table.item_variation_data {
+                if let Some(data) = data.as_mut() {
+                    data.word_delta_count = 0;
+                }
+            }
             let bytes = write_fonts::dump_table(&table).map_err(|_| Error)?;
+            // OFF 2026 5.3.3.11.2: larger stores use length=65535.
             let mut data = u16::try_from(bytes.len())
-                .map_err(|_| Error)?
+                .unwrap_or(u16::MAX)
                 .to_be_bytes()
                 .to_vec();
             data.extend(bytes);
@@ -357,8 +369,9 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
             }
         }
         let data = write_fonts::dump_table(&table).map_err(|_| Error)?;
+        // The length field saturates; all store bytes must still be written.
         let mut bytes = u16::try_from(data.len())
-            .map_err(|_| Error)?
+            .unwrap_or(u16::MAX)
             .to_be_bytes()
             .to_vec();
         bytes.extend(data);
@@ -408,4 +421,30 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
             locals,
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{types::F2Dot14, FontData, FontRead};
+    use write_fonts::tables::variations::*;
+
+    #[test]
+    fn cff_scalars_keep_half_unit_operands_on_the_correct_side() {
+        let bytes = write_fonts::dump_table(&VariationRegionList::new(
+            1,
+            vec![write_fonts::tables::variations::VariationRegion::new(vec![
+                RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::from_f64(0.75), F2Dot14::ONE),
+            ])],
+        ))
+        .unwrap();
+        let list = read_fonts::tables::variations::VariationRegionList::read(FontData::new(&bytes))
+            .unwrap();
+        let region = list.variation_regions().get(0).unwrap();
+        let gain = region.compute_scalar_f32(&[F2Dot14::from_f64(0.25)]) as f64;
+        assert_eq!(resolve(0., &[1.5], &[gain]).unwrap().round(), 1.);
+        assert_eq!(resolve(0., &[-1.5], &[gain]).unwrap().round(), -1.);
+        assert_eq!(resolve(0.25, &[0.5], &[gain]).unwrap().round(), 0.);
+        assert_eq!(resolve(0.25, &[1.], &[gain]).unwrap().round(), 1.);
+    }
 }

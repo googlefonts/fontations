@@ -21,6 +21,7 @@ use write_fonts::FontBuilder;
 /// instance, create a `Plan` from the returned font and call `subset_font`.
 /// Coupled avar2 pins remain hidden axes until full instancing; restricted
 /// ranges can introduce F2Dot14 rounding differences in the axis mapping.
+/// VARC component instancing is not supported and returns an error.
 pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, SubsetError> {
     if limits.is_empty() {
         return Ok(copy_font(font));
@@ -31,6 +32,11 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
         ));
     }
     let axes = AxisPlan::new(font, limits)?;
+    if font.data_for_tag(Tag::new(b"VARC")).is_some() {
+        return Err(SubsetError::InvalidAxis(
+            "instancing CFF2 fonts with VARC components is not supported".into(),
+        ));
+    }
     check_supported_tables(font)?;
     let mut tables: BTreeMap<Tag, Vec<u8>> = font
         .table_directory()
@@ -67,21 +73,16 @@ pub fn instance_font(font: &FontRef, limits: &[AxisLimits]) -> Result<Vec<u8>, S
 // Adding a table handler must also remove its guard here. Consuming fvar or
 // GDEF's store while preserving an unhandled consumer would freeze stale data.
 fn check_supported_tables(font: &FontRef) -> Result<(), SubsetError> {
-    for tag in [
-        b"VARC", b"GLYF", b"GVAR", b"HMTX", b"HHEA", b"VMTX", b"VHEA",
-    ] {
+    for tag in [b"GLYF", b"GVAR", b"HMTX", b"HHEA", b"VMTX", b"VHEA"] {
         let tag = Tag::new(tag);
         if font.data_for_tag(tag).is_some() {
             return Err(SubsetError::SubsetTableError(tag));
         }
     }
-    if font.gdef().ok().and_then(|g| g.item_var_store()).is_some() {
-        for tag in [b"MATH", b"JSTF"] {
-            let tag = Tag::new(tag);
-            if font.data_for_tag(tag).is_some() {
-                return Err(SubsetError::SubsetTableError(tag));
-            }
-        }
+    if font.gdef().ok().and_then(|g| g.item_var_store()).is_some()
+        && font.data_for_tag(Tag::new(b"JSTF")).is_some()
+    {
+        return Err(SubsetError::SubsetTableError(Tag::new(b"JSTF")));
     }
     Ok(())
 }
@@ -116,4 +117,28 @@ pub fn downgrade_cff2(font: &FontRef) -> Result<Vec<u8>, SubsetError> {
     }
     builder.add_raw(Tag::new(b"CFF "), data);
     Ok(builder.build())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn varc_components_are_rejected_instead_of_copying_stale_axes() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+        }
+        builder
+            .add_table(&write_fonts::tables::varc::Varc::default())
+            .unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(matches!(
+            instance_font(&font,&parse_axis_limits("wght=900").unwrap()),
+            Err(SubsetError::InvalidAxis(message)) if message.contains("VARC")
+        ));
+    }
 }
