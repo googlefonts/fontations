@@ -433,8 +433,9 @@ pub(super) fn assemble<F: CffFlavor>(
     let string_index = encoding::IndexLayout::new(&strings, false)?;
     let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
     let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
-    // Only CFF2 and CID-keyed fonts reference an FDSelect.
-    let select = if F::CFF2 || source.cid {
+    // CID-keyed fonts require an FDSelect. Like harfbuzz, CFF2 keeps one only
+    // if the source has one, and other CFF fonts never reference it.
+    let select = if source.cid || (F::CFF2 && source.top.iter().any(|e| e.op == 0x125)) {
         fdselect(&fds, F::CFF2)?
     } else {
         vec![]
@@ -525,9 +526,14 @@ pub(super) fn assemble<F: CffFlavor>(
         };
         let mut replacements = vec![(17, Some(dict::replacement(17, &[cs])?))];
         if F::CFF2 || source.cid {
+            let fdselect = if select.is_empty() {
+                None
+            } else {
+                Some(dict::replacement(0x125, &[fdselect_pos])?)
+            };
             replacements.extend([
                 (0x124, Some(dict::replacement(0x124, &[fdarray_pos])?)),
-                (0x125, Some(dict::replacement(0x125, &[fdselect_pos])?)),
+                (0x125, fdselect),
             ]);
         } else {
             replacements.push((
