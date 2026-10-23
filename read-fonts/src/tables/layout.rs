@@ -242,9 +242,29 @@ impl SelectedFeatureVariations {
 }
 
 impl FeatureTableSubstitutionRecord {
+    /// The alternate feature table.
+    ///
+    /// The table is read with a placeholder tag, so its
+    /// [`feature_params`](Feature::feature_params) can't be resolved; use
+    /// [`Self::alternate_feature_with_tag`] when they are needed.
     pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
             .resolve_with_args(data, Tag::new(b"NULL"))
+    }
+
+    /// The alternate feature table, read with `feature_tag`: the tag of the
+    /// feature it replaces, i.e. the feature at
+    /// [`feature_index`](Self::feature_index) in the [`FeatureList`].
+    ///
+    /// The format of a feature's [`FeatureParams`] depends on its tag, so the
+    /// tag is needed to resolve the alternate feature's params.
+    pub fn alternate_feature_with_tag<'a>(
+        &self,
+        data: FontData<'a>,
+        feature_tag: Tag,
+    ) -> Result<Feature<'a>, ReadError> {
+        self.alternate_feature_offset()
+            .resolve_with_args(data, feature_tag)
     }
 }
 

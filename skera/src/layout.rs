@@ -36,8 +36,7 @@ use read_fonts::{
     },
     types::{FixedSize, GlyphId24, Offset16, Offset32, Tag, Uint24},
     types::{GlyphId, NameId},
-    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, ResolveOffset,
-    TopLevelTable,
+    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
 };
 
 use read_fonts::limits::{
@@ -139,14 +138,12 @@ pub(crate) fn collect_feature_variations_name_ids(
                 continue;
             }
             // An alternate feature's FeatureParams are read with the tag of the
-            // feature it replaces. FeatureTableSubstitutionRecord::alternate_feature
-            // reads it with a placeholder tag, so resolve the offset here instead.
+            // feature it replaces.
             let Some(record) = feature_records.get(feature_index as usize) else {
                 continue;
             };
-            if let Ok(alternate) = rec
-                .alternate_feature_offset()
-                .resolve_with_args::<Feature>(subs.offset_data(), record.feature_tag())
+            if let Ok(alternate) =
+                rec.alternate_feature_with_tag(subs.offset_data(), record.feature_tag())
             {
                 alternate.collect_name_ids(plan);
             }
@@ -746,6 +743,13 @@ fn feature_params_bytes<'a>(f: &Feature<'a>, tag: Tag) -> Option<&'a [u8]> {
     data.as_bytes().get(..len)
 }
 
+/// Whether features with this tag define FeatureParams: only `size`, `ssXX`
+/// and `cvXX` do.
+fn has_feature_params(tag: Tag) -> bool {
+    let raw_tag = tag.to_be_bytes();
+    tag == Tag::new(b"size") || raw_tag.starts_with(b"ss") || raw_tag.starts_with(b"cv")
+}
+
 pub(crate) fn find_duplicate_features(
     feature_list: &FeatureList,
     lookup_indices: &IntSet<u16>,
@@ -1323,19 +1327,21 @@ impl<'a> SubsetTable<'a> for FeatureRecord {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
 
-        Offset16::serialize_subset(&feature, s, plan, c, feature_offset_pos)
+        Offset16::serialize_subset(&feature, s, plan, (tag, c), feature_offset_pos)
     }
 }
 
 impl<'a> SubsetTable<'a> for Feature<'_> {
-    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    /// The tag of this feature, which determines the format of its FeatureParams.
+    type ArgsForSubset = (Tag, &'a mut SubsetLayoutContext);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        c: &mut SubsetLayoutContext,
+        args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        let (tag, c) = args;
         //FeatureParams offset
         let feature_params_offset_pos = s.embed(0_u16)?;
         let lookup_count_pos = s.embed(0_u16)?;
@@ -1362,6 +1368,12 @@ impl<'a> SubsetTable<'a> for Feature<'_> {
             s.copy_assign(lookup_count_pos, lookup_count);
         }
 
+        // Only size, ssXX and cvXX features define FeatureParams; drop them for
+        // any other tag.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L751-L765>
+        if !has_feature_params(tag) {
+            return Ok(());
+        }
         if let Some(feature_params) = self
             .feature_params()
             .transpose()
@@ -1439,14 +1451,17 @@ subset_lookup_list!(LookupList);
 subset_lookup_list!(LookupList2);
 
 impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
-    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    /// The FeatureRecords of the source table's FeatureList, used to find the
+    /// tag of the feature each alternate feature replaces.
+    type ArgsForSubset = (&'a [FeatureRecord], &'a mut SubsetLayoutContext);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        c: &mut SubsetLayoutContext,
+        args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        let (feature_records, c) = args;
         if !matches!(
             self.version(),
             read_fonts::types::MajorMinor {
@@ -1491,7 +1506,11 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 
         let variation_records = self.feature_variation_records();
         for i in 0..num_retained_records {
-            variation_records[i as usize].subset(plan, s, (font_data, feature_index_map, c))?;
+            variation_records[i as usize].subset(
+                plan,
+                s,
+                (font_data, feature_index_map, feature_records, c),
+            )?;
         }
         if let Some(records) = lookup_records {
             let count = u32::try_from(num_lookup_records)
@@ -1550,6 +1569,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
     type ArgsForSubset = (
         FontData<'a>,
         &'a FastHashMap<u16, u16>,
+        &'a [FeatureRecord],
         &'a mut SubsetLayoutContext,
     );
     type Output = ();
@@ -1559,7 +1579,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let (font_data, feature_index_map, c) = args;
+        let (font_data, feature_index_map, feature_records, c) = args;
         let condition_set_offset_pos = s.embed(0_u32)?;
         if let Some(condition_set) = self
             .condition_set(font_data)
@@ -1579,7 +1599,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
                 &feature_subs,
                 s,
                 plan,
-                (feature_index_map, c),
+                (feature_index_map, feature_records, c),
                 feature_substitutions_offset_pos,
             )?;
         }
@@ -1589,7 +1609,11 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
 }
 
 impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
-    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut SubsetLayoutContext);
+    type ArgsForSubset = (
+        &'a FastHashMap<u16, u16>,
+        &'a [FeatureRecord],
+        &'a mut SubsetLayoutContext,
+    );
     type Output = ();
     fn subset(
         &self,
@@ -1603,11 +1627,11 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
         let subs_count_pos = s.embed(0_u16)?;
         let mut subs_count = 0_u16;
 
-        let (feature_index_map, c) = args;
+        let (feature_index_map, feature_records, c) = args;
         let font_data = self.offset_data();
         for sub in self.substitutions() {
             if !sub
-                .subset(plan, s, (feature_index_map, c, font_data))
+                .subset(plan, s, (feature_index_map, feature_records, c, font_data))
                 .is_empty()?
             {
                 subs_count += 1;
@@ -1624,6 +1648,7 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
 impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
     type ArgsForSubset = (
         &'a FastHashMap<u16, u16>,
+        &'a [FeatureRecord],
         &'a mut SubsetLayoutContext,
         FontData<'a>,
     );
@@ -1637,18 +1662,24 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
         if self.alternate_feature_offset().is_null() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        let (feature_index_map, c, font_data) = args;
+        let (feature_index_map, feature_records, c, font_data) = args;
         let Some(new_feature_index) = feature_index_map.get(&self.feature_index()) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
 
+        // The alternate feature is read, and its FeatureParams subset, with the
+        // tag of the feature it replaces.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L5390-L5406>
+        let tag = feature_records
+            .get(self.feature_index() as usize)
+            .map_or(Tag::new(b"NULL"), |record| record.feature_tag());
         let alternate_feature = self
-            .alternate_feature(font_data)
+            .alternate_feature_with_tag(font_data, tag)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         s.embed(*new_feature_index)?;
 
         let feature_offset_pos = s.embed(0_u32)?;
-        Offset32::serialize_subset(&alternate_feature, s, plan, c, feature_offset_pos)
+        Offset32::serialize_subset(&alternate_feature, s, plan, (tag, c), feature_offset_pos)
     }
 }
 
