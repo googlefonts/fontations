@@ -230,6 +230,9 @@ fn parse_profile_options(
                 "--iftb-requirements" => {
                     *subset_flags |= SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS
                 }
+                // Not supported yet. Ignored, so profiles combining it with other options
+                // still test those options.
+                "--downgrade-cff2" => continue,
                 _ => continue,
             },
             Some((option_str, list)) => {
