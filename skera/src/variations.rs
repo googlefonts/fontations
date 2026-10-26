@@ -233,7 +233,7 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
                 for item in inner_map.keys() {
                     let delta =
                         get_item_delta(self, *item as usize, r, src_row_size, src_delta_bytes);
-                    if !(-65536..=65535).contains(&delta) {
+                    if !(-32768..=32767).contains(&delta) {
                         has_long = true;
                         break;
                     }
@@ -241,8 +241,8 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
             }
         }
 
-        let min_threshold = if has_long { -65536 } else { -128 };
-        let max_threshold = if has_long { 65535 } else { 127 };
+        let min_threshold = if has_long { -32768 } else { -128 };
+        let max_threshold = if has_long { 32767 } else { 127 };
 
         for (r, delta_size) in delta_sz.iter_mut().enumerate() {
             let short_circuit = src_long_words == has_long && src_word_count <= r;
