@@ -98,7 +98,7 @@ struct Pass<'a, 's, 'buf, 'hint, S: Scale> {
     is_hinted: bool,
 }
 
-impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
+impl<'a, 'buf, S: Scale> Pass<'a, '_, 'buf, '_, S> {
     fn finish(self) -> OutlineRef<'buf, S::Coord> {
         let Self {
             buffers,

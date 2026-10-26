@@ -504,7 +504,7 @@ pub struct ScaledGlyphMetrics<'a, 'extents, S: Scale> {
     extents: Option<&'extents dyn Fn(GlyphId) -> Option<GlyphExtents<S::Value>>>,
 }
 
-impl<'a, 'extents, S: Scale> ScaledGlyphMetrics<'a, 'extents, S> {
+impl<'a, S: Scale> ScaledGlyphMetrics<'a, '_, S> {
     pub(crate) fn new(metrics: GlyphMetrics<'a>, scale: S) -> Self {
         Self {
             metrics: metrics.with_bitmap_ppem(scale.ppem()),

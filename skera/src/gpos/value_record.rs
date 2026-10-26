@@ -78,7 +78,7 @@ pub(crate) fn compute_effective_format(
     Ok(effective)
 }
 
-impl<'a> SubsetTable<'a> for ValueRecord<'_> {
+impl SubsetTable<'_> for ValueRecord<'_> {
     type ArgsForSubset = ValueFormat;
     type Output = ();
 
