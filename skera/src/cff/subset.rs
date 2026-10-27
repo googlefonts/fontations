@@ -406,11 +406,11 @@ pub(super) fn assemble<F: CffFlavor>(
     let mut codes = vec![0];
     if !F::CFF2 {
         let cs = source.font.charset().ok_or(Error)?;
+        // Range-based charsets require a linear scan for each random lookup.
+        // Decode them once because old_gids can be in arbitrary output order.
+        let source_codes: Vec<_> = cs.iter().map(|(_, sid)| sid.to_u16() as usize).collect();
         for &old in old_gids.iter().skip(1) {
-            let code = cs
-                .string_id(GlyphId::new(old as u32))
-                .ok_or(Error)?
-                .to_u16() as usize;
+            let code = *source_codes.get(old).ok_or(Error)?;
             codes.push(if source.cid {
                 code
             } else {
