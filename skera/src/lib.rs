@@ -283,6 +283,15 @@ impl SubsetFlags {
     /// at the end of the font to keep the number of glyphs unchanged.
     pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
 
+    /// The combined flag preset used by [`Plan::keep_everything`].
+    pub const KEEP_EVERYTHING: Self = Self(
+        Self::SUBSET_FLAGS_NOTDEF_OUTLINE.0
+            | Self::SUBSET_FLAGS_GLYPH_NAMES.0
+            | Self::SUBSET_FLAGS_NAME_LEGACY.0
+            | Self::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES.0
+            | Self::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED.0,
+    );
+
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
     pub const fn contains(&self, other: Self) -> bool {
@@ -405,6 +414,25 @@ struct Os2Info {
 }
 
 impl Plan {
+    /// Select all glyphs, Unicode mappings, names, scripts, and features.
+    ///
+    /// Preserve glyph names, legacy naming records, the `.notdef` outline,
+    /// Unicode range bits, and unrecognized tables, with no dropped tables.
+    /// Tables are still subset and may be optimized or re-encoded.
+    pub fn keep_everything(font: &FontRef) -> Self {
+        Self::new(
+            &IntSet::all(),
+            &IntSet::all(),
+            font,
+            SubsetFlags::KEEP_EVERYTHING,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+        )
+    }
+
     /// Returns the original-to-subset glyph mapping, including glyphs added by closure.
     ///
     /// Iteration order is unspecified. With `SUBSET_FLAGS_RETAIN_GIDS`, every
