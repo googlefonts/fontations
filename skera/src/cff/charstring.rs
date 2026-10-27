@@ -9,10 +9,11 @@ use super::{
     source::{CffFlavor, CharStringSource},
     Error, Result,
 };
+use crate::FastHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
     Glyph(usize),
     Local(usize, usize),
@@ -105,7 +106,7 @@ struct RecordedProgram<'s> {
 }
 #[derive(Default)]
 pub(super) struct Recorder<'s> {
-    programs: BTreeMap<Program, RecordedProgram<'s>>,
+    programs: FastHashMap<Program, RecordedProgram<'s>>,
     pub needs_flatten: bool,
 }
 impl<'s> CharStringActions<'s> for Recorder<'s> {
