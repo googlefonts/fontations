@@ -475,6 +475,101 @@ impl U32Set {
         U32SetRangeIter::new(self)
     }
 
+    /// Returns the smallest member of this set that is greater than `value`, if any.
+    ///
+    /// Equivalent to `self.iter_from(value + 1).next()` but without constructing an iterator.
+    ///
+    /// Port of `hb_bit_set_t::next()`:
+    /// <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-bit-set.hh#L696>
+    pub fn next_after(&self, value: u32) -> Option<u32> {
+        let major_value = Self::get_major_value(value);
+        let mut page_map_index = self.page_map_index_for_major_or_next(major_value);
+
+        let info = self.page_map.get(page_map_index)?;
+        if info.major_value == major_value {
+            // The next member is in the same page, unless `value` is the last value of its page.
+            if let Some(v) = value
+                .checked_add(1)
+                .filter(|next| Self::get_major_value(*next) == major_value)
+                .and_then(|next| self.pages.get(info.index as usize)?.first_from(next))
+            {
+                self.set_last_page_map_index(page_map_index);
+                return Some(Self::major_start(major_value) + v);
+            }
+            page_map_index += 1;
+        }
+
+        // Later pages are searched from their first value.
+        for (i, info) in self.page_map.iter().enumerate().skip(page_map_index) {
+            if let Some(v) = self
+                .pages
+                .get(info.index as usize)
+                .and_then(|page| page.first_from(0))
+            {
+                self.set_last_page_map_index(i);
+                return Some(Self::major_start(info.major_value) + v);
+            }
+        }
+        None
+    }
+
+    /// Returns the smallest value greater than `value` that is not a member of this set, if any.
+    ///
+    /// This finds the end of the run of members that follows `value`, like
+    /// `hb_bit_set_invertible_t::next()` does with `hb_bit_set_t::next_range()` for inverted sets:
+    /// <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-bit-set-invertible.hh#L292>
+    pub fn next_absent_after(&self, value: u32) -> Option<u32> {
+        let mut candidate = value.checked_add(1)?;
+        let mut major_value = Self::get_major_value(candidate);
+        let mut page_map_index = self.page_map_index_for_major_or_next(major_value);
+        loop {
+            let Some(info) = self
+                .page_map
+                .get(page_map_index)
+                .filter(|info| info.major_value == major_value)
+            else {
+                // There's no page for `candidate`, so it isn't a member.
+                return Some(candidate);
+            };
+            self.set_last_page_map_index(page_map_index);
+            let Some(page) = self.pages.get(info.index as usize) else {
+                return Some(candidate);
+            };
+            if let Some(v) = page.first_absent_from(candidate) {
+                return Some(Self::major_start(major_value) + v);
+            }
+            // Every value from `candidate` to the end of this page is a member, so continue
+            // from the start of the next page.
+            candidate = Self::major_start(major_value).checked_add(PAGE_BITS)?;
+            major_value += 1;
+            page_map_index += 1;
+        }
+    }
+
+    /// Returns the index in `page_map` of the page for `major_value` if it exists, otherwise the
+    /// index of the first page after it.
+    ///
+    /// Checks the last looked up page before searching, like harfbuzz's `last_page_lookup`.
+    fn page_map_index_for_major_or_next(&self, major_value: u32) -> usize {
+        let last = self
+            .last_page_map_index
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if self
+            .page_map
+            .get(last)
+            .is_some_and(|info| info.major_value == major_value)
+        {
+            return last;
+        }
+        self.page_map
+            .partition_point(|info| info.major_value < major_value)
+    }
+
+    fn set_last_page_map_index(&self, page_map_index: usize) {
+        self.last_page_map_index
+            .store(page_map_index, std::sync::atomic::Ordering::Relaxed);
+    }
+
     fn iter_pages(&self) -> impl DoubleEndedIterator<Item = (u32, &BitPage)> + '_ {
         self.page_map.iter().flat_map(|info| {
             self.pages
@@ -1164,6 +1259,121 @@ mod test {
         assert_eq!(bitset.iter_from(511).collect::<Vec<u32>>(), vec![511, 512]);
         assert_eq!(bitset.iter_from(512).collect::<Vec<u32>>(), vec![512]);
         assert!(bitset.iter_from(513).collect::<Vec<u32>>().is_empty());
+    }
+
+    #[test]
+    fn next_after() {
+        let mut bitset = U32Set::empty();
+        assert_eq!(bitset.next_after(0), None);
+        assert_eq!(bitset.next_after(u32::MAX), None);
+
+        bitset.extend([5, 7, 10, 63, 64, 511, 512, 1250, 1300, 3001]);
+        assert_eq!(bitset.next_after(0), Some(5));
+        assert_eq!(bitset.next_after(4), Some(5));
+        assert_eq!(bitset.next_after(5), Some(7));
+        assert_eq!(bitset.next_after(10), Some(63));
+        // across element boundaries within a page
+        assert_eq!(bitset.next_after(63), Some(64));
+        assert_eq!(bitset.next_after(64), Some(511));
+        // across page boundaries
+        assert_eq!(bitset.next_after(511), Some(512));
+        assert_eq!(bitset.next_after(512), Some(1250));
+        assert_eq!(bitset.next_after(700), Some(1250));
+        assert_eq!(bitset.next_after(1300), Some(3001));
+        assert_eq!(bitset.next_after(3001), None);
+        assert_eq!(bitset.next_after(u32::MAX), None);
+
+        bitset.insert(u32::MAX);
+        assert_eq!(bitset.next_after(3001), Some(u32::MAX));
+        assert_eq!(bitset.next_after(u32::MAX - 1), Some(u32::MAX));
+        assert_eq!(bitset.next_after(u32::MAX), None);
+
+        // Pages emptied by removal are skipped.
+        bitset.remove_range(512..=3001);
+        assert_eq!(bitset.next_after(64), Some(511));
+        assert_eq!(bitset.next_after(511), Some(u32::MAX));
+    }
+
+    #[test]
+    fn next_after_matches_iter_from() {
+        let mut bitset = U32Set::empty();
+        bitset.extend([0, 1, 62, 63, 64, 127, 128, 500, 511, 512, 1023, 1024, 2000]);
+        for value in 0..=2100 {
+            assert_eq!(
+                bitset.next_after(value),
+                bitset.iter_from(value + 1).next(),
+                "value {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn next_after_with_stale_page_lookup() {
+        let mut bitset = U32Set::empty();
+        bitset.extend([1000, 1100]);
+        // Caches the page map index of the page holding 1000 and 1100.
+        assert_eq!(bitset.next_after(1000), Some(1100));
+        assert_eq!(bitset.next_absent_after(999), Some(1001));
+
+        // Inserting an earlier page shifts the page map indices.
+        bitset.insert(5);
+        assert_eq!(bitset.next_after(1000), Some(1100));
+        assert_eq!(bitset.next_after(0), Some(5));
+        assert_eq!(bitset.next_after(5), Some(1000));
+        assert_eq!(bitset.next_absent_after(999), Some(1001));
+        assert_eq!(bitset.next_absent_after(4), Some(6));
+    }
+
+    #[test]
+    fn next_absent_after() {
+        let mut bitset = U32Set::empty();
+        assert_eq!(bitset.next_absent_after(0), Some(1));
+        assert_eq!(bitset.next_absent_after(u32::MAX - 1), Some(u32::MAX));
+        assert_eq!(bitset.next_absent_after(u32::MAX), None);
+
+        bitset.extend([5, 6, 7, 63, 64]);
+        assert_eq!(bitset.next_absent_after(3), Some(4));
+        assert_eq!(bitset.next_absent_after(4), Some(8));
+        assert_eq!(bitset.next_absent_after(7), Some(8));
+        // across element boundaries within a page
+        assert_eq!(bitset.next_absent_after(62), Some(65));
+
+        // Full pages are skipped, whether or not the next page exists.
+        bitset.insert_range(1000..=2047);
+        assert_eq!(bitset.next_absent_after(999), Some(2048));
+        bitset.insert_range(2048..=2500);
+        assert_eq!(bitset.next_absent_after(999), Some(2501));
+        assert_eq!(bitset.next_absent_after(2500), Some(2501));
+
+        // Pages emptied by removal hold no members.
+        bitset.remove_range(1000..=2500);
+        assert_eq!(bitset.next_absent_after(999), Some(1000));
+
+        // Every value up to u32::MAX is a member.
+        let mut bitset = U32Set::empty();
+        bitset.insert_range(u32::MAX - 1000..=u32::MAX);
+        assert_eq!(
+            bitset.next_absent_after(u32::MAX - 2000),
+            Some(u32::MAX - 1999)
+        );
+        assert_eq!(
+            bitset.next_absent_after(u32::MAX - 1002),
+            Some(u32::MAX - 1001)
+        );
+        assert_eq!(bitset.next_absent_after(u32::MAX - 1001), None);
+        assert_eq!(bitset.next_absent_after(u32::MAX - 1), None);
+    }
+
+    #[test]
+    fn next_absent_after_matches_contains() {
+        let mut bitset = U32Set::empty();
+        bitset.extend([0, 1, 2, 62, 63, 64, 127, 128, 500, 511, 512, 513]);
+        bitset.insert_range(1024..=1535);
+        bitset.insert_range(1600..=2100);
+        for value in 0..=2200 {
+            let expected = (value + 1..).find(|v| !bitset.contains(*v));
+            assert_eq!(bitset.next_absent_after(value), expected, "value {value}");
+        }
     }
 
     #[test]

@@ -66,16 +66,16 @@ impl<'a> CountAll16<'a> {
     }
 
     pub fn some_field_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u16::RAW_BYTE_LEN
-                * u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -152,16 +152,16 @@ impl<'a> CountAll32<'a> {
     }
 
     pub fn some_field_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u32::RAW_BYTE_LEN
-                * u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN,
+        );
         start..end
     }
 }

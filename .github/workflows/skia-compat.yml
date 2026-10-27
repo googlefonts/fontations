@@ -28,6 +28,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # CI builds start from nothing and are thrown away, so incremental state is
+  # only overhead.
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
 jobs:
   skia-compat:
     name: compile Skia's font bridge
@@ -56,9 +62,9 @@ jobs:
             src/ports/fontations
             bazel/external/fontations
 
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: stable
+      - run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
 
       # The ref reaches the shell through the environment rather than through
       # template expansion, which would splice it into the script itself.

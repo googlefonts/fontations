@@ -708,10 +708,11 @@ impl<'a> IndexSubtableList<'a> {
 
     pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
         let number_of_index_subtables = self.number_of_index_subtables();
-        let start = 0;
-        let end = start
-            + (transforms::to_usize(number_of_index_subtables))
-                .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN);
+        let start = 0usize;
+        let end = start.saturating_add(
+            (transforms::to_usize(number_of_index_subtables))
+                .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -884,20 +885,20 @@ impl<'a> IndexSubtable1<'a> {
     }
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
@@ -905,9 +906,10 @@ impl<'a> IndexSubtable1<'a> {
         let last_glyph_index = self.last_glyph_index();
         let first_glyph_index = self.first_glyph_index();
         let start = self.image_data_offset_byte_range().end;
-        let end = start
-            + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                .saturating_mul(u32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                .saturating_mul(u32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1012,32 +1014,32 @@ impl<'a> IndexSubtable2<'a> {
     }
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_size_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
-        let end = start + BigGlyphMetrics::RAW_BYTE_LEN;
+        let end = start.saturating_add(BigGlyphMetrics::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -1152,20 +1154,20 @@ impl<'a> IndexSubtable3<'a> {
     }
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
@@ -1173,9 +1175,10 @@ impl<'a> IndexSubtable3<'a> {
         let last_glyph_index = self.last_glyph_index();
         let first_glyph_index = self.first_glyph_index();
         let start = self.image_data_offset_byte_range().end;
-        let end = start
-            + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                .saturating_mul(u16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                .saturating_mul(u16::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1267,35 +1270,35 @@ impl<'a> IndexSubtable4<'a> {
     }
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.num_glyphs_byte_range().end;
-        let end = start
-            + (transforms::add(num_glyphs, 1_usize))
-                .saturating_mul(GlyphIdOffsetPair::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::add(num_glyphs, 1_usize)).saturating_mul(GlyphIdOffsetPair::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1430,46 +1433,47 @@ impl<'a> IndexSubtable5<'a> {
     }
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn image_size_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
-        let end = start + BigGlyphMetrics::RAW_BYTE_LEN;
+        let end = start.saturating_add(BigGlyphMetrics::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.big_metrics_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.num_glyphs_byte_range().end;
-        let end =
-            start + (transforms::to_usize(num_glyphs)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(num_glyphs)).saturating_mul(GlyphId16::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

@@ -446,7 +446,7 @@ impl Intersect for ClassDefFormat1<'_> {
             return Ok(true);
         }
 
-        while let Some(g) = glyph_set.iter_after(start_glyph).next() {
+        while let Some(g) = glyph_set.next_after(start_glyph) {
             let g = g.to_u32();
             if g >= end {
                 break;

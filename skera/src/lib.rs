@@ -44,11 +44,13 @@ use crate::repack::resolve_overflows;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
-    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
-    prune_features, remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
+    collect_feature_variations_name_ids, collect_features_with_retained_subs,
+    collect_variable_feature_indices, find_duplicate_features, prune_features,
+    remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
+    parse_glyph_map, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids,
 };
 use unicode_closure::unicode_closure;
 
@@ -98,7 +100,8 @@ use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::FontBuilder;
 
-type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
+/// The hash map type used in skera's API, e.g. for [`Plan::new_with_glyph_map`].
+pub type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: usize = read_fonts::limits::MAX_RECURSION_DEPTH;
@@ -272,6 +275,16 @@ impl SubsetFlags {
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
+    /// If set enforce requirements on the output subset to allow it to be used with incremental
+    /// font transfer IFTB patches. Primarily, this forces all outline data to use long (32 bit)
+    /// offsets.
+    pub const SUBSET_FLAGS_IFTB_REQUIREMENTS: Self = Self(0x1000);
+
+    /// If this flag is set along side SUBSET_FLAGS_RETAIN_GIDS then the number of glyphs in the
+    /// font won't be reduced as a result of subsetting. If necessary empty glyphs will be included
+    /// at the end of the font to keep the number of glyphs unchanged.
+    pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
+
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
     pub const fn contains(&self, other: Self) -> bool {
@@ -444,6 +457,78 @@ impl Plan {
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
     ) -> Self {
+        Self::new_impl(
+            input_gids,
+            input_unicodes,
+            font,
+            flags,
+            drop_tables,
+            layout_scripts,
+            layout_features,
+            name_ids,
+            name_languages,
+            &FastHashMap::default(),
+        )
+    }
+
+    /// Like [`Plan::new`], but retained glyphs in `glyph_map` get the requested new glyph ids.
+    ///
+    /// Retained glyphs that aren't in `glyph_map` are numbered after the highest requested new
+    /// glyph id, and glyph 0 always stays glyph 0. Old glyph ids in `glyph_map` aren't added to
+    /// the retained glyphs; include them in `input_gids` for that.
+    ///
+    /// Fails if two glyphs are mapped to the same new glyph id, or if `flags` contains
+    /// [`SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS`] while `glyph_map` isn't empty.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_glyph_map(
+        input_gids: &IntSet<GlyphId>,
+        input_unicodes: &IntSet<u32>,
+        font: &FontRef,
+        flags: SubsetFlags,
+        drop_tables: &IntSet<Tag>,
+        layout_scripts: &IntSet<Tag>,
+        layout_features: &IntSet<Tag>,
+        name_ids: &IntSet<NameId>,
+        name_languages: &IntSet<u16>,
+        glyph_map: &FastHashMap<GlyphId, GlyphId>,
+    ) -> Result<Self, SubsetError> {
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L566>
+        if !glyph_map.is_empty() {
+            let new_gids: IntSet<GlyphId> = glyph_map.values().copied().collect();
+            if new_gids.len() != glyph_map.len() as u64 {
+                return Err(SubsetError::NonUniqueGlyphMap);
+            }
+            if flags.contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS) {
+                return Err(SubsetError::GlyphMapWithRetainGids);
+            }
+        }
+        Ok(Self::new_impl(
+            input_gids,
+            input_unicodes,
+            font,
+            flags,
+            drop_tables,
+            layout_scripts,
+            layout_features,
+            name_ids,
+            name_languages,
+            glyph_map,
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_impl(
+        input_gids: &IntSet<GlyphId>,
+        input_unicodes: &IntSet<u32>,
+        font: &FontRef,
+        flags: SubsetFlags,
+        drop_tables: &IntSet<Tag>,
+        layout_scripts: &IntSet<Tag>,
+        layout_features: &IntSet<Tag>,
+        name_ids: &IntSet<NameId>,
+        name_languages: &IntSet<u16>,
+        requested_glyph_map: &FastHashMap<GlyphId, GlyphId>,
+    ) -> Self {
         let mut this = Plan {
             glyphs_requested: input_gids.clone(),
             font_num_glyphs: get_font_num_glyphs(font),
@@ -463,7 +548,15 @@ impl Plan {
 
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
-        this.create_old_gid_to_new_gid_map();
+        this.create_old_gid_to_new_gid_map(requested_glyph_map);
+
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L750>
+        if this.subset_flags.contains(
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        ) {
+            // We've been requested to maintain the num glyphs count from the input font.
+            this.num_output_glyphs = this.font_num_glyphs;
+        }
 
         this.create_glyph_map_gsub();
         //update the unicode to new gid list
@@ -636,14 +729,42 @@ impl Plan {
         }
     }
 
-    fn create_old_gid_to_new_gid_map(&mut self) {
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L552>
+    fn create_old_gid_to_new_gid_map(
+        &mut self,
+        requested_glyph_map: &FastHashMap<GlyphId, GlyphId>,
+    ) {
         let pop = self.glyphset.len();
         self.glyph_map.reserve(pop as usize);
         self.reverse_glyph_map.reserve(pop as usize);
         self.new_to_old_gid_list.reserve(pop as usize);
 
-        //TODO: Add support for requested_glyph_map, command line option --gid-map
-        if !self
+        if !requested_glyph_map.is_empty() {
+            let mut max_glyph = 0;
+            for old_gid in self.glyphset.iter() {
+                if old_gid == GlyphId::NOTDEF {
+                    self.new_to_old_gid_list
+                        .push((GlyphId::NOTDEF, GlyphId::NOTDEF));
+                    continue;
+                }
+                if let Some(new_gid) = requested_glyph_map.get(&old_gid) {
+                    max_glyph = max_glyph.max(new_gid.to_u32());
+                    self.new_to_old_gid_list.push((*new_gid, old_gid));
+                }
+            }
+            self.new_to_old_gid_list.sort_unstable();
+
+            // Anything that wasn't mapped by the requested mapping should
+            // be placed after the requested mapping.
+            for old_gid in self.glyphset.iter() {
+                if old_gid != GlyphId::NOTDEF && !requested_glyph_map.contains_key(&old_gid) {
+                    max_glyph += 1;
+                    self.new_to_old_gid_list
+                        .push((GlyphId::new(max_glyph), old_gid));
+                }
+            }
+            self.num_output_glyphs = max_glyph as usize + 1;
+        } else if !self
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
         {
@@ -1097,8 +1218,17 @@ pub enum SubsetError {
     #[error("Invalid ID {0}")]
     InvalidId(String),
 
+    #[error("Invalid glyph map entry {0}, expected old_gid:new_gid")]
+    InvalidGlyphMapEntry(String),
+
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
+
+    #[error("The provided custom glyph mapping is not unique")]
+    NonUniqueGlyphMap,
+
+    #[error("SUBSET_FLAGS_RETAIN_GIDS cannot be set if a custom glyph mapping has been provided")]
+    GlyphMapWithRetainGids,
 }
 
 pub trait NameIdClosure {
@@ -1692,6 +1822,64 @@ mod test {
                 "{path} {unicodes}: estimate {estimate}, glyf {glyf_len}"
             );
         }
+    }
+
+    #[test]
+    fn requested_glyph_map() {
+        let bytes = std::fs::read("test-data/fonts/Roboto-Regular.ttf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let new_plan = |gids: &[u32], flags, glyph_map: &[(u32, u32)]| {
+            let glyph_map: FastHashMap<_, _> = glyph_map
+                .iter()
+                .map(|(old, new)| (GlyphId::new(*old), GlyphId::new(*new)))
+                .collect();
+            Plan::new_with_glyph_map(
+                &gids.iter().copied().map(GlyphId::new).collect(),
+                &IntSet::empty(),
+                &font,
+                flags,
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &glyph_map,
+            )
+        };
+
+        // 0 always stays 0. Glyphs missing from the map follow the highest requested new glyph.
+        let plan = new_plan(
+            &[37, 39, 69, 74],
+            SubsetFlags::default(),
+            &[(0, 5), (69, 2), (37, 7)],
+        )
+        .unwrap();
+        let pairs: Vec<_> = plan
+            .new_to_old_gid_list
+            .iter()
+            .map(|(new, old)| (new.to_u32(), old.to_u32()))
+            .collect();
+        assert_eq!(pairs, [(0, 0), (2, 69), (7, 37), (8, 39), (9, 74)]);
+        assert_eq!(plan.num_output_glyphs, 10);
+        assert_eq!(
+            plan.glyph_map.get(&GlyphId::new(37)),
+            Some(&GlyphId::new(7))
+        );
+        assert_eq!(
+            plan.reverse_glyph_map.get(&GlyphId::new(8)),
+            Some(&GlyphId::new(39))
+        );
+
+        assert!(matches!(
+            new_plan(&[37, 39], SubsetFlags::default(), &[(37, 1), (39, 1)]),
+            Err(SubsetError::NonUniqueGlyphMap)
+        ));
+        assert!(matches!(
+            new_plan(&[37], SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS, &[(37, 1)]),
+            Err(SubsetError::GlyphMapWithRetainGids)
+        ));
+        // An empty map is the same as Plan::new.
+        assert!(new_plan(&[37], SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS, &[]).is_ok());
     }
 
     #[test]

@@ -178,46 +178,47 @@ impl<'a> Cpal<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_palette_entries_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_palettes_byte_range(&self) -> Range<usize> {
         let start = self.num_palette_entries_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_color_records_byte_range(&self) -> Range<usize> {
         let start = self.num_palettes_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn color_records_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_color_records_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn color_record_indices_byte_range(&self) -> Range<usize> {
         let num_palettes = self.num_palettes();
         let start = self.color_records_array_offset_byte_range().end;
-        let end = start + (transforms::to_usize(num_palettes)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(num_palettes)).saturating_mul(u16::RAW_BYTE_LEN));
         start..end
     }
 
     pub fn palette_types_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.color_record_indices_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
+            start.saturating_add(Offset32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -227,7 +228,7 @@ impl<'a> Cpal<'a> {
     pub fn palette_labels_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.palette_types_array_offset_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
+            start.saturating_add(Offset32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -237,7 +238,7 @@ impl<'a> Cpal<'a> {
     pub fn palette_entry_labels_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.palette_labels_array_offset_byte_range().end;
         let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
+            start.saturating_add(Offset32::RAW_BYTE_LEN)
         } else {
             start
         };
