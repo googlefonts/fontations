@@ -178,21 +178,27 @@ fn cff2_subsetting_preserves_variation_locations() {
 
 #[test]
 fn seac_components_join_the_glyph_mapping() {
-    let data = std::fs::read("test-data/fonts/cff1_seac.otf").unwrap();
-    let font = FontRef::new(&data).unwrap();
-    let p = plan(&font, SubsetFlags::default(), "C0");
-    assert!(p.old_to_new_glyph_mapping().count() >= 4);
-    let bytes = subset_font(&font, &p).unwrap();
-    let out = FontRef::new(&bytes).unwrap();
-    let cff = CffFontRef::new(
-        out.data_for_tag(Tag::new(b"CFF ")).unwrap().as_bytes(),
-        0,
-        None,
-    )
-    .unwrap();
-    for (_, gid) in p.old_to_new_glyph_mapping() {
-        let sf = cff.subfont(cff.subfont_index(gid).unwrap(), &[]).unwrap();
-        cff.draw(&sf, gid, &[], None, &mut Vec::<PathElement>::new())
-            .unwrap();
+    for (filename, unicode) in [
+        ("cff1_seac.otf", "C0"),
+        ("cff1_seac_dotsection.otf", "C1"),
+        ("cff1_seac_subr_endchar.otf", "C1"),
+    ] {
+        let data = std::fs::read(format!("test-data/fonts/{filename}")).unwrap();
+        let font = FontRef::new(&data).unwrap();
+        let p = plan(&font, SubsetFlags::default(), unicode);
+        assert_eq!(p.old_to_new_glyph_mapping().count(), 4, "{filename}");
+        let bytes = subset_font(&font, &p).unwrap();
+        let out = FontRef::new(&bytes).unwrap();
+        let cff = CffFontRef::new(
+            out.data_for_tag(Tag::new(b"CFF ")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        for (_, gid) in p.old_to_new_glyph_mapping() {
+            let sf = cff.subfont(cff.subfont_index(gid).unwrap(), &[]).unwrap();
+            cff.draw(&sf, gid, &[], None, &mut Vec::<PathElement>::new())
+                .unwrap();
+        }
     }
 }
