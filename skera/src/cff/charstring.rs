@@ -9,16 +9,18 @@ use super::{
     source::{CffFlavor, CharStringSource},
     Error, Result,
 };
+use crate::FastHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
     Glyph(usize),
     Local(usize, usize),
     Global(usize, usize),
 }
 type Origin = (Program, usize, usize);
+type ProgramSet = std::collections::HashSet<Program, foldhash::fast::FixedState>;
 
 #[derive(Clone, Default)]
 pub(super) struct Value {
@@ -97,15 +99,22 @@ struct Edit {
     end: usize,
     call: Option<Program>,
 }
-#[derive(PartialEq, Eq)]
 struct RecordedProgram<'s> {
     data: &'s [u8],
     edits: BTreeMap<usize, Edit>,
     masks: BTreeMap<usize, usize>,
 }
+impl RecordedProgram<'_> {
+    fn has_same_edits(&self, other: &Self) -> bool {
+        // A Program key uniquely identifies its bytes within a Source. Only
+        // edits and mask lengths can vary based on the caller's state.
+        debug_assert!(std::ptr::eq(self.data, other.data));
+        self.edits == other.edits && self.masks == other.masks
+    }
+}
 #[derive(Default)]
 pub(super) struct Recorder<'s> {
-    programs: BTreeMap<Program, RecordedProgram<'s>>,
+    programs: FastHashMap<Program, RecordedProgram<'s>>,
     pub needs_flatten: bool,
 }
 impl<'s> CharStringActions<'s> for Recorder<'s> {
@@ -182,10 +191,11 @@ impl<'s> Recorder<'s> {
         // Flattening must discard every staged edit, including later edits
         // made after the interpreter first discovered an incompatible mask.
         if other.needs_flatten
-            || other
-                .programs
-                .iter()
-                .any(|(key, program)| self.programs.get(key).is_some_and(|old| old != program))
+            || other.programs.iter().any(|(key, program)| {
+                self.programs
+                    .get(key)
+                    .is_some_and(|old| !old.has_same_edits(program))
+            })
         {
             return false;
         }
@@ -243,8 +253,8 @@ impl<'s> Recorder<'s> {
             }
         }
     }
-    pub fn closure(&self, roots: &[Program]) -> Result<BTreeSet<Program>> {
-        let mut used = BTreeSet::new();
+    pub fn closure(&self, roots: &[Program]) -> Result<ProgramSet> {
+        let mut used = ProgramSet::default();
         let mut pending = roots.to_vec();
         while let Some(key) = pending.pop() {
             if !used.insert(key) {
@@ -291,7 +301,7 @@ impl<'s> Recorder<'s> {
     pub fn encode(
         &self,
         key: Program,
-        remap: &BTreeMap<Program, usize>,
+        remap: &FastHashMap<Program, usize>,
         global_count: usize,
         local_counts: &[usize],
     ) -> Result<Vec<u8>> {
@@ -770,7 +780,7 @@ mod tests {
             .unwrap();
         assert!(!rec.needs_flatten);
         assert_eq!(
-            rec.encode(Program::Local(0, 0), &BTreeMap::new(), 0, &[1])
+            rec.encode(Program::Local(0, 0), &FastHashMap::default(), 0, &[1])
                 .unwrap(),
             [139, 149, 11]
         );
@@ -784,12 +794,11 @@ mod tests {
             .unwrap();
         assert!(!rec.needs_flatten);
         rec.remove_hint_calls();
+        let mut expected = ProgramSet::default();
+        expected.insert(Program::Glyph(0));
+        assert_eq!(rec.closure(&[Program::Glyph(0)]).unwrap(), expected);
         assert_eq!(
-            rec.closure(&[Program::Glyph(0)]).unwrap(),
-            [Program::Glyph(0)].into()
-        );
-        assert_eq!(
-            rec.encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
+            rec.encode(Program::Glyph(0), &FastHashMap::default(), 0, &[0])
                 .unwrap(),
             [139, 139, 21, 14]
         );

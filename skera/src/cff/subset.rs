@@ -7,7 +7,7 @@ use super::{
     source::{CffFlavor, Source},
     Error, Result,
 };
-use crate::{Plan, SubsetFlags};
+use crate::{FastHashMap, Plan, SubsetFlags};
 use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -109,8 +109,9 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         if nohint {
             rec.remove_hint_calls();
         }
-        let used = rec.closure(&roots)?;
-        let mut remap = BTreeMap::new();
+        let mut used: Vec<_> = rec.closure(&roots)?.into_iter().collect();
+        used.sort_unstable();
+        let mut remap = FastHashMap::default();
         let mut shared_globals: BTreeMap<usize, Vec<Program>> = BTreeMap::new();
         for key in &used {
             match *key {
