@@ -2,26 +2,46 @@
 
 use super::{Error, Result};
 
+#[inline]
 pub(super) fn number(data: &[u8], pos: &mut usize, dict: bool) -> Result<Option<f64>> {
     let b = *data.get(*pos).ok_or(Error)?;
-    let mut p = *pos + 1;
-    let mut take = |n: usize| -> Result<&[u8]> {
-        let end = p.checked_add(n).ok_or(Error)?;
-        let bytes = data.get(p..end).ok_or(Error)?;
-        p = end;
-        Ok(bytes)
-    };
+    let start = *pos;
+    if let 32..=246 = b {
+        *pos = start + 1;
+        return Ok(Some((b as i32 - 139) as f64));
+    }
     let value = match b {
-        32..=246 => (b as i32 - 139) as f64,
-        247..=250 => ((b as i32 - 247) * 256 + take(1)?[0] as i32 + 108) as f64,
-        251..=254 => (-(b as i32 - 251) * 256 - take(1)?[0] as i32 - 108) as f64,
-        28 => i16::from_be_bytes(take(2)?.try_into().map_err(|_| Error)?) as f64,
-        29 if dict => i32::from_be_bytes(take(4)?.try_into().map_err(|_| Error)?) as f64,
-        255 if !dict => i32::from_be_bytes(take(4)?.try_into().map_err(|_| Error)?) as f64 / 65536.,
+        247..=250 => {
+            let byte = *data.get(start + 1).ok_or(Error)?;
+            *pos = start + 2;
+            ((b as i32 - 247) * 256 + byte as i32 + 108) as f64
+        }
+        251..=254 => {
+            let byte = *data.get(start + 1).ok_or(Error)?;
+            *pos = start + 2;
+            (-(b as i32 - 251) * 256 - byte as i32 - 108) as f64
+        }
+        28 => {
+            let bytes = data.get(start + 1..start + 3).ok_or(Error)?;
+            *pos = start + 3;
+            i16::from_be_bytes(bytes.try_into().map_err(|_| Error)?) as f64
+        }
+        29 if dict => {
+            let bytes = data.get(start + 1..start + 5).ok_or(Error)?;
+            *pos = start + 5;
+            i32::from_be_bytes(bytes.try_into().map_err(|_| Error)?) as f64
+        }
+        255 if !dict => {
+            let bytes = data.get(start + 1..start + 5).ok_or(Error)?;
+            *pos = start + 5;
+            i32::from_be_bytes(bytes.try_into().map_err(|_| Error)?) as f64 / 65536.
+        }
         30 if dict => {
+            let mut p = start + 1;
             let mut s = String::new();
             'bcd: loop {
-                let byte = take(1)?[0];
+                let byte = *data.get(p).ok_or(Error)?;
+                p += 1;
                 for nibble in [byte >> 4, byte & 15] {
                     match nibble {
                         0..=9 => s.push(char::from(b'0' + nibble)),
@@ -37,6 +57,7 @@ pub(super) fn number(data: &[u8], pos: &mut usize, dict: bool) -> Result<Option<
                     return Err(Error);
                 }
             }
+            *pos = p;
             s.parse().map_err(|_| Error)?
         }
         _ => return Ok(None),
@@ -44,7 +65,6 @@ pub(super) fn number(data: &[u8], pos: &mut usize, dict: bool) -> Result<Option<
     if !value.is_finite() {
         return Err(Error);
     }
-    *pos = p;
     Ok(Some(value))
 }
 
@@ -68,21 +88,37 @@ pub(super) fn emit_op(out: &mut Vec<u8>, op: u16) {
 }
 
 pub(super) fn integer(out: &mut Vec<u8>, v: i32) {
+    let (bytes, len) = integer_bytes(v);
+    out.extend_from_slice(&bytes[..len]);
+}
+
+pub(super) fn integer_bytes(v: i32) -> ([u8; 5], usize) {
+    let mut bytes = [0; 5];
     match v {
-        -107..=107 => out.push((v + 139) as u8),
+        -107..=107 => {
+            bytes[0] = (v + 139) as u8;
+            (bytes, 1)
+        }
         108..=1131 => {
             let n = v - 108;
-            out.extend([(247 + (n >> 8)) as u8, n as u8]);
+            bytes[..2].copy_from_slice(&[(247 + (n >> 8)) as u8, n as u8]);
+            (bytes, 2)
         }
         -1131..=-108 => {
             let n = -v - 108;
-            out.extend([(251 + (n >> 8)) as u8, n as u8]);
+            bytes[..2].copy_from_slice(&[(251 + (n >> 8)) as u8, n as u8]);
+            (bytes, 2)
         }
         -32768..=32767 => {
-            out.push(28);
-            out.extend((v as i16).to_be_bytes());
+            bytes[0] = 28;
+            bytes[1..3].copy_from_slice(&(v as i16).to_be_bytes());
+            (bytes, 3)
         }
-        _ => long(out, v),
+        _ => {
+            bytes[0] = 29;
+            bytes[1..].copy_from_slice(&v.to_be_bytes());
+            (bytes, 5)
+        }
     }
 }
 
