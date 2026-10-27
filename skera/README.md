@@ -19,6 +19,10 @@ or computed targets require `--desubroutinize`; retained mode rejects them.
 Hint removal flattens individual glyphs when deleting their operands or changing
 caller-dependent mask boundaries would modify a shared program.
 
+Use `--text` (or `-t`) to select Unicode characters directly from UTF-8 text.
+Text and Unicode selectors share the same selection set and support ordered
+replacement, addition (`+=`), and removal (`-=`) operations.
+
 ## Installation
 
 ### Library
