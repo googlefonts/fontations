@@ -63,6 +63,16 @@ pub(super) struct Programs {
     pub locals: Vec<Vec<Vec<u8>>>,
 }
 
+fn remap_order(program: Program) -> (u8, usize, usize) {
+    match program {
+        Program::Glyph(index) => (0, index, 0),
+        Program::Local(fd, index) => (1, fd, index),
+        // HarfBuzz assigns global subroutine numbers in source order. The FD
+        // is only internal context for globals whose local calls depend on it.
+        Program::Global(fd, index) => (2, index, fd),
+    }
+}
+
 pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Programs> {
     let desub = plan
         .subset_flags
@@ -110,7 +120,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
             rec.remove_hint_calls();
         }
         let mut used: Vec<_> = rec.closure(&roots)?.into_iter().collect();
-        used.sort_unstable();
+        used.sort_unstable_by_key(|program| remap_order(*program));
         let mut remap = FastHashMap::default();
         let mut shared_globals: BTreeMap<usize, Vec<Program>> = BTreeMap::new();
         for key in &used {
@@ -576,4 +586,27 @@ pub(super) fn assemble<F: CffFlavor>(
     }
     out.extend(fdarray);
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{remap_order, Program};
+
+    #[test]
+    fn global_remapping_is_source_index_major() {
+        let mut programs = [
+            Program::Global(0, 8),
+            Program::Global(3, 2),
+            Program::Global(1, 2),
+        ];
+        programs.sort_unstable_by_key(|program| remap_order(*program));
+        assert_eq!(
+            programs,
+            [
+                Program::Global(1, 2),
+                Program::Global(3, 2),
+                Program::Global(0, 8),
+            ]
+        );
+    }
 }
