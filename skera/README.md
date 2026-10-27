@@ -2,6 +2,13 @@
 
 `skera` is a Rust library and binary for subsetting a font file according to provided input.
 
+Use `--keep-everything` or the library's `Plan::keep_everything` to select all
+glyphs, Unicode mappings, names, layout items, and tables. The preset also
+preserves glyph names, legacy naming records, the `.notdef` outline, and
+Unicode range bits. CLI list operations then tailor those selections in command
+line order, while boolean flags and custom glyph mappings add to the preset.
+Tables are still subset and can be optimized or re-encoded.
+
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
 retained glyph IDs (`--retain-gids`). CFF1 subsetting includes CID fonts,

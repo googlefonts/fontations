@@ -32,6 +32,10 @@ struct Args {
     #[command(flatten)]
     lists: ListArgs,
 
+    /// Start with all glyphs, names, layout items, and tables selected.
+    #[arg(long)]
+    keep_everything: bool,
+
     /// Specify a glyph mapping to use, any unmapped gids will be automatically assigned.
     /// List of pairs old_gid1:new_gid1,old_gid2:new_gid2,...
     #[arg(long)]
@@ -239,7 +243,11 @@ fn main() {
     let args = Args::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
 
     let subset_flags = parse_subset_flags(&args);
-    let mut gids = IntSet::<GlyphId>::empty();
+    let mut gids = if args.keep_everything {
+        IntSet::<GlyphId>::all()
+    } else {
+        IntSet::empty()
+    };
     let mut glyph_map = FastHashMap::<GlyphId, GlyphId>::default();
     // Like hb-subset, --gid-map also adds the glyphs it maps to the glyph set, at its position in
     // the command line order relative to the --gids options.
@@ -275,7 +283,11 @@ fn main() {
         }
     }
 
-    let mut unicodes = IntSet::<u32>::empty();
+    let mut unicodes = if args.keep_everything {
+        IntSet::<u32>::all()
+    } else {
+        IntSet::empty()
+    };
     apply_list_args(&matches, "unicodes", &mut unicodes, parse_unicodes);
 
     let font_bytes = std::fs::read(&args.path)
@@ -306,17 +318,31 @@ fn main() {
         SILF,
         SILL,
     ];
-    let mut drop_tables: IntSet<Tag> = default_drop_tables.iter().copied().collect();
+    let mut drop_tables: IntSet<Tag> = if args.keep_everything {
+        IntSet::empty()
+    } else {
+        default_drop_tables.iter().copied().collect()
+    };
     apply_list_args(&matches, "drop_tables", &mut drop_tables, parse_tag_list);
 
     // default value: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L43>
-    let mut name_ids = IntSet::<NameId>::empty();
-    name_ids.insert_range(NameId::from(0)..=NameId::from(6));
+    let mut name_ids = if args.keep_everything {
+        IntSet::all()
+    } else {
+        let mut ids = IntSet::<NameId>::empty();
+        ids.insert_range(NameId::from(0)..=NameId::from(6));
+        ids
+    };
     apply_list_args(&matches, "name_IDs", &mut name_ids, parse_name_ids);
 
     // default value: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-subset-input.cc#L44
-    let mut name_languages = IntSet::<u16>::empty();
-    name_languages.insert(0x0409);
+    let mut name_languages = if args.keep_everything {
+        IntSet::all()
+    } else {
+        let mut languages = IntSet::<u16>::empty();
+        languages.insert(0x0409);
+        languages
+    };
     apply_list_args(
         &matches,
         "name_languages",
@@ -335,8 +361,11 @@ fn main() {
     );
 
     // default value: <https://github.com/harfbuzz/harfbuzz/blob/689383d05b2609a67efa307a9860b85cf40bf8c3/src/hb-subset-input.cc#L82>
-    let mut layout_features = IntSet::<Tag>::empty();
-    layout_features.extend(DEFAULT_LAYOUT_FEATURES.iter().copied());
+    let mut layout_features = if args.keep_everything {
+        IntSet::all()
+    } else {
+        DEFAULT_LAYOUT_FEATURES.iter().copied().collect()
+    };
     apply_list_args(
         &matches,
         "layout_features",
@@ -381,7 +410,11 @@ fn main() {
 }
 
 fn parse_subset_flags(args: &Args) -> SubsetFlags {
-    let mut flags = SubsetFlags::default();
+    let mut flags = if args.keep_everything {
+        SubsetFlags::KEEP_EVERYTHING
+    } else {
+        SubsetFlags::default()
+    };
     if args.no_hinting {
         flags |= SubsetFlags::SUBSET_FLAGS_NO_HINTING;
     }
