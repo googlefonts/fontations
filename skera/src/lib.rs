@@ -1725,17 +1725,13 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     let same_size: bool =
         table_tag == Gsub::TAG || table_tag == Gpos::TAG || table_tag == Name::TAG;
 
-    if plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
-    {
-        if table_tag == Cff::TAG {
-            //Add some extra room for the CFF charset
-            bulk += src_glyphs * 16;
-        } else if table_tag == Cff2::TAG {
-            // Just extra CharString offsets
-            bulk += src_glyphs * 4;
-        }
+    if table_tag == Cff::TAG {
+        // Add room for a rewritten charset and CharString call operands. This
+        // is also needed when remapping most of a large range-based charset.
+        bulk += dst_glyphs * 16;
+    } else if table_tag == Cff2::TAG {
+        // Just extra CharString offsets.
+        bulk += dst_glyphs * 4;
     }
 
     if src_glyphs == 0 || same_size {
