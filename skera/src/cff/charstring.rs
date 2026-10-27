@@ -48,6 +48,10 @@ impl Value {
         }
         Ok(self.default as i32)
     }
+
+    pub(super) fn origin(&self) -> Option<(Program, usize, usize)> {
+        self.origin
+    }
 }
 
 pub(super) struct Command {
