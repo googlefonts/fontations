@@ -13,28 +13,24 @@ mod subset;
 pub(super) struct Error;
 type Result<T> = std::result::Result<T, Error>;
 
-use crate::{
-    serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetError,
-};
+use crate::{Plan, SubsetError};
 use read_fonts::{
     collections::IntSet,
     types::{GlyphId, Tag},
     FontRef, TableProvider,
 };
 
-pub(crate) fn subset(
+pub(crate) fn subset_data(
     font: &FontRef,
     plan: &Plan,
-    s: &mut Serializer,
     cff2: bool,
-) -> std::result::Result<(), SubsetError> {
+) -> std::result::Result<Vec<u8>, SubsetError> {
     let tag = if cff2 {
         Tag::new(b"CFF2")
     } else {
         Tag::new(b"CFF ")
     };
-    let result = (|| {
+    (|| {
         let data = font.data_for_tag(tag).ok_or(Error)?;
         let source = source::Source::new(data.as_bytes())?;
         if cff2 {
@@ -50,17 +46,8 @@ pub(crate) fn subset(
                 subset::programs::<source::Cff1>(&source, plan)?,
             )
         }
-    })();
-    match result {
-        Ok(data) => s
-            .embed_bytes(&data)
-            .map(|_| ())
-            .map_err(|_| SubsetError::SubsetTableError(tag)),
-        Err(_) => {
-            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
-            Err(SubsetError::SubsetTableError(tag))
-        }
-    }
+    })()
+    .map_err(|_| SubsetError::SubsetTableError(tag))
 }
 
 pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
