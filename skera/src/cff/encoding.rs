@@ -2,26 +2,54 @@
 
 use super::{Error, Result};
 
+#[inline]
 pub(super) fn number(data: &[u8], pos: &mut usize, dict: bool) -> Result<Option<f64>> {
-    let b = *data.get(*pos).ok_or(Error)?;
-    let mut p = *pos + 1;
-    let mut take = |n: usize| -> Result<&[u8]> {
-        let end = p.checked_add(n).ok_or(Error)?;
-        let bytes = data.get(p..end).ok_or(Error)?;
-        p = end;
-        Ok(bytes)
-    };
-    let value = match b {
-        32..=246 => (b as i32 - 139) as f64,
-        247..=250 => ((b as i32 - 247) * 256 + take(1)?[0] as i32 + 108) as f64,
-        251..=254 => (-(b as i32 - 251) * 256 - take(1)?[0] as i32 - 108) as f64,
-        28 => i16::from_be_bytes(take(2)?.try_into().map_err(|_| Error)?) as f64,
-        29 if dict => i32::from_be_bytes(take(4)?.try_into().map_err(|_| Error)?) as f64,
-        255 if !dict => i32::from_be_bytes(take(4)?.try_into().map_err(|_| Error)?) as f64 / 65536.,
+    let start = *pos;
+    let b = *data.get(start).ok_or(Error)?;
+    let (value, len) = match b {
+        32..=246 => ((b as i32 - 139) as f64, 1),
+        247..=250 => (
+            ((b as i32 - 247) * 256 + *data.get(start + 1).ok_or(Error)? as i32 + 108) as f64,
+            2,
+        ),
+        251..=254 => (
+            (-(b as i32 - 251) * 256 - *data.get(start + 1).ok_or(Error)? as i32 - 108) as f64,
+            2,
+        ),
+        28 => (
+            i16::from_be_bytes(
+                data.get(start + 1..start + 3)
+                    .ok_or(Error)?
+                    .try_into()
+                    .map_err(|_| Error)?,
+            ) as f64,
+            3,
+        ),
+        29 if dict => (
+            i32::from_be_bytes(
+                data.get(start + 1..start + 5)
+                    .ok_or(Error)?
+                    .try_into()
+                    .map_err(|_| Error)?,
+            ) as f64,
+            5,
+        ),
+        255 if !dict => (
+            i32::from_be_bytes(
+                data.get(start + 1..start + 5)
+                    .ok_or(Error)?
+                    .try_into()
+                    .map_err(|_| Error)?,
+            ) as f64
+                / 65536.,
+            5,
+        ),
         30 if dict => {
             let mut s = String::new();
+            let mut p = start + 1;
             'bcd: loop {
-                let byte = take(1)?[0];
+                let byte = *data.get(p).ok_or(Error)?;
+                p += 1;
                 for nibble in [byte >> 4, byte & 15] {
                     match nibble {
                         0..=9 => s.push(char::from(b'0' + nibble)),
@@ -37,17 +65,18 @@ pub(super) fn number(data: &[u8], pos: &mut usize, dict: bool) -> Result<Option<
                     return Err(Error);
                 }
             }
-            s.parse().map_err(|_| Error)?
+            (s.parse().map_err(|_| Error)?, p - start)
         }
         _ => return Ok(None),
     };
     if !value.is_finite() {
         return Err(Error);
     }
-    *pos = p;
+    *pos = start + len;
     Ok(Some(value))
 }
 
+#[inline]
 pub(super) fn op(data: &[u8], pos: &mut usize) -> Result<u16> {
     let b = *data.get(*pos).ok_or(Error)?;
     *pos += 1;
