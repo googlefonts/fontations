@@ -57,6 +57,13 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
 }
 
 fn charstring_may_end_in_seac(data: &[u8]) -> bool {
+    // A subroutine can terminate the glyph with endchar. Calls must therefore
+    // be interpreted even when the glyph has no endchar of its own or has
+    // unreachable bytes after the call. These bytes might occur inside an
+    // operand or mask, but treating those cases as possible calls is safe.
+    if data.iter().any(|byte| matches!(byte, 10 | 29)) {
+        return true;
+    }
     let Some((&14, body)) = data.split_last() else {
         return false;
     };
@@ -66,7 +73,11 @@ fn charstring_may_end_in_seac(data: &[u8]) -> bool {
     // Type 2 numbers are not self-synchronizing backwards. Interpret only
     // when a number encoding, or a call that can leave operands on the shared
     // stack, could immediately precede endchar.
-    matches!(last, 32..=246 | 10 | 29)
+    matches!(last, 32..=246)
+        // Escaped operators include stack-preserving operations such as the
+        // deprecated dotsection. Without interpreting the program, their
+        // result stack cannot be ruled out as seac operands.
+        || (body.len() >= 2 && body[body.len() - 2] == 12)
         || (body.len() >= 2 && matches!(body[body.len() - 2], 247..=254))
         || (body.len() >= 3 && body[body.len() - 3] == 28)
         || (body.len() >= 5 && body[body.len() - 5] == 255)
@@ -85,6 +96,9 @@ mod tests {
             &[255, 0, 0, 0, 0, 14],
             &[10, 14],
             &[29, 14],
+            &[32, 10],
+            &[32, 10, 5],
+            &[139, 139, 204, 247, 86, 12, 0, 14],
         ] {
             assert!(charstring_may_end_in_seac(data));
         }

@@ -212,18 +212,18 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
     let nohint = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-    let program_capacity = (source.font.charstrings().count() as usize)
-        .saturating_add(
-            (source.font.global_subrs().count() as usize).saturating_mul(source.fds.len()),
+    // Most selected glyphs reach a small number of subroutines. Use a bounded
+    // estimate and let the map grow rather than reserving for every source
+    // subroutine in every FD. Desubroutinization does not use a recorder.
+    const MAX_INITIAL_PROGRAM_CAPACITY: usize = 4096;
+    let mut rec = (!desub).then(|| {
+        Recorder::with_capacity(
+            plan.new_to_old_gid_list
+                .len()
+                .saturating_mul(4)
+                .min(MAX_INITIAL_PROGRAM_CAPACITY),
         )
-        .saturating_add(
-            source
-                .fds
-                .iter()
-                .map(|fd| fd.subrs.count() as usize)
-                .fold(0usize, usize::saturating_add),
-        );
-    let mut rec = Recorder::with_capacity(program_capacity);
+    });
     let mut widths = BTreeMap::new();
     let mut roots = Vec::new();
     let mut chars = vec![F::empty_glyph(); plan.num_output_glyphs];
@@ -248,6 +248,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
                 Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
             interpreter.run(key, data)?;
             let width = interpreter.width;
+            let rec = rec.as_mut().ok_or(Error)?;
             if !rec.merge(glyph) {
                 chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
             } else {
@@ -258,7 +259,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
     }
     let mut globals = Vec::new();
     let mut locals = vec![Vec::new(); source.fds.len()];
-    if !desub {
+    if let Some(mut rec) = rec {
         if nohint {
             rec.remove_hint_calls();
         }
