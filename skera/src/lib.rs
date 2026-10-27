@@ -1416,6 +1416,19 @@ fn subset<'a>(
     table_len: u32,
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
+    // The CFF subsetter assembles a finished contiguous table, so adding it to
+    // the font directly avoids copying it through the graph serializer. It also
+    // avoids rerunning the complete CFF subset plan if an estimate is too small.
+    if (table_tag == Cff::TAG || table_tag == Cff2::TAG)
+        && !plan.no_subset_tables.contains(table_tag)
+    {
+        let data = cff::subset_data(font, plan, table_tag == Cff2::TAG)?;
+        if !data.is_empty() {
+            builder.add_raw(table_tag, data);
+        }
+        return Ok(());
+    }
+
     let buf_size = estimate_subset_table_size(font, table_tag, plan);
     let mut s = Serializer::new(buf_size);
     let needed = try_subset(table_tag, font, plan, builder, &mut s, table_len, state);
@@ -1481,8 +1494,6 @@ fn subset_table<'a>(
     }
 
     match tag {
-        Cff::TAG => cff::subset(font, plan, s, false),
-        Cff2::TAG => cff::subset(font, plan, s, true),
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
@@ -1729,13 +1740,17 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     let same_size: bool =
         table_tag == Gsub::TAG || table_tag == Gpos::TAG || table_tag == Name::TAG;
 
-    if table_tag == Cff::TAG {
-        // Add room for a rewritten charset and CharString call operands. This
-        // is also needed when remapping most of a large range-based charset.
-        bulk += dst_glyphs * 16;
-    } else if table_tag == Cff2::TAG {
-        // Just extra CharString offsets.
-        bulk += dst_glyphs * 4;
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+    {
+        if table_tag == Cff::TAG {
+            // Add some extra room for the CFF charset.
+            bulk += src_glyphs * 16;
+        } else if table_tag == Cff2::TAG {
+            // Just extra CharString offsets.
+            bulk += src_glyphs * 4;
+        }
     }
 
     if src_glyphs == 0 || same_size {
