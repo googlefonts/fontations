@@ -7,7 +7,7 @@ use super::{
     source::{CffFlavor, Source},
     Error, Result,
 };
-use crate::{Plan, SubsetFlags};
+use crate::{FastHashMap, Plan, SubsetFlags};
 use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -93,23 +93,35 @@ fn copy_identity_programs(source: &Source) -> Result<Programs> {
 
 struct IdentityProgramCollector<'a, 's> {
     source: &'a Source<'s>,
-    programs: BTreeMap<Program, &'s [u8]>,
-    globals: BTreeSet<usize>,
-    locals: BTreeSet<usize>,
+    globals: IntSet<u32>,
+    locals: Vec<IntSet<u32>>,
     copyable: bool,
+}
+
+impl<'s> IdentityProgramCollector<'_, 's> {
+    fn source_program(&self, key: Program) -> Option<&'s [u8]> {
+        match key {
+            Program::Glyph(index) => self.source.font.charstrings().get(index),
+            Program::Local(fd, index) => self.source.fds.get(fd)?.subrs.get(index),
+            Program::Global(_, index) => self.source.font.global_subrs().get(index),
+        }
+    }
 }
 
 impl<'s> CharStringActions<'s> for IdentityProgramCollector<'_, 's> {
     const MATERIALIZE_BLENDS: bool = false;
 
-    fn program(&mut self, key: Program, data: &'s [u8]) {
-        self.programs.entry(key).or_insert(data);
+    fn program(&mut self, key: Program, _data: &'s [u8]) {
         match key {
             Program::Global(_, index) => {
-                self.globals.insert(index);
+                self.globals.insert(index as u32);
             }
-            Program::Local(_, index) => {
-                self.locals.insert(index);
+            Program::Local(fd, index) => {
+                if let Some(locals) = self.locals.get_mut(fd) {
+                    locals.insert(index as u32);
+                } else {
+                    self.copyable = false;
+                }
             }
             Program::Glyph(_) => {}
         }
@@ -128,52 +140,55 @@ impl<'s> CharStringActions<'s> for IdentityProgramCollector<'_, 's> {
             return Ok(());
         };
         let (op, count, index) = match target {
-            Program::Local(_, index) => (10, self.source.fds[0].subrs.count() as usize, index),
+            Program::Local(fd, index) => (
+                10,
+                self.source.fds.get(fd).ok_or(Error)?.subrs.count() as usize,
+                index,
+            ),
             Program::Global(_, index) => {
                 (29, self.source.font.global_subrs().count() as usize, index)
             }
             Program::Glyph(_) => return Err(Error),
         };
-        let mut expected = Vec::with_capacity(6);
-        encoding::integer(
-            &mut expected,
+        let (expected, expected_len) = encoding::integer_bytes(
             i32::try_from(index).map_err(|_| Error)? - encoding::bias(count),
         );
-        expected.push(op);
         self.copyable &= producer == key
             && number_end == start
             && self
-                .programs
-                .get(&key)
+                .source_program(key)
                 .and_then(|data| data.get(number_start..end))
-                == Some(expected.as_slice());
+                .is_some_and(|bytes| {
+                    bytes.len() == expected_len + 1
+                        && bytes[..expected_len] == expected[..expected_len]
+                        && bytes[expected_len] == op
+                });
         Ok(())
     }
 }
 
 fn all_source_programs_reachable<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<bool> {
-    // Multiple FDs can require separate global-subroutine encodings when
-    // globals call differently remapped local subroutines.
-    if source.fds.len() != 1 {
-        return Ok(false);
-    }
     let mut collector = IdentityProgramCollector {
         source,
-        programs: BTreeMap::new(),
-        globals: BTreeSet::new(),
-        locals: BTreeSet::new(),
+        globals: IntSet::empty(),
+        locals: vec![IntSet::empty(); source.fds.len()],
         copyable: true,
     };
     for &(_, old) in &plan.new_to_old_gid_list {
         let orig = old.to_u32() as usize;
         let data = source.font.charstrings().get(orig).ok_or(Error)?;
+        let fd = source.fd(old)?;
         let mut interpreter =
-            Interpreter::<F, _, _>::new(source, &mut collector, 0, source.fds[0].ivs, false);
+            Interpreter::<F, _, _>::new(source, &mut collector, fd, source.fds[fd].ivs, false);
         interpreter.run(Program::Glyph(orig), data)?;
     }
     Ok(collector.copyable
-        && collector.globals.len() == source.font.global_subrs().count() as usize
-        && collector.locals.len() == source.fds[0].subrs.count() as usize)
+        && collector.globals.len() == source.font.global_subrs().count() as u64
+        && collector
+            .locals
+            .iter()
+            .zip(&source.fds)
+            .all(|(used, fd)| used.len() == fd.subrs.count() as u64))
 }
 
 fn remap_order(program: Program) -> (u8, usize, usize) {
@@ -197,7 +212,18 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
     let nohint = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-    let mut rec = Recorder::default();
+    let program_capacity = (source.font.charstrings().count() as usize)
+        .saturating_add(
+            (source.font.global_subrs().count() as usize).saturating_mul(source.fds.len()),
+        )
+        .saturating_add(
+            source
+                .fds
+                .iter()
+                .map(|fd| fd.subrs.count() as usize)
+                .fold(0usize, usize::saturating_add),
+        );
+    let mut rec = Recorder::with_capacity(program_capacity);
     let mut widths = BTreeMap::new();
     let mut roots = Vec::new();
     let mut chars = vec![F::empty_glyph(); plan.num_output_glyphs];
@@ -217,7 +243,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         if desub {
             chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
         } else {
-            let mut glyph = Recorder::default();
+            let mut glyph = Recorder::with_capacity(16);
             let mut interpreter =
                 Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
             interpreter.run(key, data)?;
@@ -236,9 +262,9 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         if nohint {
             rec.remove_hint_calls();
         }
-        let mut used: Vec<_> = rec.closure(&roots)?.into_iter().collect();
+        let mut used = rec.closure(&roots)?;
         used.sort_unstable_by_key(|program| remap_order(*program));
-        let mut remap = BTreeMap::new();
+        let mut remap = FastHashMap::default();
         let mut shared_globals: BTreeMap<usize, Vec<Program>> = BTreeMap::new();
         for key in &used {
             match *key {
@@ -707,8 +733,14 @@ pub(super) fn assemble<F: CffFlavor>(
 
 #[cfg(test)]
 mod tests {
-    use super::{can_copy_identity_programs, copy_identity_programs, remap_order, Program};
-    use crate::{cff::source::Source, Plan, SubsetFlags};
+    use super::{
+        all_source_programs_reachable, can_copy_identity_programs, copy_identity_programs,
+        remap_order, Program,
+    };
+    use crate::{
+        cff::source::{Cff1, Source},
+        Plan, SubsetFlags,
+    };
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     fn identity_plan(glyph_count: u32) -> Plan {
@@ -781,5 +813,18 @@ mod tests {
             plan.subset_flags = SubsetFlags::default();
             assert!(!can_copy_identity_programs(&source, &plan));
         }
+    }
+
+    #[test]
+    fn identity_program_copy_supports_multiple_font_dicts() {
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/SourceHanSans-Regular_subset.otf"
+        ))
+        .unwrap();
+        let source = Source::new(font.cff().unwrap().offset_data().as_bytes()).unwrap();
+        assert!(source.fds.len() > 1);
+
+        let plan = identity_plan(source.font.num_glyphs());
+        assert!(all_source_programs_reachable::<Cff1>(&source, &plan).unwrap());
     }
 }
