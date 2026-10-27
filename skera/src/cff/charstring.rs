@@ -10,8 +10,10 @@ use super::{
     Error, Result,
 };
 use crate::FastHashMap;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::marker::PhantomData;
+
+type FastHashSet<T> = HashSet<T, foldhash::fast::FixedState>;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
@@ -244,8 +246,8 @@ impl<'s> Recorder<'s> {
             }
         }
     }
-    pub fn closure(&self, roots: &[Program]) -> Result<BTreeSet<Program>> {
-        let mut used = BTreeSet::new();
+    pub fn closure(&self, roots: &[Program]) -> Result<FastHashSet<Program>> {
+        let mut used = FastHashSet::default();
         let mut pending = roots.to_vec();
         while let Some(key) = pending.pop() {
             if !used.insert(key) {
@@ -785,10 +787,9 @@ mod tests {
             .unwrap();
         assert!(!rec.needs_flatten);
         rec.remove_hint_calls();
-        assert_eq!(
-            rec.closure(&[Program::Glyph(0)]).unwrap(),
-            [Program::Glyph(0)].into()
-        );
+        let closure = rec.closure(&[Program::Glyph(0)]).unwrap();
+        assert_eq!(closure.len(), 1);
+        assert!(closure.contains(&Program::Glyph(0)));
         assert_eq!(
             rec.encode(Program::Glyph(0), &BTreeMap::new(), 0, &[0])
                 .unwrap(),
