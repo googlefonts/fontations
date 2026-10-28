@@ -650,8 +650,7 @@ pub(super) fn instance(
     Ok(out)
 }
 
-// End-to-end avar2 tests are enabled with the first outline consumer.
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
     use skrifa::MetadataProvider;

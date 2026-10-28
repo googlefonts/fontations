@@ -532,8 +532,7 @@ pub(super) fn map_float(map: &read_fonts::tables::avar::SegmentMaps, v: f64, inv
     (v - from + to) as f64
 }
 
-// End-to-end axis tests are enabled with the first outline consumer.
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
 

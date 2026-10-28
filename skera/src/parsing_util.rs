@@ -2,31 +2,7 @@
 use read_fonts::collections::{int_set::Domain, IntSet};
 use read_fonts::types::{GlyphId, NameId, Tag};
 
-use crate::{FastHashMap, SubsetError};
-
-/// Parses a glyph mapping into `glyph_map`.
-///
-/// The input is a comma/whitespace-separated list of `old_gid:new_gid` pairs, as for
-/// hb-subset's `--gid-map`.
-///
-/// ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/util/hb-subset.cc#L725>
-pub fn parse_glyph_map(
-    input_str: &str,
-    glyph_map: &mut FastHashMap<GlyphId, GlyphId>,
-) -> Result<(), SubsetError> {
-    let parse_gid = |raw: &str| {
-        raw.parse::<u32>()
-            .map(GlyphId::new)
-            .map_err(|_| SubsetError::InvalidGid(raw.to_owned()))
-    };
-    for entry in input_str.split(&[',', ' ']).filter(|raw| !raw.is_empty()) {
-        let (old_gid, new_gid) = entry
-            .split_once(':')
-            .ok_or_else(|| SubsetError::InvalidGlyphMapEntry(entry.to_owned()))?;
-        glyph_map.insert(parse_gid(old_gid)?, parse_gid(new_gid)?);
-    }
-    Ok(())
-}
+use crate::SubsetError;
 
 pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     if gid_str.trim() == "*" {
@@ -37,7 +13,10 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     if gid_str.is_empty() {
         return Ok(result);
     }
-    for gid in gid_str.split(',') {
+    for gid in gid_str
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .filter(|s| !s.is_empty())
+    {
         if let Some((start, end)) = gid.split_once('-') {
             let start: u32 = start
                 .parse::<u32>()
@@ -57,6 +36,67 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
         }
     }
     Ok(result)
+}
+
+/// Resolve comma/whitespace-separated glyph names using post or CFF data.
+/// Numeric glyph IDs, `gid123`, and mapped Unicode names such as `uni0041`
+/// are also accepted, following HarfBuzz's glyph-from-string fallbacks.
+pub fn parse_glyph_names(
+    font: &read_fonts::FontRef,
+    input: &str,
+) -> Result<IntSet<GlyphId>, SubsetError> {
+    use skrifa::MetadataProvider;
+    if input.trim() == "*" {
+        return Ok(IntSet::all());
+    }
+    if input.trim().is_empty() {
+        return Ok(IntSet::empty());
+    }
+    let names: crate::FastHashMap<_, _> = font
+        .glyph_names()
+        .iter()
+        .map(|(gid, name)| (name.as_str().to_owned(), gid))
+        .collect();
+    let charmap = font.charmap();
+    input
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            names
+                .get(name)
+                .copied()
+                .or_else(|| name.parse::<u32>().ok().map(GlyphId::new))
+                .or_else(|| {
+                    name.strip_prefix("gid")?
+                        .parse::<u32>()
+                        .ok()
+                        .map(GlyphId::new)
+                })
+                .or_else(|| {
+                    let cp = u32::from_str_radix(name.strip_prefix("uni")?, 16).ok()?;
+                    charmap.map(cp)
+                })
+                .ok_or_else(|| SubsetError::InvalidGlyphName(name.into()))
+        })
+        .collect()
+}
+
+/// Parse comma-separated original:new glyph ID pairs, as in `1:4,2:7`.
+pub fn parse_glyph_mapping(input: &str) -> Result<Vec<(GlyphId, GlyphId)>, SubsetError> {
+    if input.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    input
+        .split(|c: char| c == ',' || c.is_ascii_whitespace())
+        .filter(|pair| !pair.is_empty())
+        .map(|pair| {
+            let invalid = || SubsetError::InvalidGlyphMapping(pair.into());
+            let (old, new) = pair.trim().split_once(':').ok_or_else(invalid)?;
+            let old = old.trim().parse::<u32>().map_err(|_| invalid())?;
+            let new = new.trim().parse::<u32>().map_err(|_| invalid())?;
+            Ok((GlyphId::new(old), GlyphId::new(new)))
+        })
+        .collect()
 }
 
 /// parse input unicodes string, which is a comma/whitespace-separated list of Unicode codepoints or ranges as hex numbers,
@@ -249,27 +289,35 @@ fn test_parse_name_languages() {
 }
 
 #[test]
-fn test_parse_glyph_map() {
-    let mut glyph_map = FastHashMap::default();
-    parse_glyph_map("37:1,39:2 69:3", &mut glyph_map).unwrap();
-    // later entries are added, and override earlier ones for the same old glyph
-    parse_glyph_map("74:4, 37:5", &mut glyph_map).unwrap();
-    let mut entries: Vec<_> = glyph_map
-        .iter()
-        .map(|(old, new)| (old.to_u32(), new.to_u32()))
-        .collect();
-    entries.sort_unstable();
-    assert_eq!(entries, [(37, 5), (39, 2), (69, 3), (74, 4)]);
-
-    parse_glyph_map("", &mut glyph_map).unwrap();
-    assert_eq!(glyph_map.len(), 4);
-
+fn glyph_names_use_post_cff_and_harfbuzz_string_fallbacks() {
+    use read_fonts::FontRef;
+    let source = std::fs::read("test-data/fonts/AlegreyaSans-BlackItalic.ttf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    let glyphs = parse_glyph_names(&font, ".notdef, A gid31 uni0043 c").unwrap();
+    assert_eq!(
+        glyphs,
+        [0, 3, 31, 32, 284].into_iter().map(GlyphId::new).collect()
+    );
+    assert!(parse_glyph_names(&font, "*")
+        .unwrap()
+        .contains(GlyphId::new(1000)));
+    assert!(parse_glyph_names(&font, "").unwrap().is_empty());
     assert!(matches!(
-        parse_glyph_map("37-1", &mut glyph_map),
-        Err(SubsetError::InvalidGlyphMapEntry(_))
+        parse_glyph_names(&font, "missing"),
+        Err(SubsetError::InvalidGlyphName(_))
     ));
-    assert!(matches!(
-        parse_glyph_map("37:x", &mut glyph_map),
-        Err(SubsetError::InvalidGid(_))
-    ));
+    assert!(parse_glyph_names(&font, "uniFFFF").is_err());
+    let source = std::fs::read("test-data/fonts/Roboto-Regular.abc.ttf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    assert_eq!(
+        parse_glyph_names(&font, "0 gid1 uni0062 3").unwrap(),
+        (0..=3).map(GlyphId::new).collect()
+    );
+    assert!(parse_glyph_names(&font, "a").is_err());
+    let source = std::fs::read("test-data/fonts/cff1_seac.otf").unwrap();
+    let font = FontRef::new(&source).unwrap();
+    assert_eq!(
+        parse_glyph_names(&font, ".notdef A U grave dieresis").unwrap(),
+        [0, 1, 2, 5, 6].into_iter().map(GlyphId::new).collect()
+    );
 }

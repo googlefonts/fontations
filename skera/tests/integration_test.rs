@@ -8,8 +8,8 @@
 use rayon::prelude::*;
 use rstest::rstest;
 use skera::{
-    parse_glyph_map, parse_unicodes, subset_font, FastHashMap, Plan, SubsetFlags,
-    DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES,
+    parse_glyph_mapping, parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES,
+    DEFAULT_LAYOUT_FEATURES,
 };
 use std::fmt::Write;
 use std::fs;
@@ -370,8 +370,8 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
     );
     let glyph_map = parse_profile_glyph_map(profile);
     // Like hb-subset, also retain the glyphs that --gid-map maps.
-    gids.extend(glyph_map.keys().copied());
-    let plan = Plan::new_with_glyph_map(
+    gids.extend(glyph_map.iter().map(|&(old, _)| old));
+    let mut plan = Plan::new(
         &gids,
         &unicodes,
         &font,
@@ -381,9 +381,8 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
         &layout_features,
         &name_ids,
         &name_languages,
-        &glyph_map,
-    )
-    .unwrap();
+    );
+    plan.set_glyph_mapping(&glyph_map).unwrap();
 
     let subset_output = subset_font(&font, &plan).unwrap();
     std::fs::write(output_file, subset_output).unwrap();
@@ -393,13 +392,13 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
 }
 
 /// Parses the --gid-map options of a profile.
-fn parse_profile_glyph_map(profile: &str) -> FastHashMap<GlyphId, GlyphId> {
+fn parse_profile_glyph_map(profile: &str) -> Vec<(GlyphId, GlyphId)> {
     let file_path = Path::new(TEST_DATA_DIR).join("profiles").join(profile);
     let input = std::fs::read_to_string(file_path).unwrap();
-    let mut glyph_map = FastHashMap::default();
+    let mut glyph_map = Vec::new();
     for line in input.lines() {
         if let Some(list) = line.trim().strip_prefix("--gid-map=") {
-            parse_glyph_map(list, &mut glyph_map).unwrap();
+            glyph_map.extend(parse_glyph_mapping(list).unwrap());
         }
     }
     glyph_map
