@@ -504,11 +504,8 @@ fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
         out.extend(u32::try_from(fds.len()).map_err(|_| Error)?.to_be_bytes());
         return Ok(out);
     }
-    if 1 + fds.len() < 5 + ranges.len() * 3 {
-        let mut out = vec![0];
-        out.extend(fds.iter().map(|&fd| fd as u8));
-        return Ok(out);
-    }
+    // HarfBuzz never emits format 0 (CFF_SERIALIZE_FDSELECT_0 is disabled), even
+    // when it would be smaller, so always use format 3 to match its output.
     let mut out = vec![3];
     out.extend((ranges.len() as u16).to_be_bytes());
     for (gid, fd) in ranges {
