@@ -8,7 +8,7 @@ owns the font-wide map of pending table changes.
 
 This design covers the Skera feature stack: CFF and TrueType outlines, full and
 partial instancing, coupled avar2 mappings, layout and color variations, VARC,
-MATH, and CLI selection. The separate reader-format and Skrifa performance
+JSTF, and CLI selection. The separate reader-format and Skrifa performance
 changes provide supporting functionality.
 
 ## Public operations
@@ -75,7 +75,7 @@ preservation.
 | cvar | Axes and mutable CVT values; residual cvar or removal | [TrueType](../src/instance/truetype.rs) |
 | HVAR and VVAR | Axes; rebuilt metric stores | [Metrics](../src/instance/metrics.rs) |
 | MVAR | Axes and metric headers; header deltas and residual MVAR | [Metrics](../src/instance/metrics.rs) |
-| GPOS, GSUB, GDEF, MATH, JSTF | GDEF store transaction; owned tables awaiting remapping | [Layout](../src/instance/layout.rs) |
+| GPOS, GSUB, GDEF, JSTF | GDEF store transaction; owned tables awaiting remapping | [Layout](../src/instance/layout.rs) |
 | BASE | Its own store and axes; bytes preserving its version | [Layout](../src/instance/layout.rs) |
 | COLR | Its own store, index map, and axes; serialized paints | [Color](../src/instance/color.rs) |
 | fvar and avar | Original axes and restrictions; retained metadata and mappings | [Metadata](../src/instance/metadata.rs), [avar2](../src/instance/avar2.rs) |
@@ -90,7 +90,7 @@ Two dependencies need font coordination:
   Outline helpers address named metric and header buffers. MVAR's borrowed
   header view cannot change advance arrays, outline bytes, or axis metadata;
   its record targets use a closed enum rather than arbitrary font-table tags.
-* GPOS, GSUB variation conditions, GDEF caret values, MATH, and JSTF can reference
+* GPOS, GSUB variation conditions, GDEF caret values, and JSTF can reference
   GDEF's store. They must share one rebuild and one row-index remapping.
   `LayoutTables` names the outputs of this transaction.
 
@@ -174,8 +174,8 @@ The layout transaction has two passes. First, table handlers apply default
 deltas, simplify references and feature conditions, and collect any additional
 condition rows needed in the residual store. The coordinator rebuilds and
 optimizes that store once. It then remaps every consumer before serializing
-GDEF and its dependents. Saving or optimizing GDEF before processing MATH or
-JSTF could discard rows those tables still use.
+GDEF and its dependents. Saving or optimizing GDEF before processing JSTF
+could discard rows that table still uses.
 
 The value walker receives an explicit pass:
 
@@ -380,7 +380,7 @@ identify the main slices; later fixes in the same stack refine them.
 | TrueType | [#2268](https://github.com/googlefonts/fontations/pull/2268), [#2269](https://github.com/googlefonts/fontations/pull/2269), [#2284](https://github.com/googlefonts/fontations/pull/2284) | [TrueType](../tests/truetype_instance_test.rs), [IUP](../tests/iup_test.rs), [empty glyphs](../tests/empty_glyph_test.rs): components, instructions, phantoms, residual tuples |
 | Axes and avar2 | [#2253](https://github.com/googlefonts/fontations/pull/2253), [#2291](https://github.com/googlefonts/fontations/pull/2291), [#2296](https://github.com/googlefonts/fontations/pull/2296) | [Axis planning](../src/instance/axes.rs), [avar2](../src/instance/avar2.rs): coordinate spaces, reachability, hidden pins |
 | Layout | [#2255](https://github.com/googlefonts/fontations/pull/2255), [#2274](https://github.com/googlefonts/fontations/pull/2274), [#2281](https://github.com/googlefonts/fontations/pull/2281), [#2328](https://github.com/googlefonts/fontations/pull/2328) | [Layout](../tests/layout_instance_test.rs), [BASE](../tests/base_test.rs), [JSTF](../tests/jstf_test.rs): shared rows, conditions, device adjustments |
-| MATH and VARC | [#2270](https://github.com/googlefonts/fontations/pull/2270), [#2271](https://github.com/googlefonts/fontations/pull/2271), [#2326](https://github.com/googlefonts/fontations/pull/2326), [#2317](https://github.com/googlefonts/fontations/pull/2317) | [MATH](../tests/math_test.rs), [VARC](../tests/varc_test.rs): closure, shared indices, supported axis changes |
+| VARC | [#2270](https://github.com/googlefonts/fontations/pull/2270), [#2317](https://github.com/googlefonts/fontations/pull/2317) | [VARC](../tests/varc_test.rs): closure and supported axis changes |
 | Color | [#2282](https://github.com/googlefonts/fontations/pull/2282), [#2295](https://github.com/googlefonts/fontations/pull/2295), [#2316](https://github.com/googlefonts/fontations/pull/2316) | [Instances](../tests/color_instance_test.rs), [stores](../tests/color_store_test.rs), [scales](../tests/color_scale_test.rs), [radial gradients](../tests/color_negative_radii_test.rs), [affines](../tests/color_affine_test.rs), [clips](../tests/color_clip_test.rs) |
 | Selection | [#2287](https://github.com/googlefonts/fontations/pull/2287), [#2298](https://github.com/googlefonts/fontations/pull/2298), [#2313](https://github.com/googlefonts/fontations/pull/2313) | [Mappings](../tests/glyph_mapping_test.rs), [CLI](../tests/cli_selection_test.rs), [presets](../tests/keep_everything_test.rs): ordering and original glyph identities |
 
@@ -428,41 +428,6 @@ ID width before writing it.
 
 ## Validation and remaining limits
 
-The current self-review integration is checked across the six packages below,
-including the eight normally ignored Skera tests (seven repacker cases and
-the Noto Nastaliq Urdu layout test). TrueType propagation runs Skera unit
-tests, TrueType integration regressions, the shared-writer zero-contour
-regression, and all-target/all-feature compilation at every affected boundary.
-Full Skera suites additionally run at the reviewed PRs and selected integration
-boundaries. A separate STAT pass runs its integration suite at each affected
-boundary and verifies that all other sources match the validated TrueType
-commit. A layout pass moves existing empty-record ownership corrections to
-#2274, runs its unit/integration suites and all-target compilation at each
-subsequent boundary, and verifies that other sources match the preceding pass.
-The width pass runs variation tests and all-target compilation until its
-source matches the already validated later correction, then verifies exact
-tree equality at the remaining boundaries. The final combined tip also runs the full package suites, Clippy, Rust 1.85
-workspace checks, documentation, code generation, formatting, and repository
-scripts. The subsequent feature-ownership pass changes only Skera: all affected
-boundaries compile with every target and feature and run the malformed-header
-and complete feature-parameter comparisons. Its final tip passes the full Skera
-suite, Clippy, Rust 1.85 all-target/all-feature checks, formatting, and typo checks;
-the malformed-header regression also passes on i686. The other five packages
-retain the previously tested sources. The later scalar and optimizer passes
-run their regressions and all-target/all-feature compilation at each affected
-boundary. The combined tip runs the full Skera suite, its normally ignored
-tests, Clippy, Rust 1.85 checks, formatting, and typo checks. Other packages
-retain the preceding validated sources. These propagation checks do not mark
-the ongoing per-PR design and performance review complete.
-
-The TrueType review compares 204 full instances without semantic differences
-against HarfBuzz. A further 132 partial cases and 660 second-stage locations
-exposed the float-rounding regressions above. The two default-pin glyph-bounds
-discrepancies match after the HarfBuzz #6436 fix. The self-contained avar2 pin
-policy is handled by the later axis-compensation work. VARC subsetting also
-matches all 14 references regenerated with current HarfBuzz, and its source
-outline comparisons cover conditions, axes, transforms, and component closure.
-
 ```sh
 cargo test -p skera -p skrifa -p write-fonts -p read-fonts \
   -p font-types -p font-codegen --all-features
@@ -477,48 +442,6 @@ outputs against the preceding stack tip for full instances, partial ranges,
 unchanged ranges, and composition. Exact bytes are useful for a refactor check;
 cross-project comparisons can require equivalent outlines, metrics,
 references, and colors because packing can differ.
-
-The refactor was compared with stack tip `32022823` in 128 CLI cases across 18
-CFF2, TrueType, COLR, MATH, and VARC fixtures. These included full and partial
-instances, unchanged ranges, CFF2 downgrade, and composition in both axis
-orders. All 113 successful cases produced identical complete fonts; the other
-15 cases produced identical errors. A regression test also checks the absent
-avar versus present empty-map distinction.
-
-The subsequent phase and dependency refactors were compared with `1783b1b3`
-in 148 cases across 21 fixtures, adding JSTF, 32-bit variation stores, and cvar
-coverage. All 133 successful cases produced identical complete fonts, and the
-15 rejected cases produced identical errors. Additional regressions check
-that remapping preserves instanced values and that later table phases can
-retain or replace a prior removal.
-
-The stack rebase onto upstream `0e6380f6` was compared with the previous tip
-`c269b34e` using the same 148 cases. All 133 successful outputs were byte-identical,
-and all 15 rejected cases produced identical errors. Every PR boundary builds
-with Rust 1.85; the retained class-context regressions also pass before the
-later feature branches are applied.
-
-Integration with landed beyond64k commit `e1342bff` passed 2,551 tests across
-Skera, read-fonts, write-fonts, Skrifa, font-types, and codegen. All 67 PR
-boundaries build with Rust 1.85 and pass Skera unit tests; the Clippy checks use
-Rust 1.89 with all targets/features and warnings denied. The same 148 CLI
-cases produced 70 byte-identical outputs, 63 outputs with equivalent table
-contents after packing changes, and 15 identical rejections. Equivalence checks
-compare decoded changed tables, ignoring only the head checksum adjustment;
-unchanged tables retain their exact bytes. New regressions cover all eight wide
-positioning formats, empty record counts, conditional lookup lists, store-index
-remapping, and composite glyph ID widths and overflow.
-
-Integration with current main `4aa488b5` and the CFF review fixes passes
-2,860 tests across the same six crates, with ten ignored by the ordinary run.
-The eight slow Skera tests also pass when run explicitly. All 67 PR boundaries
-build with Rust 1.85 and pass Skera Clippy with all targets/features and warnings
-denied; CFF regressions pass across the twelve distinct CFF source revisions.
-The full workspace MSRV check, documentation with warnings denied, no-std
-cross-builds, reproducible codegen, Rustfmt, and local document links pass.
-The main integration also carries outward rendering clip rounding into the new
-read-fonts color renderer, with tests distinguishing it from glyph-extents
-rounding for positive and negative fractional deltas.
 
 Cubic outlines use the upstream reader support; `spec_next` is retained as a
 compatibility feature. Instancing the extended GLYF/GVAR and uppercase metrics families is not
