@@ -227,6 +227,7 @@ impl FontOutput {
         for (tag, data) in [
             (b"GPOS", layout.gpos),
             (b"GSUB", layout.gsub),
+            (b"JSTF", layout.jstf),
             (b"GDEF", layout.gdef),
             (b"BASE", layout.base),
         ] {
