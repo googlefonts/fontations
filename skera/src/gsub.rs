@@ -19,7 +19,7 @@ use read_fonts::{
     collections::IntSet,
     tables::{
         gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
-        layout::LookupFlag,
+        layout::{FeatureRecord, LookupFlag},
     },
     types::{Compatible, MajorMinor, Offset16, Offset32, Tag},
     FontRead, FontRef, TopLevelTable,
@@ -43,7 +43,7 @@ impl NameIdClosure for Gsub<'_> {
         if let Some(Ok(variations)) = self.feature_variations() {
             crate::layout::collect_alternate_feature_name_ids(
                 &variations,
-                &feature_list,
+                feature_list.feature_records(),
                 Self::TAG,
                 plan,
             );
@@ -200,10 +200,12 @@ fn subset_gsub(
         )?;
     }
 
+    let mut feature_records: &[FeatureRecord] = &[];
     if !gsub.feature_list_offset().is_null() {
         let feature_list = gsub
             .feature_list()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        feature_records = feature_list.feature_records();
         Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
     }
 
@@ -226,7 +228,7 @@ fn subset_gsub(
             &feature_variations,
             s,
             plan,
-            &mut c,
+            (feature_records, &mut c),
             feature_vars_offset_pos,
         ) {
             Ok(()) => (),

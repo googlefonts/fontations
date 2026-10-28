@@ -89,6 +89,44 @@ fn removed_variation_stores_and_rows_evaluate_to_zero() {
 }
 
 #[test]
+fn explicit_default_suppresses_neutral_layout_rows_in_partial_instances() {
+    use write_fonts::tables::variations::*;
+    let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+    let font = FontRef::new(&bytes).unwrap();
+    let mut axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=900").unwrap()).unwrap();
+    axes.coords.fill(F2Dot14::ZERO);
+    // Keep one axis variable: HarfBuzz suppresses ordinary store deltas at
+    // explicit all-zero coordinates independently of whether all axes are pinned.
+    axes.pinned[0] = true;
+    assert!(!axes.all_pinned());
+    let neutral = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
+    let bytes = write_fonts::dump_table(&write_fonts::tables::variations::ItemVariationStore {
+        variation_region_list: VariationRegionList::new(
+            axes.coords.len() as u16,
+            vec![VariationRegion::new(vec![neutral; axes.coords.len()])],
+        )
+        .into(),
+        item_variation_data: vec![ItemVariationData {
+            item_count: 1,
+            word_delta_count: 1,
+            region_indexes: vec![0],
+            delta_sets: 10i16.to_be_bytes().to_vec(),
+        }
+        .into()],
+    })
+    .unwrap();
+    let c = LayoutContext::new(
+        Some(
+            read_fonts::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+                .unwrap(),
+        ),
+        &axes,
+    );
+    assert_eq!(c.wide_delta(0, 0).unwrap(), 0);
+    assert_eq!(c.condition_delta(0), 0.);
+}
+
+#[test]
 fn condition_signs_and_positioning_deltas_use_distinct_precision() {
     let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
     let font = FontRef::new(&bytes).unwrap();
@@ -595,7 +633,7 @@ fn partial_variable_conditions_preserve_large_folded_defaults() {
     else {
         panic!()
     };
-    assert_eq!(cond.default_value, 0);
+    assert_eq!(cond.default_value, i16::MAX);
     assert_eq!(cond.var_index, 1 << 16);
     let bytes = write_fonts::dump_table(&rebuild_store(&c).unwrap().unwrap()).unwrap();
     let store = ItemVariationStore::read(FontData::new(&bytes)).unwrap();
@@ -606,8 +644,11 @@ fn partial_variable_conditions_preserve_large_folded_defaults() {
             .to_f64();
         // The folded default exceeds i32::MAX, so HarfBuzz scales this
         // Boolean expression by one half before storing its private row.
-        assert_eq!(delta, 1073741874. - 1073741824. * coord.to_f64());
-        assert!(delta > 0.);
+        assert_eq!(
+            cond.default_value as f64 + delta,
+            1073741874. - 1073741824. * coord.to_f64()
+        );
+        assert!(cond.default_value as f64 + delta > 0.);
     }
 }
 

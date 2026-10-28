@@ -77,6 +77,9 @@ impl<'a> LayoutContext<'a> {
         Ok(self.store_plan.get())
     }
     fn condition_delta(&self, index: u32) -> f64 {
+        if self.coords.iter().all(|&coord| coord == F2Dot14::ZERO) {
+            return 0.;
+        }
         self.store
             .as_ref()
             .zip(self.scalars())
@@ -125,6 +128,9 @@ impl<'a> LayoutContext<'a> {
         if (DeltaSetIndex { outer, inner }) == DeltaSetIndex::NO_VARIATION_INDEX {
             return Ok(0);
         }
+        if self.coords.iter().all(|&coord| coord == F2Dot14::ZERO) {
+            return Ok(0);
+        }
         // HarfBuzz evaluates an absent store or missing delta row as zero.
         // Subsetting can remove a store once all its residual regions vanish.
         Ok(self
@@ -132,7 +138,7 @@ impl<'a> LayoutContext<'a> {
             .as_ref()
             .zip(self.scalars())
             .and_then(|(store, scalars)| scalars.delta(store, DeltaSetIndex { outer, inner }))
-            .map(|delta| (delta + 0.5).floor() as i64)
+            .map(|delta| super::round_f32(delta) as i64)
             .unwrap_or(0))
     }
 

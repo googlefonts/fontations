@@ -270,14 +270,15 @@ pub(super) fn partial_condition(
                 if outer >= u16::MAX as usize {
                     return Err(err());
                 }
-                let bias = i16::try_from(default).is_err().then_some(default);
+                let stored_default = default.clamp(i16::MIN as i32, i16::MAX as i32);
+                let bias = (default != stored_default).then_some(default - stored_default);
                 rows.rows.push(ConditionRow {
                     indices: transform.indices.clone(),
                     deltas: residual.iter().map(|d| (d * scale).round()).collect(),
                     bias,
                 });
                 v.var_index = (outer as u32) << 16;
-                v.default_value = if bias.is_some() { 0 } else { default as i16 };
+                v.default_value = stored_default as i16;
             } else {
                 v.default_value = default as i16;
             }
