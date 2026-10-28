@@ -47,9 +47,8 @@ use inc_bimap::IncBiMap;
 pub use instance::{downgrade_cff2, instance_font, instance_font_with_flags};
 pub use instance::{parse_axis_limits, parse_axis_limits_for_font, AxisLimits};
 use layout::{
-    collect_feature_variations_name_ids, collect_features_with_retained_subs,
-    collect_variable_feature_indices, find_duplicate_features, prune_features,
-    remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
+    prune_features, remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
     parse_glyph_map, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
@@ -356,6 +355,8 @@ pub struct Plan {
     glyphset_colred: IntSet<GlyphId>,
     glyphset_varced: IntSet<GlyphId>,
     varc_closure_failed: bool,
+    jstf_gsub_lookups: IntSet<u16>,
+    jstf_gpos_lookups: IntSet<u16>,
     glyphset: IntSet<GlyphId>,
     /// Old->New glyph id mapping,
     glyph_map: FastHashMap<GlyphId, GlyphId>,

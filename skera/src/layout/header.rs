@@ -68,12 +68,10 @@ macro_rules! subset_extended_layout {
                     !script_offset.is_null(),
                 )?;
             }
-            let mut feature_records: &[read_fonts::tables::layout::FeatureRecord] = &[];
             if !feature_offset.is_null() || !table.feature_list_offset().is_null() {
                 let list = table
                     .feature_list()
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-                feature_records = list.feature_records();
                 crate::layout::header::serialize_list(
                     &list,
                     s,
@@ -101,14 +99,8 @@ macro_rules! subset_extended_layout {
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                Offset32::serialize_subset(
-                    &variations,
-                    s,
-                    plan,
-                    (feature_records, &mut c),
-                    variations_pos,
-                )
-                .is_empty()?;
+                Offset32::serialize_subset(&variations, s, plan, &mut c, variations_pos)
+                    .is_empty()?;
             }
             // The extended list fields require version 1.2 even without FeatureVariations.
             Ok(())

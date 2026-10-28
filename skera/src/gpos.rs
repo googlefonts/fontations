@@ -12,8 +12,7 @@ mod value_record;
 
 use crate::FastHashMap;
 use crate::{
-    collect_feature_variations_name_ids, collect_features_with_retained_subs,
-    collect_variable_feature_indices, find_duplicate_features,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -24,7 +23,7 @@ use read_fonts::{
     collections::IntSet,
     tables::{
         gpos::{ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables},
-        layout::{ExtensionLookup, FeatureRecord, Intersect, LookupFlag, Subtables},
+        layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
     },
     types::Tag,
     types::{Compatible, MajorMinor, Offset16, Offset32},
@@ -33,16 +32,12 @@ use read_fonts::{
 use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gpos<'_> {
-    //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {
             return;
         };
-        let feature_records = feature_list.feature_records();
-        let feature_count = feature_list.feature_count();
-
-        for (feature_record, i) in feature_records.iter().zip(0..feature_count) {
-            if !plan.gpos_features.contains_key(&i) {
+        for (i, feature_record) in feature_list.feature_records().iter().enumerate() {
+            if !plan.gpos_features.contains_key(&(i as u16)) {
                 continue;
             }
             let Ok(feature) = feature_record.feature(feature_list.offset_data()) else {
@@ -50,12 +45,11 @@ impl NameIdClosure for Gpos<'_> {
             };
             feature.collect_name_ids(plan);
         }
-
-        if let Some(Ok(feature_variations)) = self.feature_variations() {
-            collect_feature_variations_name_ids(
-                &feature_variations,
-                feature_records,
-                Gpos::TAG,
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::collect_alternate_feature_name_ids(
+                &variations,
+                &feature_list,
+                Self::TAG,
                 plan,
             );
         }
@@ -127,6 +121,7 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
+        lookup_indices.union(&plan.jstf_gpos_lookups);
         if self
             .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
             .is_err()
@@ -197,12 +192,10 @@ fn subset_gpos(
         )?;
     }
 
-    let mut feature_records: &[FeatureRecord] = &[];
     if !gpos.feature_list_offset().is_null() {
         let feature_list = gpos
             .feature_list()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        feature_records = feature_list.feature_records();
         Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
     }
 
@@ -225,7 +218,7 @@ fn subset_gpos(
             &feature_variations,
             s,
             plan,
-            (feature_records, &mut c),
+            &mut c,
             feature_vars_offset_pos,
         )
         .is_empty()?

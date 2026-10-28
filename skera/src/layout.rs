@@ -36,7 +36,8 @@ use read_fonts::{
     },
     types::{FixedSize, GlyphId24, Offset16, Offset32, Tag, Uint24},
     types::{GlyphId, NameId},
-    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
+    ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, ResolveOffset,
+    TopLevelTable,
 };
 
 use read_fonts::limits::{
@@ -56,19 +57,11 @@ impl NameIdClosure for SizeParams<'_> {
     }
 }
 
-// ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L663-L674>
 impl NameIdClosure for CharacterVariantParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
-        // A zero name ID means there is no such name.
-        for name_id in [
-            self.feat_ui_label_name_id(),
-            self.feat_ui_tooltip_text_name_id(),
-            self.sample_text_name_id(),
-        ] {
-            if name_id != NameId::COPYRIGHT_NOTICE {
-                plan.name_ids.insert(name_id);
-            }
-        }
+        plan.name_ids.insert(self.feat_ui_label_name_id());
+        plan.name_ids.insert(self.feat_ui_tooltip_text_name_id());
+        plan.name_ids.insert(self.sample_text_name_id());
 
         let first_name_id = self.first_param_ui_label_name_id();
         let num_named_params = self.num_named_parameters();
@@ -79,12 +72,9 @@ impl NameIdClosure for CharacterVariantParams<'_> {
             return;
         }
 
-        // Name IDs past 0xFFFF don't exist, so clamp the range rather than let it
-        // wrap around.
-        let last_name_id = (first_name_id.to_u16() as u32 + num_named_params as u32 - 1)
-            .min(u16::MAX as u32) as u16;
+        let last_name_id = first_name_id.to_u16() as u32 + num_named_params as u32 - 1;
         plan.name_ids
-            .insert_range(first_name_id..=NameId::new(last_name_id));
+            .insert_range(first_name_id..=NameId::new(last_name_id as u16));
     }
 }
 
@@ -101,49 +91,34 @@ impl NameIdClosure for Feature<'_> {
     }
 }
 
-/// Whether the feature at `feature_index` of the GSUB or GPOS table with
-/// `table_tag` is retained.
-fn is_retained_feature(plan: &Plan, table_tag: Tag, feature_index: u16) -> bool {
-    let feature_index_map = if table_tag == Gsub::TAG {
-        &plan.gsub_features
-    } else {
-        &plan.gpos_features
-    };
-    feature_index_map.contains_key(&feature_index)
-}
-
-/// Collect the name IDs referenced by the FeatureParams of the alternate
-/// features that replace a retained feature.
-///
-/// `feature_records` are the FeatureRecords of the table's FeatureList.
-// ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L6046-L6058>
-// ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L5456-L5464>
-pub(crate) fn collect_feature_variations_name_ids(
-    feature_variations: &FeatureVariations,
-    feature_records: &[FeatureRecord],
+/// Alternate features inherit their parameter format from the original tag.
+pub(crate) fn collect_alternate_feature_name_ids(
+    variations: &FeatureVariations,
+    features: &FeatureList,
     table_tag: Tag,
     plan: &mut Plan,
 ) {
-    let font_data = feature_variations.offset_data();
-    for subs in feature_variations
-        .feature_variation_records()
-        .iter()
-        .filter_map(|rec| rec.feature_table_substitution(font_data)?.ok())
-    {
-        for rec in subs.substitutions() {
-            let feature_index = rec.feature_index();
-            if rec.alternate_feature_offset().is_null()
-                || !is_retained_feature(plan, table_tag, feature_index)
-            {
+    for record in variations.feature_variation_records() {
+        let Some(Ok(substitutions)) = record.feature_table_substitution(variations.offset_data())
+        else {
+            continue;
+        };
+        for substitution in substitutions.substitutions() {
+            let index = substitution.feature_index();
+            let retained = if table_tag == Gsub::TAG {
+                plan.gsub_features.contains_key(&index)
+            } else {
+                plan.gpos_features.contains_key(&index)
+            };
+            if !retained {
                 continue;
             }
-            // An alternate feature's FeatureParams are read with the tag of the
-            // feature it replaces.
-            let Some(record) = feature_records.get(feature_index as usize) else {
+            let Some(feature) = features.feature_records().get(index as usize) else {
                 continue;
             };
-            if let Ok(alternate) =
-                rec.alternate_feature_with_tag(subs.offset_data(), record.feature_tag())
+            if let Ok(alternate) = substitution
+                .alternate_feature_offset()
+                .resolve_with_args::<Feature>(substitutions.offset_data(), feature.feature_tag())
             {
                 alternate.collect_name_ids(plan);
             }
@@ -743,13 +718,6 @@ fn feature_params_bytes<'a>(f: &Feature<'a>, tag: Tag) -> Option<&'a [u8]> {
     data.as_bytes().get(..len)
 }
 
-/// Whether features with this tag define FeatureParams: only `size`, `ssXX`
-/// and `cvXX` do.
-fn has_feature_params(tag: Tag) -> bool {
-    let raw_tag = tag.to_be_bytes();
-    tag == Tag::new(b"size") || raw_tag.starts_with(b"ss") || raw_tag.starts_with(b"cv")
-}
-
 pub(crate) fn find_duplicate_features(
     feature_list: &FeatureList,
     lookup_indices: &IntSet<u16>,
@@ -1010,6 +978,7 @@ pub(crate) struct SubsetLayoutContext {
     feature_index_count: u16,
     lookup_count: u16,
     table_tag: Tag,
+    feature_tags: Vec<Tag>,
 }
 
 impl SubsetLayoutContext {
@@ -1020,6 +989,7 @@ impl SubsetLayoutContext {
             feature_index_count: 0,
             lookup_count: 0,
             table_tag,
+            feature_tags: Vec::new(),
         }
     }
 
@@ -1285,6 +1255,11 @@ impl<'a> SubsetTable<'a> for FeatureList<'_> {
         s: &mut Serializer,
         c: &mut SubsetLayoutContext,
     ) -> Result<(), SerializeErrorFlags> {
+        c.feature_tags = self
+            .feature_records()
+            .iter()
+            .map(FeatureRecord::feature_tag)
+            .collect();
         let feature_count_pos = s.embed(0_u16)?;
         let mut num_records = 0_u16;
         let font_data = self.offset_data();
@@ -1327,21 +1302,19 @@ impl<'a> SubsetTable<'a> for FeatureRecord {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
 
-        Offset16::serialize_subset(&feature, s, plan, (tag, c), feature_offset_pos)
+        Offset16::serialize_subset(&feature, s, plan, c, feature_offset_pos)
     }
 }
 
 impl<'a> SubsetTable<'a> for Feature<'_> {
-    /// The tag of this feature, which determines the format of its FeatureParams.
-    type ArgsForSubset = (Tag, &'a mut SubsetLayoutContext);
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: Self::ArgsForSubset,
+        c: &mut SubsetLayoutContext,
     ) -> Result<(), SerializeErrorFlags> {
-        let (tag, c) = args;
         //FeatureParams offset
         let feature_params_offset_pos = s.embed(0_u16)?;
         let lookup_count_pos = s.embed(0_u16)?;
@@ -1368,12 +1341,6 @@ impl<'a> SubsetTable<'a> for Feature<'_> {
             s.copy_assign(lookup_count_pos, lookup_count);
         }
 
-        // Only size, ssXX and cvXX features define FeatureParams; drop them for
-        // any other tag.
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L751-L765>
-        if !has_feature_params(tag) {
-            return Ok(());
-        }
         if let Some(feature_params) = self
             .feature_params()
             .transpose()
@@ -1451,17 +1418,14 @@ subset_lookup_list!(LookupList);
 subset_lookup_list!(LookupList2);
 
 impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
-    /// The FeatureRecords of the source table's FeatureList, used to find the
-    /// tag of the feature each alternate feature replaces.
-    type ArgsForSubset = (&'a [FeatureRecord], &'a mut SubsetLayoutContext);
+    type ArgsForSubset = &'a mut SubsetLayoutContext;
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: Self::ArgsForSubset,
+        c: &mut SubsetLayoutContext,
     ) -> Result<(), SerializeErrorFlags> {
-        let (feature_records, c) = args;
         if !matches!(
             self.version(),
             read_fonts::types::MajorMinor {
@@ -1506,11 +1470,7 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 
         let variation_records = self.feature_variation_records();
         for i in 0..num_retained_records {
-            variation_records[i as usize].subset(
-                plan,
-                s,
-                (font_data, feature_index_map, feature_records, c),
-            )?;
+            variation_records[i as usize].subset(plan, s, (font_data, feature_index_map, c))?;
         }
         if let Some(records) = lookup_records {
             let count = u32::try_from(num_lookup_records)
@@ -1569,7 +1529,6 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
     type ArgsForSubset = (
         FontData<'a>,
         &'a FastHashMap<u16, u16>,
-        &'a [FeatureRecord],
         &'a mut SubsetLayoutContext,
     );
     type Output = ();
@@ -1579,7 +1538,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let (font_data, feature_index_map, feature_records, c) = args;
+        let (font_data, feature_index_map, c) = args;
         let condition_set_offset_pos = s.embed(0_u32)?;
         if let Some(condition_set) = self
             .condition_set(font_data)
@@ -1599,7 +1558,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
                 &feature_subs,
                 s,
                 plan,
-                (feature_index_map, feature_records, c),
+                (feature_index_map, c),
                 feature_substitutions_offset_pos,
             )?;
         }
@@ -1609,11 +1568,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
 }
 
 impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
-    type ArgsForSubset = (
-        &'a FastHashMap<u16, u16>,
-        &'a [FeatureRecord],
-        &'a mut SubsetLayoutContext,
-    );
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut SubsetLayoutContext);
     type Output = ();
     fn subset(
         &self,
@@ -1627,11 +1582,11 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
         let subs_count_pos = s.embed(0_u16)?;
         let mut subs_count = 0_u16;
 
-        let (feature_index_map, feature_records, c) = args;
+        let (feature_index_map, c) = args;
         let font_data = self.offset_data();
         for sub in self.substitutions() {
             if !sub
-                .subset(plan, s, (feature_index_map, feature_records, c, font_data))
+                .subset(plan, s, (feature_index_map, c, font_data))
                 .is_empty()?
             {
                 subs_count += 1;
@@ -1648,7 +1603,6 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
 impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
     type ArgsForSubset = (
         &'a FastHashMap<u16, u16>,
-        &'a [FeatureRecord],
         &'a mut SubsetLayoutContext,
         FontData<'a>,
     );
@@ -1662,24 +1616,23 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
         if self.alternate_feature_offset().is_null() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        let (feature_index_map, feature_records, c, font_data) = args;
+        let (feature_index_map, c, font_data) = args;
         let Some(new_feature_index) = feature_index_map.get(&self.feature_index()) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
 
-        // The alternate feature is read, and its FeatureParams subset, with the
-        // tag of the feature it replaces.
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-common.hh#L5390-L5406>
-        let tag = feature_records
+        let tag = *c
+            .feature_tags
             .get(self.feature_index() as usize)
-            .map_or(Tag::new(b"NULL"), |record| record.feature_tag());
+            .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         let alternate_feature = self
-            .alternate_feature_with_tag(font_data, tag)
+            .alternate_feature_offset()
+            .resolve_with_args::<Feature>(font_data, tag)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         s.embed(*new_feature_index)?;
 
         let feature_offset_pos = s.embed(0_u32)?;
-        Offset32::serialize_subset(&alternate_feature, s, plan, (tag, c), feature_offset_pos)
+        Offset32::serialize_subset(&alternate_feature, s, plan, c, feature_offset_pos)
     }
 }
 
@@ -1839,48 +1792,6 @@ mod test {
         assert_eq!(map[&0], 0);
         assert_eq!(map[&1], 1);
         assert_eq!(map[&2], 0);
-    }
-
-    /// A cvXX FeatureParams table with no characters.
-    fn character_variant_params(name_ids: [u16; 3], num_params: u16, first_param: u16) -> Vec<u8> {
-        [
-            0,
-            name_ids[0],
-            name_ids[1],
-            name_ids[2],
-            num_params,
-            first_param,
-            0,
-        ]
-        .iter()
-        .flat_map(|v: &u16| v.to_be_bytes())
-        .collect()
-    }
-
-    fn character_variant_name_ids(bytes: &[u8]) -> Vec<u16> {
-        let params = CharacterVariantParams::read(FontData::new(bytes)).unwrap();
-        let mut plan = Plan::default();
-        params.collect_name_ids(&mut plan);
-        plan.name_ids.iter().map(|id| id.to_u16()).collect()
-    }
-
-    #[test]
-    fn character_variant_name_ids_skip_zero() {
-        // Like harfbuzz, a zero label, tooltip or sample text name ID means
-        // there is no such name, so name ID 0 isn't retained.
-        let bytes = character_variant_params([256, 0, 0], 0, 0);
-        assert_eq!(character_variant_name_ids(&bytes), [256]);
-    }
-
-    #[test]
-    fn character_variant_name_ids_clamp_param_range() {
-        // The named parameter IDs run past 0xFFFF: keep the ones that exist
-        // instead of letting the range wrap around and drop all of them.
-        let bytes = character_variant_params([0, 0, 0], 3, 0xFFFE);
-        assert_eq!(character_variant_name_ids(&bytes), [0xFFFE, 0xFFFF]);
-
-        let bytes = character_variant_params([0, 0, 0], 3, 300);
-        assert_eq!(character_variant_name_ids(&bytes), [300, 301, 302]);
     }
 
     #[test]

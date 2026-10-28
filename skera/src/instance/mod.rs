@@ -4,6 +4,7 @@ mod avar2;
 mod axes;
 mod cull;
 mod iup;
+mod layout;
 mod metadata;
 mod metrics;
 mod optimize;
@@ -114,6 +115,7 @@ pub fn instance_font_with_flags(
             flags,
         };
         tables.instance_outlines(&mut context, &mut metrics, outlines)?;
+        tables.instance_layout(&mut context)?;
     }
     if axes.coupled {
         metrics::update_os2(&axes, &mut metrics);
@@ -214,6 +216,20 @@ impl FontOutput {
                     TableChange::Replace(cff2.instance(context)?),
                 );
                 metrics::cff2_metrics(font, axes, metrics)?;
+            }
+        }
+        Ok(())
+    }
+    fn instance_layout(&mut self, context: &mut FontContext<'_>) -> Result<(), SubsetError> {
+        let layout = layout::instance_layout(context.font, context.axes)?;
+        for (tag, data) in [
+            (b"GPOS", layout.gpos),
+            (b"GSUB", layout.gsub),
+            (b"GDEF", layout.gdef),
+            (b"BASE", layout.base),
+        ] {
+            if let Some(data) = data {
+                self.apply(Tag::new(tag), TableChange::Replace(data));
             }
         }
         Ok(())
