@@ -84,6 +84,7 @@ pub fn instance_font_with_flags(
         axes: &axes,
         flags,
     };
+    tables.instance_varc(&mut source)?;
     let final_axes = axes.coupled.then(|| axes.final_space(font));
     // Cull in the original final-coordinate space, before removing any
     // self-contained axes. avar's own store operates in intermediate space.
@@ -167,6 +168,16 @@ impl FontOutput {
             }
         }
         builder.build()
+    }
+    fn instance_varc(&mut self, context: &mut FontContext<'_>) -> Result<(), SubsetError> {
+        let font = context.font;
+        if font.data_for_tag(Tag::new(b"VARC")).is_some() {
+            let source = font
+                .varc()
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"VARC")))?;
+            self.apply(Tag::new(b"VARC"), source.instance(context)?);
+        }
+        Ok(())
     }
     fn instance_outlines(
         &mut self,
