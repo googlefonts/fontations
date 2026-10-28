@@ -19,6 +19,7 @@ mod head;
 mod hmtx;
 mod hvar;
 mod inc_bimap;
+mod instance;
 mod layout;
 mod maxp;
 mod metrics;
@@ -41,6 +42,7 @@ mod vvar;
 use crate::repack::resolve_overflows;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
+pub use instance::{parse_axis_limits, parse_axis_limits_for_font, AxisLimits};
 use layout::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
     collect_variable_feature_indices, find_duplicate_features, prune_features,
@@ -1228,6 +1230,9 @@ pub struct SubsetState {
 
 #[derive(Debug, Error)]
 pub enum SubsetError {
+    #[error("Invalid axis request: {0}")]
+    InvalidAxis(String),
+
     #[error("Invalid input gid {0}")]
     InvalidGid(String),
 
