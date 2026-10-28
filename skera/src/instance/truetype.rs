@@ -90,7 +90,7 @@ fn calc_inferred_deltas(
             let mut i = if a == end { start } else { a + 1 };
             while i != b {
                 for axis in 0..2 {
-                    deltas[i][axis] = interpolate(
+                    deltas[i][axis] = super::iup_delta(
                         points[i][axis],
                         points[a][axis],
                         points[b][axis],
@@ -104,28 +104,6 @@ fn calc_inferred_deltas(
         start = end + 1;
     }
     Ok(deltas)
-}
-
-fn interpolate(v: f32, a: f32, b: f32, da: f32, db: f32) -> f32 {
-    if a == b {
-        return if da == db { da } else { 0. };
-    }
-    if v <= a.min(b) {
-        if a < b {
-            da
-        } else {
-            db
-        }
-    } else if v >= a.max(b) {
-        if a > b {
-            da
-        } else {
-            db
-        }
-    } else {
-        let r = (v - a) / (b - a);
-        da + r * (db - da)
-    }
 }
 
 // Match HarfBuzz's dense fast path and sparse-tuple scratch-buffer flushing.
@@ -636,21 +614,62 @@ fn encode_simple(
             .to_be_bytes(),
     );
     out.extend(&g.instructions);
-    for (i, p) in g.contours.iter().flat_map(|c| c.iter()).enumerate() {
-        out.push(
-            u8::from(p.on_curve)
-                | if p.cubic { 0x80 } else { 0 }
-                | if i == 0 && g.overlaps { 0x40 } else { 0 },
-        );
+    if count != points.len() {
+        return Err(error(b"glyf"));
     }
-    for axis in 0..2 {
-        let mut prev = 0i16;
-        for point in points {
-            let v = coord(point[axis]);
-            out.extend(v.wrapping_sub(prev).to_be_bytes());
-            prev = v;
+    let mut flags = Vec::with_capacity(count);
+    let mut coordinates = [Vec::new(), Vec::new()];
+    let mut previous = [0i16; 2];
+    for (i, (source, point)) in g
+        .contours
+        .iter()
+        .flat_map(|contour| contour.iter())
+        .zip(points)
+        .enumerate()
+    {
+        let mut flag = u8::from(source.on_curve)
+            | if source.cubic { 0x80 } else { 0 }
+            | if i == 0 && g.overlaps { 0x40 } else { 0 };
+        for axis in 0..2 {
+            let value = coord(point[axis]);
+            let delta = value.wrapping_sub(previous[axis]);
+            previous[axis] = value;
+            let (short, same) = if axis == 0 {
+                (0x02, 0x10)
+            } else {
+                (0x04, 0x20)
+            };
+            match delta {
+                0 => flag |= same,
+                -255..=-1 => {
+                    flag |= short;
+                    coordinates[axis].push(delta.unsigned_abs() as u8);
+                }
+                1..=255 => {
+                    flag |= short | same;
+                    coordinates[axis].push(delta as u8);
+                }
+                _ => coordinates[axis].extend(delta.to_be_bytes()),
+            }
         }
+        flags.push(flag);
     }
+    let mut i = 0;
+    while i < flags.len() {
+        let mut run = 1usize;
+        while i + run < flags.len() && flags[i + run] == flags[i] && run < 256 {
+            run += 1;
+        }
+        if run > 1 {
+            out.push(flags[i] | 0x08);
+            out.push((run - 1) as u8);
+        } else {
+            out.push(flags[i]);
+        }
+        i += run;
+    }
+    out.extend(&coordinates[0]);
+    out.extend(&coordinates[1]);
     Ok(())
 }
 
@@ -796,8 +815,12 @@ mod tests {
             .iter()
             .map(|p| [p.x as f32, p.y as f32])
             .collect::<Vec<_>>();
+        let owned: write_fonts::tables::glyf::SimpleGlyph = source.to_owned_table();
         let mut out = Vec::new();
-        encode_simple(&source.to_owned_table(), &points, &mut out).unwrap();
+        encode_simple(&owned, &points, &mut out).unwrap();
+        let mut expected = write_fonts::dump_table(&owned).unwrap();
+        expected.truncate(out.len()); // The caller supplies glyph alignment.
+        assert_eq!(out, expected);
         let actual = read_fonts::tables::glyf::SimpleGlyph::read(out.as_slice().into()).unwrap();
         assert_eq!(actual.points().collect::<Vec<_>>(), original);
     }
@@ -822,9 +845,9 @@ mod tests {
 
     #[test]
     fn coincident_iup_references_with_different_deltas_do_not_move_the_gap() {
-        assert_eq!(interpolate(100., 50., 50., 10., 20.), 0.);
-        assert_eq!(interpolate(100., 50., 50., 10., 10.), 10.);
-        assert_eq!(interpolate(100., 200., 0., 20., 0.), 10.);
+        assert_eq!(super::super::iup_delta(100., 50., 50., 10., 20.), 0.);
+        assert_eq!(super::super::iup_delta(100., 50., 50., 10., 10.), 10.);
+        assert_eq!(super::super::iup_delta(100., 200., 0., 20., 0.), 10.);
     }
 
     #[test]
