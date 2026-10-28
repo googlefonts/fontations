@@ -2,7 +2,10 @@
 //! live tuples or changing variation indices.
 use super::{Instance, TableChange};
 use crate::SubsetError;
-use read_fonts::{types::Tag, FontRef, TableProvider};
+use read_fonts::{
+    tables::variations::ItemVariationStore as ReadItemVariationStore, types::Tag, FontRef,
+    TableProvider,
+};
 use write_fonts::{
     from_obj::ToOwnedTable,
     tables::{
@@ -122,6 +125,33 @@ fn prune_store(
     Ok(true)
 }
 
+fn store_needs_pruning(
+    store: &ReadItemVariationStore,
+    ranges: &Ranges,
+    tag: Tag,
+) -> Result<bool, SubsetError> {
+    let regions = store.variation_region_list().map_err(|_| error(tag))?;
+    if regions.axis_count() as usize != ranges.len() {
+        return Err(error(tag));
+    }
+    for region in regions.variation_regions().iter() {
+        let region = region.map_err(|_| error(tag))?;
+        if dead(
+            ranges,
+            region.region_axes().iter().map(|axis| {
+                (
+                    axis.start_coord().to_bits(),
+                    axis.peak_coord().to_bits(),
+                    axis.end_coord().to_bits(),
+                )
+            }),
+        ) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 pub(super) struct CullContext<'a> {
     pub ranges: &'a Ranges,
 }
@@ -132,6 +162,10 @@ macro_rules! cull_store {
             type Output = TableChange;
             fn instance(&self, context: &mut CullContext<'_>) -> Result<Self::Output, SubsetError> {
                 let tag = Tag::new($tag);
+                let store = cull_store!(@read self, $field, $kind, tag);
+                if !store_needs_pruning(&store, context.ranges, tag)? {
+                    return Ok(TableChange::Keep);
+                }
                 let mut table: $owned = self.to_owned_table();
                 if let Some(store) = cull_store!(@store table, $field, $kind) {
                     if prune_store(store, context.ranges, tag)? {
@@ -140,6 +174,15 @@ macro_rules! cull_store {
                 }
                 Ok(TableChange::Keep)
             }
+        }
+    };
+    (@read $table:ident, $field:ident, required, $tag:ident) => {
+        $table.$field().map_err(|_| error($tag))?
+    };
+    (@read $table:ident, $field:ident, optional, $tag:ident) => {
+        match $table.$field() {
+            Some(store) => store.map_err(|_| error($tag))?,
+            None => return Ok(TableChange::Keep),
         }
     };
     (@store $table:ident, $field:ident, required) => { Some($table.$field.as_mut()) };

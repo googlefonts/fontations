@@ -2,80 +2,11 @@
 //! Complex table models and offset graphs remain in write-fonts.
 
 pub(super) fn packed_deltas(values: &[i32], out: &mut Vec<u8>) {
-    let kind = |value: i32| {
-        if value == 0 {
-            0x80
-        } else if i8::try_from(value).is_ok() {
-            0
-        } else if i16::try_from(value).is_ok() {
-            0x40
-        } else {
-            0xc0
-        }
-    };
-    let mut start = 0;
-    while start < values.len() {
-        let flags = kind(values[start]);
-        let mut end = start + 1;
-        while end < values.len() && end - start < 64 {
-            let current = kind(values[end]);
-            let next = values.get(end + 1).map(|&v| kind(v));
-            let stop = match flags {
-                0x80 => current != 0x80,
-                0 => current == 0x40 || current == 0xc0 || current == 0x80 && next == Some(0x80),
-                0x40 => {
-                    current == 0x80
-                        || current == 0xc0
-                        || current == 0 && matches!(next, Some(0 | 0x80))
-                }
-                _ => current != 0xc0,
-            };
-            if stop {
-                break;
-            }
-            end += 1;
-        }
-        out.push(flags | (end - start - 1) as u8);
-        for &v in &values[start..end] {
-            match flags {
-                0 => out.push(v as u8),
-                0x40 => out.extend((v as i16).to_be_bytes()),
-                0xc0 => out.extend(v.to_be_bytes()),
-                _ => {}
-            }
-        }
-        start = end;
-    }
+    write_fonts::tables::variations::PackedDeltas::extend(values, out);
 }
 
 pub(super) fn packed_points(points: &[u16], out: &mut Vec<u8>) {
-    if points.len() < 128 {
-        out.push(points.len() as u8);
-    } else {
-        out.extend((points.len() as u16 | 0x8000).to_be_bytes());
-    }
-    let mut start = 0;
-    let mut previous = 0;
-    while start < points.len() {
-        let wide = points[start] - previous > 255;
-        let mut end = start;
-        let mut last = previous;
-        while end < points.len() && end - start < 128 && (points[end] - last > 255) == wide {
-            last = points[end];
-            end += 1;
-        }
-        out.push((u8::from(wide) * 0x80) | (end - start - 1) as u8);
-        for &point in &points[start..end] {
-            let delta = point - previous;
-            previous = point;
-            if wide {
-                out.extend(delta.to_be_bytes());
-            } else {
-                out.push(delta as u8);
-            }
-        }
-        start = end;
-    }
+    write_fonts::tables::variations::PackedPointNumbers::extend_some(points, out);
 }
 
 #[cfg(test)]

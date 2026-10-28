@@ -392,7 +392,7 @@ impl TupleDeltaData {
                     for axis in 0..2 {
                         // Match the subsetter's float interpolation before
                         // rounding residual deltas to their stored integers.
-                        self.deltas[i][axis] = infer_delta(
+                        self.deltas[i][axis] = super::iup_delta(
                             points[i][axis],
                             points[a][axis],
                             points[b][axis],
@@ -407,28 +407,6 @@ impl TupleDeltaData {
         }
         self.referenced.fill(true);
         Ok(())
-    }
-}
-
-fn infer_delta(v: f32, a: f32, b: f32, da: f32, db: f32) -> f32 {
-    if a == b {
-        return if da == db { da } else { 0. };
-    }
-    if v <= a.min(b) {
-        if a < b {
-            da
-        } else {
-            db
-        }
-    } else if v >= a.max(b) {
-        if a > b {
-            da
-        } else {
-            db
-        }
-    } else {
-        let r = (v - a) / (b - a);
-        da + r * (db - da)
     }
 }
 

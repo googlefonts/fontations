@@ -25,6 +25,7 @@
 use super::{
     axes::map_float,
     rebase::{scalar, Triple},
+    scalars::VariationScalars,
     AxisPlan, StorePlan,
 };
 use crate::SubsetError;
@@ -528,9 +529,9 @@ pub(super) fn instance(
                 }
             }
         }
-        let default_delta = store
-            .compute_delta(index, &inputs.coords)
-            .map_or(0., |v| (v.to_f64() + 0.5).floor());
+        let default_delta = VariationScalars::new(&store, &inputs.coords)
+            .and_then(|scalars| scalars.delta(&store, index))
+            .map_or(0., super::round_f32);
         let u = axes.user[i];
         let original = (
             axis.min_value().to_f32() as f64,

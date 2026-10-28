@@ -72,7 +72,8 @@ pub(super) fn encode_rows(
 type Region = Vec<(i16, i16, i16)>;
 pub(crate) struct Transform {
     pub gains: Vec<f64>,
-    pub weights: Vec<Vec<f64>>,
+    /// Sparse source-column contributions for each destination region.
+    pub weights: Vec<Vec<(usize, f64)>>,
     pub indices: Vec<u16>,
 }
 impl Transform {
@@ -83,7 +84,7 @@ impl Transform {
         Ok(self
             .weights
             .iter()
-            .map(|row| row.iter().zip(deltas).map(|(g, d)| g * d).sum())
+            .map(|row| row.iter().map(|&(i, g)| g * deltas[i]).sum())
             .collect())
     }
 }
@@ -183,16 +184,17 @@ impl StorePlan {
             };
             let data = data.map_err(|_| error())?;
             let mut gains = Vec::new();
-            let mut columns: BTreeMap<u16, Vec<f64>> = BTreeMap::new();
-            let k = data.region_index_count() as usize;
+            let mut columns: BTreeMap<u16, Vec<(usize, f64)>> = BTreeMap::new();
             for (i, idx) in data.region_indexes().iter().enumerate() {
                 let (gain, terms) = expanded.get(idx.get() as usize).ok_or_else(error)?;
                 gains.push(*gain);
                 for (&idx, &g) in terms {
-                    if !columns.contains_key(&idx) && columns.len().saturating_mul(k) > 4_000_000 {
-                        return Err(error());
+                    let column = columns.entry(idx).or_default();
+                    if let Some((_, value)) = column.last_mut().filter(|(column, _)| *column == i) {
+                        *value += g;
+                    } else {
+                        column.push((i, g));
                     }
-                    columns.entry(idx).or_insert_with(|| vec![0.; k])[i] += g;
                 }
             }
             let (indices, weights) = columns.into_iter().unzip();
@@ -290,7 +292,7 @@ impl StorePlan {
             let transform = self.transforms.get_mut(ivs).ok_or_else(error)?;
             columns.insert(ivs, transform.indices.len());
             transform.indices.push(index);
-            transform.weights.push(vec![0.; transform.gains.len()]);
+            transform.weights.push(Vec::new());
         }
         Ok(columns)
     }
@@ -393,5 +395,43 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn identity_transforms_with_many_regions_stay_sparse() {
+        use write_fonts::tables::variations::*;
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("CNTR=0").unwrap()).unwrap();
+        let zero = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
+        let regions = (1..=2001)
+            .map(|peak| {
+                let peak = F2Dot14::from_bits(peak);
+                VariationRegion::new(vec![
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, peak, peak),
+                    zero.clone(),
+                ])
+            })
+            .collect::<Vec<_>>();
+        let store = write_fonts::tables::variations::ItemVariationStore {
+            variation_region_list: VariationRegionList::new(2, regions).into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: 1,
+                word_delta_count: 2001,
+                region_indexes: (0..2001).collect(),
+                delta_sets: vec![0; 2001 * 2],
+            }
+            .into()],
+        };
+        let bytes = write_fonts::dump_table(&store).unwrap();
+        let store = read_fonts::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+            .unwrap();
+
+        let plan = StorePlan::new(&store, &axes).unwrap();
+        assert_eq!(plan.transforms[0].weights.len(), 2001);
+        assert!(plan.transforms[0]
+            .weights
+            .iter()
+            .all(|column| column.len() == 1));
     }
 }

@@ -29,3 +29,25 @@ pub(crate) use table::{Instance, TableChange};
 fn round_f32(value: f32) -> f64 {
     (value as f64 + 0.5).floor()
 }
+
+fn iup_delta(v: f32, a: f32, b: f32, da: f32, db: f32) -> f32 {
+    if a == b {
+        return if da == db { da } else { 0. };
+    }
+    if v <= a.min(b) {
+        if a < b {
+            da
+        } else {
+            db
+        }
+    } else if v >= a.max(b) {
+        if a > b {
+            da
+        } else {
+            db
+        }
+    } else {
+        let r = (v - a) / (b - a);
+        da + r * (db - da)
+    }
+}

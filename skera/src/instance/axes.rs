@@ -471,55 +471,62 @@ pub(super) fn normalized_coord(value: f64) -> F2Dot14 {
 // interval. Use the same float interpolation, including duplicate-cap recovery.
 pub(super) fn map_float(map: &read_fonts::tables::avar::SegmentMaps, v: f64, inverse: bool) -> f64 {
     let v = v as f32;
-    let mut pairs: Vec<_> = map
-        .axis_value_maps()
-        .iter()
-        .map(|m| {
-            let from = m.from_coordinate().to_f64() as f32;
-            let to = m.to_coordinate().to_f64() as f32;
-            if inverse {
-                (to, from)
-            } else {
-                (from, to)
-            }
-        })
-        .collect();
-    if pairs.len() < 2 {
-        return pairs.first().map_or(v, |(from, to)| v - from + to) as f64;
+    let maps = map.axis_value_maps();
+    let pair = |i: usize| {
+        let record = &maps[i];
+        let from = record.from_coordinate().to_f64() as f32;
+        let to = record.to_coordinate().to_f64() as f32;
+        if inverse {
+            (to, from)
+        } else {
+            (from, to)
+        }
+    };
+    if maps.len() < 2 {
+        return maps.first().map_or(v, |_| {
+            let (from, to) = pair(0);
+            v - from + to
+        }) as f64;
     }
-    if pairs[0] == (-1., -1.) && pairs[1].0 == -1. {
-        pairs.remove(0);
+    let mut start = 0;
+    let mut end = maps.len();
+    if pair(start) == (-1., -1.) && pair(start + 1).0 == -1. {
+        start += 1;
     }
-    let n = pairs.len();
-    if n >= 2 && pairs[n - 1] == (1., 1.) && pairs[n - 2].0 == 1. {
-        pairs.pop();
+    if end - start >= 2 && pair(end - 1) == (1., 1.) && pair(end - 2).0 == 1. {
+        end -= 1;
     }
-    if let Some(i) = pairs.iter().position(|p| p.0 == v) {
+    if let Some(i) = (start..end).find(|&i| pair(i).0 == v) {
         let mut j = i;
-        while j + 1 < pairs.len() && pairs[j + 1].0 == v {
+        while j + 1 < end && pair(j + 1).0 == v {
             j += 1;
         }
         let to = if i == j {
-            pairs[i].1
+            pair(i).1
         } else if j == i + 2 {
-            pairs[i + 1].1
+            pair(i + 1).1
         } else if v < 0. {
-            pairs[j].1
-        } else if v > 0. || pairs[i].1.abs() < pairs[j].1.abs() {
-            pairs[i].1
+            pair(j).1
+        } else if v > 0. || pair(i).1.abs() < pair(j).1.abs() {
+            pair(i).1
         } else {
-            pairs[j].1
+            pair(j).1
         };
         return to as f64;
     }
-    let i = pairs.partition_point(|p| p.0 < v);
-    let (from, to) = if i == 0 {
-        pairs[0]
-    } else if i == pairs.len() {
-        pairs[i - 1]
+    let i = start
+        + maps[start..end].partition_point(|record| {
+            let from = record.from_coordinate().to_f64() as f32;
+            let to = record.to_coordinate().to_f64() as f32;
+            (if inverse { to } else { from }) < v
+        });
+    let (from, to) = if i == start {
+        pair(start)
+    } else if i == end {
+        pair(end - 1)
     } else {
-        let (bf, bt) = pairs[i - 1];
-        let (af, at) = pairs[i];
+        let (bf, bt) = pair(i - 1);
+        let (af, at) = pair(i);
         return (bt + (at - bt) * (v - bf) / (af - bf)) as f64;
     };
     (v - from + to) as f64
