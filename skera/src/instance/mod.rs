@@ -13,6 +13,7 @@ mod serialize;
 mod stat;
 mod store;
 mod table;
+mod truetype;
 mod tuple;
 pub(crate) use axes::AxisPlan;
 pub use axes::{parse_axis_limits, parse_axis_limits_for_font, AxisLimits};
@@ -52,11 +53,15 @@ pub fn instance_font_with_flags(
     if limits.is_empty() {
         return Ok(copy_font(font));
     }
-    if font.cff2().is_err() {
+    let outlines = if font.glyf().is_ok() {
+        OutlineKind::TrueType
+    } else if font.cff2().is_ok() {
+        OutlineKind::Cff2
+    } else {
         return Err(SubsetError::InvalidAxis(
-            "this instancing stage requires CFF2 outlines".into(),
+            "instancing requires CFF2 or TrueType outlines".into(),
         ));
-    }
+    };
     let axes = AxisPlan::new(font, limits)?;
     if axes.values.is_empty() {
         return Ok(copy_font(font));
@@ -107,7 +112,7 @@ pub fn instance_font_with_flags(
             axes,
             flags,
         };
-        tables.instance_outlines(&mut context, &mut metrics)?;
+        tables.instance_outlines(&mut context, &mut metrics, outlines)?;
     }
     if axes.coupled {
         metrics::update_os2(&axes, &mut metrics);
@@ -122,6 +127,11 @@ pub fn instance_font_with_flags(
     } else {
         Ok(bytes)
     }
+}
+#[derive(Clone, Copy)]
+enum OutlineKind {
+    TrueType,
+    Cff2,
 }
 /// Only the font coordinator can replace or remove arbitrary output tables.
 /// One entry per tag makes removal and replacement mutually exclusive.
@@ -162,17 +172,39 @@ impl FontOutput {
         &mut self,
         context: &mut FontContext<'_>,
         metrics: &mut metrics::MetricTables,
+        outlines: OutlineKind,
     ) -> Result<(), SubsetError> {
         let font = context.font;
         let axes = context.axes;
-        let cff2 = font
-            .cff2()
-            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?;
-        self.apply(
-            Tag::new(b"CFF2"),
-            TableChange::Replace(cff2.instance(context)?),
-        );
-        metrics::cff2_metrics(font, axes, metrics)?;
+        match outlines {
+            OutlineKind::TrueType => {
+                let glyf = font
+                    .glyf()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"glyf")))?;
+                let mut glyph_context = truetype::TrueTypeContext {
+                    input: context,
+                    metrics,
+                };
+                let output = glyf.instance(&mut glyph_context)?;
+                self.apply(Tag::new(b"glyf"), TableChange::Replace(output.glyf));
+                self.apply(Tag::new(b"loca"), TableChange::Replace(output.loca));
+                self.apply(Tag::new(b"gvar"), output.gvar);
+                self.apply(Tag::new(b"cvar"), output.cvar);
+                if let Some(bytes) = output.cvt {
+                    self.apply(Tag::new(b"cvt "), TableChange::Replace(bytes));
+                }
+            }
+            OutlineKind::Cff2 => {
+                let cff2 = font
+                    .cff2()
+                    .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?;
+                self.apply(
+                    Tag::new(b"CFF2"),
+                    TableChange::Replace(cff2.instance(context)?),
+                );
+                metrics::cff2_metrics(font, axes, metrics)?;
+            }
+        }
         Ok(())
     }
     fn finish_metadata(&mut self, context: &mut FontContext<'_>) -> Result<(), SubsetError> {
