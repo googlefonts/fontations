@@ -582,7 +582,14 @@ pub(super) fn assemble<F: CffFlavor>(
     let string_index = encoding::IndexLayout::new(&strings, false)?;
     let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
     let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
-    let select = fdselect(&fds, F::CFF2)?;
+    // FDSelect is optional in CFF2 when there is a single Font DICT. Like
+    // HarfBuzz, only emit it if the source has one. CFF1 CID fonts require it.
+    let has_fdselect = !F::CFF2 || dict::offset(&source.top, 0x125, 0)?.is_some();
+    let select = if has_fdselect {
+        fdselect(&fds, F::CFF2)?
+    } else {
+        Vec::new()
+    };
     let charset = if F::CFF2 { vec![] } else { charset(&codes)? };
     let enc = if F::CFF2 || source.cid {
         None
@@ -671,7 +678,12 @@ pub(super) fn assemble<F: CffFlavor>(
         if F::CFF2 || source.cid {
             replacements.extend([
                 (0x124, Some(dict::replacement(0x124, &[fdarray_pos])?)),
-                (0x125, Some(dict::replacement(0x125, &[fdselect_pos])?)),
+                (
+                    0x125,
+                    has_fdselect
+                        .then(|| dict::replacement(0x125, &[fdselect_pos]))
+                        .transpose()?,
+                ),
             ]);
         } else {
             replacements.push((
