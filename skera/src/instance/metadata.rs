@@ -196,7 +196,7 @@ pub(super) fn rebuild_avar(
     write_fonts::dump_table(&avar).map_err(|_| err(b"avar"))
 }
 
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
     use read_fonts::{FontRef, TableProvider};

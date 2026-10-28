@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 mod avar2;
 mod axes;
+mod color;
 mod cull;
 mod iup;
 mod layout;
@@ -116,6 +117,7 @@ pub fn instance_font_with_flags(
         };
         tables.instance_outlines(&mut context, &mut metrics, outlines)?;
         tables.instance_layout(&mut context)?;
+        tables.instance_color(&mut context)?;
     }
     if axes.coupled {
         metrics::update_os2(&axes, &mut metrics);
@@ -231,6 +233,12 @@ impl FontOutput {
             if let Some(data) = data {
                 self.apply(Tag::new(tag), TableChange::Replace(data));
             }
+        }
+        Ok(())
+    }
+    fn instance_color(&mut self, context: &mut FontContext<'_>) -> Result<(), SubsetError> {
+        if let Ok(colr) = context.font.colr() {
+            self.apply(Tag::new(b"COLR"), colr.instance(context)?);
         }
         Ok(())
     }
