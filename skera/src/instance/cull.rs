@@ -193,7 +193,34 @@ cull_store!(vvar, Vvar, Vvar, item_variation_store, required, b"VVAR");
 cull_store!(mvar, Mvar, Mvar, item_variation_store, optional, b"MVAR");
 cull_store!(gdef, Gdef, Gdef, item_var_store, optional, b"GDEF");
 cull_store!(base, Base, Base, item_var_store, optional, b"BASE");
-cull_store!(colr, Colr, Colr, item_variation_store, optional, b"COLR");
+
+impl Instance<CullContext<'_>> for read_fonts::tables::colr::Colr<'_> {
+    type Output = TableChange;
+    fn instance(&self, context: &mut CullContext<'_>) -> Result<Self::Output, SubsetError> {
+        let tag = Tag::new(b"COLR");
+        let Some(store) = self.item_variation_store() else {
+            return Ok(TableChange::Keep);
+        };
+        let store = store.map_err(|_| error(tag))?;
+        if !store_needs_pruning(&store, context.ranges, tag)? {
+            return Ok(TableChange::Keep);
+        }
+        // Owned COLR conversion expands shared paint subgraphs. Apply the
+        // same borrowed traversal budget as ordinary color instancing first.
+        super::color::validate_colr(self)?;
+        let mut table: Colr = self.to_owned_table();
+        let store = table
+            .item_variation_store
+            .as_mut()
+            .ok_or_else(|| error(tag))?;
+        if prune_store(store, context.ranges, tag)? {
+            return Ok(TableChange::Replace(
+                write_fonts::dump_table(&table).map_err(|_| error(tag))?,
+            ));
+        }
+        Ok(TableChange::Keep)
+    }
+}
 
 impl Instance<CullContext<'_>> for read_fonts::tables::gvar::Gvar<'_> {
     type Output = TableChange;
@@ -435,6 +462,29 @@ mod tests {
         assert!(dead(&ranges, [(0, 8000, 8191)]));
         assert!(dead(&ranges, [(8193, 10000, 16384)]));
         assert!(!dead(&[None], [(8193, 10000, 16384)]));
+    }
+
+    #[test]
+    fn colr_culling_checks_borrowed_paints_before_owned_conversion() {
+        let mut colr = vec![0; 34];
+        colr[..2].copy_from_slice(&1u16.to_be_bytes());
+        colr[14..18].copy_from_slice(&34u32.to_be_bytes());
+        colr.extend(1u32.to_be_bytes());
+        colr.extend(0u16.to_be_bytes());
+        colr.extend(10u32.to_be_bytes());
+        colr.extend([14, 0, 0, 8, 0, 0, 0, 0].repeat(4096));
+        colr.extend([2, 0, 0, 0x40, 0]);
+
+        let store_offset = colr.len() as u32;
+        colr[30..34].copy_from_slice(&store_offset.to_be_bytes());
+        colr.extend(write_fonts::dump_table(&ItemVariationStore::new(regions(), vec![])).unwrap());
+
+        let colr = read_fonts::tables::colr::Colr::read(FontData::new(&colr)).unwrap();
+        let ranges = [Some((8192, 8192))];
+        assert!(matches!(
+            colr.instance(&mut CullContext { ranges: &ranges }),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
+        ));
     }
 
     fn regions() -> VariationRegionList {

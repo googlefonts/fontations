@@ -16,6 +16,7 @@ struct Context<'a> {
     store: Option<ItemVariationStore<'a>>,
     map: Option<DeltaSetIndexMap<'a>>,
     scalars: OnceCell<Option<VariationScalars>>,
+    store_plan: OnceCell<StorePlan>,
 }
 impl Context<'_> {
     fn delta(&self, base: u32, offset: u32) -> Result<f32, SubsetError> {
@@ -143,7 +144,6 @@ impl Context<'_> {
         if base == u32::MAX {
             return Ok(true);
         }
-        let mut plan = None;
         for offset in 0..count {
             let index = base.checked_add(offset).ok_or_else(error)?;
             let index = if let Some(map) = &self.map {
@@ -158,10 +158,12 @@ impl Context<'_> {
                 continue;
             }
             let store = self.store.as_ref().ok_or_else(error)?;
-            let plan = match &mut plan {
-                Some(plan) => plan,
-                slot @ None => slot.insert(StorePlan::new(store, self.axes).map_err(|_| error())?),
-            };
+            if self.store_plan.get().is_none() {
+                let _ = self
+                    .store_plan
+                    .set(StorePlan::new(store, self.axes).map_err(|_| error())?);
+            }
+            let plan = self.store_plan.get().ok_or_else(error)?;
             let data = store
                 .item_variation_data()
                 .get(index.outer as usize)
@@ -711,6 +713,26 @@ fn validate_paint(
         VarSkewAroundCenter
     )
 }
+
+pub(super) fn validate_colr(colr: &read_fonts::tables::colr::Colr<'_>) -> Result<(), SubsetError> {
+    let mut remaining = 200_000;
+    if let Some(list) = colr.base_glyph_list().transpose().map_err(|_| error())? {
+        for record in list.base_glyph_paint_records() {
+            validate_paint(
+                record.paint(list.offset_data()).map_err(|_| error())?,
+                0,
+                &mut remaining,
+            )?;
+        }
+    }
+    if let Some(list) = colr.layer_list().transpose().map_err(|_| error())? {
+        for paint in list.paints().iter() {
+            validate_paint(paint.map_err(|_| error())?, 0, &mut remaining)?;
+        }
+    }
+    Ok(())
+}
+
 impl super::Instance<super::FontContext<'_>> for read_fonts::tables::colr::Colr<'_> {
     type Output = super::TableChange;
     fn instance(&self, context: &mut super::FontContext<'_>) -> Result<Self::Output, SubsetError> {
@@ -720,21 +742,7 @@ impl super::Instance<super::FontContext<'_>> for read_fonts::tables::colr::Colr<
         if colr.version() == 0 {
             return Ok(TableChange::Keep);
         }
-        let mut remaining = 200_000;
-        if let Some(list) = colr.base_glyph_list().transpose().map_err(|_| error())? {
-            for record in list.base_glyph_paint_records() {
-                validate_paint(
-                    record.paint(list.offset_data()).map_err(|_| error())?,
-                    0,
-                    &mut remaining,
-                )?;
-            }
-        }
-        if let Some(list) = colr.layer_list().transpose().map_err(|_| error())? {
-            for paint in list.paints().iter() {
-                validate_paint(paint.map_err(|_| error())?, 0, &mut remaining)?;
-            }
-        }
+        validate_colr(colr)?;
         let c = Context {
             axes,
             store: colr
@@ -743,6 +751,7 @@ impl super::Instance<super::FontContext<'_>> for read_fonts::tables::colr::Colr<
                 .map_err(|_| error())?,
             map: colr.var_index_map().transpose().map_err(|_| error())?,
             scalars: OnceCell::new(),
+            store_plan: OnceCell::new(),
         };
         let mut table: Colr = colr.to_owned_table();
         if let Some(list) = table.base_glyph_list.as_mut() {
@@ -889,6 +898,7 @@ mod tests {
             ),
             map: None,
             scalars: OnceCell::new(),
+            store_plan: OnceCell::new(),
         };
         let mut unchanged = Fixed::from_bits(16777217);
         c.field(u32::MAX, 0, &mut unchanged).unwrap();
