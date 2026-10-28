@@ -102,7 +102,7 @@ impl<'a> Charset<'a> {
                 .position(|n| *n == sid)
                 .map(|pos| GlyphId::new(pos as u32)),
             CharsetKind::Custom(custom) => match custom {
-                CustomCharset::Format0(fmt) => fmt.glyph_id(string_id),
+                CustomCharset::Format0(fmt) => fmt.glyph_id(string_id, self.num_glyphs),
                 CustomCharset::Format1(fmt) => fmt.glyph_id(string_id),
                 CustomCharset::Format2(fmt) => fmt.glyph_id(string_id),
             },
@@ -148,14 +148,17 @@ impl Format0<'_> {
         }
     }
 
-    fn glyph_id(&self, string_id: Sid) -> Option<GlyphId> {
+    fn glyph_id(&self, string_id: Sid, num_glyphs: u32) -> Option<GlyphId> {
         if string_id.to_u16() == 0 {
             return Some(GlyphId::NOTDEF);
         }
+        // The array holds one string id per glyph after notdef, and the data
+        // past them is the rest of the CFF.
         self.glyph()
             .iter()
+            .take(num_glyphs.saturating_sub(1) as usize)
             .position(|n| n.get() == string_id.to_u16())
-            .map(|n| GlyphId::from((n as u16).saturating_add(1)))
+            .map(|n| GlyphId::new(n as u32 + 1))
     }
 }
 
@@ -567,6 +570,23 @@ mod tests {
         assert_eq!(charset.glyph_id(Sid::new(10)), Some(GlyphId::new(3)));
         assert_eq!(charset.glyph_id(Sid::new(11)), None);
         assert_eq!(charset.glyph_id(Sid::new(300)), None);
+    }
+
+    // Format 0 holds one string id per glyph after notdef, and the data
+    // after them is the rest of the CFF. A match out there is not a glyph,
+    // not even where the array position wraps back into the glyph count.
+    #[test]
+    fn format0_glyph_id_stops_at_the_glyph_count() {
+        let mut data = vec![0u8; 4];
+        // format 0: glyph 1 has sid 1000
+        data.push(0u8);
+        data.extend_from_slice(&1000u16.to_be_bytes());
+        // sid 2000 at array position 65536, which truncates to glyph 1
+        data.resize(5 + 2 * 65536, 0);
+        data.extend_from_slice(&2000u16.to_be_bytes());
+        let charset = Charset::new(FontData::new(&data), 4, 2).unwrap();
+        assert_eq!(charset.glyph_id(Sid::new(1000)), Some(GlyphId::new(1)));
+        assert_eq!(charset.glyph_id(Sid::new(2000)), None);
     }
 
     #[test]

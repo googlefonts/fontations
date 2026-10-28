@@ -80,22 +80,23 @@ impl<'a> Gasp<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn num_ranges_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
         let num_ranges = self.num_ranges();
         let start = self.num_ranges_byte_range().end;
-        let end =
-            start + (transforms::to_usize(num_ranges)).saturating_mul(GaspRange::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(num_ranges)).saturating_mul(GaspRange::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

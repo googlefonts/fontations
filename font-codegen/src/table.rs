@@ -359,7 +359,7 @@ impl Table {
     }
 
     fn iter_field_byte_range_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        let mut prev_field_end_expr = quote!(0);
+        let mut prev_field_end_expr = quote!(0usize);
         let mut iter = self.fields.iter();
 
         std::iter::from_fn(move || {
@@ -385,10 +385,10 @@ impl Table {
 
             let end_expr = if let Some(condition) = condition {
                 quote! {
-                    if #condition { start + #len_expr } else { start }
+                    if #condition { start.saturating_add(#len_expr) } else { start }
                 }
             } else {
-                quote!( start + #len_expr)
+                quote!( start.saturating_add(#len_expr) )
             };
             let result = quote! {
                 pub fn #fn_name(&self) -> Range<usize> {

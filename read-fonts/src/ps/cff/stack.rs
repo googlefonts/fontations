@@ -314,8 +314,10 @@ impl Stack {
         }
         let offset = self.top - count;
         let n = count as i32;
+        // A Type 1 charstring can push i32::MIN, which has no positive
+        // counterpart, so negate it the way FreeType's arithmetic does.
         let shift = if shift < 0 {
-            -((-shift) % n)
+            -(shift.wrapping_neg() % n)
         } else {
             shift % n
         };

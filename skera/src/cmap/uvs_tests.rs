@@ -147,3 +147,22 @@ fn cmap15_subset_planner_closes_preferred_variation_glyphs() {
     );
     assert_eq!(output.maxp().unwrap().num_glyphs(), 3);
 }
+
+/// A default UVS range starting at U+0000 is kept, like harfbuzz does.
+#[test]
+fn cmap14_default_uvs_keeps_range_starting_at_zero() {
+    let data = format14(0xe0100, &[0, 65, 66], &[]);
+    let source = CmapSubtable::read(FontData::new(&data)).unwrap();
+    let mut plan = Plan::default();
+    plan.unicodes.extend([0, 65, 0xe0100]);
+    let output = serialize_variant(&source, &plan).unwrap();
+    let output = Cmap14::read(FontData::new(&output)).unwrap();
+    let output = read_fonts::tables::cmap::UvsSubtable::from(output);
+    for (cp, expected) in [
+        (0, Some(MapVariant::UseDefault)),
+        (65, Some(MapVariant::UseDefault)),
+        (66, None),
+    ] {
+        assert_eq!(output.map_variant(cp as u32, 0xe0100u32), expected, "{cp}");
+    }
+}

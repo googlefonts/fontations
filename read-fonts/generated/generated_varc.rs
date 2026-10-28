@@ -127,38 +127,38 @@ impl<'a> Varc<'a> {
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(MajorMinor::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn multi_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn condition_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.multi_var_store_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_indices_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.condition_list_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn var_composite_glyphs_offset_byte_range(&self) -> Range<usize> {
         let start = self.axis_indices_list_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -266,28 +266,29 @@ impl<'a> MultiItemVariationStore<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn region_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn variation_data_count_byte_range(&self) -> Range<usize> {
         let start = self.region_list_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn variation_data_offsets_byte_range(&self) -> Range<usize> {
         let variation_data_count = self.variation_data_count();
         let start = self.variation_data_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(variation_data_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(variation_data_count)).saturating_mul(Offset32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -376,16 +377,17 @@ impl<'a> SparseVariationRegionList<'a> {
     }
 
     pub fn region_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn region_offsets_byte_range(&self) -> Range<usize> {
         let region_count = self.region_count();
         let start = self.region_count_byte_range().end;
-        let end =
-            start + (transforms::to_usize(region_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(region_count)).saturating_mul(Offset32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -475,16 +477,17 @@ impl<'a> SparseVariationRegion<'a> {
     }
 
     pub fn region_axis_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn axis_coordinate_offsets_byte_range(&self) -> Range<usize> {
         let region_axis_count = self.region_axis_count();
         let start = self.region_axis_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(region_axis_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(region_axis_count)).saturating_mul(Offset32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -574,26 +577,26 @@ impl<'a> SparseRegionAxisCoordinates<'a> {
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn start_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
+        let end = start.saturating_add(F2Dot14::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn peak_byte_range(&self) -> Range<usize> {
         let start = self.start_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
+        let end = start.saturating_add(F2Dot14::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn end_byte_range(&self) -> Range<usize> {
         let start = self.peak_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
+        let end = start.saturating_add(F2Dot14::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -697,28 +700,29 @@ impl<'a> MultiItemVariationData<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn region_index_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn region_indices_byte_range(&self) -> Range<usize> {
         let region_index_count = self.region_index_count();
         let start = self.region_index_count_byte_range().end;
-        let end =
-            start + (transforms::to_usize(region_index_count)).saturating_mul(u16::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(region_index_count)).saturating_mul(u16::RAW_BYTE_LEN),
+        );
         start..end
     }
 
     pub fn delta_sets_offset_byte_range(&self) -> Range<usize> {
         let start = self.region_indices_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 }
@@ -804,16 +808,17 @@ impl<'a> ConditionList<'a> {
     }
 
     pub fn condition_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
         let condition_count = self.condition_count();
         let start = self.condition_count_byte_range().end;
-        let end =
-            start + (transforms::to_usize(condition_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(condition_count)).saturating_mul(Offset32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }

@@ -442,76 +442,77 @@ impl<'a> IftPatchMap<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_0_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_1_byte_range(&self) -> Range<usize> {
         let start = self._reserved_0_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_2_byte_range(&self) -> Range<usize> {
         let start = self._reserved_1_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn field_flags_byte_range(&self) -> Range<usize> {
         let start = self._reserved_2_byte_range().end;
-        let end = start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN;
+        let end = start.saturating_add(PatchMapFieldPresenceFlags::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self.field_flags_byte_range().end;
-        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        let end = start.saturating_add(CompatibilityId::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn default_patch_format_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn entry_count_byte_range(&self) -> Range<usize> {
         let start = self.default_patch_format_byte_range().end;
-        let end = start + Uint24::RAW_BYTE_LEN;
+        let end = start.saturating_add(Uint24::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn entries_offset_byte_range(&self) -> Range<usize> {
         let start = self.entry_count_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn entry_id_string_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.entries_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
+        let end = start.saturating_add(Offset32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn url_template_length_byte_range(&self) -> Range<usize> {
         let start = self.entry_id_string_data_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn url_template_byte_range(&self) -> Range<usize> {
         let url_template_length = self.url_template_length();
         let start = self.url_template_length_byte_range().end;
-        let end =
-            start + (transforms::to_usize(url_template_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::to_usize(url_template_length)).saturating_mul(u8::RAW_BYTE_LEN),
+        );
         start..end
     }
 
@@ -521,7 +522,7 @@ impl<'a> IftPatchMap<'a> {
             .field_flags()
             .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
         {
-            start + u32::RAW_BYTE_LEN
+            start.saturating_add(u32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -534,7 +535,7 @@ impl<'a> IftPatchMap<'a> {
             .field_flags()
             .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
         {
-            start + u32::RAW_BYTE_LEN
+            start.saturating_add(u32::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -608,9 +609,10 @@ impl<'a> MappingEntries<'a> {
     }
 
     pub fn entry_data_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -722,8 +724,8 @@ impl<'a> EntryData<'a> {
     }
 
     pub fn format_flags_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + EntryFormatFlags::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(EntryFormatFlags::RAW_BYTE_LEN);
         start..end
     }
 
@@ -733,7 +735,7 @@ impl<'a> EntryData<'a> {
             .format_flags()
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
         {
-            start + u8::RAW_BYTE_LEN
+            start.saturating_add(u8::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -747,7 +749,9 @@ impl<'a> EntryData<'a> {
             .format_flags()
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
         {
-            start + (transforms::to_usize(feature_count)).saturating_mul(Tag::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(feature_count)).saturating_mul(Tag::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -760,7 +764,7 @@ impl<'a> EntryData<'a> {
             .format_flags()
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
         {
-            start + u16::RAW_BYTE_LEN
+            start.saturating_add(u16::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -774,9 +778,10 @@ impl<'a> EntryData<'a> {
             .format_flags()
             .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
         {
-            start
-                + (transforms::to_usize(design_space_count))
-                    .saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(design_space_count))
+                    .saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -789,7 +794,7 @@ impl<'a> EntryData<'a> {
             .format_flags()
             .contains(EntryFormatFlags::CHILD_INDICES)
         {
-            start + MatchModeAndCount::RAW_BYTE_LEN
+            start.saturating_add(MatchModeAndCount::RAW_BYTE_LEN)
         } else {
             start
         };
@@ -803,8 +808,9 @@ impl<'a> EntryData<'a> {
             .format_flags()
             .contains(EntryFormatFlags::CHILD_INDICES)
         {
-            start
-                + (transforms::to_usize(match_mode_and_count)).saturating_mul(Uint24::RAW_BYTE_LEN)
+            start.saturating_add(
+                (transforms::to_usize(match_mode_and_count)).saturating_mul(Uint24::RAW_BYTE_LEN),
+            )
         } else {
             start
         };
@@ -813,8 +819,9 @@ impl<'a> EntryData<'a> {
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.child_indices_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -1235,9 +1242,10 @@ impl<'a> IdStringData<'a> {
     }
 
     pub fn id_data_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -1337,34 +1345,35 @@ impl<'a> TableKeyedPatch<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Tag::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Tag::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        let end = start.saturating_add(CompatibilityId::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn patches_count_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
+        let end = start.saturating_add(u16::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn patch_offsets_byte_range(&self) -> Range<usize> {
         let patches_count = self.patches_count();
         let start = self.patches_count_byte_range().end;
-        let end = start
-            + (transforms::add(patches_count, 1_usize)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::add(patches_count, 1_usize)).saturating_mul(Offset32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -1455,27 +1464,28 @@ impl<'a> TablePatch<'a> {
     }
 
     pub fn tag_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Tag::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Tag::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.tag_byte_range().end;
-        let end = start + TablePatchFlags::RAW_BYTE_LEN;
+        let end = start.saturating_add(TablePatchFlags::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -1872,39 +1882,40 @@ impl<'a> GlyphKeyedPatch<'a> {
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + Tag::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(Tag::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        let end = start + GlyphKeyedFlags::RAW_BYTE_LEN;
+        let end = start.saturating_add(GlyphKeyedFlags::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        let end = start.saturating_add(CompatibilityId::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }
@@ -2325,30 +2336,32 @@ impl<'a> GlyphPatches<'a> {
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(u32::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn table_count_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
+        let end = start.saturating_add(u8::RAW_BYTE_LEN);
         start..end
     }
 
     pub fn glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.table_count_byte_range().end;
-        let end = start
-            + (transforms::to_usize(glyph_count))
-                .saturating_mul(<U16Or24 as ComputeSize>::compute_size(self.flags()).unwrap_or(0));
+        let end = start.saturating_add(
+            (transforms::to_usize(glyph_count))
+                .saturating_mul(<U16Or24 as ComputeSize>::compute_size(self.flags()).unwrap_or(0)),
+        );
         start..end
     }
 
     pub fn tables_byte_range(&self) -> Range<usize> {
         let table_count = self.table_count();
         let start = self.glyph_ids_byte_range().end;
-        let end = start + (transforms::to_usize(table_count)).saturating_mul(Tag::RAW_BYTE_LEN);
+        let end = start
+            .saturating_add((transforms::to_usize(table_count)).saturating_mul(Tag::RAW_BYTE_LEN));
         start..end
     }
 
@@ -2356,9 +2369,10 @@ impl<'a> GlyphPatches<'a> {
         let glyph_count = self.glyph_count();
         let table_count = self.table_count();
         let start = self.tables_byte_range().end;
-        let end = start
-            + (transforms::multiply_add(glyph_count, table_count, 1_usize))
-                .saturating_mul(Offset32::RAW_BYTE_LEN);
+        let end = start.saturating_add(
+            (transforms::multiply_add(glyph_count, table_count, 1_usize))
+                .saturating_mul(Offset32::RAW_BYTE_LEN),
+        );
         start..end
     }
 }
@@ -2430,9 +2444,10 @@ impl<'a> GlyphData<'a> {
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        let end = start
-            + self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let start = 0usize;
+        let end = start.saturating_add(
+            self.offset_data().len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN,
+        );
         start..end
     }
 }

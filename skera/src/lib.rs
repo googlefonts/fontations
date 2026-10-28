@@ -825,7 +825,9 @@ impl Plan {
             remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
         } else {
             self.glyphset = self.glyphset_varced.clone();
-            if !self.drop_tables.contains(Cff::TAG) {
+            if !self.drop_tables.contains(Cff::TAG)
+                && self.glyphset.len() != self.font_num_glyphs as u64
+            {
                 cff::closure(font, &mut self.glyphset);
                 remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
             }

@@ -73,6 +73,23 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
     }
 }
 
+fn charstring_may_end_in_seac(data: &[u8]) -> bool {
+    if data.iter().any(|byte| matches!(byte, 10 | 29)) {
+        return true;
+    }
+    let Some((&14, body)) = data.split_last() else {
+        return false;
+    };
+    let Some(&last) = body.last() else {
+        return false;
+    };
+    matches!(last, 32..=246)
+        || (body.len() >= 2 && body[body.len() - 2] == 12)
+        || (body.len() >= 2 && matches!(body[body.len() - 2], 247..=254))
+        || (body.len() >= 3 && body[body.len() - 3] == 28)
+        || (body.len() >= 5 && body[body.len() - 5] == 255)
+}
+
 impl crate::instance::Instance<crate::instance::FontContext<'_>>
     for read_fonts::tables::cff2::Cff2<'_>
 {

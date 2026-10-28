@@ -823,6 +823,37 @@ where
     }
 }
 
+/* ### Next After ### */
+
+struct NextAfterOp<T>(T);
+
+impl<T> NextAfterOp<T>
+where
+    T: SetMember + 'static,
+{
+    fn parse_args(data: &mut Cursor<&[u8]>) -> Option<Box<dyn Operation<T>>> {
+        Some(Box::new(NextAfterOp::<T>(read_u32(data)?)))
+    }
+}
+
+impl<T> Operation<T> for NextAfterOp<T>
+where
+    T: SetMember,
+{
+    fn operate(&self, input: Input<T>, _: Input<T>) {
+        let expected = input
+            .btree_set
+            .range((Excluded(self.0), Bound::Unbounded))
+            .next()
+            .copied();
+        assert_eq!(input.int_set.next_after(self.0), expected);
+    }
+
+    fn size(&self, length: u64) -> u64 {
+        length.ilog2() as u64
+    }
+}
+
 /* ### Range ### */
 
 struct RangeOp<T>(u8, T, u8, T);
@@ -1248,6 +1279,7 @@ where
         26 if is_standard => IntersectsSetOp::parse_args(),
         27 if is_standard && T::can_be_inverted() => IterExcludedRangesOp::parse_args(),
         28 if is_standard => RangeOp::parse_args(data),
+        29 if is_standard => NextAfterOp::parse_args(data),
 
         _ => None,
     };

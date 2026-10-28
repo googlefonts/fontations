@@ -1218,7 +1218,17 @@ fn copy_default_uvs(
             let mut cur_entry = unicode_range.start_unicode_value().to_u32().wrapping_sub(1);
             let end = cur_entry.wrapping_add(unicode_range.additional_count() as u32 + 2);
 
-            while let Some(entry) = plan.unicodes.iter_after(cur_entry).next() {
+            loop {
+                // A range starting at U+0000 wraps `cur_entry` to INVALID_UNICODE_CHAR. Like
+                // harfbuzz's `next()` on HB_SET_VALUE_INVALID, start from the first member then.
+                let next_entry = if cur_entry == INVALID_UNICODE_CHAR {
+                    plan.unicodes.first()
+                } else {
+                    plan.unicodes.next_after(cur_entry)
+                };
+                let Some(entry) = next_entry else {
+                    break;
+                };
                 if entry >= end {
                     break;
                 }
