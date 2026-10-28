@@ -71,7 +71,15 @@ impl<'a> Rebaser<'a> {
         let residual = transform
             .weights
             .iter()
-            .map(|weights| self.combination(&deltas, weights, blend.ivs, constant, None))
+            .map(|weights| {
+                let mut values = Vec::with_capacity(weights.len());
+                let mut coefficients = Vec::with_capacity(weights.len());
+                for &(index, weight) in weights {
+                    values.push(deltas.get(index).ok_or(Error)?.expression());
+                    coefficients.push(weight);
+                }
+                self.combination(&values, &coefficients, blend.ivs, constant, None)
+            })
             .collect::<Result<Vec<_>>>()?;
         if residual
             .iter()
