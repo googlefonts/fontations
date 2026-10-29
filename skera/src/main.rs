@@ -24,7 +24,7 @@ use skera::{
 #[command(version, about, long_about = None, args_override_self = true)]
 struct Args {
     /// The input font file.
-    #[arg(short, long)]
+    #[arg(short, long, alias = "font-file")]
     path: std::path::PathBuf,
 
     /// Face index in a TrueType or OpenType collection.
