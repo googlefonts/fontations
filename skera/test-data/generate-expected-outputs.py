@@ -6,9 +6,9 @@ test font with skera, checks that skera's output matches hb-subset's output for 
 arguments, and copies skera's output to expected/<test suite name>/. The integration test
 compares skera's output to these files byte for byte.
 
-Like the integration test, instances and IUP options are ignored, and the profiles
-downgrade-cff2.txt and desubroutinize.txt are skipped. MATH tables are dropped, since skera
-doesn't subset them yet.
+Like the integration test, instances and IUP options are ignored, the profiles
+downgrade-cff2.txt and desubroutinize.txt are skipped, and --downgrade-cff2 is ignored in other
+profiles. MATH tables are dropped, since skera doesn't subset them yet.
 
 Usage:
     generate-expected-outputs.py <hb-subset> <skera> [<test suite file> ...]
@@ -38,6 +38,8 @@ from fontTools.ttLib import TTFont
 TEST_DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 # Not supported by skera yet; skipped like in the integration test.
 SKIPPED_PROFILES = {"downgrade-cff2.txt", "desubroutinize.txt"}
+# Not supported by skera yet; ignored for both tools, like in the integration test.
+IGNORED_FLAGS = {"--downgrade-cff2"}
 # DSIG, which hb-subset's test runner also drops, and tables skera can't subset yet.
 DROP_TABLES = "--drop-tables+=DSIG,MATH"
 SECTIONS = ("FONTS:", "PROFILES:", "SUBSETS:", "INSTANCES:", "OPTIONS:", "IUP_OPTIONS:")
@@ -104,7 +106,9 @@ def generate_one(hb_subset, skera, font, profile, subset, output_dir):
     """Generates one expected file. Returns an error message, or None on success."""
     font_path = os.path.join(TEST_DATA_DIR, "fonts", font)
     with open(os.path.join(TEST_DATA_DIR, "profiles", profile), encoding="utf-8") as f:
-        profile_flags = [line.strip() for line in f if line.strip()]
+        profile_flags = [
+            line.strip() for line in f if line.strip() and line.strip() not in IGNORED_FLAGS
+        ]
     unicodes = subset_unicodes(subset)
     name = subset_font_name(font, unicodes, profile)
 
