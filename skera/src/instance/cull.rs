@@ -485,6 +485,20 @@ mod tests {
             colr.instance(&mut CullContext { ranges: &ranges }),
             Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
         ));
+
+        for glyph2 in [false, true] {
+            let mut bytes = super::super::color::shared_paint_colr(18, glyph2);
+            let store_offset = bytes.len() as u32;
+            bytes[30..34].copy_from_slice(&store_offset.to_be_bytes());
+            bytes.extend(
+                write_fonts::dump_table(&ItemVariationStore::new(regions(), vec![])).unwrap(),
+            );
+            let colr = read_fonts::tables::colr::Colr::read(FontData::new(&bytes)).unwrap();
+            assert!(matches!(
+                colr.instance(&mut CullContext { ranges: &ranges }),
+                Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
+            ), "Glyph2 wrapper: {glyph2}");
+        }
     }
 
     fn regions() -> VariationRegionList {

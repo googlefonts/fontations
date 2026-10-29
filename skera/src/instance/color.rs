@@ -691,6 +691,7 @@ fn validate_paint(
     }}
     children!(
         Glyph,
+        Glyph2,
         Transform,
         VarTransform,
         Translate,
@@ -731,6 +732,24 @@ pub(super) fn validate_colr(colr: &read_fonts::tables::colr::Colr<'_>) -> Result
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+pub(super) fn shared_paint_colr(levels: usize, glyph2: bool) -> Vec<u8> {
+    let mut bytes = vec![0; 34];
+    bytes[..2].copy_from_slice(&1u16.to_be_bytes());
+    bytes[14..18].copy_from_slice(&34u32.to_be_bytes());
+    bytes.extend(1u32.to_be_bytes());
+    bytes.extend(1u16.to_be_bytes());
+    bytes.extend(10u32.to_be_bytes());
+    if glyph2 {
+        bytes.extend([33, 0, 0, 7, 0, 0, 1]);
+    }
+    // Both composite children reference the next paint. Owned conversion
+    // expands this compact graph into a binary tree with 2^levels leaves.
+    bytes.extend([32, 0, 0, 8, 3, 0, 0, 8].repeat(levels));
+    bytes.extend([2, 0, 0, 0x40, 0]);
+    bytes
 }
 
 impl super::Instance<super::FontContext<'_>> for read_fonts::tables::colr::Colr<'_> {
@@ -842,6 +861,39 @@ mod tests {
     use read_fonts::{FontRef, TableProvider};
     use write_fonts::tables::variations::*;
     use write_fonts::FontBuilder;
+
+    #[test]
+    fn glyph2_children_share_the_paint_traversal_budget() {
+        use read_fonts::{FontData, FontRead};
+        for glyph2 in [false, true] {
+            let small = shared_paint_colr(3, glyph2);
+            let small = read_fonts::tables::colr::Colr::read(FontData::new(&small)).unwrap();
+            validate_colr(&small).unwrap();
+
+            let bytes = shared_paint_colr(18, glyph2);
+            let colr = read_fonts::tables::colr::Colr::read(FontData::new(&bytes)).unwrap();
+            assert!(validate_colr(&colr).is_err(), "Glyph2 wrapper: {glyph2}");
+
+            let font = FontRef::new(include_bytes!(
+                "../../test-data/fonts/AdobeVFPrototype.otf"
+            ))
+            .unwrap();
+            let axes = AxisPlan::new(
+                &font,
+                &crate::parse_axis_limits("wght=900,CNTR=drop").unwrap(),
+            )
+            .unwrap();
+            let mut context = super::super::FontContext {
+                font: &font,
+                axes: &axes,
+                flags: crate::SubsetFlags::default(),
+            };
+            assert!(matches!(
+                super::super::Instance::instance(&colr, &mut context),
+                Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
+            ));
+        }
+    }
 
     #[test]
     fn rounding_preserves_integral_fields_and_deltas_just_below_half() {
