@@ -385,6 +385,7 @@ fn entries_impl<'a>(
                         // And then clears the stack regardless:
                         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1469>
                         stack.clear();
+                        cursor_pos = cursor.position().unwrap_or_default();
                         continue;
                     }
                 }
@@ -440,9 +441,10 @@ fn entries_impl<'a>(
             stack.clear();
             last_bcd_components = None;
             // Now reparse with dynamic scaling
-            let mut cursor = crate::FontData::new(dict_data).cursor();
-            cursor.advance_by(cursor_pos);
-            if let Some(matrix) = ScaledFontMatrix::parse(&mut cursor) {
+            let mut matrix_cursor = crate::FontData::new(dict_data).cursor();
+            matrix_cursor.advance_by(cursor_pos);
+            cursor_pos = cursor.position().unwrap_or_default();
+            if let Some(matrix) = ScaledFontMatrix::parse(&mut matrix_cursor) {
                 if keep {
                     return Some(Ok(Entry::FontMatrix(matrix)));
                 }
@@ -779,6 +781,30 @@ mod tests {
                 Fixed::ZERO,
             ]
         );
+    }
+
+    #[test]
+    fn font_matrix_after_skipped_operands() {
+        // 0.0005 0 0 0.0005 0 0 FontMatrix
+        let matrix = [
+            30u8, 0x0a, 0x00, 0x05, 0xff, 139, 139, 30, 0x0a, 0x00, 0x05, 0xff, 139, 139, 12, 7,
+        ];
+        let expected = entries(&matrix, None).next().unwrap().unwrap();
+        // The operands of an unknown operator, or of an earlier FontMatrix,
+        // are not part of the matrix that follows
+        let prefixes: [&[u8]; 3] = [
+            // 1 2 3 4 5 6, then the unknown one byte operator 25
+            &[140, 141, 142, 143, 144, 145, 25],
+            // 0, then the unknown two byte operator 12 77
+            &[139, 12, 77],
+            // 1 0 0 1 0 0 FontMatrix
+            &[140, 139, 139, 140, 139, 139, 12, 7],
+        ];
+        for prefix in prefixes {
+            let dict_data = [prefix, &matrix[..]].concat();
+            let last = entries(&dict_data, None).last().transpose().unwrap();
+            assert_eq!(last.as_ref(), Some(&expected));
+        }
     }
 
     #[test]
