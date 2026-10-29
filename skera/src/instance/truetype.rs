@@ -584,92 +584,34 @@ fn encode_composite(
 }
 
 fn encode_simple(
-    g: &write_fonts::tables::glyf::SimpleGlyph,
+    g: &mut write_fonts::tables::glyf::SimpleGlyph,
     points: &[Point],
     out: &mut Vec<u8>,
 ) -> Result<(), SubsetError> {
     if g.contours.is_empty() && g.instructions.is_empty() {
         return Ok(());
     }
-    out.extend(
-        i16::try_from(g.contours.len())
-            .map_err(|_| error(b"glyf"))?
-            .to_be_bytes(),
-    );
-    for v in [g.bbox.x_min, g.bbox.y_min, g.bbox.x_max, g.bbox.y_max] {
-        out.extend(v.to_be_bytes());
-    }
-    let mut count = 0usize;
-    for c in &g.contours {
-        count += c.len();
-        out.extend(
-            u16::try_from(count - 1)
-                .map_err(|_| error(b"glyf"))?
-                .to_be_bytes(),
-        );
-    }
-    out.extend(
-        u16::try_from(g.instructions.len())
-            .map_err(|_| error(b"glyf"))?
-            .to_be_bytes(),
-    );
-    out.extend(&g.instructions);
-    if count != points.len() {
+    let count: usize = g.contours.iter().map(|c| c.len()).sum();
+    if count != points.len()
+        || count > usize::from(u16::MAX) + 1
+        || g.contours.iter().any(|c| c.is_empty())
+        || g.contours.len() > i16::MAX as usize
+        || g.instructions.len() > u16::MAX as usize
+    {
         return Err(error(b"glyf"));
     }
-    let mut flags = Vec::with_capacity(count);
-    let mut coordinates = [Vec::new(), Vec::new()];
-    let mut previous = [0i16; 2];
-    for (i, (source, point)) in g
-        .contours
-        .iter()
-        .flat_map(|contour| contour.iter())
-        .zip(points)
-        .enumerate()
-    {
-        let mut flag = u8::from(source.on_curve)
-            | if source.cubic { 0x80 } else { 0 }
-            | if i == 0 && g.overlaps { 0x40 } else { 0 };
-        for axis in 0..2 {
-            let value = coord(point[axis]);
-            let delta = value.wrapping_sub(previous[axis]);
-            previous[axis] = value;
-            let (short, same) = if axis == 0 {
-                (0x02, 0x10)
-            } else {
-                (0x04, 0x20)
-            };
-            match delta {
-                0 => flag |= same,
-                -255..=-1 => {
-                    flag |= short;
-                    coordinates[axis].push(delta.unsigned_abs() as u8);
-                }
-                1..=255 => {
-                    flag |= short | same;
-                    coordinates[axis].push(delta as u8);
-                }
-                _ => coordinates[axis].extend(delta.to_be_bytes()),
-            }
+    let mut points = points.iter();
+    for contour in &mut g.contours {
+        // Reuse the contour allocation while updating coordinates in place.
+        let mut curve_points: Vec<_> = std::mem::take(contour).into();
+        for source in &mut curve_points {
+            let point = points.next().unwrap();
+            source.x = coord(point[0]);
+            source.y = coord(point[1]);
         }
-        flags.push(flag);
+        *contour = curve_points.into();
     }
-    let mut i = 0;
-    while i < flags.len() {
-        let mut run = 1usize;
-        while i + run < flags.len() && flags[i + run] == flags[i] && run < 256 {
-            run += 1;
-        }
-        if run > 1 {
-            out.push(flags[i] | 0x08);
-            out.push((run - 1) as u8);
-        } else {
-            out.push(flags[i]);
-        }
-        i += run;
-    }
-    out.extend(&coordinates[0]);
-    out.extend(&coordinates[1]);
+    out.extend(write_fonts::dump_table(g).map_err(|_| error(b"glyf"))?);
     Ok(())
 }
 
@@ -815,9 +757,9 @@ mod tests {
             .iter()
             .map(|p| [p.x as f32, p.y as f32])
             .collect::<Vec<_>>();
-        let owned: write_fonts::tables::glyf::SimpleGlyph = source.to_owned_table();
+        let mut owned: write_fonts::tables::glyf::SimpleGlyph = source.to_owned_table();
         let mut out = Vec::new();
-        encode_simple(&owned, &points, &mut out).unwrap();
+        encode_simple(&mut owned, &points, &mut out).unwrap();
         let mut expected = write_fonts::dump_table(&owned).unwrap();
         expected.truncate(out.len()); // The caller supplies glyph alignment.
         assert_eq!(out, expected);
