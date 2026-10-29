@@ -501,6 +501,7 @@ pub(super) fn instance(
         })
         .collect();
 
+    let scalars = VariationScalars::new(&store, &inputs.coords);
     let mut rows = Vec::new();
     for (i, axis) in old_axes.iter().enumerate() {
         let Some(new_index) = axes.new_index(i) else {
@@ -529,7 +530,8 @@ pub(super) fn instance(
                 }
             }
         }
-        let default_delta = VariationScalars::new(&store, &inputs.coords)
+        let default_delta = scalars
+            .as_ref()
             .and_then(|scalars| scalars.delta(&store, index))
             .map_or(0., super::round_f32);
         let u = axes.user[i];
