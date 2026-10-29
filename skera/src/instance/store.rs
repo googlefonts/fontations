@@ -91,7 +91,6 @@ impl Transform {
 pub(crate) struct StorePlan {
     pub transforms: Vec<Transform>,
     regions: Vec<Region>,
-    subnormal_pins: Vec<bool>,
     axis_count: u16,
 }
 impl StorePlan {
@@ -101,7 +100,6 @@ impl StorePlan {
             return Err(error());
         }
         let mut expanded = Vec::new();
-        let mut subnormal_pins = Vec::new();
         let mut regions = Vec::new();
         let mut region_map = BTreeMap::new();
         for region in region_list.variation_regions().iter() {
@@ -169,7 +167,6 @@ impl StorePlan {
                 };
                 *residual.entry(idx).or_insert(0.) += g;
             }
-            subnormal_pins.push(pinned_scalar.is_subnormal() && !residual.is_empty());
             expanded.push((gain, residual));
         }
         let mut transforms = Vec::new();
@@ -207,7 +204,6 @@ impl StorePlan {
         Ok(Self {
             transforms,
             regions,
-            subnormal_pins,
             axis_count: axes.pinned.iter().filter(|&&p| !p).count() as u16,
         })
     }
@@ -263,17 +259,6 @@ impl StorePlan {
             }
         }
         Ok(())
-    }
-
-    pub fn has_subnormal_pins(
-        &self,
-        data: &read_fonts::tables::variations::ItemVariationData,
-        inner: u16,
-    ) -> bool {
-        data.region_indexes()
-            .iter()
-            .zip(data.delta_set(inner))
-            .any(|(index, delta)| delta != 0 && self.subnormal_pins[index.get() as usize])
     }
 
     /// A constant region lets CFF2 express sums of variable blend operands
