@@ -494,10 +494,13 @@ mod tests {
                 write_fonts::dump_table(&ItemVariationStore::new(regions(), vec![])).unwrap(),
             );
             let colr = read_fonts::tables::colr::Colr::read(FontData::new(&bytes)).unwrap();
-            assert!(matches!(
-                colr.instance(&mut CullContext { ranges: &ranges }),
-                Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
-            ), "Glyph2 wrapper: {glyph2}");
+            assert!(
+                matches!(
+                    colr.instance(&mut CullContext { ranges: &ranges }),
+                    Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"COLR")
+                ),
+                "Glyph2 wrapper: {glyph2}"
+            );
         }
     }
 

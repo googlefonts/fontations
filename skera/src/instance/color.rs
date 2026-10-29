@@ -291,7 +291,7 @@ impl Context<'_> {
                         dy: t.dy,
                     };
                     *paint = Paint::Transform(PaintTransform {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         transform: t.into(),
                     });
                 }
@@ -305,7 +305,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 1, &mut v.dy)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Translate(PaintTranslate {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         dx: v.dx,
                         dy: v.dy,
                     });
@@ -319,7 +319,7 @@ impl Context<'_> {
                 let sx = self.scale(v.var_index_base, 0, v.scale_x)?;
                 let sy = self.scale(v.var_index_base, 1, v.scale_y)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) = scale_transform(&v.paint, sx, sy, 0, 0) {
+                    if let Some(transform) = scale_transform(&mut v.paint, sx, sy, 0, 0) {
                         *paint = transform;
                         return Ok(());
                     }
@@ -328,7 +328,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 1, &mut v.scale_y)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Scale(PaintScale {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         scale_x: v.scale_x,
                         scale_y: v.scale_y,
                     });
@@ -344,9 +344,13 @@ impl Context<'_> {
                 self.field(v.var_index_base, 2, &mut v.center_x)?;
                 self.field(v.var_index_base, 3, &mut v.center_y)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) =
-                        scale_transform(&v.paint, sx, sy, v.center_x.to_i16(), v.center_y.to_i16())
-                    {
+                    if let Some(transform) = scale_transform(
+                        &mut v.paint,
+                        sx,
+                        sy,
+                        v.center_x.to_i16(),
+                        v.center_y.to_i16(),
+                    ) {
                         *paint = transform;
                         return Ok(());
                     }
@@ -355,7 +359,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 1, &mut v.scale_y)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleAroundCenter(PaintScaleAroundCenter {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         scale_x: v.scale_x,
                         scale_y: v.scale_y,
                         center_x: v.center_x,
@@ -370,7 +374,7 @@ impl Context<'_> {
                 self.paint(&mut v.paint, depth + 1)?;
                 let scale = self.scale(v.var_index_base, 0, v.scale)?;
                 if self.axes.all_pinned() {
-                    if let Some(transform) = scale_transform(&v.paint, scale, scale, 0, 0) {
+                    if let Some(transform) = scale_transform(&mut v.paint, scale, scale, 0, 0) {
                         *paint = transform;
                         return Ok(());
                     }
@@ -378,7 +382,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 0, &mut v.scale)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleUniform(PaintScaleUniform {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         scale: v.scale,
                     });
                 }
@@ -393,7 +397,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 2, &mut v.center_y)?;
                 if self.axes.all_pinned() {
                     if let Some(transform) = scale_transform(
-                        &v.paint,
+                        &mut v.paint,
                         scale,
                         scale,
                         v.center_x.to_i16(),
@@ -406,7 +410,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 0, &mut v.scale)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::ScaleUniformAroundCenter(PaintScaleUniformAroundCenter {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         scale: v.scale,
                         center_x: v.center_x,
                         center_y: v.center_y,
@@ -421,7 +425,7 @@ impl Context<'_> {
                 self.angle(v.var_index_base, 0, &mut v.angle)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Rotate(PaintRotate {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         angle: v.angle,
                     });
                 }
@@ -436,7 +440,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 2, &mut v.center_y)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::RotateAroundCenter(PaintRotateAroundCenter {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         angle: v.angle,
                         center_x: v.center_x,
                         center_y: v.center_y,
@@ -452,7 +456,7 @@ impl Context<'_> {
                 self.angle(v.var_index_base, 1, &mut v.y_skew_angle)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::Skew(PaintSkew {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         x_skew_angle: v.x_skew_angle,
                         y_skew_angle: v.y_skew_angle,
                     });
@@ -469,7 +473,7 @@ impl Context<'_> {
                 self.field(v.var_index_base, 3, &mut v.center_y)?;
                 if self.axes.all_pinned() {
                     *paint = Paint::SkewAroundCenter(PaintSkewAroundCenter {
-                        paint: v.paint.clone(),
+                        paint: std::mem::take(&mut v.paint),
                         x_skew_angle: v.x_skew_angle,
                         y_skew_angle: v.y_skew_angle,
                         center_x: v.center_x,
@@ -602,7 +606,13 @@ fn nonnegative_radial(
     Err(error())
 }
 
-fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<Paint> {
+fn scale_transform(
+    paint: &mut write_fonts::OffsetMarker<Paint, 3>,
+    sx: f64,
+    sy: f64,
+    cx: i16,
+    cy: i16,
+) -> Option<Paint> {
     if (-2. ..2.).contains(&sx) && (-2. ..2.).contains(&sy) {
         return None;
     }
@@ -613,7 +623,7 @@ fn scale_transform(paint: &Paint, sx: f64, sy: f64, cx: i16, cy: i16) -> Option<
     let dx = cx * (1. - sx);
     let dy = cy * (1. - sy);
     Some(Paint::Transform(PaintTransform {
-        paint: paint.clone().into(),
+        paint: std::mem::take(paint),
         transform: Affine2x3 {
             xx: Fixed::from_f64(sx),
             yx: Fixed::ZERO,
@@ -874,10 +884,8 @@ mod tests {
             let colr = read_fonts::tables::colr::Colr::read(FontData::new(&bytes)).unwrap();
             assert!(validate_colr(&colr).is_err(), "Glyph2 wrapper: {glyph2}");
 
-            let font = FontRef::new(include_bytes!(
-                "../../test-data/fonts/AdobeVFPrototype.otf"
-            ))
-            .unwrap();
+            let font =
+                FontRef::new(include_bytes!("../../test-data/fonts/AdobeVFPrototype.otf")).unwrap();
             let axes = AxisPlan::new(
                 &font,
                 &crate::parse_axis_limits("wght=900,CNTR=drop").unwrap(),
