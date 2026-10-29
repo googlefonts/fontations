@@ -2,7 +2,8 @@
 //!
 //! Retained programs borrow source bytes and record only edits. Literal spans
 //! are sufficient for the common case. Retained calls require immediate literals;
-//! hint operands crossing program boundaries flatten only the affected glyph.
+//! dropped hint operands are deleted from whichever program pushed them, and
+//! glyphs whose deletions conflict in a shared program are flattened.
 
 use super::{
     encoding,
@@ -157,7 +158,10 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         Err(Error)
     }
     fn width(&mut self, origin: Option<Origin>) {
-        if let Some((key @ Program::Glyph(_), start, end)) = origin {
+        // Like HarfBuzz, remove the width literal from whichever program
+        // pushed it, often a subroutine shared with the glyph's hint operands.
+        // merge() flattens glyphs whose deletion conflicts with other callers.
+        if let Some((key, start, end)) = origin {
             self.edit(key, start, Edit { end, call: None });
         } else {
             self.needs_flatten = true;
@@ -174,19 +178,34 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         self.needs_flatten |= *old != end;
     }
     fn hint(&mut self, key: Program, start: usize, end: usize, args: &[Value]) {
+        // Hint operators consume the whole stack. HarfBuzz drops each operand
+        // together with the operator, even when a caller or another subroutine
+        // pushed it, so delete every literal from the program that produced it.
+        // Operands that immediately precede the operator join its deletion.
         let mut first = start;
+        let mut detached = Vec::new();
         for value in args.iter().rev() {
             let Some((producer, from, to)) = value.origin else {
                 self.needs_flatten = true;
                 return;
             };
-            if producer != key || to != first {
-                self.needs_flatten = true;
-                return;
+            if producer == key && to == first {
+                first = from;
+            } else {
+                detached.push((producer, from, to));
             }
-            first = from;
         }
         self.edit(key, first, Edit { end, call: None });
+        for (producer, from, to) in detached {
+            self.edit(
+                producer,
+                from,
+                Edit {
+                    end: to,
+                    call: None,
+                },
+            );
+        }
     }
 }
 impl<'s> Recorder<'s> {
@@ -790,23 +809,37 @@ mod tests {
         );
     }
     #[test]
-    fn shared_hint_producers_require_flattening() {
+    fn hint_operands_from_subroutines_are_deleted_there() {
+        // The local subroutine pushes the hstem operands for glyph 0, but the
+        // rmoveto operands for glyph 1.
         let source = Source(vec![vec![139, 149, 11]]);
-        let mut rec = Recorder::default();
-        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
-            .run(Program::Glyph(0), &[32, 10, 1, 139, 139, 21, 14])
-            .unwrap();
-        assert!(rec.needs_flatten);
-        rec.needs_flatten = false;
-        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
-            .run(Program::Glyph(1), &[32, 10, 21, 14])
-            .unwrap();
-        assert!(!rec.needs_flatten);
+        fn record<'s>(source: &'s Source, glyph: &'s [u8], gid: usize) -> Recorder<'s> {
+            let mut rec = Recorder::default();
+            Interpreter::<Cff1, _, _>::new(source, &mut rec, 0, 0, true)
+                .run(Program::Glyph(gid), glyph)
+                .unwrap();
+            rec
+        }
+        let mut merged = Recorder::default();
+        let hinted = record(&source, &[32, 10, 1, 139, 139, 21, 14], 0);
+        assert!(!hinted.needs_flatten);
+        assert!(merged.merge(hinted));
+        merged.remove_hint_calls();
+        // The operands are deleted from the subroutine, which is then only a
+        // return, so the call is dropped as well.
         assert_eq!(
-            rec.encode(Program::Local(0, 0), &FastHashMap::default(), 0, &[1])
-                .unwrap(),
-            [139, 149, 11]
+            merged.closure(&[Program::Glyph(0)]).unwrap(),
+            [Program::Glyph(0)]
         );
+        assert_eq!(
+            merged
+                .encode(Program::Glyph(0), &FastHashMap::default(), 0, &[1])
+                .unwrap(),
+            [139, 139, 21, 14]
+        );
+        // Glyph 1 needs the subroutine's literals, which conflicts with the
+        // deletions already merged, so it must be flattened instead.
+        assert!(!merged.merge(record(&source, &[32, 10, 21, 14], 1)));
     }
     #[test]
     fn hints_with_local_literals_remain_subroutinized() {

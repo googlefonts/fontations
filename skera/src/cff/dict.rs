@@ -91,7 +91,9 @@ pub(super) fn replacement(op: u16, args: &[usize]) -> Result<Vec<u8>> {
 }
 
 pub(super) fn is_hint(op: u16) -> bool {
-    matches!(op, 6..=11 | 0x109..=0x10e | 0x112)
+    // Matches HarfBuzz's dict_opset_t::is_hint_op: BlueValues..StdVW,
+    // BlueScale..ForceBold, LanguageGroup and ExpansionFactor.
+    matches!(op, 6..=11 | 0x109..=0x10e | 0x111 | 0x112)
 }
 
 #[cfg(test)]

@@ -504,11 +504,8 @@ fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
         out.extend(u32::try_from(fds.len()).map_err(|_| Error)?.to_be_bytes());
         return Ok(out);
     }
-    if 1 + fds.len() < 5 + ranges.len() * 3 {
-        let mut out = vec![0];
-        out.extend(fds.iter().map(|&fd| fd as u8));
-        return Ok(out);
-    }
+    // HarfBuzz never emits format 0 (CFF_SERIALIZE_FDSELECT_0 is disabled), even
+    // when it would be smaller, so always use format 3 to match its output.
     let mut out = vec![3];
     out.extend((ranges.len() as u16).to_be_bytes());
     for (gid, fd) in ranges {
@@ -585,7 +582,14 @@ pub(super) fn assemble<F: CffFlavor>(
     let string_index = encoding::IndexLayout::new(&strings, false)?;
     let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
     let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
-    let select = fdselect(&fds, F::CFF2)?;
+    // FDSelect is optional in CFF2 when there is a single Font DICT. Like
+    // HarfBuzz, only emit it if the source has one. CFF1 CID fonts require it.
+    let has_fdselect = !F::CFF2 || dict::offset(&source.top, 0x125, 0)?.is_some();
+    let select = if has_fdselect {
+        fdselect(&fds, F::CFF2)?
+    } else {
+        Vec::new()
+    };
     let charset = if F::CFF2 { vec![] } else { charset(&codes)? };
     let enc = if F::CFF2 || source.cid {
         None
@@ -674,7 +678,12 @@ pub(super) fn assemble<F: CffFlavor>(
         if F::CFF2 || source.cid {
             replacements.extend([
                 (0x124, Some(dict::replacement(0x124, &[fdarray_pos])?)),
-                (0x125, Some(dict::replacement(0x125, &[fdselect_pos])?)),
+                (
+                    0x125,
+                    has_fdselect
+                        .then(|| dict::replacement(0x125, &[fdselect_pos]))
+                        .transpose()?,
+                ),
             ]);
         } else {
             replacements.push((
