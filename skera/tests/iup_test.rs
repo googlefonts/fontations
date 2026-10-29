@@ -91,7 +91,7 @@ fn optimized_sparse_points_and_deltas_match_harfbuzz() {
 
 #[test]
 fn large_contours_keep_variations_when_optimization_is_bounded() {
-    let source = std::fs::read("test-data/fonts/iup-large-contour.ttf").unwrap();
+    let source = std::fs::read("test-data/fonts/IUP-large-contour.ttf").unwrap();
     let font = FontRef::new(&source).unwrap();
     let partial = instance_font_with_flags(
         &font,
