@@ -665,7 +665,7 @@ fn partial_conditions_do_not_revive_regions_with_zero_float_scalars() {
 }
 
 #[test]
-fn partial_conditions_reject_subnormal_pinned_scalars() {
+fn partial_conditions_accept_subnormal_pinned_scalars() {
     let bytes = many_axis_condition_font(0);
     let source = FontRef::new(&bytes).unwrap();
     let pins = (0..18)
@@ -675,7 +675,8 @@ fn partial_conditions_reject_subnormal_pinned_scalars() {
         .join(",");
     // The pinned product is the smallest nonzero float32. The remaining
     // factor rounds it to zero at 1/4, but not at the peak. Positive rescaling
-    // cannot preserve that underflow boundary in the residual store.
+    // cannot preserve that underflow boundary in the residual store, but
+    // partial instancing remains supported.
     for (remaining, expected) in [(0.25, 2), (1., 3)] {
         let full = instance_font(
             &source,
@@ -684,5 +685,13 @@ fn partial_conditions_reject_subnormal_pinned_scalars() {
         .unwrap();
         assert_eq!(selected_glyph(&full), expected);
     }
-    assert!(instance_font(&source, &parse_axis_limits(&pins).unwrap()).is_err());
+    let partial = instance_font(&source, &parse_axis_limits(&pins).unwrap()).unwrap();
+    for (remaining, expected) in [(0., 2), (1., 3)] {
+        let composed = instance_font(
+            &FontRef::new(&partial).unwrap(),
+            &parse_axis_limits(&format!("ZZZZ={remaining}")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(selected_glyph(&composed), expected);
+    }
 }

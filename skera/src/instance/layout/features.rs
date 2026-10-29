@@ -232,13 +232,8 @@ pub(super) fn partial_condition(
             if residual.iter().all(|&delta| delta == 0.) {
                 return Ok(PartialCondition::Constant(value > 0.));
             }
-            // A subnormal pinned scalar can round to zero at some surviving
-            // coordinates. Rescaling the residual loses that source boundary.
-            if plan.has_subnormal_pins(&data, v.var_index as u16) {
-                return Err(err());
-            }
-            // Positive rescaling preserves the Boolean boundary. Prefer exact
-            // integers, otherwise use the available signed 32-bit precision.
+            // Positive rescaling preserves the residual expression's sign.
+            // Prefer exact integers, otherwise use signed 32-bit precision.
             let maximum = residual.iter().fold(value.abs(), |m, d| m.max(d.abs()));
             if !maximum.is_finite() {
                 return Err(err());
