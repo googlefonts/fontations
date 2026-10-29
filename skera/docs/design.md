@@ -153,14 +153,13 @@ one implementation.
 The plan also accumulates pinned region factors in source float32 order. Once
 that product reaches zero, every retained coordinate keeps the region at zero;
 carrying a tiny double residual into condition rescaling would incorrectly
-revive it. Nonzero subnormal products have a different problem: multiplying by
-a retained factor can cross a source underflow boundary that positive rescaling
-cannot preserve. Partial variable-value conditions referencing those regions
-return an error; full instancing remains available. The regression covers the
-zero product, nonzero defaults, and explicit subnormal rejection. The matching
-upstream fix is [HarfBuzz #6441](https://github.com/harfbuzz/harfbuzz/pull/6441).
-FontTools currently lacks these condition formats; [#4348](https://github.com/fonttools/fonttools/pull/4348)
-rejects them before mutating the font instead of discarding a matching rule.
+revive it. Nonzero products, including subnormal ones, remain supported using
+the existing residual rescaling. Rescaling can move source float32 underflow
+boundaries, so partial followed by full instancing need not match direct full
+instancing at those boundaries. The regression covers zero products, nonzero
+defaults, and successful subnormal partial instancing with preserved zero and
+peak behavior. [FontTools #4348](https://github.com/fonttools/fonttools/pull/4348)
+preflights unsupported condition formats before mutating the font.
 
 Store optimization has independent budgets for its dense row matrix and its
 pairwise column scans. It checks the merge budget after deduplication so many
