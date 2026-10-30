@@ -64,6 +64,11 @@ impl Value {
         Ok(self.default as i32)
     }
 
+    fn seac_code(&self) -> Option<u8> {
+        let code = self.default.trunc();
+        (self.blend.is_none() && (0.0..=255.0).contains(&code)).then_some(code as u8)
+    }
+
     pub(super) fn origin(&self) -> Option<Origin> {
         self.origin
     }
@@ -634,11 +639,12 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                 | 30
                 | 31
                 | 0x122..=0x125 => {
-                    if op == 14 && !F::CFF2 && self.stack.len() == 4 {
-                        self.seac = Some((
-                            u8::try_from(self.stack[2].int()?).map_err(|_| Error)?,
-                            u8::try_from(self.stack[3].int()?).map_err(|_| Error)?,
-                        ));
+                    if op == 14 && !F::CFF2 && self.stack.len() >= 4 {
+                        let n = self.stack.len();
+                        // HarfBuzz truncates fractional character codes toward zero.
+                        self.seac = self.stack[n - 2]
+                            .seac_code()
+                            .zip(self.stack[n - 1].seac_code());
                     }
                     let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23);
                     if hint && self.drop_hints {
@@ -1008,6 +1014,25 @@ mod tests {
     }
 
     #[test]
+    fn seac_uses_the_last_two_of_at_least_four_operands() {
+        let source = Source(vec![]);
+        // Six operands avoids the optional-width case and verifies that extra
+        // live operands do not hide the final bchar/achar pair.
+        let data = [139, 139, 139, 139, 204, 205, 14];
+        let seac = run_cff1(&source, &mut (), &data, false).unwrap().seac;
+        assert_eq!(seac, Some((65, 66)));
+    }
+
+    #[test]
+    fn seac_truncates_fractional_character_codes() {
+        let source = Source(vec![]);
+        // 0 adx, 0 ady, 65.5 bchar, 66.75 achar, endchar.
+        let data = [139, 139, 255, 0, 65, 128, 0, 255, 0, 66, 192, 0, 14];
+        let seac = run_cff1(&source, &mut (), &data, false).unwrap().seac;
+        assert_eq!(seac, Some((65, 66)));
+    }
+
+    #[test]
     fn reused_stack_is_cleared_after_an_interpreter_error() {
         let source = Source(vec![]);
         let mut stack = operand_stack::<Cff1>();
@@ -1027,6 +1052,14 @@ mod tests {
         assert_eq!(interp.width, None);
         assert_eq!(interp.seac, Some((65, 66)));
         assert_eq!(stack.as_ptr(), buffer);
+    }
+
+    #[test]
+    fn invalid_seac_codes_do_not_fail_interpretation() {
+        let source = Source(vec![]);
+        let data = [139, 139, 139, 139, 28, 3, 232, 14];
+        let seac = run_cff1(&source, &mut (), &data, false).unwrap().seac;
+        assert_eq!(seac, None);
     }
 
     #[test]
