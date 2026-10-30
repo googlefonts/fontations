@@ -1,5 +1,4 @@
 //! Outline instancing and the variation tables that share its axes.
-#![allow(dead_code)]
 mod avar2;
 mod axes;
 mod color;
@@ -125,7 +124,10 @@ pub fn instance_font_with_flags(
     tables.apply_all(metrics.into_changes());
     tables.finish_metadata(&mut source)?;
     let bytes = tables.build(font);
-    if axes.all_pinned() && flags.contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2) {
+    if matches!(outlines, OutlineKind::Cff2)
+        && axes.all_pinned()
+        && flags.contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
+    {
         downgrade_cff2(
             &FontRef::new(&bytes).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?,
         )
@@ -337,7 +339,7 @@ pub fn downgrade_cff2(font: &FontRef) -> Result<Vec<u8>, SubsetError> {
     Ok(builder.build())
 }
 
-#[cfg(any())]
+#[cfg(test)]
 mod tests {
     use super::*;
 

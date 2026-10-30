@@ -2,12 +2,32 @@
 
 `skera` is a Rust library and binary for subsetting a font file according to provided input.
 
+For the architecture, table dependencies, and stack review guide, see the
+[subsetting and instancing design](docs/design.md).
+
 Use `--keep-everything` or the library's `Plan::keep_everything` to select all
 glyphs, Unicode mappings, names, layout items, and tables. The preset also
 preserves glyph names, legacy naming records, the `.notdef` outline, and
-Unicode range bits. CLI list operations then tailor those selections in command
-line order, while boolean flags and custom glyph mappings add to the preset.
+Unicode range bits. The CLI preset resets selections and flags at its
+command-line position. Later plain selectors replace their corresponding
+selections, and later flags add to the preset. The preset can be repeated.
 Tables are still subset and can be optimized or re-encoded.
+
+Custom glyph IDs are supported through `--gid-map 1:4,2:7` or
+`Plan::set_glyph_mapping`. Unspecified retained glyphs follow the highest
+requested output ID; gaps become empty glyphs. The final mapping must preserve
+original glyph order, keep `.notdef` at zero, and use unique output IDs.
+CLI mappings add their source glyphs at their command-line position; later
+selectors can remove them. Repeated mappings accumulate, with the last
+request for each source glyph taking precedence.
+Custom mappings cannot be combined with `--retain-gids`. Add
+`--retain-num-glyphs` alongside `--retain-gids` to keep the source glyph count
+by appending empty glyphs. `--iftb-requirements` forces 32-bit `loca`, `gvar`,
+and CFF/CFF2 CharStrings offsets for incremental font transfer patches.
+
+`--no-bidi-closure` omits mirrored Unicode variants from the subset.
+Use `--name-IDs` and `--name-languages` to select naming records;
+`--name-legacy` also keeps records for non-Unicode platforms.
 
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
@@ -19,9 +39,67 @@ or computed targets require `--desubroutinize`; retained mode rejects them.
 Hint removal flattens individual glyphs when deleting their operands or changing
 caller-dependent mask boundaries would modify a shared program.
 
-Use `--text` (or `-t`) to select Unicode characters directly from UTF-8 text.
-Text and Unicode selectors share the same selection set and support ordered
-replacement, addition (`+=`), and removal (`-=`) operations.
+VARC subsetting closes component references and remaps glyphs, conditions,
+axis-index lists, variation rows, and sparse regions. Packed component values,
+transforms, and reserved fields are preserved. Axes that retained VARC data
+does not reference can be pinned or restricted. Component-axis lists, sparse
+regions, and nested condition axes are remapped when axes are removed.
+Changes to referenced axes are rejected. For library calls, subset with
+retained glyph IDs before instancing to remove unused VARC references.
+
+CFF2 and TrueType fonts can be fully instantiated with `--instance wght=650,opsz=48`.
+TrueType instancing preserves composite glyphs, point order, and hint programs,
+and applies `gvar` phantom-point metrics and `cvar` control-value deltas.
+The optional `spec_next` feature preserves experimental cubic glyf control
+points through full and partial instancing.
+Unspecified axes are retained; `tag=drop` pins an axis at its default. Partial
+instancing accepts ranges such as `--instance wght=300:500:700,opsz=12:48`.
+Empty range fields use original axis bounds or defaults, for example
+`wght=300::700` or `wght=:500:`. Requests are clamped to the original axis
+range. `*=drop` pins all axes at their defaults; later requests override
+earlier ones, including repeated `--instance` or `--variations` options.
+The library's `parse_axis_limits_for_font` resolves the same syntax against
+a source font.
+Instancing resolves outline blends and variation deltas in metrics, layout,
+and COLRv1 paint tables.
+Nested CFF2 blends, including variable deltas, are preserved through subsetting
+and partial instancing; full instancing rounds each blend independently.
+The library's `instance_font` preserves glyph IDs; create a `Plan` from the
+returned font to subset the instance.
+
+Add `--downgrade-cff2` to emit a full instance as CID-keyed CFF1. The library
+also exposes `downgrade_cff2`; it preserves glyph IDs and encodes CFF1 widths
+from the instanced metrics.
+
+Full and partial instancing support `avar` versions 1 and 2. For coupled
+`avar` version 2 maps, TrueType pins whose final coordinates are constant
+are removed and baked into outlines, metrics, and layout. Other pins remain
+hidden until the font is fully instantiated. Range compensation preserves
+the original final-coordinate space, subject to F2Dot14 quantization.
+
+Use `--text` (or `-t`) to select Unicode characters directly from text.
+Repeated `--text` and `--unicodes` selectors replace the Unicode set in
+command-line order.
+
+Use `--glyphs` to select names from post or CFF, numeric glyph IDs,
+`gid123`, or mapped Unicode strings such as `uni0041`. Repeated `--glyphs`
+and `--gids` selectors replace the glyph set in command-line order. The
+library exposes `parse_glyph_names` for the same resolution.
+
+Use `--gids-file`, `--glyphs-file`, `--unicodes-file`, or `--text-file` to
+add selections from files; `-` reads standard input. Numeric and glyph-name
+files accept one or more entries per line and `#` comments. Text files retain
+`#` characters and omit line-feed separators. File selectors add to the
+current selection in command-line order.
+
+Selection options also accept `+` and `-` suffixes to add or remove entries,
+for example `--text=abc --text-=b --unicodes+=0064`. This applies to `gids`,
+`glyphs`, `unicodes`, `text`, `name-IDs`, `name-languages`, `layout-features`,
+`layout-scripts`, and `drop-tables`. Operations follow command-line order;
+plain options replace their sets, and `*` selects all entries or removes all
+entries with `-`. `--text=*` also selects all mapped Unicode characters.
+
+For font collections, `--face-index` selects a face; the default is zero.
 
 ## Installation
 
@@ -121,3 +199,14 @@ perf (Linux-only): The standard system profiler on Linux, useful for command-lin
 perf record -g -- target/release/skera
 perf report
 ```
+
+Instancing currently rejects the uppercase outline and metric table families;
+ordinary subsetting supports the expanded formats described above.
+
+Full CFF2 instancing rounds each complete resolved blend operand using float
+region scalars. Partial instancing and Private DICTs retain separate folding
+and rounding rules. Metrics measure the continuous source outline with double
+coordinates before rounding its bounds; measuring the rounded emitted outline
+can change bearings. Outline/store and metric consumers retain their distinct
+normalization paths. The CFF interpreter supplies bounds as an action alongside
+retained recording and flattening, so all three share bytecode validation.

@@ -278,6 +278,34 @@ fn original_ranges_preserve_referenced_varc_axes() {
     }
 }
 
+#[cfg(feature = "cli")]
+#[test]
+fn cli_instances_ignore_varc_references_removed_by_subsetting() {
+    for (selection, drop) in [
+        ("--gids=3", "--drop-tables="),
+        ("--unicodes=AC01", "--drop-tables=VARC"),
+    ] {
+        let output = tempfile::NamedTempFile::new().unwrap();
+        let status = std::process::Command::new(env!("CARGO_BIN_EXE_skera"))
+            .args([
+                "--path",
+                "test-data/fonts/varc-unrelated-axis-avar2-store.ttf",
+                selection,
+                drop,
+                "--instance=wght=400",
+                "--output-file",
+            ])
+            .arg(output.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let bytes = std::fs::read(output.path()).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(font.varc().is_err());
+        assert!(font.axes().get_by_tag(Tag::new(b"wght")).is_none());
+    }
+}
+
 #[test]
 fn subset_paths_preserve_varc_conditions_axes_and_transforms() {
     for name in [
