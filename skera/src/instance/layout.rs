@@ -10,7 +10,7 @@ mod values;
 use super::{optimize, scalars::VariationScalars, AxisPlan, StorePlan};
 use crate::SubsetError;
 use features::{instance_features, own_feature_variations, remap_feature_conditions};
-use owned::{own_gpos, own_gsub};
+use owned::{own_gpos, own_gsub, own_jstf};
 use read_fonts::{
     tables::variations::{DeltaSetIndex, ItemVariationStore},
     types::{Compatible, F2Dot14, Tag},
@@ -275,6 +275,19 @@ impl super::Instance<LayoutContext<'_>> for read_fonts::tables::gdef::Gdef<'_> {
     }
 }
 
+impl super::Instance<LayoutContext<'_>> for read_fonts::tables::jstf::Jstf<'_> {
+    type Output = write_fonts::tables::jstf::Jstf;
+    fn instance(&self, context: &mut LayoutContext<'_>) -> Result<Self::Output, SubsetError> {
+        crate::jstf::validate(self)
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        let mut table = own_jstf(self)?;
+        table
+            .apply(&ValuePass::Instance(context))
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        Ok(table)
+    }
+}
+
 impl super::Instance<super::FontContext<'_>> for read_fonts::tables::base::Base<'_> {
     type Output = Vec<u8>;
     fn instance(&self, input: &mut super::FontContext<'_>) -> Result<Self::Output, SubsetError> {
@@ -318,6 +331,7 @@ impl super::Instance<super::FontContext<'_>> for read_fonts::tables::base::Base<
 pub(super) struct LayoutTables {
     pub gpos: Option<Vec<u8>>,
     pub gsub: Option<Vec<u8>>,
+    pub jstf: Option<Vec<u8>>,
     pub gdef: Option<Vec<u8>>,
     pub base: Option<Vec<u8>>,
 }
@@ -330,6 +344,7 @@ pub(super) fn instance_layout(
     let mut output = LayoutTables::default();
     let mut gpos_table = None;
     let mut gsub_table = None;
+    let mut jstf_table = None;
     let gdef = font.gdef().ok();
     let mut context = LayoutContext::new(
         gdef.as_ref()
@@ -343,6 +358,12 @@ pub(super) fn instance_layout(
     }
     if let Ok(source) = font.gsub() {
         gsub_table = Some(source.instance(&mut context)?);
+    }
+    if font.data_for_tag(Tag::new(b"JSTF")).is_some() {
+        let source = font
+            .jstf()
+            .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        jstf_table = Some(source.instance(&mut context)?);
     }
     let gdef_table = gdef
         .as_ref()
@@ -370,6 +391,14 @@ pub(super) fn instance_layout(
             remap_feature_conditions(&mut table.feature_variations, &map);
         }
         output.gsub = Some(serialize(b"GSUB", table)?);
+    }
+    if let Some(table) = &mut jstf_table {
+        if !axes.all_pinned() {
+            table
+                .apply(&remap_context)
+                .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"JSTF")))?;
+        }
+        output.jstf = Some(serialize(b"JSTF", table)?);
     }
     if let Some(mut table) = gdef_table {
         if !axes.all_pinned() {
