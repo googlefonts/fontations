@@ -15,6 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::ops::Range;
 
+const TRANSIENT_ARRAY_SIZE: usize = 32;
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
     Glyph(u32),
@@ -435,7 +437,9 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             actions,
             fd,
             stack,
-            transient: vec![Value::default(); 32],
+            // Type 2's transient array is rarely used. Allocate its large
+            // symbolic values only when a program executes `put`.
+            transient: Vec::new(),
             hints: 0,
             initial_ivs,
             ivs: initial_ivs,
@@ -687,16 +691,23 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             }
             0x114 => {
                 let idx = usize::try_from(a.int()?).map_err(|_| Error)?;
+                if idx >= TRANSIENT_ARRAY_SIZE {
+                    return Err(Error);
+                }
                 let v = self.pop()?;
-                *self.transient.get_mut(idx).ok_or(Error)? = v;
+                if self.transient.is_empty() {
+                    self.transient
+                        .resize_with(TRANSIENT_ARRAY_SIZE, Value::default);
+                }
+                self.transient[idx] = v;
                 return Ok(());
             }
             0x115 => {
-                a = self
-                    .transient
-                    .get(usize::try_from(a.int()?).map_err(|_| Error)?)
-                    .ok_or(Error)?
-                    .clone();
+                let idx = usize::try_from(a.int()?).map_err(|_| Error)?;
+                if idx >= TRANSIENT_ARRAY_SIZE {
+                    return Err(Error);
+                }
+                a = self.transient.get(idx).cloned().unwrap_or_default();
             }
             0x11d => {
                 let idx = a.int()?.max(0) as usize;
@@ -1016,5 +1027,25 @@ mod tests {
         assert_eq!(interp.width, None);
         assert_eq!(interp.seac, Some((65, 66)));
         assert_eq!(stack.as_ptr(), buffer);
+    }
+
+    #[test]
+    fn transient_array_is_allocated_only_by_put() {
+        let source = Source(vec![]);
+        let mut actions = ();
+        let mut stack = operand_stack::<Cff1>();
+        let mut interp =
+            Interpreter::<Cff1, _, _>::new(&source, &mut actions, 0, false, &mut stack);
+        assert!(interp.transient.is_empty());
+
+        interp.push(Value::default()).unwrap();
+        interp.arithmetic(0x115).unwrap();
+        assert!(interp.transient.is_empty());
+        assert_eq!(interp.pop().unwrap().default, 0.0);
+
+        interp.push(Value::default()).unwrap();
+        interp.push(Value::default()).unwrap();
+        interp.arithmetic(0x114).unwrap();
+        assert_eq!(interp.transient.len(), 32);
     }
 }
