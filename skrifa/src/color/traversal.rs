@@ -496,6 +496,40 @@ mod tests {
     }
 
     #[test]
+    fn ill_formed_linear_gradient_is_not_rendered() {
+        let colr_data = font_test_data::colr::paint_glyph2_colr();
+        let colr = raw::tables::colr::Colr::read(FontData::new(&colr_data)).unwrap();
+        // x0, y0, x1, y1, x2, y2 and the expected number of fills
+        let cases = [
+            ([0i16, 0, 100, 0, 0, 100], 1),
+            ([0, 0, 0, 0, 0, 100], 0),   // p1 == p0
+            ([0, 0, 100, 0, 0, 0], 0),   // p2 == p0
+            ([0, 0, 100, 0, -50, 0], 0), // p0p1 parallel to p0p2
+        ];
+        for (coords, expected_fills) in cases {
+            let mut data = vec![
+                10, 0, 0, 6, 0, 1, // PaintGlyph: child at offset 6, glyph 1
+                4, 0, 0, 16, // PaintLinearGradient: color line at offset 16
+            ];
+            data.extend(coords.iter().flat_map(|c| c.to_be_bytes()));
+            data.extend([
+                0, 0, 2, // ColorLine: pad, 2 stops
+                0, 0, 0, 1, 0x40, 0, // offset 0, palette 1, alpha 1
+                0x40, 0, 0, 2, 0x40, 0, // offset 1, palette 2, alpha 1
+            ]);
+            let instance = ColrInstance::new(colr.clone(), &[]);
+            let paint = Paint::read(FontData::new(&data)).unwrap();
+            let mut painter = StackTrackingPainter::default();
+            let mut state = TraversalState::new(instance, &mut painter);
+            let mut decycler = PaintDecycler::new();
+            let resolved = state.resolve_paint(&paint).unwrap();
+            traverse_with_callbacks(&resolved, &mut state, &mut decycler, 0).unwrap();
+            assert_eq!(painter.fills, expected_fills, "{coords:?}");
+            assert_eq!(painter.clip_pushes, painter.clip_pops);
+        }
+    }
+
+    #[test]
     fn paint_glyph2_traversal_rejects_missing_child() {
         let colr_data = font_test_data::colr::paint_glyph2_colr();
         let colr = raw::tables::colr::Colr::read(FontData::new(&colr_data)).unwrap();
