@@ -8,15 +8,15 @@ use super::{
     Error, Result,
 };
 use crate::{FastHashMap, Plan, SubsetFlags};
-use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
+use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId, MinByteRange};
 use std::collections::{BTreeMap, BTreeSet};
 
-fn gid_list(plan: &Plan) -> Vec<usize> {
+fn gid_list(plan: &Plan, num_glyphs: usize) -> Vec<usize> {
     (0..plan.num_output_glyphs)
         .map(|i| {
             plan.reverse_glyph_map
                 .get(&GlyphId::new(i as u32))
-                .map_or(i, |g| g.to_u32() as usize)
+                .map_or(if i < num_glyphs { i } else { 0 }, |g| g.to_u32() as usize)
         })
         .collect()
 }
@@ -195,8 +195,6 @@ fn remap_order(program: Program) -> (u8, usize, usize) {
     match program {
         Program::Glyph(index) => (0, index, 0),
         Program::Local(fd, index) => (1, fd, index),
-        // HarfBuzz assigns global subroutine numbers in source order. The FD
-        // is only internal context for globals whose local calls depend on it.
         Program::Global(fd, index) => (2, index, fd),
     }
 }
@@ -212,9 +210,6 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
     let nohint = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-    // Most selected glyphs reach a small number of subroutines. Use a bounded
-    // estimate and let the map grow rather than reserving for every source
-    // subroutine in every FD. Desubroutinization does not use a recorder.
     const MAX_INITIAL_PROGRAM_CAPACITY: usize = 4096;
     let mut rec = (!desub).then(|| {
         Recorder::with_capacity(
@@ -480,7 +475,7 @@ fn encoding(source: &Source, old_gids: &[usize], codes: &[usize]) -> Result<Opti
     Ok(Some(out))
 }
 
-fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
+pub(super) fn fdselect(fds: &[usize], cff2: bool) -> Result<Vec<u8>> {
     let mut ranges = Vec::new();
     for (i, &fd) in fds.iter().enumerate() {
         if i == 0 || fd != fds[i - 1] {
@@ -539,7 +534,7 @@ pub(super) fn assemble<F: CffFlavor>(
     let nohint = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING);
-    let old_gids = gid_list(plan);
+    let old_gids = gid_list(plan, source.font.num_glyphs() as usize);
     let mut fd_map = BTreeMap::new();
     let old_fds = old_gids
         .iter()
@@ -555,13 +550,21 @@ pub(super) fn assemble<F: CffFlavor>(
     let mut strings = Vec::new();
     let mut sid_map = BTreeMap::new();
     let mut codes = vec![0];
+    let identity_charset = source.cid
+        && plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_CFF_IDENTITY_CHARSET);
     if !F::CFF2 {
         let cs = source.font.charset().ok_or(Error)?;
-        // Range-based charsets require a linear scan for each random lookup.
-        // Decode them once because old_gids can be in arbitrary output order.
-        let source_codes: Vec<_> = cs.iter().map(|(_, sid)| sid.to_u16() as usize).collect();
         for &old in old_gids.iter().skip(1) {
-            let code = *source_codes.get(old).ok_or(Error)?;
+            if identity_charset {
+                codes.push(codes.len());
+                continue;
+            }
+            let code = cs
+                .string_id(GlyphId::new(old as u32))
+                .ok_or(Error)?
+                .to_u16() as usize;
             codes.push(if source.cid {
                 code
             } else {
@@ -581,7 +584,16 @@ pub(super) fn assemble<F: CffFlavor>(
     let name_index = encoding::IndexLayout::new(&source.names, false)?;
     let string_index = encoding::IndexLayout::new(&strings, false)?;
     let global_index = encoding::IndexLayout::new(&programs.globals, F::CFF2)?;
-    let char_index = encoding::IndexLayout::new(&programs.chars, F::CFF2)?;
+    let min_off_size = if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_IFTB_REQUIREMENTS)
+    {
+        4
+    } else {
+        1
+    };
+    let char_index =
+        encoding::IndexLayout::with_min_off_size(&programs.chars, F::CFF2, min_off_size)?;
     // FDSelect is optional in CFF2 when there is a single Font DICT. Like
     // HarfBuzz, only emit it if the source has one. CFF1 CID fonts require it.
     let has_fdselect = !F::CFF2 || dict::offset(&source.top, 0x125, 0)?.is_some();
@@ -619,18 +631,48 @@ pub(super) fn assemble<F: CffFlavor>(
         }
         privates.push(bytes);
     }
-    let var_store = if F::CFF2 {
+    let var_store = if source.instanced_store.is_some() {
+        source.instanced_store.as_deref()
+    } else if F::CFF2 {
         dict::offset(&top, 24, 0)?
             .map(|offset| {
                 let data = source.font.data();
-                let size = u16::from_be_bytes(
-                    data.get(offset..offset + 2)
+                let mut size = u16::from_be_bytes(
+                    data.get(offset..offset.checked_add(2).ok_or(Error)?)
                         .ok_or(Error)?
                         .try_into()
                         .map_err(|_| Error)?,
                 ) as usize;
-                data.get(offset..offset.checked_add(size + 2).ok_or(Error)?)
-                    .ok_or(Error)
+                if size == u16::MAX as usize {
+                    // OFF 2026 5.3.3.11.2: the saturated length can describe
+                    // a larger store. Copy through its last referenced byte.
+                    let store = source.font.var_store().ok_or(Error)?;
+                    let regions = store.variation_region_list().map_err(|_| Error)?;
+                    size = store.min_byte_range().end.max(
+                        (store.variation_region_list_offset().to_u32() as usize)
+                            .checked_add(regions.min_byte_range().end)
+                            .ok_or(Error)?,
+                    );
+                    for (offset, table) in store
+                        .item_variation_data_offsets()
+                        .iter()
+                        .zip(store.item_variation_data().iter())
+                    {
+                        if let Some(table) = table {
+                            let table = table.map_err(|_| Error)?;
+                            size = size.max(
+                                (offset.get().offset().to_u32() as usize)
+                                    .checked_add(table.min_byte_range().end)
+                                    .ok_or(Error)?,
+                            );
+                        }
+                    }
+                }
+                let end = offset
+                    .checked_add(2)
+                    .and_then(|start| start.checked_add(size))
+                    .ok_or(Error)?;
+                data.get(offset..end).ok_or(Error)
             })
             .transpose()?
     } else {
@@ -743,98 +785,104 @@ pub(super) fn assemble<F: CffFlavor>(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        all_source_programs_reachable, can_copy_identity_programs, copy_identity_programs,
-        remap_order, Program,
+    use super::super::source::Cff1;
+    use super::*;
+    use read_fonts::types::{NameId, Tag};
+    use read_fonts::{
+        model::glyph::outline::PathElement, ps::cff::CffFontRef, FontRef, TableProvider,
     };
-    use crate::{
-        cff::source::{Cff1, Source},
-        Plan, SubsetFlags,
-    };
-    use read_fonts::{types::GlyphId, FontRef, TableProvider};
+    use write_fonts::FontBuilder;
 
-    fn identity_plan(glyph_count: u32) -> Plan {
-        let mut plan = Plan {
-            font_num_glyphs: glyph_count as usize,
-            num_output_glyphs: glyph_count as usize,
-            subset_flags: SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
-            ..Default::default()
-        };
-        plan.new_to_old_gid_list = (0..glyph_count)
-            .map(|gid| {
-                let gid = GlyphId::new(gid);
-                (gid, gid)
+    #[test]
+    fn caller_dependent_subroutine_targets_require_desubroutinization() {
+        let names = encoding::index(&[b"CFFTest".to_vec()], false).unwrap();
+        let locals = encoding::index(&[vec![10, 11], vec![5, 11], vec![8, 11]], false).unwrap();
+        let mut private = vec![139, 20];
+        private.extend(dict::replacement(19, &[8]).unwrap());
+        assert_eq!(private.len(), 8);
+        let chars: Vec<_> = [33, 34]
+            .into_iter()
+            .map(|target| {
+                // The wrapper takes its own callsubr target from the caller.
+                vec![
+                    139, 139, 21, 149, 139, 139, 149, 149, 139, target, 32, 10, 14,
+                ]
             })
             .collect();
-        plan
-    }
-
-    #[test]
-    fn global_remapping_is_source_index_major() {
-        let mut programs = [
-            Program::Global(0, 8),
-            Program::Global(3, 2),
-            Program::Global(1, 2),
-        ];
-        programs.sort_unstable_by_key(|program| remap_order(*program));
-        assert_eq!(
-            programs,
-            [
-                Program::Global(1, 2),
-                Program::Global(3, 2),
-                Program::Global(0, 8),
-            ]
+        let char_index = encoding::index(&chars, false).unwrap();
+        let top = |offset: usize| {
+            let mut top = dict::replacement(17, &[offset + private.len() + locals.len()]).unwrap();
+            top.extend(dict::replacement(18, &[private.len(), offset]).unwrap());
+            top
+        };
+        let offset = 4 + names.len() + encoding::index(&[top(0)], false).unwrap().len() + 4;
+        let mut cff = vec![1, 0, 4, 4];
+        cff.extend(names);
+        cff.extend(encoding::index(&[top(offset)], false).unwrap());
+        cff.extend([0, 0, 0, 0]); // String and Global Subr INDEXes.
+        cff.extend(private);
+        cff.extend(locals);
+        cff.extend(char_index);
+        let base = std::fs::read("test-data/fonts/Cantarell-VF-ABC.otf").unwrap();
+        let base = FontRef::new(&base).unwrap();
+        let mut builder = FontBuilder::new();
+        builder.add_raw(
+            Tag::new(b"head"),
+            base.data_for_tag(Tag::new(b"head")).unwrap(),
         );
-    }
-
-    #[test]
-    fn identity_program_copy_is_limited_to_unmodified_full_subsets() {
-        for (font_bytes, tag) in [
-            (
-                include_bytes!("../../test-data/fonts/SourceSansPro-Regular.otf").as_slice(),
-                read_fonts::types::Tag::new(b"CFF "),
-            ),
-            (
-                include_bytes!("../../test-data/fonts/AdobeVFPrototype.otf").as_slice(),
-                read_fonts::types::Tag::new(b"CFF2"),
-            ),
+        let mut hhea = base
+            .data_for_tag(Tag::new(b"hhea"))
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        hhea[34..36].copy_from_slice(&2u16.to_be_bytes());
+        builder.add_raw(Tag::new(b"hhea"), hhea);
+        builder.add_raw(Tag::new(b"hmtx"), [0x02, 0x8a, 0, 0].repeat(2));
+        builder.add_raw(Tag::new(b"maxp"), vec![0, 0, 0x50, 0, 0, 2]);
+        builder.add_raw(Tag::new(b"CFF "), &cff);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let source = Source::new(&cff).unwrap();
+        let original = CffFontRef::new(&cff, 0, None).unwrap();
+        for flags in [
+            SubsetFlags::default(),
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING,
+            SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
         ] {
-            let font = FontRef::new(font_bytes).unwrap();
-            let source = Source::new(font.data_for_tag(tag).unwrap().as_bytes()).unwrap();
-            let mut plan = identity_plan(source.font.num_glyphs());
-
-            assert!(can_copy_identity_programs(&source, &plan));
-            let copied = copy_identity_programs(&source).unwrap();
-            assert_eq!(
-                copied.chars.len(),
-                source.font.charstrings().count() as usize
+            let plan = Plan::new(
+                &[GlyphId::new(0), GlyphId::new(1)].into_iter().collect(),
+                &IntSet::empty(),
+                &font,
+                flags | SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+                &IntSet::empty(),
+                &IntSet::all(),
+                &IntSet::empty(),
+                &IntSet::<NameId>::all(),
+                &IntSet::all(),
             );
-            assert_eq!(
-                copied.globals.len(),
-                source.font.global_subrs().count() as usize
-            );
-            assert_eq!(copied.locals.len(), source.fds.len());
-
-            plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_NO_HINTING;
-            assert!(!can_copy_identity_programs(&source, &plan));
-            plan.subset_flags =
-                SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE | SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE;
-            assert!(!can_copy_identity_programs(&source, &plan));
-            plan.subset_flags = SubsetFlags::default();
-            assert!(!can_copy_identity_programs(&source, &plan));
+            if !flags.contains(SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE) {
+                assert!(programs::<Cff1>(&source, &plan).is_err());
+            }
+            let mut plan = plan;
+            plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE;
+            let programs = programs::<Cff1>(&source, &plan).unwrap();
+            assert!(programs.locals.iter().all(Vec::is_empty));
+            let bytes = assemble::<Cff1>(&source, &plan, programs).unwrap();
+            let subset = CffFontRef::new(&bytes, 0, None).unwrap();
+            for i in 0..2 {
+                let gid = GlyphId::new(i);
+                let original_subfont = original.subfont(0, &[]).unwrap();
+                let subset_subfont = subset.subfont(0, &[]).unwrap();
+                let mut a = Vec::<PathElement>::new();
+                let mut b = Vec::<PathElement>::new();
+                original
+                    .draw(&original_subfont, gid, &[], None, &mut a)
+                    .unwrap();
+                subset
+                    .draw(&subset_subfont, gid, &[], None, &mut b)
+                    .unwrap();
+                assert_eq!(a, b);
+            }
         }
-    }
-
-    #[test]
-    fn identity_program_copy_supports_multiple_font_dicts() {
-        let font = FontRef::new(include_bytes!(
-            "../../test-data/fonts/SourceHanSans-Regular_subset.otf"
-        ))
-        .unwrap();
-        let source = Source::new(font.cff().unwrap().offset_data().as_bytes()).unwrap();
-        assert!(source.fds.len() > 1);
-
-        let plan = identity_plan(source.font.num_glyphs());
-        assert!(all_source_programs_reachable::<Cff1>(&source, &plan).unwrap());
     }
 }

@@ -42,6 +42,7 @@ mod vvar;
 use crate::repack::resolve_overflows;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
+pub use instance::{downgrade_cff2, instance_font, instance_font_with_flags};
 pub use instance::{parse_axis_limits, parse_axis_limits_for_font, AxisLimits};
 use layout::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
@@ -284,6 +285,12 @@ impl SubsetFlags {
     /// font won't be reduced as a result of subsetting. If necessary empty glyphs will be included
     /// at the end of the font to keep the number of glyphs unchanged.
     pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
+
+    /// Convert a fully instantiated CFF2 table to CFF1.
+    pub const SUBSET_FLAGS_DOWNGRADE_CFF2: Self = Self(0x4000);
+
+    /// Preserve an identity CID-keyed charset when possible.
+    pub const SUBSET_FLAGS_CFF_IDENTITY_CHARSET: Self = Self(0x8000);
 
     /// The combined flag preset used by [`Plan::keep_everything`].
     pub const KEEP_EVERYTHING: Self = Self(

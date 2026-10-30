@@ -13,6 +13,7 @@ use super::{
 use crate::FastHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
@@ -25,11 +26,39 @@ type Origin = (Program, usize, usize);
 #[derive(Clone, Default)]
 pub(super) struct Value {
     pub default: f64,
-    pub blend: Option<(usize, Vec<f64>)>,
-    // Only an unmodified literal has a span. Computations never grow a producer tree.
+    pub blend: Option<Rc<Blend>>,
     origin: Option<Origin>,
 }
+/// Origin-free expression nodes preserve higher-order blends without cloning
+/// their trees when values cross subroutines. Construction bounds nesting.
+#[derive(Clone)]
+pub(super) struct Blend {
+    pub ivs: usize,
+    pub base: Value,
+    pub deltas: Vec<Value>,
+    depth: usize,
+    expanded_size: usize,
+}
+
+pub(super) trait BlendScalars {
+    fn scalars(&self, ivs: usize) -> Result<&[f64]>;
+    fn finish_blend(&self, value: f64) -> f64 {
+        value.round()
+    }
+}
+impl BlendScalars for [Vec<f64>] {
+    fn scalars(&self, ivs: usize) -> Result<&[f64]> {
+        self.get(ivs).map(Vec::as_slice).ok_or(Error)
+    }
+}
+
 impl Value {
+    pub fn plain(default: f64) -> Self {
+        Self {
+            default,
+            ..Self::default()
+        }
+    }
     fn number(v: f64, origin: Origin) -> Self {
         Self {
             default: v,
@@ -37,7 +66,103 @@ impl Value {
             origin: Some(origin),
         }
     }
-    fn int(&self) -> Result<i32> {
+    pub fn expression(&self) -> Self {
+        Self {
+            default: self.default,
+            blend: self.blend.clone(),
+            origin: None,
+        }
+    }
+    pub fn blended(base: &Self, deltas: &[Self], ivs: usize) -> Result<Self> {
+        let depth = std::iter::once(base)
+            .chain(deltas)
+            .filter_map(|v| v.blend.as_ref().map(|b| b.depth))
+            .max()
+            .unwrap_or(0)
+            + 1;
+        if depth > 64 {
+            return Err(Error);
+        }
+        // Selectors can share a subtree. Bound its expanded size as well as
+        // depth so evaluation and serialization cannot grow exponentially.
+        let expanded_size = std::iter::once(base)
+            .chain(deltas)
+            .try_fold(1usize, |size, v| {
+                let size = size.checked_add(v.blend.as_ref().map_or(1, |b| b.expanded_size))?;
+                (size <= 200_000).then_some(size)
+            })
+            .ok_or(Error)?;
+        Ok(Self {
+            default: base.default,
+            blend: Some(Rc::new(Blend {
+                ivs,
+                base: base.expression(),
+                deltas: deltas.iter().map(Self::expression).collect(),
+                depth,
+                expanded_size,
+            })),
+            origin: None,
+        })
+    }
+    pub fn nested(&self) -> bool {
+        self.blend
+            .as_ref()
+            .is_some_and(|b| b.base.blend.is_some() || b.deltas.iter().any(|v| v.blend.is_some()))
+    }
+    pub fn resolve<S: BlendScalars + ?Sized>(
+        &self,
+        scalars: &S,
+        remaining: &mut usize,
+    ) -> Result<f64> {
+        self.resolve_with_rounding(scalars, remaining, true)
+    }
+    pub fn resolve_continuous<S: BlendScalars + ?Sized>(
+        &self,
+        scalars: &S,
+        remaining: &mut usize,
+    ) -> Result<f64> {
+        self.resolve_with_rounding(scalars, remaining, false)
+    }
+    fn resolve_with_rounding<S: BlendScalars + ?Sized>(
+        &self,
+        scalars: &S,
+        remaining: &mut usize,
+        round: bool,
+    ) -> Result<f64> {
+        *remaining = remaining.checked_sub(1).ok_or(Error)?;
+        let Some(blend) = &self.blend else {
+            return Ok(self.default);
+        };
+        let gains = scalars.scalars(blend.ivs)?;
+        if gains.len() != blend.deltas.len() {
+            return Err(Error);
+        }
+        let mut delta_sum = 0.;
+        for (delta, gain) in blend.deltas.iter().zip(gains) {
+            delta_sum += delta.resolve_with_rounding(scalars, remaining, round)? * gain;
+        }
+        let result = blend
+            .base
+            .resolve_with_rounding(scalars, remaining, round)?
+            + delta_sum;
+        Ok(if round {
+            scalars.finish_blend(result)
+        } else {
+            result
+        })
+    }
+    pub fn remap_ivs(&mut self, map: &BTreeMap<usize, usize>) -> Result<()> {
+        if let Some(blend) = &mut self.blend {
+            let blend = Rc::make_mut(blend);
+            blend.ivs = *map.get(&blend.ivs).ok_or(Error)?;
+            blend.base.remap_ivs(map)?;
+            for delta in &mut blend.deltas {
+                delta.remap_ivs(map)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn int(&self) -> Result<i32> {
         if self.blend.is_some()
             || self.default.fract() != 0.
             || self.default < i32::MIN as f64
@@ -53,6 +178,7 @@ impl Value {
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Command {
     pub op: u16,
     pub args: Vec<Value>,
@@ -379,6 +505,7 @@ pub(super) struct Interpreter<'a, 's, F, S, A> {
     ivs: usize,
     seen_ivs: bool,
     seen_blend: bool,
+    blend_identity: Option<Rc<Blend>>,
     width_read: bool,
     pub width: Option<f64>,
     pub seac: Option<(u8, u8)>,
@@ -400,6 +527,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             ivs,
             seen_ivs: false,
             seen_blend: false,
+            blend_identity: None,
             width_read: F::CFF2,
             width: None,
             seac: None,
@@ -411,6 +539,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
     fn pop(&mut self) -> Result<Value> {
         self.stack.pop().ok_or(Error)
     }
+    #[inline]
     fn push(&mut self, v: Value) -> Result<()> {
         if self.stack.len() >= F::STACK_LIMIT || !v.default.is_finite() {
             return Err(Error);
@@ -523,29 +652,34 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                     let count = n.checked_mul(k.checked_add(1).ok_or(Error)?).ok_or(Error)?;
                     let group_start = self.stack.len().checked_sub(count).ok_or(Error)?;
                     for i in 0..n {
-                        if self.stack[group_start + i].blend.is_some() {
-                            return Err(Error);
-                        }
-                        let deltas =
-                            &self.stack[group_start + n + i * k..group_start + n + (i + 1) * k];
-                        if deltas.iter().any(|v| v.blend.is_some()) {
-                            return Err(Error);
-                        }
-                        let deltas = if A::MATERIALIZE_BLENDS {
-                            deltas.iter().map(|v| v.default).collect()
+                        let value = if A::MATERIALIZE_BLENDS {
+                            let deltas =
+                                &self.stack[group_start + n + i * k..group_start + n + (i + 1) * k];
+                            Value::blended(&self.stack[group_start + i], deltas, self.ivs)?
                         } else {
-                            Vec::new()
+                            // Retained bytes need only a nonconstant identity.
+                            // Share one marker instead of allocating each expression.
+                            let identity = self.blend_identity.get_or_insert_with(|| {
+                                Rc::new(Blend {
+                                    ivs: 0,
+                                    base: Value::default(),
+                                    deltas: Vec::new(),
+                                    depth: 0,
+                                    expanded_size: 1,
+                                })
+                            });
+                            Value {
+                                default: self.stack[group_start + i].default,
+                                blend: Some(identity.clone()),
+                                origin: None,
+                            }
                         };
-                        let mut value = std::mem::take(&mut self.stack[group_start + i]);
-                        value.blend = Some((self.ivs, deltas));
-                        value.origin = None;
                         self.stack[group_start + i] = value;
                     }
                     self.stack.truncate(group_start + n);
                 }
                 0x100 => {
-                    // dotsection is a deprecated no-op. Its live operands
-                    // belong to the next command, even when hints are removed.
+                    // dotsection is a deprecated no-op; operands stay live.
                     if self.drop_hints {
                         self.actions.hint(key, start, p, &[]);
                     }
@@ -706,6 +840,39 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
     }
 }
 
+pub(super) fn emit_value(
+    value: &Value,
+    out: &mut Vec<u8>,
+    dict: bool,
+    active: Option<usize>,
+    occupied: &mut usize,
+    limit: usize,
+    remaining: &mut usize,
+) -> Result<()> {
+    *remaining = remaining.checked_sub(1).ok_or(Error)?;
+    if let Some(blend) = &value.blend {
+        if Some(blend.ivs) != active {
+            return Err(Error);
+        }
+        emit_value(&blend.base, out, dict, active, occupied, limit, remaining)?;
+        for delta in &blend.deltas {
+            emit_value(delta, out, dict, active, occupied, limit, remaining)?;
+        }
+        if *occupied >= limit {
+            return Err(Error);
+        }
+        out.extend([140, if dict { 23 } else { 16 }]);
+        *occupied -= blend.deltas.len();
+    } else {
+        if *occupied >= limit {
+            return Err(Error);
+        }
+        encoding::encode(out, value.default, dict)?;
+        *occupied += 1;
+    }
+    Ok(())
+}
+
 pub(super) fn flatten(
     commands: &[Command],
     width: Option<f64>,
@@ -713,51 +880,67 @@ pub(super) fn flatten(
     inherited_ivs: usize,
 ) -> Result<Vec<u8>> {
     let mut out = Vec::new();
+    let mut remaining: usize = 200_000;
     if let Some(width) = width {
         encoding::encode(&mut out, width, false)?;
     }
     let active = commands
         .iter()
         .flat_map(|c| &c.args)
-        .find_map(|v| v.blend.as_ref().map(|b| b.0));
+        .find_map(|v| v.blend.as_ref().map(|b| b.ivs));
     if let Some(ivs) = active.filter(|&ivs| ivs != inherited_ivs) {
         encoding::integer(&mut out, i32::try_from(ivs).map_err(|_| Error)?);
         out.push(15);
     }
-    for cmd in commands {
+    for (index, cmd) in commands.iter().enumerate() {
+        let mut occupied = usize::from(width.is_some() && index == 0);
         let mut i = 0;
+        let limit: usize = if cff2 { 513 } else { 48 };
         while i < cmd.args.len() {
-            let v = &cmd.args[i];
-            if let Some((vs, deltas)) = &v.blend {
-                if Some(*vs) != active {
+            let value = &cmd.args[i];
+            if let Some(blend) = value.blend.as_ref().filter(|_| !value.nested()) {
+                if Some(blend.ivs) != active {
                     return Err(Error);
                 }
-                let room = 513usize.checked_sub(i + 1).ok_or(Error)? / (deltas.len() + 1);
+                let room = limit.checked_sub(occupied + 1).ok_or(Error)? / (blend.deltas.len() + 1);
                 let n = cmd.args[i..]
                     .iter()
                     .take(room)
                     .take_while(|v| {
-                        v.blend
-                            .as_ref()
-                            .is_some_and(|(vsi, ds)| vsi == vs && ds.len() == deltas.len())
+                        !v.nested()
+                            && v.blend.as_ref().is_some_and(|b| {
+                                b.ivs == blend.ivs && b.deltas.len() == blend.deltas.len()
+                            })
                     })
                     .count();
                 if n == 0 {
                     return Err(Error);
                 }
-                for value in &cmd.args[i..i + n] {
-                    encoding::encode(&mut out, value.default, false)?;
+                remaining = remaining
+                    .checked_sub(n * (blend.deltas.len() + 2))
+                    .ok_or(Error)?;
+                for v in &cmd.args[i..i + n] {
+                    encoding::encode(&mut out, v.default, false)?;
                 }
-                for value in &cmd.args[i..i + n] {
-                    for &delta in &value.blend.as_ref().ok_or(Error)?.1 {
-                        encoding::encode(&mut out, delta, false)?;
+                for v in &cmd.args[i..i + n] {
+                    for delta in &v.blend.as_ref().ok_or(Error)?.deltas {
+                        encoding::encode(&mut out, delta.default, false)?;
                     }
                 }
                 encoding::integer(&mut out, n as i32);
                 out.push(16);
+                occupied += n;
                 i += n;
             } else {
-                encoding::encode(&mut out, v.default, false)?;
+                emit_value(
+                    value,
+                    &mut out,
+                    false,
+                    active,
+                    &mut occupied,
+                    limit,
+                    &mut remaining,
+                )?;
                 i += 1;
             }
         }
@@ -896,5 +1079,143 @@ mod tests {
                     .is_err()
             );
         }
+    }
+    #[test]
+    fn computed_hint_calls_consume_their_operand() {
+        let source = Source(vec![vec![1, 11]]);
+        let data = [139, 149, 32, 139, 12, 10, 10, 139, 139, 21, 149, 139, 5, 14];
+        assert!(
+            Interpreter::<Cff1, _, _>::new(&source, &mut Recorder::default(), 0, 0, true)
+                .run(Program::Glyph(0), &data)
+                .is_err()
+        );
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        let bytes = flatten(&flat.commands, None, false, 0).unwrap();
+        let mut result = Flattener::default();
+        let mut decoded = Interpreter::<Cff1, _, _>::new(&source, &mut result, 0, 0, false);
+        decoded.run(Program::Glyph(0), &bytes).unwrap();
+        assert_eq!(decoded.width, None);
+        assert_eq!(
+            result.commands.iter().map(|c| c.op).collect::<Vec<_>>(),
+            [21, 5, 14]
+        );
+        assert_eq!(result.commands[1].args[0].default, 10.);
+    }
+    #[test]
+    fn transient_and_selector_operands_are_removed_with_hints() {
+        let source = Source(vec![]);
+        let data = [159, 139, 12, 20, 139, 12, 21, 139, 1, 139, 139, 21, 14];
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [139, 139, 21, 14]
+        );
+    }
+    #[test]
+    fn shared_hint_and_drawing_operands_require_flattening() {
+        let source = Source(vec![]);
+        let data = [
+            139, 149, 1, 159, 12, 27, 139, 12, 20, 139, 1, 139, 12, 21, 139, 21, 14,
+        ];
+        let mut rec = Recorder::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert!(rec.needs_flatten);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [159, 139, 21, 14]
+        );
+    }
+    #[test]
+    fn duplicated_provenance_does_not_expand_exponentially() {
+        let source = Source(vec![]);
+        let mut data = vec![139];
+        for _ in 0..80 {
+            data.extend([12, 27, 12, 10]);
+        }
+        data.extend([139, 1, 139, 139, 21, 14]);
+        let mut flat = Flattener::default();
+        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
+            .run(Program::Glyph(0), &data)
+            .unwrap();
+        assert_eq!(
+            flatten(&flat.commands, None, false, 0).unwrap(),
+            [139, 139, 21, 14]
+        );
+    }
+    #[test]
+    fn nested_blends_keep_intermediate_rounding_and_bound_depth() {
+        let source = Source(vec![]);
+        let program = [139, 139, 21, 139, 140, 140, 16, 140, 140, 16, 6];
+        let mut recorder = Flattener::default();
+        Interpreter::<Cff2, _, _>::new(&source, &mut recorder, 0, 0, false)
+            .run(Program::Glyph(0), &program)
+            .unwrap();
+        let value = &recorder.commands[1].args[0];
+        assert!(value.nested());
+        assert_eq!(value.resolve(&[vec![0.6]][..], &mut 200_000).unwrap(), 2.);
+        assert_eq!(
+            value
+                .resolve_continuous(&[vec![0.6]][..], &mut 200_000)
+                .unwrap(),
+            1.2
+        );
+        let flattened = flatten(&recorder.commands, None, true, 0).unwrap();
+        let mut reread = Flattener::default();
+        Interpreter::<Cff2, _, _>::new(&source, &mut reread, 0, 0, false)
+            .run(Program::Glyph(0), &flattened)
+            .unwrap();
+        assert_eq!(
+            reread.commands[1].args[0]
+                .resolve(&[vec![0.6]][..], &mut 200_000)
+                .unwrap(),
+            2.
+        );
+        let mut value = Value::plain(0.);
+        for _ in 0..64 {
+            value = Value::blended(&value, &[Value::plain(1.)], 0).unwrap();
+        }
+        assert!(Value::blended(&value, &[Value::plain(1.)], 0).is_err());
+    }
+
+    #[test]
+    fn shared_blends_bound_expansion_and_total_work() {
+        let source = Source(vec![]);
+        // `index` shares the current expression before using both copies as
+        // the next blend's default and delta. Its expansion doubles each time.
+        let mut program = vec![139, 140, 140, 16];
+        for _ in 0..32 {
+            program.extend([139, 12, 29, 140, 16]);
+        }
+        let mut recorder = Flattener::default();
+        assert!(
+            Interpreter::<Cff2, _, _>::new(&source, &mut recorder, 0, 0, false)
+                .run(Program::Glyph(0), &program)
+                .is_err()
+        );
+
+        let mut value = Value::plain(0.);
+        for _ in 0..16 {
+            value = Value::blended(&value, &[value.clone()], 0).unwrap();
+        }
+        assert!(Value::blended(&value, &[value.clone()], 0).is_err());
+        assert!(value.resolve(&[vec![0.5]][..], &mut 100).is_err());
+        let command = Command {
+            op: 6,
+            args: vec![value],
+            mask: vec![],
+        };
+        assert!(flatten(&[command.clone(), command], None, true, 0).is_err());
     }
 }
