@@ -240,7 +240,7 @@ impl Validate for PackedDeltas {
 impl FontWrite for PackedDeltas {
     fn write_into(&self, writer: &mut TableWriter) {
         for run in self.iter_runs() {
-            run.write_into(writer)
+            run.write_bytes(|bytes| writer.write_slice(bytes));
         }
     }
 }
@@ -251,6 +251,13 @@ impl PackedDeltas {
         Self { deltas }
     }
 
+    /// Append the packed representation of `deltas` directly to a byte buffer.
+    pub fn extend(deltas: &[i32], out: &mut Vec<u8>) {
+        for run in packed_delta_runs(deltas) {
+            run.write_bytes(|bytes| out.extend_from_slice(bytes));
+        }
+    }
+
     /// Compute the number of bytes required to encode these deltas
     pub(crate) fn compute_size(&self) -> u16 {
         self.iter_runs().fold(0u16, |acc, run| {
@@ -259,92 +266,94 @@ impl PackedDeltas {
     }
 
     fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun<'_>> {
-        // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
-        const MAX_POINTS_PER_RUN: usize = 64;
-
-        // preferred run type for this value
-        fn preferred_run_type(v: i32) -> DeltaRunType {
-            match v {
-                0 => DeltaRunType::Zero,
-                _ if v > i16::MAX as i32 || v < i16::MIN as i32 => DeltaRunType::I32,
-                _ if v > i8::MAX as i32 || v < i8::MIN as i32 => DeltaRunType::I16,
-                _ => DeltaRunType::I8,
-            }
-        }
-
-        fn count_leading_zeros(slice: &[i32]) -> u8 {
-            slice
-                .iter()
-                .take(MAX_POINTS_PER_RUN)
-                .take_while(|v| **v == 0)
-                .count() as u8
-        }
-
-        /// compute the number of deltas in the next run, and the value type
-        fn next_run_len(slice: &[i32]) -> (usize, DeltaRunType) {
-            let first = *slice.first().expect("bounds checked before here");
-            debug_assert!(first != 0, "Zeroes are supposed to be handled separately");
-            let run_type = preferred_run_type(first);
-
-            let mut idx = 1;
-            while idx < MAX_POINTS_PER_RUN && idx < slice.len() {
-                let cur = slice[idx];
-                let cur_type = preferred_run_type(cur);
-                let next_type = slice.get(idx + 1).copied().map(preferred_run_type);
-
-                // Any reason to stop?
-                if run_type == DeltaRunType::I8 {
-                    // a single zero is best stored literally inline, but two or more
-                    // should get a new run:
-                    // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L423
-                    match cur_type {
-                        DeltaRunType::Zero if next_type == Some(DeltaRunType::Zero) => break,
-                        DeltaRunType::I16 | DeltaRunType::I32 => break,
-                        _ => (),
-                    }
-                } else if run_type == DeltaRunType::I16 {
-                    // with word deltas, a single zero justifies a new run:
-                    //https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L457
-                    match (cur_type, next_type) {
-                        (DeltaRunType::Zero | DeltaRunType::I32, _) => break,
-                        // and a single byte-size value should be inlined, if it lets
-                        // us combine two adjoining word-size runs:
-                        // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L467
-                        (DeltaRunType::I8, Some(DeltaRunType::Zero | DeltaRunType::I8)) => break,
-                        _ => (),
-                    }
-                } else if run_type == DeltaRunType::I32 && cur_type != DeltaRunType::I32 {
-                    break;
-                }
-
-                idx += 1;
-            }
-            (idx, run_type)
-        }
-
-        let mut deltas = self.deltas.as_slice();
-
-        std::iter::from_fn(move || {
-            let run_start = *deltas.first()?;
-            if run_start == 0 {
-                let n_zeros = count_leading_zeros(deltas);
-                deltas = &deltas[n_zeros as usize..];
-                Some(PackedDeltaRun::Zeros(n_zeros))
-            } else {
-                let (len, value_type) = next_run_len(deltas);
-                let (head, tail) = deltas.split_at(len);
-                deltas = tail;
-                Some(match value_type {
-                    DeltaRunType::I32 => PackedDeltaRun::FourBytes(head),
-                    DeltaRunType::I16 => PackedDeltaRun::TwoBytes(head),
-                    DeltaRunType::I8 => PackedDeltaRun::OneByte(head),
-                    _ => {
-                        unreachable!("We should have taken the other branch for first={run_start}")
-                    }
-                })
-            }
-        })
+        packed_delta_runs(&self.deltas)
     }
+}
+
+fn packed_delta_runs(mut deltas: &[i32]) -> impl Iterator<Item = PackedDeltaRun<'_>> {
+    // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
+    const MAX_POINTS_PER_RUN: usize = 64;
+
+    // preferred run type for this value
+    fn preferred_run_type(v: i32) -> DeltaRunType {
+        match v {
+            0 => DeltaRunType::Zero,
+            _ if v > i16::MAX as i32 || v < i16::MIN as i32 => DeltaRunType::I32,
+            _ if v > i8::MAX as i32 || v < i8::MIN as i32 => DeltaRunType::I16,
+            _ => DeltaRunType::I8,
+        }
+    }
+
+    fn count_leading_zeros(slice: &[i32]) -> u8 {
+        slice
+            .iter()
+            .take(MAX_POINTS_PER_RUN)
+            .take_while(|v| **v == 0)
+            .count() as u8
+    }
+
+    /// compute the number of deltas in the next run, and the value type
+    fn next_run_len(slice: &[i32]) -> (usize, DeltaRunType) {
+        let first = *slice.first().expect("bounds checked before here");
+        debug_assert!(first != 0, "Zeroes are supposed to be handled separately");
+        let run_type = preferred_run_type(first);
+
+        let mut idx = 1;
+        while idx < MAX_POINTS_PER_RUN && idx < slice.len() {
+            let cur = slice[idx];
+            let cur_type = preferred_run_type(cur);
+            let next_type = slice.get(idx + 1).copied().map(preferred_run_type);
+
+            // Any reason to stop?
+            if run_type == DeltaRunType::I8 {
+                // a single zero is best stored literally inline, but two or more
+                // should get a new run:
+                // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L423
+                match cur_type {
+                    DeltaRunType::Zero if next_type == Some(DeltaRunType::Zero) => break,
+                    DeltaRunType::I16 | DeltaRunType::I32 => break,
+                    _ => (),
+                }
+            } else if run_type == DeltaRunType::I16 {
+                // with word deltas, a single zero justifies a new run:
+                //https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L457
+                match (cur_type, next_type) {
+                    (DeltaRunType::Zero | DeltaRunType::I32, _) => break,
+                    // and a single byte-size value should be inlined, if it lets
+                    // us combine two adjoining word-size runs:
+                    // https://github.com/fonttools/fonttools/blob/eeaa499981c587/Lib/fontTools/ttLib/tables/TupleVariation.py#L467
+                    (DeltaRunType::I8, Some(DeltaRunType::Zero | DeltaRunType::I8)) => break,
+                    _ => (),
+                }
+            } else if run_type == DeltaRunType::I32 && cur_type != DeltaRunType::I32 {
+                break;
+            }
+
+            idx += 1;
+        }
+        (idx, run_type)
+    }
+
+    std::iter::from_fn(move || {
+        let run_start = *deltas.first()?;
+        if run_start == 0 {
+            let n_zeros = count_leading_zeros(deltas);
+            deltas = &deltas[n_zeros as usize..];
+            Some(PackedDeltaRun::Zeros(n_zeros))
+        } else {
+            let (len, value_type) = next_run_len(deltas);
+            let (head, tail) = deltas.split_at(len);
+            deltas = tail;
+            Some(match value_type {
+                DeltaRunType::I32 => PackedDeltaRun::FourBytes(head),
+                DeltaRunType::I16 => PackedDeltaRun::TwoBytes(head),
+                DeltaRunType::I8 => PackedDeltaRun::OneByte(head),
+                _ => {
+                    unreachable!("We should have taken the other branch for first={run_start}")
+                }
+            })
+        }
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -381,21 +390,33 @@ impl PackedDeltaRun<'_> {
             PackedDeltaRun::FourBytes(vals) => vals.len() as u16 * 4 + 1,
         }
     }
+
+    fn write_bytes(&self, mut write: impl FnMut(&[u8])) {
+        write(&[self.compute_flag()]);
+        match self {
+            PackedDeltaRun::Zeros(_) => {}
+            PackedDeltaRun::OneByte(deltas) => {
+                for value in *deltas {
+                    write(&[*value as u8]);
+                }
+            }
+            PackedDeltaRun::TwoBytes(deltas) => {
+                for value in *deltas {
+                    write(&(*value as i16).to_be_bytes());
+                }
+            }
+            PackedDeltaRun::FourBytes(deltas) => {
+                for value in *deltas {
+                    write(&value.to_be_bytes());
+                }
+            }
+        }
+    }
 }
 
 impl FontWrite for PackedDeltaRun<'_> {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.compute_flag().write_into(writer);
-        match self {
-            PackedDeltaRun::Zeros(_) => (),
-            PackedDeltaRun::OneByte(deltas) => {
-                deltas.iter().for_each(|v| (*v as i8).write_into(writer))
-            }
-            PackedDeltaRun::TwoBytes(deltas) => {
-                deltas.iter().for_each(|v| (*v as i16).write_into(writer))
-            }
-            PackedDeltaRun::FourBytes(deltas) => deltas.iter().for_each(|v| v.write_into(writer)),
-        }
+        self.write_bytes(|bytes| writer.write_slice(bytes));
     }
 }
 
@@ -417,12 +438,25 @@ impl FontWrite for PackedPointNumbers {
             len => (len as u16 | 0x8000u16).write_into(writer),
         }
         for run in self.iter_runs() {
-            run.write_into(writer);
+            run.write_bytes(|bytes| writer.write_slice(bytes));
         }
     }
 }
 
 impl PackedPointNumbers {
+    /// Append packed explicit point numbers directly to a byte buffer.
+    pub fn extend_some(points: &[u16], out: &mut Vec<u8>) {
+        assert!(points.len() <= 0x7fff);
+        if points.len() < 128 {
+            out.push(points.len() as u8);
+        } else {
+            out.extend_from_slice(&(points.len() as u16 | 0x8000).to_be_bytes());
+        }
+        for run in packed_point_runs(points) {
+            run.write_bytes(|bytes| out.extend_from_slice(bytes));
+        }
+    }
+
     /// Compute the number of bytes required to encode these points
     pub(crate) fn compute_size(&self) -> u16 {
         let mut count = match self {
@@ -444,47 +478,46 @@ impl PackedPointNumbers {
     }
 
     fn iter_runs(&self) -> impl Iterator<Item = PackedPointRun<'_>> {
-        const U8_MAX: u16 = u8::MAX as u16;
-        const MAX_POINTS_PER_RUN: usize = 128;
-
-        let mut points = match self {
-            PackedPointNumbers::Some(pts) => pts.as_slice(),
-            PackedPointNumbers::All => &[],
-        };
-
-        let mut prev_point = 0u16;
-
-        // split a run off the front of points:
-        // - if point is more than 255 away from prev, we're using words
-        std::iter::from_fn(move || {
-            let next = points.first()?;
-            let are_words = (next - prev_point) > U8_MAX;
-            let run_len = points
-                .iter()
-                .take(MAX_POINTS_PER_RUN)
-                .scan(prev_point, |prev, point| {
-                    let take_this = if are_words {
-                        (point - *prev) > U8_MAX
-                    } else {
-                        (point - *prev) <= U8_MAX
-                    };
-                    *prev = *point;
-                    take_this.then_some(point)
-                })
-                .count();
-
-            let (head, tail) = points.split_at(run_len);
-            points = tail;
-            let last_point = prev_point;
-            prev_point = head.last().copied().unwrap();
-
-            Some(PackedPointRun {
-                last_point,
-                are_words,
-                points: head,
-            })
-        })
+        packed_point_runs(self.as_slice())
     }
+}
+
+fn packed_point_runs(mut points: &[u16]) -> impl Iterator<Item = PackedPointRun<'_>> {
+    const U8_MAX: u16 = u8::MAX as u16;
+    const MAX_POINTS_PER_RUN: usize = 128;
+
+    let mut prev_point = 0u16;
+
+    // split a run off the front of points:
+    // - if point is more than 255 away from prev, we're using words
+    std::iter::from_fn(move || {
+        let next = points.first()?;
+        let are_words = (next - prev_point) > U8_MAX;
+        let run_len = points
+            .iter()
+            .take(MAX_POINTS_PER_RUN)
+            .scan(prev_point, |prev, point| {
+                let take_this = if are_words {
+                    (point - *prev) > U8_MAX
+                } else {
+                    (point - *prev) <= U8_MAX
+                };
+                *prev = *point;
+                take_this.then_some(point)
+            })
+            .count();
+
+        let (head, tail) = points.split_at(run_len);
+        points = tail;
+        let last_point = prev_point;
+        prev_point = head.last().copied().unwrap();
+
+        Some(PackedPointRun {
+            last_point,
+            are_words,
+            points: head,
+        })
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -500,27 +533,31 @@ impl PackedPointRun<'_> {
         let per_point_len = if self.are_words { 2 } else { 1 };
         self.points.len() as u16 * per_point_len + LEN_BYTE
     }
-}
 
-impl FontWrite for PackedPointRun<'_> {
-    fn write_into(&self, writer: &mut TableWriter) {
+    fn write_bytes(&self, mut write: impl FnMut(&[u8])) {
         assert!(!self.points.is_empty() && self.points.len() <= 128);
         let mut len = self.points.len() as u8 - 1;
         if self.are_words {
             len |= 0x80;
         }
-        len.write_into(writer);
+        write(&[len]);
         let mut last_point = self.last_point;
         for point in self.points {
             let delta = point - last_point;
             last_point = *point;
             if self.are_words {
-                delta.write_into(writer);
+                write(&delta.to_be_bytes());
             } else {
                 debug_assert!(delta <= u8::MAX as u16);
-                (delta as u8).write_into(writer);
+                write(&[delta as u8]);
             }
         }
+    }
+}
+
+impl FontWrite for PackedPointRun<'_> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.write_bytes(|bytes| writer.write_slice(bytes));
     }
 }
 
