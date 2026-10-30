@@ -631,10 +631,7 @@ fn write_metrics(
             continue;
         }
         let mut out = Vec::new();
-        let mut max_advance = 0;
-        let mut min_leading = i32::MAX;
-        let mut min_trailing = i32::MAX;
-        let mut max_extent = i32::MIN;
+        let mut extrema = metrics::MetricExtrema::default();
         for (g, bbox) in glyphs.iter().zip(bounds) {
             let bbox = bbox.unwrap_or_default();
             let (advance, leading, extent) = if vertical {
@@ -654,12 +651,7 @@ fn write_metrics(
             let leading = round(-leading).clamp(-32768, 32767);
             out.extend((advance as u16).to_be_bytes());
             out.extend((leading as i16).to_be_bytes());
-            max_advance = max_advance.max(advance);
-            if bounds[out.len() / 4 - 1].is_some() {
-                min_leading = min_leading.min(leading);
-                min_trailing = min_trailing.min(advance - leading - extent);
-                max_extent = max_extent.max(leading + extent);
-            }
+            extrema.add(advance, leading, bounds[out.len() / 4 - 1].map(|_| extent));
         }
         let h = if vertical {
             tables.vhea.as_mut()
@@ -667,11 +659,9 @@ fn write_metrics(
             tables.hhea.as_mut()
         }
         .ok_or_else(|| error(header))?;
-        put(h, 10, max_advance as u16 as i16)?;
-        if min_leading != i32::MAX {
-            for (offset, value) in [(12, min_leading), (14, min_trailing), (16, max_extent)] {
-                put(h, offset, value.clamp(-32768, 32767) as i16)?;
-            }
+        put(h, 10, extrema.max_advance as u16 as i16)?;
+        for (offset, value) in extrema.bounds().into_iter().flatten() {
+            put(h, offset, value.clamp(-32768, 32767) as i16)?;
         }
         put(h, 34, glyphs.len() as u16 as i16)?;
         if vertical {
