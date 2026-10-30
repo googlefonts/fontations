@@ -23,6 +23,10 @@ Use `--text` (or `-t`) to select Unicode characters directly from UTF-8 text.
 Text and Unicode selectors share the same selection set and support ordered
 replacement, addition (`+=`), and removal (`-=`) operations.
 
+MATH subsetting retains the variants and assembly parts of selected glyphs,
+remaps their references, and preserves constants, per-glyph math values,
+kerning and device adjustments.
+
 ## Installation
 
 ### Library
