@@ -121,6 +121,43 @@ fn rounded(value: f64) -> i32 {
         .clamp(i32::MIN as f64, i32::MAX as f64) as i32
 }
 
+/// Header extrema share the same empty-glyph policy for both outline formats.
+pub(super) struct MetricExtrema {
+    pub max_advance: i32,
+    min_leading: i32,
+    min_trailing: i32,
+    max_extent: i32,
+}
+impl Default for MetricExtrema {
+    fn default() -> Self {
+        Self {
+            max_advance: 0,
+            min_leading: i32::MAX,
+            min_trailing: i32::MAX,
+            max_extent: i32::MIN,
+        }
+    }
+}
+impl MetricExtrema {
+    pub fn add(&mut self, advance: i32, leading: i32, extent: Option<i32>) {
+        self.max_advance = self.max_advance.max(advance);
+        if let Some(extent) = extent {
+            self.min_leading = self.min_leading.min(leading);
+            self.min_trailing = self
+                .min_trailing
+                .min(advance.saturating_sub(leading).saturating_sub(extent));
+            self.max_extent = self.max_extent.max(leading.saturating_add(extent));
+        }
+    }
+    pub fn bounds(&self) -> Option<[(usize, i32); 3]> {
+        (self.min_leading != i32::MAX).then_some([
+            (12, self.min_leading),
+            (14, self.min_trailing),
+            (16, self.max_extent),
+        ])
+    }
+}
+
 struct MetricStore<'a> {
     store: ItemVariationStore<'a>,
     scalars: VariationScalars,
@@ -260,10 +297,7 @@ pub(super) fn cff2_metrics(
             continue;
         }
         let mut out = Vec::new();
-        let mut max_advance = 0;
-        let mut min_leading = i32::MAX;
-        let mut min_trailing = i32::MAX;
-        let mut max_extent = i32::MIN;
+        let mut extrema = MetricExtrema::default();
         let mut origins = Vec::new();
         for (gid, bound) in bounds.iter().enumerate() {
             let gid = GlyphId::new(gid as u32);
@@ -319,7 +353,7 @@ pub(super) fn cff2_metrics(
             } else {
                 old_bearing
             };
-            let extent = bound.map_or(0, |b| {
+            let extent = bound.map(|b| {
                 if vertical {
                     b[3].saturating_sub(b[1])
                 } else {
@@ -328,10 +362,7 @@ pub(super) fn cff2_metrics(
             });
             out.extend((advance as u16).to_be_bytes());
             out.extend((leading.clamp(-32768, 32767) as i16).to_be_bytes());
-            max_advance = max_advance.max(advance);
-            min_leading = min_leading.min(leading);
-            min_trailing = min_trailing.min(advance.saturating_sub(leading).saturating_sub(extent));
-            max_extent = max_extent.max(leading.saturating_add(extent));
+            extrema.add(advance, leading, extent);
         }
         if !vertical {
             if let Some(os2) = tables.os2.as_mut() {
@@ -360,8 +391,8 @@ pub(super) fn cff2_metrics(
             header
                 .get_mut(10..12)
                 .ok_or_else(|| error(Tag::new(b"hhea")))?
-                .copy_from_slice(&(max_advance as u16).to_be_bytes());
-            for (offset, value) in [(12, min_leading), (14, min_trailing), (16, max_extent)] {
+                .copy_from_slice(&(extrema.max_advance as u16).to_be_bytes());
+            for (offset, value) in extrema.bounds().into_iter().flatten() {
                 put(header, offset, value)?;
             }
             header
@@ -632,6 +663,94 @@ mod tests {
         variations::{ItemVariationStore, *},
     };
     use write_fonts::FontBuilder;
+
+    #[test]
+    fn empty_cff2_glyphs_do_not_change_bound_dependent_header_extrema() {
+        use write_fonts::{
+            from_obj::ToOwnedTable,
+            tables::{
+                hmtx::{Hmtx, LongMetric},
+                vhea::Vhea,
+                vmtx::Vmtx,
+            },
+        };
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        // Two empty glyphs followed by a triangle with bounds (50,0,150,100).
+        // Top DICT: CharStrings at 16 and FDArray at 33; no local/global subrs.
+        let mut cff2 = vec![2, 0, 5, 0, 7, 155, 17, 172, 12, 36, 187, 25];
+        cff2.extend([0, 0, 0, 0]);
+        cff2.extend([0, 0, 0, 3, 1, 1, 1, 1, 9]);
+        cff2.extend([189, 139, 21, 239, 139, 39, 239, 5]);
+        cff2.extend([0, 0, 0, 1, 1, 1, 1]);
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            if ![
+                b"CFF2", b"HVAR", b"VVAR", b"MVAR", b"GPOS", b"GSUB", b"GDEF", b"cmap",
+            ]
+            .iter()
+            .any(|tag| r.tag() == Tag::new(tag))
+            {
+                builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+            }
+        }
+        builder.add_raw(Tag::new(b"CFF2"), cff2);
+        let mut maxp: write_fonts::tables::maxp::Maxp = font.maxp().unwrap().to_owned_table();
+        maxp.num_glyphs = 3;
+        builder.add_table(&maxp).unwrap();
+        let mut hhea: write_fonts::tables::hhea::Hhea = font.hhea().unwrap().to_owned_table();
+        hhea.number_of_h_metrics = 3;
+        builder.add_table(&hhea).unwrap();
+        builder
+            .add_table(&Vhea {
+                number_of_long_ver_metrics: 3,
+                ..Default::default()
+            })
+            .unwrap();
+        builder
+            .add_table(&Hmtx::new(
+                vec![
+                    LongMetric::new(1000, 900),
+                    LongMetric::new(1200, -900),
+                    LongMetric::new(500, 50),
+                ],
+                vec![],
+            ))
+            .unwrap();
+        builder
+            .add_table(&Vmtx::new(
+                vec![
+                    LongMetric::new(1400, 900),
+                    LongMetric::new(1300, -900),
+                    LongMetric::new(1000, 700),
+                ],
+                vec![],
+            ))
+            .unwrap();
+        builder.add_raw(Tag::new(b"VORG"), &[0, 1, 0, 0, 3, 32, 0, 0][..]);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let limits = crate::parse_axis_limits("wght=drop,CNTR=drop").unwrap();
+        let output = crate::instance_font(&font, &limits).unwrap();
+        let output = FontRef::new(&output).unwrap();
+        for (tag, expected) in [
+            (b"hhea", [1200, 50, 350, 150]),
+            (b"vhea", [1400, 700, 200, 800]),
+        ] {
+            let header = output.data_for_tag(Tag::new(tag)).unwrap();
+            let actual: Vec<_> = header.as_bytes()[10..18]
+                .chunks_exact(2)
+                .map(|b| i16::from_be_bytes([b[0], b[1]]))
+                .collect();
+            assert_eq!(actual, expected, "{tag:?}");
+        }
+        for tag in [b"hmtx", b"vmtx"] {
+            assert_eq!(
+                font.data_for_tag(Tag::new(tag)).unwrap().as_bytes(),
+                output.data_for_tag(Tag::new(tag)).unwrap().as_bytes()
+            );
+        }
+    }
 
     #[test]
     fn fractional_metrics_match_harfbuzz_float_evaluation() {
