@@ -319,6 +319,11 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    /// Return the justification table.
+    fn jstf(&self) -> Result<tables::jstf::Jstf<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn gsub(&self) -> Result<tables::gsub::Gsub<'a>, ReadError> {
         self.expect_table()
     }

@@ -54,6 +54,7 @@ macro_rules! subset_extended_layout {
             let feature32_pos = s.embed(0u32)?;
             let lookup32_pos = s.embed(0u32)?;
             let mut c = SubsetLayoutContext::new($table::TAG);
+            let mut feature_records: &[read_fonts::tables::layout::FeatureRecord] = &[];
 
             if !script_offset.is_null() || !table.script_list_offset().is_null() {
                 let list = table
@@ -68,7 +69,6 @@ macro_rules! subset_extended_layout {
                     !script_offset.is_null(),
                 )?;
             }
-            let mut feature_records: &[read_fonts::tables::layout::FeatureRecord] = &[];
             if !feature_offset.is_null() || !table.feature_list_offset().is_null() {
                 let list = table
                     .feature_list()
