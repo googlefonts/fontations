@@ -10,8 +10,12 @@ use super::{
     Error, Result,
 };
 use crate::{FastHashMap, Plan, SubsetFlags};
-use read_fonts::{collections::IntSet, ps::PredefinedEncoding, types::GlyphId};
-use std::collections::{BTreeMap, BTreeSet};
+use read_fonts::{
+    collections::IntSet,
+    ps::{cff::index::Index, PredefinedEncoding},
+    types::GlyphId,
+};
+use std::collections::BTreeMap;
 
 fn gid_list(plan: &Plan) -> Vec<usize> {
     (0..plan.num_output_glyphs)
@@ -24,43 +28,43 @@ fn gid_list(plan: &Plan) -> Vec<usize> {
 }
 
 pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<()> {
+    // seac is invalid in CID-keyed fonts, matching HarfBuzz:
+    // https://github.com/harfbuzz/harfbuzz/commit/e8f8ee612f30bb3724f1dd3522db09c270ec012d
     if source.cid || source.font.version() == 2 {
         return Ok(());
     }
     let charset = source.font.charset().ok_or(Error)?;
+    let mut components = Vec::new();
     let mut stack = operand_stack::<Cff1>();
-    let mut pending: Vec<_> = glyphs.iter().collect();
-    let mut visited = BTreeSet::new();
-    while let Some(gid) = pending.pop() {
-        if !visited.insert(gid.to_u32()) {
+    for gid in glyphs.iter() {
+        let Ok(fd) = source.fd(gid) else { continue };
+        let Some(data) = source.font.charstrings().get(gid.to_u32() as usize) else {
             continue;
-        }
-        let fd = source.fd(gid)?;
-        let data = source
-            .font
-            .charstrings()
-            .get(gid.to_u32() as usize)
-            .ok_or(Error)?;
+        };
         if !super::charstring_may_end_in_seac(data) {
             continue;
         }
         let mut rec = ();
-        let mut interp =
-            Interpreter::<super::source::Cff1, _, _>::new(source, &mut rec, fd, false, &mut stack);
-        let result = interp.run(Program::Glyph(gid.to_u32()), data);
-        let seac = interp.seac;
-
-        result?;
-        if let Some((base, accent)) = seac {
-            for code in [base, accent] {
-                let sid = PredefinedEncoding::Standard.sid(code).ok_or(Error)?;
-                let component = charset.glyph_id(sid).ok_or(Error)?;
-                if glyphs.insert(component) {
-                    pending.push(component);
-                }
-            }
+        let mut interp = Interpreter::<Cff1, _, _>::new(source, &mut rec, fd, false, &mut stack);
+        if interp.run(Program::Glyph(gid.to_u32()), data).is_err() {
+            continue;
         }
+        let Some((base, accent)) = interp.seac else {
+            continue;
+        };
+        let resolved = [base, accent].map(|code| {
+            PredefinedEncoding::Standard
+                .sid(code)
+                .and_then(|sid| charset.glyph_id(sid))
+                // HarfBuzz uses GID 0 to mean an unresolved component.
+                .filter(|gid| gid.to_u32() != 0)
+        });
+        let [Some(base), Some(accent)] = resolved else {
+            continue;
+        };
+        components.extend([base, accent]);
     }
+    glyphs.extend(components);
     Ok(())
 }
 
@@ -70,7 +74,7 @@ pub(super) struct Programs {
     pub locals: Vec<Vec<Vec<u8>>>,
 }
 
-fn copy_index(index: &read_fonts::ps::cff::index::Index<'_>) -> Result<Vec<Vec<u8>>> {
+fn copy_index(index: &Index<'_>) -> Result<Vec<Vec<u8>>> {
     (0..index.count() as usize)
         .map(|i| index.get(i).map(<[u8]>::to_vec).ok_or(Error))
         .collect()
@@ -190,9 +194,7 @@ fn all_source_programs_reachable<F: CffFlavor>(source: &Source, plan: &Plan) -> 
         let fd = source.fd(old)?;
         let mut interpreter =
             Interpreter::<F, _, _>::new(source, &mut collector, fd, false, &mut stack);
-        let result = interpreter.run(Program::Glyph(orig), data);
-
-        result?;
+        interpreter.run(Program::Glyph(orig), data)?;
     }
     Ok(collector.copyable
         && collector.globals.len() == source.font.global_subrs().count() as u64
@@ -259,10 +261,8 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
             let mut glyph = Recorder::with_capacity(16);
             let mut interpreter =
                 Interpreter::<F, _, _>::new(source, &mut glyph, fd, nohint, &mut stack);
-            let result = interpreter.run(key, data);
+            interpreter.run(key, data)?;
             let width = interpreter.width;
-
-            result?;
             let rec = rec.as_mut().ok_or(Error)?;
             if !rec.merge(glyph) {
                 chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint, &mut stack)?;
@@ -768,6 +768,69 @@ mod tests {
         Plan, SubsetFlags,
     };
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
+
+    // A minimal name-keyed CFF with custom charstrings and standard A..E SIDs.
+    fn closure_font(chars: &[Vec<u8>]) -> Vec<u8> {
+        use crate::cff::{dict, encoding};
+        let names = encoding::index(&[b"Closure".to_vec()], false).unwrap();
+        let make_top = |charset, charstrings| {
+            let mut top = dict::replacement(15, &[charset]).unwrap();
+            top.extend(dict::replacement(17, &[charstrings]).unwrap());
+            encoding::index(&[top], false).unwrap()
+        };
+        let top_size = make_top(0, 0).len();
+        let charset_offset = 4 + names.len() + top_size + 4; // empty String and Global Subr INDEXes
+        let mut charset = vec![0];
+        for sid in 34..34 + chars.len() as u16 - 1 {
+            charset.extend(sid.to_be_bytes());
+        }
+        let mut bytes = vec![1, 0, 4, 4];
+        bytes.extend(names);
+        bytes.extend(make_top(charset_offset, charset_offset + charset.len()));
+        bytes.extend([0, 0, 0, 0]);
+        bytes.extend(charset);
+        bytes.extend(encoding::index(chars, false).unwrap());
+        bytes
+    }
+
+    #[test]
+    fn closure_does_not_expand_nested_seac_components() {
+        // E uses A and B; A in turn uses C and D, which must not enter closure.
+        let bytes = closure_font(&[
+            vec![14],
+            vec![139, 139, 206, 207, 14],
+            vec![14],
+            vec![14],
+            vec![14],
+            vec![139, 139, 204, 205, 14],
+        ]);
+        let source = Source::new(&bytes).unwrap();
+        let mut glyphs = [GlyphId::new(5)].into_iter().collect();
+        super::closure(&source, &mut glyphs).unwrap();
+        assert_eq!(
+            glyphs.iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+            [1, 2, 5]
+        );
+    }
+
+    #[test]
+    fn closure_continues_after_a_failing_glyph() {
+        // A underflows at callsubr; B still contributes C and D.
+        let bytes = closure_font(&[
+            vec![14],
+            vec![10, 14],
+            vec![139, 139, 206, 207, 14],
+            vec![14],
+            vec![14],
+        ]);
+        let source = Source::new(&bytes).unwrap();
+        let mut glyphs = [GlyphId::new(1), GlyphId::new(2)].into_iter().collect();
+        super::closure(&source, &mut glyphs).unwrap();
+        assert_eq!(
+            glyphs.iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+            [1, 2, 3, 4]
+        );
+    }
 
     fn identity_plan(glyph_count: u32) -> Plan {
         let mut plan = Plan {

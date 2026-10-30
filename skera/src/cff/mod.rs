@@ -56,6 +56,8 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
     }
 }
 
+// A glyph's own endchar must be its final byte for this precheck to find it.
+// Unreachable trailing bytes can hide seac when no subroutine ends the glyph.
 fn charstring_may_end_in_seac(data: &[u8]) -> bool {
     // A subroutine can terminate the glyph with endchar. Calls must therefore
     // be interpreted even when the glyph has no endchar of its own or has
