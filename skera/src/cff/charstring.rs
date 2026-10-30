@@ -13,14 +13,28 @@ use super::{
 use crate::FastHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
+use std::ops::Range;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
-    Glyph(usize),
-    Local(usize, usize),
-    Global(usize, usize),
+    Glyph(u32),
+    Local(u32, u32),
+    Global(u32, u32),
 }
-type Origin = (Program, usize, usize);
+
+// CFF INDEX object IDs and offsets fit in u32.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Origin {
+    pub program: Program,
+    start: u32,
+    end: u32,
+}
+
+impl Origin {
+    pub fn span(self) -> Range<usize> {
+        self.start as usize..self.end as usize
+    }
+}
 
 #[derive(Clone, Default)]
 pub(super) struct Value {
@@ -48,7 +62,7 @@ impl Value {
         Ok(self.default as i32)
     }
 
-    pub(super) fn origin(&self) -> Option<(Program, usize, usize)> {
+    pub(super) fn origin(&self) -> Option<Origin> {
         self.origin
     }
 }
@@ -140,11 +154,12 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         target: Program,
         operand: &Value,
     ) -> Result<()> {
-        if let Some((producer, number_start, number_end)) = operand.origin {
-            if producer == key && number_end == start {
+        if let Some(origin) = operand.origin {
+            let span = origin.span();
+            if origin.program == key && span.end == start {
                 self.edit(
                     key,
-                    number_start,
+                    span.start,
                     Edit {
                         end,
                         call: Some(target),
@@ -161,8 +176,16 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         // Like HarfBuzz, remove the width literal from whichever program
         // pushed it, often a subroutine shared with the glyph's hint operands.
         // merge() flattens glyphs whose deletion conflicts with other callers.
-        if let Some((key, start, end)) = origin {
-            self.edit(key, start, Edit { end, call: None });
+        if let Some(origin) = origin {
+            let span = origin.span();
+            self.edit(
+                origin.program,
+                span.start,
+                Edit {
+                    end: span.end,
+                    call: None,
+                },
+            );
         } else {
             self.needs_flatten = true;
         }
@@ -185,23 +208,25 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         let mut first = start;
         let mut detached = Vec::new();
         for value in args.iter().rev() {
-            let Some((producer, from, to)) = value.origin else {
+            let Some(origin) = value.origin else {
                 self.needs_flatten = true;
                 return;
             };
-            if producer == key && to == first {
-                first = from;
+            let span = origin.span();
+            if origin.program == key && span.end == first {
+                first = span.start;
             } else {
-                detached.push((producer, from, to));
+                detached.push(origin);
             }
         }
         self.edit(key, first, Edit { end, call: None });
-        for (producer, from, to) in detached {
+        for origin in detached {
+            let span = origin.span();
             self.edit(
-                producer,
-                from,
+                origin.program,
+                span.start,
                 Edit {
-                    end: to,
+                    end: span.end,
                     call: None,
                 },
             );
@@ -351,7 +376,7 @@ impl<'s> Recorder<'s> {
             out.extend(program.data.get(pos..start).ok_or(Error)?);
             if let Some(target) = edit.call {
                 let (op, count) = match target {
-                    Program::Local(fd, _) => (10, *local_counts.get(fd).ok_or(Error)?),
+                    Program::Local(fd, _) => (10, *local_counts.get(fd as usize).ok_or(Error)?),
                     Program::Global(_, _) => (29, global_count),
                     _ => return Err(Error),
                 };
@@ -390,6 +415,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
     Interpreter<'a, 's, F, S, A>
 {
     pub fn new(source: &'s S, actions: &'a mut A, fd: usize, ivs: usize, drop_hints: bool) -> Self {
+        debug_assert!(u32::try_from(fd).is_ok());
         Self {
             source,
             actions,
@@ -446,6 +472,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
         if depth > 10 {
             return Err(Error);
         }
+        debug_assert!(u32::try_from(data.len()).is_ok());
         let mut p = 0;
         self.actions.program(key, data);
         while p < data.len() {
@@ -457,7 +484,14 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             let byte = *data.get(p).ok_or(Error)?;
             if byte >= 28 {
                 if let Some(value) = encoding::number(data, &mut p, false)? {
-                    self.push(Value::number(value, (key, start, p)))?;
+                    self.push(Value::number(
+                        value,
+                        Origin {
+                            program: key,
+                            start: start as u32,
+                            end: p as u32,
+                        },
+                    ))?;
                     continue;
                 }
             }
@@ -489,9 +523,9 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                         .ok_or(Error)?;
                     let index = usize::try_from(index).map_err(|_| Error)?;
                     let target = if global {
-                        Program::Global(self.fd, index)
+                        Program::Global(self.fd as u32, index as u32)
                     } else {
-                        Program::Local(self.fd, index)
+                        Program::Local(self.fd as u32, index as u32)
                     };
                     self.actions.call(key, start, p, target, &value)?;
                     if self.execute(
@@ -813,7 +847,7 @@ mod tests {
         // The local subroutine pushes the hstem operands for glyph 0, but the
         // rmoveto operands for glyph 1.
         let source = Source(vec![vec![139, 149, 11]]);
-        fn record<'s>(source: &'s Source, glyph: &'s [u8], gid: usize) -> Recorder<'s> {
+        fn record<'s>(source: &'s Source, glyph: &'s [u8], gid: u32) -> Recorder<'s> {
             let mut rec = Recorder::default();
             Interpreter::<Cff1, _, _>::new(source, &mut rec, 0, 0, true)
                 .run(Program::Glyph(gid), glyph)
