@@ -247,7 +247,7 @@ impl super::Instance<LayoutContext<'_>> for read_fonts::tables::gsub::Gsub<'_> {
                 .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?,
             Tag::new(b"GSUB"),
         )?;
-        let mut table = own_gsub(gsub);
+        let mut table = own_gsub(gsub)?;
         table.feature_variations = vars.into();
         instance_features(
             table

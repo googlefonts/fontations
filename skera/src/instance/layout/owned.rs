@@ -1,4 +1,7 @@
 //! Preserve borrowed layout details when converting to write-fonts tables.
+#[path = "owned_budget.rs"]
+mod budget;
+
 use crate::SubsetError;
 use read_fonts::types::Tag;
 use write_fonts::{
@@ -23,10 +26,13 @@ macro_rules! select_header_fields {
     };
 }
 
-pub(super) fn own_gsub(source: &read_fonts::tables::gsub::Gsub) -> write_fonts::tables::gsub::Gsub {
+pub(super) fn own_gsub(
+    source: &read_fonts::tables::gsub::Gsub,
+) -> Result<write_fonts::tables::gsub::Gsub, SubsetError> {
+    budget::check(source).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"GSUB")))?;
     let mut table: write_fonts::tables::gsub::Gsub = source.to_owned_table();
     select_header_fields!(table);
-    table
+    Ok(table)
 }
 
 fn own_lookups<'a, 'b>(
@@ -51,6 +57,7 @@ fn own_lookups<'a, 'b>(
 // instancing, preserving the subtable's coverage and lookup matching behavior.
 pub(super) fn own_gpos(source: &read_fonts::tables::gpos::Gpos) -> Result<Gpos, SubsetError> {
     let error = || SubsetError::SubsetTableError(Tag::new(b"GPOS"));
+    budget::check(source).map_err(|_| error())?;
     let mut table: Gpos = source.to_owned_table();
     select_header_fields!(table);
     let mut remaining = 200_000;
@@ -122,6 +129,7 @@ fn own_position_lookup(
 
 pub(super) fn own_jstf(source: &read_fonts::tables::jstf::Jstf) -> Result<Jstf, SubsetError> {
     let error = || SubsetError::SubsetTableError(Tag::new(b"JSTF"));
+    budget::check(source).map_err(|_| error())?;
     let mut table: Jstf = source.to_owned_table();
     let mut remaining = 200_000;
     for (record, target) in source
@@ -270,4 +278,90 @@ fn empty_class_records(
             ])
         })
         .collect())
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use read_fonts::{FontData, FontRead};
+
+    // n lookup offsets share one lookup, whose n offsets share one subtable.
+    fn shared_lookup_list(n: u16, subtable: &[u16]) -> Vec<u8> {
+        let mut words = vec![n];
+        words.extend(std::iter::repeat_n(2 + 2 * n, n as usize));
+        words.extend([1, 0, n]); // lookup type, flags, subtable count
+        words.extend(std::iter::repeat_n(6 + 2 * n, n as usize));
+        words.extend(subtable);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+    fn layout_header(lookups: Vec<u8>) -> Vec<u8> {
+        // Version 1.0, empty script and feature lists, then the lookup list.
+        let mut bytes: Vec<_> = [1u16, 0, 10, 12, 14, 0, 0]
+            .into_iter()
+            .flat_map(u16::to_be_bytes)
+            .collect();
+        bytes.extend(lookups);
+        bytes
+    }
+    fn jstf_header(lookups: Vec<u8>) -> Vec<u8> {
+        let mut bytes: Vec<_> = [1u16, 0, 1, 0x4446, 0x4c54, 12, 0, 6, 0, 1, 4]
+            .into_iter()
+            .flat_map(u16::to_be_bytes)
+            .collect();
+        let mut priority = [0u8; 20];
+        priority[8..10].copy_from_slice(&20u16.to_be_bytes());
+        bytes.extend(priority);
+        bytes.extend(lookups);
+        bytes
+    }
+    #[test]
+    fn borrowed_budget_rejects_shared_ordinary_gpos_before_conversion() {
+        for (n, accepted) in [(2, true), (500, false)] {
+            let bytes = layout_header(shared_lookup_list(n, &[1, 8, 4, 100, 1, 1, 1]));
+            let source = read_fonts::tables::gpos::Gpos::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(own_gpos(&source).is_ok(), accepted);
+        }
+    }
+    #[test]
+    fn borrowed_budget_counts_pair_sets_below_lookup_offsets() {
+        let n = 40;
+        let mut subtable = vec![1, 16 + 2 * n, 4, 0, n];
+        subtable.extend(std::iter::repeat_n(10 + 2 * n, n as usize));
+        subtable.extend([1, 2, 100, 1, 1, 1]); // shared pair set, then coverage
+        let mut lookups = shared_lookup_list(n, &subtable);
+        let lookup = 2 + 2 * n as usize;
+        lookups[lookup..lookup + 2].copy_from_slice(&2u16.to_be_bytes());
+        let bytes = layout_header(lookups);
+        let source = read_fonts::tables::gpos::Gpos::read(FontData::new(&bytes)).unwrap();
+        assert!(budget::check(&source).is_err());
+        assert!(own_gpos(&source).is_err());
+    }
+
+    #[test]
+    fn borrowed_budget_limits_recursive_conditions() {
+        for (depth, accepted) in [(2, true), (100, false)] {
+            let mut bytes = [0, 5, 0, 0, 5].repeat(depth);
+            bytes.extend([0, 1, 0, 0, 0, 0, 0, 0]);
+            let source =
+                read_fonts::tables::layout::Condition::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(budget::check(&source).is_ok(), accepted);
+        }
+    }
+
+    #[test]
+    fn borrowed_budget_rejects_shared_gsub_before_conversion() {
+        for (n, accepted) in [(2, true), (500, false)] {
+            let bytes = layout_header(shared_lookup_list(n, &[1, 6, 1, 1, 1, 1]));
+            let source = read_fonts::tables::gsub::Gsub::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(own_gsub(&source).is_ok(), accepted);
+        }
+    }
+    #[test]
+    fn borrowed_budget_rejects_shared_jstf_max_before_conversion() {
+        for (n, accepted) in [(2, true), (500, false)] {
+            let bytes = jstf_header(shared_lookup_list(n, &[1, 8, 4, 100, 1, 1, 1]));
+            let source = read_fonts::tables::jstf::Jstf::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(own_jstf(&source).is_ok(), accepted);
+        }
+    }
 }
