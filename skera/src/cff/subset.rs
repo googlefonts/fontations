@@ -27,6 +27,26 @@ fn gid_list(plan: &Plan) -> Vec<usize> {
         .collect()
 }
 
+fn index_contains(index: &Index<'_>, byte: u8) -> bool {
+    let count = index.count() as usize;
+    if count == 0 {
+        return false;
+    }
+    let data = match index {
+        Index::Empty => unreachable!("a nonempty INDEX has a concrete format"),
+        Index::Format1(index) => index.data(),
+        Index::Format2(index) => index.data(),
+    };
+    // Stay within the INDEX when its last offset is valid. Otherwise scan all
+    // available data so malformed offsets cannot hide valid subroutines.
+    // HarfBuzz's sanitizer rejects this malformed INDEX instead.
+    index
+        .get_offset(count)
+        .and_then(|end| data.get(..end))
+        .unwrap_or(data)
+        .contains(&byte)
+}
+
 pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<()> {
     // seac is invalid in CID-keyed fonts, matching HarfBuzz:
     // https://github.com/harfbuzz/harfbuzz/commit/e8f8ee612f30bb3724f1dd3522db09c270ec012d
@@ -34,6 +54,11 @@ pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<(
         return Ok(());
     }
     let charset = source.font.charset().ok_or(Error)?;
+    // Match HarfBuzz's conservative shortcut: a call can only be skipped
+    // when no source subroutine contains an `endchar` byte. Subroutinizers
+    // commonly move endchar, so the shortcut is intentionally font-dependent.
+    let subrs_may_end_in_seac = index_contains(source.font.global_subrs(), 14)
+        || source.fds.iter().any(|fd| index_contains(&fd.subrs, 14));
     let mut components = Vec::new();
     let mut stack = operand_stack::<Cff1>();
     for gid in glyphs.iter() {
@@ -41,7 +66,7 @@ pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<(
         let Some(data) = source.font.charstrings().get(gid.to_u32() as usize) else {
             continue;
         };
-        if !super::charstring_may_end_in_seac(data) {
+        if !super::charstring_may_end_in_seac(data, subrs_may_end_in_seac) {
             continue;
         }
         let mut rec = ();
@@ -761,7 +786,7 @@ pub(super) fn assemble<F: CffFlavor>(
 mod tests {
     use super::{
         all_source_programs_reachable, can_copy_identity_programs, copy_identity_programs,
-        remap_order, Program,
+        index_contains, remap_order, Index, Program,
     };
     use crate::{
         cff::source::{Cff1, Source},
@@ -864,6 +889,40 @@ mod tests {
                 Program::Global(0, 8),
             ]
         );
+    }
+
+    #[test]
+    fn index_search_does_not_scan_past_the_last_object() {
+        assert!(!index_contains(&Index::Empty, 14));
+        for cff2 in [false, true] {
+            let mut bytes = if cff2 { vec![0; 4] } else { vec![0; 2] };
+            bytes.push(14);
+            let empty_with_trailing_endchar = Index::new(&bytes, cff2).unwrap();
+            assert!(!index_contains(&empty_with_trailing_endchar, 14));
+        }
+
+        // One-byte offsets [1, 2] delimit the single-byte object. The final
+        // byte belongs to the table data following the INDEX.
+        let index_with_trailing_byte = Index::new(&[0, 1, 1, 1, 2, 14, 29], false).unwrap();
+        assert!(index_contains(&index_with_trailing_byte, 14));
+        assert!(!index_contains(&index_with_trailing_byte, 29));
+    }
+
+    #[test]
+    fn index_search_scans_valid_objects_when_the_last_offset_is_invalid() {
+        for cff2 in [false, true] {
+            // The first object contains endchar. The second object's final
+            // offset is either zero or beyond the available data.
+            for last in [0, 4] {
+                let mut bytes = if cff2 { vec![0, 0, 0, 2] } else { vec![0, 2] };
+                bytes.extend([1, 1, 2, last, 14]);
+                let index = Index::new(&bytes, cff2).unwrap();
+                assert_eq!(index.get(0), Some(&[14][..]));
+                assert!(index.get(1).is_none());
+                assert!(index_contains(&index, 14));
+                assert!(!index_contains(&index, 29));
+            }
+        }
     }
 
     #[test]

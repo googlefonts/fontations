@@ -58,12 +58,12 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
 
 // A glyph's own endchar must be its final byte for this precheck to find it.
 // Unreachable trailing bytes can hide seac when no subroutine ends the glyph.
-fn charstring_may_end_in_seac(data: &[u8]) -> bool {
-    // A subroutine can terminate the glyph with endchar. Calls must therefore
-    // be interpreted even when the glyph has no endchar of its own or has
-    // unreachable bytes after the call. These bytes might occur inside an
-    // operand or mask, but treating those cases as possible calls is safe.
-    if data.iter().any(|byte| matches!(byte, 10 | 29)) {
+fn charstring_may_end_in_seac(data: &[u8], subrs_may_end_in_seac: bool) -> bool {
+    // When a source subroutine might terminate the glyph with endchar, interpret
+    // possible calls even without a final endchar in the glyph, including calls
+    // with unreachable trailing bytes. Call bytes might occur inside an operand
+    // or mask, but treating those cases as possible calls is safe.
+    if subrs_may_end_in_seac && data.iter().any(|byte| matches!(byte, 10 | 29)) {
         return true;
     }
     let Some((&14, body)) = data.split_last() else {
@@ -75,7 +75,7 @@ fn charstring_may_end_in_seac(data: &[u8]) -> bool {
     // Type 2 numbers are not self-synchronizing backwards. Interpret only
     // when a number encoding, or a call that can leave operands on the shared
     // stack, could immediately precede endchar.
-    matches!(last, 32..=246)
+    matches!(last, 10 | 29 | 32..=246)
         // Escaped operators include stack-preserving operations such as the
         // deprecated dotsection. Without interpreting the program, their
         // result stack cannot be ruled out as seac operands.
@@ -102,10 +102,14 @@ mod tests {
             &[32, 10, 5],
             &[139, 139, 204, 247, 86, 12, 0, 14],
         ] {
-            assert!(charstring_may_end_in_seac(data));
+            assert!(charstring_may_end_in_seac(data, true));
+        }
+        for data in [&[32, 10, 14][..], &[32, 29, 14]] {
+            assert!(charstring_may_end_in_seac(data, false));
         }
         for data in [&[][..], &[14], &[139, 11], &[5, 14], &[247, 14]] {
-            assert!(!charstring_may_end_in_seac(data));
+            assert!(!charstring_may_end_in_seac(data, true));
         }
+        assert!(!charstring_may_end_in_seac(&[32, 10], false));
     }
 }
