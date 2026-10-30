@@ -1,10 +1,12 @@
 //! Shared subset planning and format-specific table assembly.
 
 use super::{
-    charstring::{self, CharStringActions, Flattener, Interpreter, Program, Recorder, Value},
+    charstring::{
+        self, operand_stack, CharStringActions, Flattener, Interpreter, Program, Recorder, Value,
+    },
     dict::{self, Entry},
     encoding,
-    source::{CffFlavor, Source},
+    source::{Cff1, CffFlavor, Source},
     Error, Result,
 };
 use crate::{FastHashMap, Plan, SubsetFlags};
@@ -26,6 +28,7 @@ pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<(
         return Ok(());
     }
     let charset = source.font.charset().ok_or(Error)?;
+    let mut stack = operand_stack::<Cff1>();
     let mut pending: Vec<_> = glyphs.iter().collect();
     let mut visited = BTreeSet::new();
     while let Some(gid) = pending.pop() {
@@ -43,9 +46,12 @@ pub(super) fn closure(source: &Source, glyphs: &mut IntSet<GlyphId>) -> Result<(
         }
         let mut rec = ();
         let mut interp =
-            Interpreter::<super::source::Cff1, _, _>::new(source, &mut rec, fd, 0, false);
-        interp.run(Program::Glyph(gid.to_u32()), data)?;
-        if let Some((base, accent)) = interp.seac {
+            Interpreter::<super::source::Cff1, _, _>::new(source, &mut rec, fd, false, &mut stack);
+        let result = interp.run(Program::Glyph(gid.to_u32()), data);
+        let seac = interp.seac;
+
+        result?;
+        if let Some((base, accent)) = seac {
             for code in [base, accent] {
                 let sid = PredefinedEncoding::Standard.sid(code).ok_or(Error)?;
                 let component = charset.glyph_id(sid).ok_or(Error)?;
@@ -177,13 +183,16 @@ fn all_source_programs_reachable<F: CffFlavor>(source: &Source, plan: &Plan) -> 
         locals: vec![IntSet::empty(); source.fds.len()],
         copyable: true,
     };
+    let mut stack = operand_stack::<F>();
     for &(_, old) in &plan.new_to_old_gid_list {
         let orig = old.to_u32();
         let data = source.font.charstrings().get(orig as usize).ok_or(Error)?;
         let fd = source.fd(old)?;
         let mut interpreter =
-            Interpreter::<F, _, _>::new(source, &mut collector, fd, source.fds[fd].ivs, false);
-        interpreter.run(Program::Glyph(orig), data)?;
+            Interpreter::<F, _, _>::new(source, &mut collector, fd, false, &mut stack);
+        let result = interpreter.run(Program::Glyph(orig), data);
+
+        result?;
     }
     Ok(collector.copyable
         && collector.globals.len() == source.font.global_subrs().count() as u64
@@ -230,6 +239,7 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
     let mut widths = BTreeMap::new();
     let mut roots = Vec::new();
     let mut chars = vec![F::empty_glyph(); plan.num_output_glyphs];
+    let mut stack = operand_stack::<F>();
     for &(new, old) in &plan.new_to_old_gid_list {
         let gid = new.to_u32() as usize;
         let orig = old.to_u32();
@@ -244,16 +254,18 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
         let data = source.font.charstrings().get(orig as usize).unwrap_or(&[]);
         let key = Program::Glyph(orig);
         if desub {
-            chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
+            chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint, &mut stack)?;
         } else {
             let mut glyph = Recorder::with_capacity(16);
             let mut interpreter =
-                Interpreter::<F, _, _>::new(source, &mut glyph, fd, source.fds[fd].ivs, nohint);
-            interpreter.run(key, data)?;
+                Interpreter::<F, _, _>::new(source, &mut glyph, fd, nohint, &mut stack);
+            let result = interpreter.run(key, data);
             let width = interpreter.width;
+
+            result?;
             let rec = rec.as_mut().ok_or(Error)?;
             if !rec.merge(glyph) {
-                chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint)?;
+                chars[gid] = flatten_glyph::<F>(source, key, fd, data, nohint, &mut stack)?;
             } else {
                 roots.push(key);
                 widths.insert(orig, width);
@@ -341,13 +353,14 @@ fn flatten_glyph<F: CffFlavor>(
     fd: usize,
     data: &[u8],
     nohint: bool,
+    stack: &mut Vec<Value>,
 ) -> Result<Vec<u8>> {
     let mut actions = Flattener::default();
-    let mut interpreter =
-        Interpreter::<F, _, _>::new(source, &mut actions, fd, source.fds[fd].ivs, nohint);
+    let mut interpreter = Interpreter::<F, _, _>::new(source, &mut actions, fd, nohint, stack);
     interpreter.run(key, data)?;
+    let initial_ivs = interpreter.initial_variation_index();
     let width = interpreter.width;
-    charstring::flatten(&actions.commands, width, F::CFF2, source.fds[fd].ivs)
+    charstring::flatten(&actions.commands, width, F::CFF2, initial_ivs)
 }
 
 fn sid_args(op: u16) -> usize {
