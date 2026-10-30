@@ -7,20 +7,36 @@
 
 use super::{
     encoding,
-    source::{CffFlavor, CharStringSource},
+    source::{Cff1, CffFlavor, CharStringSource},
     Error, Result,
 };
 use crate::FastHashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
+use std::ops::Range;
+
+const TRANSIENT_ARRAY_SIZE: usize = 32;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub(super) enum Program {
-    Glyph(usize),
-    Local(usize, usize),
-    Global(usize, usize),
+    Glyph(u32),
+    Local(u32, u32),
+    Global(u32, u32),
 }
-type Origin = (Program, usize, usize);
+
+// CFF INDEX object IDs and offsets fit in u32.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Origin {
+    pub program: Program,
+    start: u32,
+    end: u32,
+}
+
+impl Origin {
+    pub fn span(self) -> Range<usize> {
+        self.start as usize..self.end as usize
+    }
+}
 
 #[derive(Clone, Default)]
 pub(super) struct Value {
@@ -48,7 +64,12 @@ impl Value {
         Ok(self.default as i32)
     }
 
-    pub(super) fn origin(&self) -> Option<(Program, usize, usize)> {
+    fn seac_code(&self) -> Option<u8> {
+        let code = self.default.trunc();
+        (self.blend.is_none() && (0.0..=255.0).contains(&code)).then_some(code as u8)
+    }
+
+    pub(super) fn origin(&self) -> Option<Origin> {
         self.origin
     }
 }
@@ -140,11 +161,12 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         target: Program,
         operand: &Value,
     ) -> Result<()> {
-        if let Some((producer, number_start, number_end)) = operand.origin {
-            if producer == key && number_end == start {
+        if let Some(origin) = operand.origin {
+            let span = origin.span();
+            if origin.program == key && span.end == start {
                 self.edit(
                     key,
-                    number_start,
+                    span.start,
                     Edit {
                         end,
                         call: Some(target),
@@ -161,8 +183,16 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         // Like HarfBuzz, remove the width literal from whichever program
         // pushed it, often a subroutine shared with the glyph's hint operands.
         // merge() flattens glyphs whose deletion conflicts with other callers.
-        if let Some((key, start, end)) = origin {
-            self.edit(key, start, Edit { end, call: None });
+        if let Some(origin) = origin {
+            let span = origin.span();
+            self.edit(
+                origin.program,
+                span.start,
+                Edit {
+                    end: span.end,
+                    call: None,
+                },
+            );
         } else {
             self.needs_flatten = true;
         }
@@ -185,23 +215,25 @@ impl<'s> CharStringActions<'s> for Recorder<'s> {
         let mut first = start;
         let mut detached = Vec::new();
         for value in args.iter().rev() {
-            let Some((producer, from, to)) = value.origin else {
+            let Some(origin) = value.origin else {
                 self.needs_flatten = true;
                 return;
             };
-            if producer == key && to == first {
-                first = from;
+            let span = origin.span();
+            if origin.program == key && span.end == first {
+                first = span.start;
             } else {
-                detached.push((producer, from, to));
+                detached.push(origin);
             }
         }
         self.edit(key, first, Edit { end, call: None });
-        for (producer, from, to) in detached {
+        for origin in detached {
+            let span = origin.span();
             self.edit(
-                producer,
-                from,
+                origin.program,
+                span.start,
                 Edit {
-                    end: to,
+                    end: span.end,
                     call: None,
                 },
             );
@@ -351,7 +383,7 @@ impl<'s> Recorder<'s> {
             out.extend(program.data.get(pos..start).ok_or(Error)?);
             if let Some(target) = edit.call {
                 let (op, count) = match target {
-                    Program::Local(fd, _) => (10, *local_counts.get(fd).ok_or(Error)?),
+                    Program::Local(fd, _) => (10, *local_counts.get(fd as usize).ok_or(Error)?),
                     Program::Global(_, _) => (29, global_count),
                     _ => return Err(Error),
                 };
@@ -369,13 +401,19 @@ impl<'s> Recorder<'s> {
     }
 }
 
+pub(super) fn operand_stack<F: CffFlavor>() -> Vec<Value> {
+    // Use the CFF1 stack limit as the starting capacity, also for CFF2.
+    Vec::with_capacity(F::STACK_LIMIT.min(Cff1::STACK_LIMIT))
+}
+
 pub(super) struct Interpreter<'a, 's, F, S, A> {
     source: &'s S,
     actions: &'a mut A,
     fd: usize,
-    stack: Vec<Value>,
+    stack: &'a mut Vec<Value>,
     transient: Vec<Value>,
     hints: usize,
+    initial_ivs: usize,
     ivs: usize,
     seen_ivs: bool,
     seen_blend: bool,
@@ -389,15 +427,27 @@ pub(super) struct Interpreter<'a, 's, F, S, A> {
 impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
     Interpreter<'a, 's, F, S, A>
 {
-    pub fn new(source: &'s S, actions: &'a mut A, fd: usize, ivs: usize, drop_hints: bool) -> Self {
+    pub fn new(
+        source: &'s S,
+        actions: &'a mut A,
+        fd: usize,
+        drop_hints: bool,
+        stack: &'a mut Vec<Value>,
+    ) -> Self {
+        debug_assert!(u32::try_from(fd).is_ok());
+        stack.clear();
+        let initial_ivs = if F::CFF2 { source.initial_ivs(fd) } else { 0 };
         Self {
             source,
             actions,
             fd,
-            stack: vec![],
-            transient: vec![Value::default(); 32],
+            stack,
+            // Type 2's transient array is rarely used. Allocate its large
+            // symbolic values only when a program executes `put`.
+            transient: Vec::new(),
             hints: 0,
-            ivs,
+            initial_ivs,
+            ivs: initial_ivs,
             seen_ivs: false,
             seen_blend: false,
             width_read: F::CFF2,
@@ -407,6 +457,10 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             drop_hints,
             flavor: PhantomData,
         }
+    }
+    /// The inherited variation index, unchanged by any `vsindex` during execution.
+    pub fn initial_variation_index(&self) -> usize {
+        self.initial_ivs
     }
     fn pop(&mut self) -> Result<Value> {
         self.stack.pop().ok_or(Error)
@@ -446,6 +500,7 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
         if depth > 10 {
             return Err(Error);
         }
+        debug_assert!(u32::try_from(data.len()).is_ok());
         let mut p = 0;
         self.actions.program(key, data);
         while p < data.len() {
@@ -457,7 +512,14 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             let byte = *data.get(p).ok_or(Error)?;
             if byte >= 28 {
                 if let Some(value) = encoding::number(data, &mut p, false)? {
-                    self.push(Value::number(value, (key, start, p)))?;
+                    self.push(Value::number(
+                        value,
+                        Origin {
+                            program: key,
+                            start: start as u32,
+                            end: p as u32,
+                        },
+                    ))?;
                     continue;
                 }
             }
@@ -489,9 +551,9 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                         .ok_or(Error)?;
                     let index = usize::try_from(index).map_err(|_| Error)?;
                     let target = if global {
-                        Program::Global(self.fd, index)
+                        Program::Global(self.fd as u32, index as u32)
                     } else {
-                        Program::Local(self.fd, index)
+                        Program::Local(self.fd as u32, index as u32)
                     };
                     self.actions.call(key, start, p, target, &value)?;
                     if self.execute(
@@ -577,17 +639,18 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
                 | 30
                 | 31
                 | 0x122..=0x125 => {
-                    if op == 14 && !F::CFF2 && self.stack.len() == 4 {
-                        self.seac = Some((
-                            u8::try_from(self.stack[2].int()?).map_err(|_| Error)?,
-                            u8::try_from(self.stack[3].int()?).map_err(|_| Error)?,
-                        ));
+                    if op == 14 && !F::CFF2 && self.stack.len() >= 4 {
+                        let n = self.stack.len();
+                        // HarfBuzz truncates fractional character codes toward zero.
+                        self.seac = self.stack[n - 2]
+                            .seac_code()
+                            .zip(self.stack[n - 1].seac_code());
                     }
                     let hint = matches!(op, 1 | 3 | 18 | 19 | 20 | 23);
                     if hint && self.drop_hints {
-                        self.actions.hint(key, start, p, &self.stack);
+                        self.actions.hint(key, start, p, self.stack);
                     } else if !(F::CFF2 && op == 14) {
-                        self.actions.command(op, &self.stack, mask);
+                        self.actions.command(op, self.stack, mask);
                     }
                     self.stack.clear();
                     if op == 14 {
@@ -606,6 +669,8 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
         }
         Ok(false)
     }
+    // Evaluate Type 2 arithmetic and transient operators. HarfBuzz clears
+    // the stack for these operators.
     fn arithmetic(&mut self, op: u16) -> Result<()> {
         // Stack/transient operations may share values. Their producer is no
         // longer a removable literal, even if the numeric result is unchanged.
@@ -632,16 +697,23 @@ impl<'a, 's, F: CffFlavor, S: CharStringSource, A: CharStringActions<'s>>
             }
             0x114 => {
                 let idx = usize::try_from(a.int()?).map_err(|_| Error)?;
+                if idx >= TRANSIENT_ARRAY_SIZE {
+                    return Err(Error);
+                }
                 let v = self.pop()?;
-                *self.transient.get_mut(idx).ok_or(Error)? = v;
+                if self.transient.is_empty() {
+                    self.transient
+                        .resize_with(TRANSIENT_ARRAY_SIZE, Value::default);
+                }
+                self.transient[idx] = v;
                 return Ok(());
             }
             0x115 => {
-                a = self
-                    .transient
-                    .get(usize::try_from(a.int()?).map_err(|_| Error)?)
-                    .ok_or(Error)?
-                    .clone();
+                let idx = usize::try_from(a.int()?).map_err(|_| Error)?;
+                if idx >= TRANSIENT_ARRAY_SIZE {
+                    return Err(Error);
+                }
+                a = self.transient.get(idx).cloned().unwrap_or_default();
             }
             0x11d => {
                 let idx = a.int()?.max(0) as usize;
@@ -773,9 +845,13 @@ pub(super) fn flatten(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cff::source::{Cff1, Cff2};
+    use crate::cff::source::Cff2;
     struct Source(Vec<Vec<u8>>);
     impl CharStringSource for Source {
+        fn initial_ivs(&self, fd: usize) -> usize {
+            // Give each mock Font DICT a distinct inherited variation index.
+            fd
+        }
         fn program(&self, _: bool, _: usize, i: usize) -> Result<&[u8]> {
             self.0.get(i).map(Vec::as_slice).ok_or(Error)
         }
@@ -786,6 +862,27 @@ mod tests {
             Ok(1)
         }
     }
+
+    struct Interpretation {
+        width: Option<f64>,
+        seac: Option<(u8, u8)>,
+    }
+
+    fn run_cff1<'s>(
+        source: &'s Source,
+        actions: &mut impl CharStringActions<'s>,
+        data: &'s [u8],
+        drop_hints: bool,
+    ) -> Result<Interpretation> {
+        let mut stack = operand_stack::<Cff1>();
+        let mut interp = Interpreter::<Cff1, _, _>::new(source, actions, 0, drop_hints, &mut stack);
+        interp.run(Program::Glyph(0), data)?;
+        Ok(Interpretation {
+            width: interp.width,
+            seac: interp.seac,
+        })
+    }
+
     #[test]
     fn repeated_dup_add_has_bounded_state() {
         let source = Source(vec![]);
@@ -795,14 +892,10 @@ mod tests {
         }
         data.extend([149, 1, 139, 139, 21, 14]);
         let mut rec = Recorder::default();
-        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
-            .run(Program::Glyph(0), &data)
-            .unwrap();
+        run_cff1(&source, &mut rec, &data, true).unwrap();
         assert!(rec.needs_flatten);
         let mut flat = Flattener::default();
-        Interpreter::<Cff1, _, _>::new(&source, &mut flat, 0, 0, true)
-            .run(Program::Glyph(0), &data)
-            .unwrap();
+        run_cff1(&source, &mut flat, &data, true).unwrap();
         assert_eq!(
             flatten(&flat.commands, None, false, 0).unwrap(),
             [139, 139, 21, 14]
@@ -813,9 +906,9 @@ mod tests {
         // The local subroutine pushes the hstem operands for glyph 0, but the
         // rmoveto operands for glyph 1.
         let source = Source(vec![vec![139, 149, 11]]);
-        fn record<'s>(source: &'s Source, glyph: &'s [u8], gid: usize) -> Recorder<'s> {
+        fn record<'s>(source: &'s Source, glyph: &'s [u8], gid: u32) -> Recorder<'s> {
             let mut rec = Recorder::default();
-            Interpreter::<Cff1, _, _>::new(source, &mut rec, 0, 0, true)
+            Interpreter::<Cff1, _, _>::new(source, &mut rec, 0, true, &mut operand_stack::<Cff1>())
                 .run(Program::Glyph(gid), glyph)
                 .unwrap();
             rec
@@ -845,9 +938,7 @@ mod tests {
     fn hints_with_local_literals_remain_subroutinized() {
         let source = Source(vec![vec![139, 149, 1, 11]]);
         let mut rec = Recorder::default();
-        Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, true)
-            .run(Program::Glyph(0), &[32, 10, 139, 139, 21, 14])
-            .unwrap();
+        run_cff1(&source, &mut rec, &[32, 10, 139, 139, 21, 14], true).unwrap();
         assert!(!rec.needs_flatten);
         rec.remove_hint_calls();
         assert_eq!(
@@ -864,22 +955,40 @@ mod tests {
     fn caller_supplied_subroutine_operand_is_rejected() {
         let source = Source(vec![vec![10, 11]]);
         let mut rec = Recorder::default();
-        assert!(
-            Interpreter::<Cff1, _, _>::new(&source, &mut rec, 0, 0, false)
-                .run(Program::Glyph(0), &[32, 32, 10, 14])
-                .is_err()
-        );
+        assert!(run_cff1(&source, &mut rec, &[32, 32, 10, 14], false).is_err());
     }
     #[test]
     fn flatten_keeps_blend_groups() {
         let source = Source(vec![]);
         let mut flat = Flattener::default();
         let data = [139, 149, 140, 141, 141, 16, 21];
-        Interpreter::<Cff2, _, _>::new(&source, &mut flat, 0, 0, false)
+        Interpreter::<Cff2, _, _>::new(&source, &mut flat, 0, false, &mut operand_stack::<Cff2>())
             .run(Program::Glyph(0), &data)
             .unwrap();
         assert_eq!(flatten(&flat.commands, None, true, 0).unwrap(), data);
     }
+    #[test]
+    fn cff2_inherits_the_font_dict_variation_index() {
+        let source = Source(vec![]);
+        for prefix in [&[][..], &[139, 15]] {
+            let mut flat = Flattener::default();
+            let mut data = prefix.to_vec();
+            data.extend([139, 149, 140, 141, 141, 16, 21]);
+            let mut stack = operand_stack::<Cff2>();
+            let mut interp =
+                Interpreter::<Cff2, _, _>::new(&source, &mut flat, 2, false, &mut stack);
+            interp.run(Program::Glyph(0), &data).unwrap();
+            let initial_ivs = interp.initial_variation_index();
+            assert_eq!(initial_ivs, 2);
+            // Preserve both inherited blends and an explicit switch to index 0.
+            // Flattening needs the initial index even when vsindex changes it.
+            assert_eq!(
+                flatten(&flat.commands, None, true, initial_ivs).unwrap(),
+                data
+            );
+        }
+    }
+
     #[test]
     fn recursion_and_truncated_operands_are_errors() {
         let source = Source(vec![vec![32, 10, 11]]);
@@ -890,11 +999,86 @@ mod tests {
             vec![139, 19],
             vec![32, 10],
         ] {
-            assert!(
-                Interpreter::<Cff1, _, _>::new(&source, &mut (), 0, 0, false)
-                    .run(Program::Glyph(0), &bytes)
-                    .is_err()
-            );
+            assert!(run_cff1(&source, &mut (), &bytes, false).is_err());
         }
+    }
+
+    #[test]
+    fn seac_with_an_explicit_width() {
+        let source = Source(vec![]);
+        // 500 width, 10 adx, 20 ady, 65 bchar, 66 achar, endchar.
+        let data = [248, 136, 149, 159, 204, 205, 14];
+        let result = run_cff1(&source, &mut (), &data, false).unwrap();
+        assert_eq!(result.width, Some(500.0));
+        assert_eq!(result.seac, Some((65, 66)));
+    }
+
+    #[test]
+    fn seac_uses_the_last_two_of_at_least_four_operands() {
+        let source = Source(vec![]);
+        // Six operands avoids the optional-width case and verifies that extra
+        // live operands do not hide the final bchar/achar pair.
+        let data = [139, 139, 139, 139, 204, 205, 14];
+        let seac = run_cff1(&source, &mut (), &data, false).unwrap().seac;
+        assert_eq!(seac, Some((65, 66)));
+    }
+
+    #[test]
+    fn seac_truncates_fractional_character_codes() {
+        let source = Source(vec![]);
+        // 0 adx, 0 ady, 65.5 bchar, 66.75 achar, endchar.
+        let data = [139, 139, 255, 0, 65, 128, 0, 255, 0, 66, 192, 0, 14];
+        let seac = run_cff1(&source, &mut (), &data, false).unwrap().seac;
+        assert_eq!(seac, Some((65, 66)));
+    }
+
+    #[test]
+    fn reused_stack_is_cleared_after_an_interpreter_error() {
+        let source = Source(vec![]);
+        let mut stack = operand_stack::<Cff1>();
+        let buffer = stack.as_ptr();
+        let mut actions = ();
+        // Leave one live operand when callsubr fails, so reuse must clear it.
+        assert!(
+            Interpreter::<Cff1, _, _>::new(&source, &mut actions, 0, false, &mut stack)
+                .run(Program::Glyph(0), &[140, 139, 10])
+                .is_err()
+        );
+        let mut interp =
+            Interpreter::<Cff1, _, _>::new(&source, &mut actions, 0, false, &mut stack);
+        interp
+            .run(Program::Glyph(1), &[139, 139, 204, 205, 14])
+            .unwrap();
+        assert_eq!(interp.width, None);
+        assert_eq!(interp.seac, Some((65, 66)));
+        assert_eq!(stack.as_ptr(), buffer);
+    }
+
+    #[test]
+    fn invalid_seac_codes_do_not_fail_interpretation() {
+        let source = Source(vec![]);
+        let data = [139, 139, 139, 139, 28, 3, 232, 14];
+        let seac = run_cff1(&source, &mut (), &data, false).unwrap().seac;
+        assert_eq!(seac, None);
+    }
+
+    #[test]
+    fn transient_array_is_allocated_only_by_put() {
+        let source = Source(vec![]);
+        let mut actions = ();
+        let mut stack = operand_stack::<Cff1>();
+        let mut interp =
+            Interpreter::<Cff1, _, _>::new(&source, &mut actions, 0, false, &mut stack);
+        assert!(interp.transient.is_empty());
+
+        interp.push(Value::default()).unwrap();
+        interp.arithmetic(0x115).unwrap();
+        assert!(interp.transient.is_empty());
+        assert_eq!(interp.pop().unwrap().default, 0.0);
+
+        interp.push(Value::default()).unwrap();
+        interp.push(Value::default()).unwrap();
+        interp.arithmetic(0x114).unwrap();
+        assert_eq!(interp.transient.len(), 32);
     }
 }

@@ -48,6 +48,7 @@ pub(super) struct Source<'a> {
 }
 
 pub(super) trait CharStringSource {
+    fn initial_ivs(&self, fd: usize) -> usize;
     fn program(&self, global: bool, fd: usize, index: usize) -> Result<&[u8]>;
     fn subr_count(&self, global: bool, fd: usize) -> usize;
     fn subr_bias(&self, global: bool, fd: usize) -> i32 {
@@ -56,6 +57,9 @@ pub(super) trait CharStringSource {
     fn region_count(&self, ivs: usize) -> Result<usize>;
 }
 impl CharStringSource for Source<'_> {
+    fn initial_ivs(&self, fd: usize) -> usize {
+        self.fds[fd].ivs
+    }
     fn program(&self, global: bool, fd: usize, index: usize) -> Result<&[u8]> {
         let ix = if global {
             self.font.global_subrs()
