@@ -181,6 +181,10 @@ impl SubsetTable<'_> for Device<'_> {
     }
 }
 
+pub(crate) fn variation_index(index: &VariationIndex<'_>) -> u32 {
+    ((index.delta_set_outer_index() as u32) << 16) | index.delta_set_inner_index() as u32
+}
+
 impl<'a> SubsetTable<'a> for VariationIndex<'a> {
     type ArgsForSubset = &'a FastHashMap<u32, (u32, i32)>;
     type Output = ();
@@ -191,14 +195,16 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
         s: &mut Serializer,
         args: &FastHashMap<u32, (u32, i32)>,
     ) -> Result<(), SerializeErrorFlags> {
-        let var_idx =
-            ((self.delta_set_outer_index() as u32) << 16) + self.delta_set_inner_index() as u32;
+        let var_idx = variation_index(self);
         if var_idx == NO_VARIATION_INDEX {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         let Some((new_idx, _)) = args.get(&var_idx) else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
+        if *new_idx == NO_VARIATION_INDEX {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
 
         s.embed(*new_idx)?;
         s.embed(self.delta_format()).map(|_| ())
@@ -217,8 +223,7 @@ impl CollectVariationIndices for DeviceOrVariationIndex<'_> {
 impl CollectVariationIndices for VariationIndex<'_> {
     fn collect_variation_indices(&self, _plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if self.delta_format() == DeltaFormat::VariationIndex {
-            let var_idx =
-                ((self.delta_set_outer_index() as u32) << 16) + self.delta_set_inner_index() as u32;
+            let var_idx = variation_index(self);
             varidx_set.insert(var_idx);
         }
     }

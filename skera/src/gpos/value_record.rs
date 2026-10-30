@@ -257,4 +257,44 @@ mod test {
             Ok(ValueFormat::Y_ADVANCE)
         );
     }
+
+    #[test]
+    fn positioning_survives_unmappable_variation_devices() {
+        use read_fonts::tables::variations::NO_VARIATION_INDEX;
+        use write_fonts::tables::{gpos::ValueRecord as OwnedValue, layout::VariationIndex};
+
+        for (index, mapped, expected) in [
+            ((1, 2), None, None),
+            ((0xffff, 0xffff), None, None),
+            ((1, 2), Some(NO_VARIATION_INDEX), None),
+            ((1, 2), Some(0x30004), Some((3, 4))),
+        ] {
+            let source = OwnedValue::new()
+                .with_x_advance(40)
+                .with_x_advance_device(VariationIndex::new(index.0, index.1));
+            let format = source.format();
+            let source = write_fonts::dump_table(&source).unwrap();
+            let value = ValueRecord::new(FontData::new(&source), 0, format);
+            let mut plan = Plan::default();
+            if let Some(mapped) = mapped {
+                // All mapped cases use source (1, 2): (outer << 16) | inner.
+                plan.layout_varidx_delta_map.insert(0x10002, (mapped, 0));
+            }
+            let mut s = Serializer::new(64);
+            s.start_serialize().unwrap();
+            value.subset(&plan, &mut s, format).unwrap();
+            s.end_serialize();
+
+            let bytes = s.copy_bytes();
+            let value = ValueRecord::new(FontData::new(&bytes), 0, format);
+            assert_eq!(value.x_advance(), Some(40));
+            let actual = value.x_advance_device().map(|device| {
+                let DeviceOrVariationIndex::VariationIndex(index) = device.unwrap() else {
+                    panic!("expected variation index")
+                };
+                (index.delta_set_outer_index(), index.delta_set_inner_index())
+            });
+            assert_eq!(actual, expected);
+        }
+    }
 }
