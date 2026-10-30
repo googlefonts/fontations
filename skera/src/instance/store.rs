@@ -3,7 +3,7 @@ use super::{
     rebase::{self, Triple},
     AxisPlan,
 };
-use crate::SubsetError;
+use crate::{variations::DeltaEncoding, SubsetError};
 use read_fonts::{
     tables::variations::ItemVariationStore,
     types::{F2Dot14, Tag},
@@ -40,31 +40,58 @@ pub(super) fn encode_rows(
     }
     let count = copies.iter().try_fold(0usize, |count, &n| {
         let count = count.checked_add(n).ok_or_else(error)?;
-        if count > 0x7fff {
+        if count > u16::MAX as usize {
             Err(error())
         } else {
             Ok(count)
         }
     })?;
-    let mut delta_sets = Vec::new();
+    let item_count = u16::try_from(rows.len()).map_err(|_| error())?;
+    let mut split_rows = Vec::with_capacity(rows.len());
+    let mut long_words = false;
     for row in rows {
+        let mut split = Vec::with_capacity(count);
         for (&value, &copies) in row.iter().zip(&copies) {
             let mut value = (value + 0.5).floor() as i64;
             for _ in 0..copies {
                 let part = value.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
-                delta_sets.extend(part.to_be_bytes());
+                long_words |= i16::try_from(part).is_err();
+                split.push(part);
                 value -= part as i64;
             }
         }
+        split_rows.push(split);
+    }
+    let wide: Vec<_> = (0..count)
+        .map(|i| {
+            split_rows.iter().any(|row| {
+                if long_words {
+                    i16::try_from(row[i]).is_err()
+                } else {
+                    i8::try_from(row[i]).is_err()
+                }
+            })
+        })
+        .collect();
+    let word_count = wide.iter().filter(|&&wide| wide).count();
+    let encoding = DeltaEncoding::new(long_words, word_count).ok_or_else(error)?;
+    let mut order: Vec<_> = (0..count).collect();
+    order.sort_by_key(|&i| (!wide[i], i));
+    let indices: Vec<_> = indices
+        .iter()
+        .zip(copies)
+        .flat_map(|(&i, n)| std::iter::repeat_n(i, n))
+        .collect();
+    let mut delta_sets = Vec::new();
+    for row in &split_rows {
+        for (column, &i) in order.iter().enumerate() {
+            encoding.push_delta(&mut delta_sets, column, row[i]);
+        }
     }
     Ok(owned::ItemVariationData {
-        item_count: u16::try_from(rows.len()).map_err(|_| error())?,
-        word_delta_count: 0x8000 | count as u16,
-        region_indexes: indices
-            .iter()
-            .zip(copies)
-            .flat_map(|(&i, n)| std::iter::repeat_n(i, n))
-            .collect(),
+        item_count,
+        word_delta_count: encoding.word_delta_count(),
+        region_indexes: order.iter().map(|&i| indices[i]).collect(),
         delta_sets,
     })
 }
@@ -418,5 +445,111 @@ mod tests {
             .weights
             .iter()
             .all(|column| column.len() == 1));
+    }
+}
+
+#[cfg(test)]
+mod column_limit_tests {
+    use super::{AxisPlan, StorePlan};
+    use read_fonts::{types::F2Dot14, FontData, FontRead, FontRef};
+    use write_fonts::tables::variations::*;
+
+    fn instance_large_store(delta: i32) -> Vec<u8> {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let zero = RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO);
+        let regions = (-16384..=16384)
+            .filter(|&peak| peak != 0)
+            .map(|peak| {
+                VariationRegion::new(vec![
+                    RegionAxisCoordinates::new(
+                        F2Dot14::from_bits(peak.min(0)),
+                        F2Dot14::from_bits(peak),
+                        F2Dot14::from_bits(peak.max(0)),
+                    ),
+                    zero.clone(),
+                ])
+            })
+            .collect();
+        let data = if delta != 1 {
+            // Two legal word groups whose profitable union has 32768 columns.
+            (0..2)
+                .map(|start| {
+                    Some(ItemVariationData {
+                        item_count: 1,
+                        word_delta_count: 32767 | if delta > i16::MAX as i32 { 0x8000 } else { 0 },
+                        region_indexes: (start..start + 32767).collect(),
+                        delta_sets: if delta > i16::MAX as i32 {
+                            std::iter::repeat_n(delta, 32767)
+                                .flat_map(i32::to_be_bytes)
+                                .collect()
+                        } else {
+                            std::iter::repeat_n(delta as i16, 32767)
+                                .flat_map(i16::to_be_bytes)
+                                .collect()
+                        },
+                    })
+                })
+                .collect()
+        } else {
+            vec![Some(ItemVariationData {
+                item_count: 1,
+                word_delta_count: 0,
+                region_indexes: (0..32768).collect(),
+                delta_sets: vec![1; 32768],
+            })]
+        };
+        let store = ItemVariationStore::new(VariationRegionList::new(2, regions), data);
+        let bytes = write_fonts::dump_table(&store).unwrap();
+        let store = read_fonts::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+            .unwrap();
+        // Pin the unrelated axis; all source regions retain their identity.
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("CNTR=0").unwrap()).unwrap();
+        let plan = StorePlan::new(&store, &axes).unwrap();
+        let rebuilt = plan.rebuild(&store).unwrap();
+        let (store, _) = crate::instance::optimize::optimize(rebuilt).unwrap();
+        write_fonts::dump_table(&store).unwrap()
+    }
+
+    #[test]
+    fn one_byte_rows_support_32768_columns_during_instancing() {
+        let bytes = instance_large_store(1);
+        let store = read_fonts::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+            .unwrap();
+        let data = store.item_variation_data().get(0).unwrap().unwrap();
+        assert_eq!(data.region_index_count(), 32768);
+        assert_eq!(data.word_delta_count(), 0);
+        assert_eq!(data.delta_set(0).collect::<Vec<_>>(), vec![1; 32768]);
+    }
+
+    #[test]
+    fn overlapping_word_groups_promote_to_a_long_word_tail() {
+        let bytes = instance_large_store(128);
+        let store = read_fonts::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+            .unwrap();
+        assert_eq!(store.item_variation_data_count(), 1);
+        let data = store.item_variation_data().get(0).unwrap().unwrap();
+        assert_eq!(data.item_count(), 2);
+        assert_eq!(data.region_index_count(), 32768);
+        assert_eq!(data.word_delta_count(), 0x8000);
+        for inner in 0..2 {
+            let deltas: Vec<_> = data.delta_set(inner).collect();
+            assert_eq!(deltas.iter().filter(|&&d| d == 128).count(), 32767);
+            assert_eq!(deltas.iter().filter(|&&d| d == 0).count(), 1);
+        }
+    }
+    #[test]
+    fn overlapping_long_word_groups_stay_separate_when_the_union_is_too_wide() {
+        let bytes = instance_large_store(32768);
+        let store = read_fonts::tables::variations::ItemVariationStore::read(FontData::new(&bytes))
+            .unwrap();
+        assert_eq!(store.item_variation_data_count(), 2);
+        for data in store.item_variation_data().iter() {
+            let data = data.unwrap().unwrap();
+            assert_eq!(data.item_count(), 1);
+            assert_eq!(data.region_index_count(), 32767);
+            assert_eq!(data.word_delta_count(), 0xffff);
+            assert_eq!(data.delta_set(0).collect::<Vec<_>>(), vec![32768; 32767]);
+        }
     }
 }

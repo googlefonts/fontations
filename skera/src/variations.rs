@@ -14,6 +14,40 @@ use read_fonts::{
     types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };
 
+/// The high bit of wordDeltaCount selects LONG_WORDS; only wide columns
+/// have a 15-bit count. A long representation can hold 65535 narrow columns.
+pub(crate) struct DeltaEncoding {
+    pub long_words: bool,
+    pub word_count: usize,
+}
+impl DeltaEncoding {
+    pub fn new(long_words: bool, word_count: usize) -> Option<Self> {
+        if word_count <= 0x7fff {
+            Some(Self {
+                long_words,
+                word_count,
+            })
+        } else if !long_words {
+            Some(Self {
+                long_words: true,
+                word_count: 0,
+            })
+        } else {
+            None
+        }
+    }
+    pub fn word_delta_count(&self) -> u16 {
+        self.word_count as u16 | if self.long_words { 0x8000 } else { 0 }
+    }
+    pub fn push_delta(&self, out: &mut Vec<u8>, column: usize, delta: i32) {
+        match (self.long_words, column < self.word_count) {
+            (true, true) => out.extend(delta.to_be_bytes()),
+            (true, false) | (false, true) => out.extend((delta as i16).to_be_bytes()),
+            (false, false) => out.push(delta as i8 as u8),
+        }
+    }
+}
+
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
     type ArgsForSubset = (&'a [IncBiMap], bool);
     type Output = ();
@@ -261,18 +295,17 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
             }
         }
 
-        // The high bit is the LONG_WORDS flag, so a narrow representation
-        // cannot encode more than 32767 word columns. In that case all
-        // nonzero columns fit the 16-bit tail of a long representation.
-        if !has_long && new_word_count > 0x7FFF {
-            has_long = true;
-            new_word_count = 0;
+        let encoding = DeltaEncoding::new(has_long, new_word_count as usize)
+            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+        if encoding.long_words != has_long {
             for size in &mut delta_sz {
                 if *size == DeltaSize::Word {
                     *size = DeltaSize::NonWord;
                 }
             }
         }
+        has_long = encoding.long_words;
+        new_word_count = encoding.word_count as u16;
 
         let mut word_index: u16 = 0;
         let mut non_word_index = new_word_count;
@@ -295,11 +328,7 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
             new_ri_count += 1;
         }
 
-        let new_word_delta_count = if has_long {
-            new_word_count | 0x8000
-        } else {
-            new_word_count
-        };
+        let new_word_delta_count = encoding.word_delta_count();
         s.embed(new_word_delta_count)?;
         s.embed(new_ri_count)?;
 

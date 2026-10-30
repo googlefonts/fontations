@@ -1,5 +1,5 @@
 //! Optimize residual item stores using HarfBuzz's original encoding groups.
-use crate::SubsetError;
+use crate::{variations::DeltaEncoding, SubsetError};
 use read_fonts::{
     tables::variations::ItemVariationStore as ReadStore, types::Tag, FontData, FontRead,
 };
@@ -73,6 +73,17 @@ impl Encoding {
                 return 0;
             }
         } else if other.overhead as i64 <= -additional * other.items.len() as i64 {
+            return 0;
+        }
+        let long_columns = self
+            .chars
+            .iter()
+            .zip(&other.chars)
+            .filter(|&(&a, &b)| a.max(b) == 4)
+            .count();
+        // A merged group must remain encodable. Unlike 16-bit columns, excess
+        // 32-bit columns cannot move to a wider representation's narrow tail.
+        if DeltaEncoding::new(true, long_columns).is_none() {
             return 0;
         }
         let (width, overhead) =
@@ -257,27 +268,18 @@ pub(super) fn optimize(
                 .iter()
                 .filter(|&&(_, c)| c > if long_words { 2 } else { 1 })
                 .count();
-            if word_count > 0x7fff {
-                return Err(error());
-            }
+            let delta_encoding = DeltaEncoding::new(long_words, word_count).ok_or_else(error)?;
             let mut deltas = Vec::new();
             for (inner, &item) in items.iter().enumerate() {
                 back[item] = ((outer as u32) << 16) | inner as u32;
-                for &(column, width) in &active {
-                    let delta = rows[item][column];
-                    if long_words && width == 4 {
-                        deltas.extend(delta.to_be_bytes());
-                    } else if long_words || width == 2 {
-                        deltas.extend((delta as i16).to_be_bytes());
-                    } else {
-                        deltas.push(delta as i8 as u8);
-                    }
+                for (position, &(column, _)) in active.iter().enumerate() {
+                    delta_encoding.push_delta(&mut deltas, position, rows[item][column]);
                 }
             }
             result.item_variation_data.push(
                 Some(ItemVariationData {
                     item_count: items.len() as u16,
-                    word_delta_count: word_count as u16 | if long_words { 0x8000 } else { 0 },
+                    word_delta_count: delta_encoding.word_delta_count(),
                     region_indexes: active
                         .iter()
                         .map(|&(column, _)| region_map[column])
