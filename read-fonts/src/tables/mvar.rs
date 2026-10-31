@@ -97,12 +97,57 @@ pub mod tags {
 
 include!("../../generated/generated_mvar.rs");
 
+impl<'a> Mvar<'a> {
+    /// The stride between value records.
+    ///
+    /// `valueRecordSize` may be larger than the record's own size, reserving
+    /// trailing bytes per record; the stride is that field, not the fixed
+    /// record size. `None` when it is smaller than the record, which is
+    /// malformed.
+    fn value_record_stride(&self) -> Option<usize> {
+        let stride = self.value_record_size() as usize;
+        (stride >= ValueRecord::RAW_BYTE_LEN).then_some(stride)
+    }
+
+    /// The value record at `index`, read at the `valueRecordSize` stride.
+    ///
+    /// The generated [`value_records`](Self::value_records) accessor assumes
+    /// the fixed record size, so it reads the wrong bytes whenever
+    /// `valueRecordSize` is larger; lookups go through this instead.
+    fn value_record(&self, index: usize) -> Option<&'a ValueRecord> {
+        let stride = self.value_record_stride()?;
+        let offset = self
+            .value_records_byte_range()
+            .start
+            .checked_add(index.checked_mul(stride)?)?;
+        self.offset_data().read_ref_at::<ValueRecord>(offset).ok()
+    }
+
+    /// Binary searches the value records for `tag`, honoring the record
+    /// stride. Records are in binary order of their tag.
+    fn value_record_for_tag(&self, tag: Tag) -> Option<&'a ValueRecord> {
+        use core::cmp::Ordering;
+        let mut lo = 0usize;
+        let mut hi = self.value_record_count() as usize;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let record = self.value_record(mid)?;
+            match tag.cmp(&record.value_tag()) {
+                Ordering::Less => hi = mid,
+                Ordering::Greater => lo = mid + 1,
+                Ordering::Equal => return Some(record),
+            }
+        }
+        None
+    }
+}
+
 /// `MVAR` at one location, with the variation store resolved once.
 ///
 /// Prefer this over [`Mvar::metric_delta`] when reading more than one metric;
 /// that resolves the store on every lookup.
 pub struct MvarInstance<'a> {
-    records: &'a [ValueRecord],
+    mvar: Mvar<'a>,
     ivs: ItemVariationStore<'a>,
     coords: &'a [F2Dot14],
 }
@@ -117,7 +162,7 @@ impl<'a> Mvar<'a> {
             return None;
         }
         Some(MvarInstance {
-            records: self.value_records(),
+            mvar: self.clone(),
             ivs: self.item_variation_store()?.ok()?,
             coords,
         })
@@ -132,11 +177,7 @@ impl MvarInstance<'_> {
     /// to the value the metric's own table holds, and left unrounded so a
     /// caller can round it its own way.
     pub fn get(&self, tag: Tag) -> Option<F48Dot16> {
-        let index = self
-            .records
-            .binary_search_by(|record| record.value_tag().cmp(&tag))
-            .ok()?;
-        let record = &self.records[index];
+        let record = self.mvar.value_record_for_tag(tag)?;
         self.ivs.compute_delta(
             DeltaSetIndex {
                 outer: record.delta_set_outer_index(),
@@ -155,43 +196,26 @@ impl Mvar<'_> {
     /// `None` for a metric the font does not vary, and for one it states
     /// unreadably.
     pub fn metric_delta(&self, tag: Tag, coords: &[F2Dot14]) -> Option<Fixed> {
-        use std::cmp::Ordering;
-        let records = self.value_records();
-        let mut lo = 0;
-        let mut hi = records.len();
-        while lo < hi {
-            let i = (lo + hi) / 2;
-            let record = &records[i];
-            match tag.cmp(&record.value_tag()) {
-                Ordering::Less => {
-                    hi = i;
-                }
-                Ordering::Greater => {
-                    lo = i + 1;
-                }
-                Ordering::Equal => {
-                    let ivs = self.item_variation_store()?.ok()?;
-                    return Some(Fixed::from_i32(
-                        ivs.compute_delta(
-                            DeltaSetIndex {
-                                outer: record.delta_set_outer_index(),
-                                inner: record.delta_set_inner_index(),
-                            },
-                            coords,
-                        )?
-                        .to_i32(),
-                    ));
-                }
-            }
-        }
-        None
+        let record = self.value_record_for_tag(tag)?;
+        let ivs = self.item_variation_store()?.ok()?;
+        Some(Fixed::from_i32(
+            ivs.compute_delta(
+                DeltaSetIndex {
+                    outer: record.delta_set_outer_index(),
+                    inner: record.delta_set_inner_index(),
+                },
+                coords,
+            )?
+            .to_i32(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FontRef, TableProvider};
+    use crate::{FontData, FontRef, TableProvider};
+    use font_test_data::bebuffer::BeBuffer;
     use types::F2Dot14;
 
     /// Twelve axes, and an `MVAR` varying several metrics.
@@ -248,5 +272,111 @@ mod tests {
             .filter_map(|record| instance.get(record.value_tag()))
             .any(|delta| delta.to_bits() & 0xFFFF != 0);
         assert!(fractional, "no metric delta carried a fraction");
+    }
+
+    // Builds an `MVAR` with three value records (`hasc`, `hdsc`, `hlgp`, in
+    // binary tag order) whose stride is `value_record_size`. The spec lets
+    // that exceed the eight bytes the record defines; the trailing bytes here
+    // are a nonzero sentinel, so a read that strides by the fixed record size
+    // instead of `valueRecordSize` lands on them and sees an invalid tag.
+    //
+    // The item variation store has one axis and one region peaking at 1.0,
+    // with one delta per record: 100, -50 and 25. At the far end of the axis
+    // each metric's delta is therefore its own stored value.
+    fn mvar_with_stride(value_record_size: u16) -> BeBuffer {
+        let stride = value_record_size as usize;
+        assert!(stride >= ValueRecord::RAW_BYTE_LEN);
+        let pad = stride - ValueRecord::RAW_BYTE_LEN;
+        // The fixed header is 12 bytes; the store follows the record array.
+        let store_offset = 12 + 3 * stride;
+
+        let mut buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0u16) // reserved
+            .push(value_record_size)
+            .push(3u16) // value record count
+            .push(store_offset as u16); // item variation store offset
+
+        for (tag, inner) in [(b"hasc", 0u16), (b"hdsc", 1u16), (b"hlgp", 2u16)] {
+            buf = buf
+                .push(Tag::new(tag))
+                .push(0u16) // delta-set outer index
+                .push(inner) // delta-set inner index
+                .extend(std::iter::repeat_n(0xFFu8, pad));
+        }
+
+        buf.push(1u16) // item variation store format
+            .push(12u32) // region list offset
+            .push(1u16) // variation data count
+            .push(22u32) // variation data offset
+            .push(1u16) // axis count
+            .push(1u16) // region count
+            .extend([F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE]) // start/peak/end
+            .push(3u16) // item count
+            .push(1u16) // word delta count
+            .push(1u16) // region index count
+            .push(0u16) // region index
+            .extend([100i16, -50, 25])
+    }
+
+    #[test]
+    fn a_wide_value_record_size_still_finds_every_record() {
+        // Striding by the fixed record size rather than `valueRecordSize`
+        // would read every record after the first at the wrong offset and
+        // drop its delta.
+        let bytes = mvar_with_stride(12);
+        let mvar = Mvar::read(FontData::new(bytes.as_slice())).unwrap();
+        assert_eq!(mvar.value_record_size(), 12);
+        let coords = [F2Dot14::from_f32(1.0)];
+        let instance = mvar.at(&coords).expect("a location away from the default");
+        for (tag, expected) in [
+            (Tag::new(b"hasc"), 100),
+            (Tag::new(b"hdsc"), -50),
+            (Tag::new(b"hlgp"), 25),
+        ] {
+            assert_eq!(
+                mvar.metric_delta(tag, &coords).unwrap().to_i32(),
+                expected,
+                "metric_delta {tag}"
+            );
+            assert_eq!(
+                instance.get(tag).unwrap().to_i32(),
+                expected,
+                "instance {tag}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_common_eight_byte_stride_agrees() {
+        // The same records at the spec's usual stride, through the same code.
+        let bytes = mvar_with_stride(8);
+        let mvar = Mvar::read(FontData::new(bytes.as_slice())).unwrap();
+        assert_eq!(mvar.value_record_size(), 8);
+        let coords = [F2Dot14::from_f32(1.0)];
+        let instance = mvar.at(&coords).unwrap();
+        for (tag, expected) in [
+            (Tag::new(b"hasc"), 100),
+            (Tag::new(b"hdsc"), -50),
+            (Tag::new(b"hlgp"), 25),
+        ] {
+            assert_eq!(mvar.metric_delta(tag, &coords).unwrap().to_i32(), expected);
+            assert_eq!(instance.get(tag).unwrap().to_i32(), expected);
+        }
+    }
+
+    #[test]
+    fn a_value_record_size_below_the_record_is_malformed() {
+        // `valueRecordSize` must be at least the defined record size; a smaller
+        // one is rejected without reading past the array or panicking.
+        let mut bytes = mvar_with_stride(12).as_slice().to_vec();
+        bytes[6] = 0;
+        bytes[7] = 4; // valueRecordSize = 4
+        let mvar = Mvar::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(mvar.value_record_size(), 4);
+        let coords = [F2Dot14::from_f32(1.0)];
+        assert!(mvar.metric_delta(Tag::new(b"hasc"), &coords).is_none());
+        let instance = mvar.at(&coords).unwrap();
+        assert!(instance.get(Tag::new(b"hasc")).is_none());
     }
 }
