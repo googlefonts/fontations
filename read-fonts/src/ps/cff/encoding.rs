@@ -98,6 +98,8 @@ impl<'a> CustomEncoding<'a> {
                 .find(|s| s.code == code)
                 .and_then(|s| charset.glyph_id(Sid::new(s.glyph.get())))
         };
+        // Codes past the font's glyphs are not mapped, as in FreeType.
+        let in_font = |gid: &GlyphId| gid.to_u32() < charset.num_glyphs();
         match self {
             Self::Format0(codes, sup) => read_sup(sup).or_else(|| {
                 codes
@@ -105,6 +107,7 @@ impl<'a> CustomEncoding<'a> {
                     .position(|c| *c == code)
                     // notdef is implicit so add one
                     .map(|gid| GlyphId::new(gid as u32 + 1))
+                    .filter(in_font)
             }),
             Self::Format1(ranges, sup) => read_sup(sup).or_else(|| {
                 let mut gid = 1u32;
@@ -112,7 +115,7 @@ impl<'a> CustomEncoding<'a> {
                     let end = range.first.saturating_add(range.n_left);
                     if (range.first..=end).contains(&code) {
                         gid += (code - range.first) as u32;
-                        return Some(GlyphId::new(gid));
+                        return Some(GlyphId::new(gid)).filter(in_font);
                     }
                     gid += range.n_left as u32 + 1;
                 }
@@ -183,6 +186,28 @@ mod tests {
             };
             assert_eq!(gid, expected.map(GlyphId::new));
         }
+    }
+
+    // An encoding may list more codes than the font has glyphs. FreeType
+    // only maps the codes whose glyphs exist.
+    #[test]
+    fn custom_codes_stop_at_the_glyph_count() {
+        let charset = Charset::new(Default::default(), 0, 3).unwrap();
+        let codes = [65, 66, 67, 68];
+        let encoding = Encoding::Custom(CustomEncoding::Format0(&codes, &[]));
+        assert_eq!(encoding.map(&charset, 65), Some(GlyphId::new(1)));
+        assert_eq!(encoding.map(&charset, 66), Some(GlyphId::new(2)));
+        assert_eq!(encoding.map(&charset, 67), None);
+        assert_eq!(encoding.map(&charset, 68), None);
+        let ranges = [Range1 {
+            first: 65,
+            n_left: 3,
+        }];
+        let encoding = Encoding::Custom(CustomEncoding::Format1(&ranges, &[]));
+        assert_eq!(encoding.map(&charset, 65), Some(GlyphId::new(1)));
+        assert_eq!(encoding.map(&charset, 66), Some(GlyphId::new(2)));
+        assert_eq!(encoding.map(&charset, 67), None);
+        assert_eq!(encoding.map(&charset, 68), None);
     }
 
     #[test]
