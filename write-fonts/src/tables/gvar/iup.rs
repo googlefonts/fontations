@@ -22,12 +22,16 @@ const NUM_PHANTOM_POINTS: usize = 4;
 /// For each delta in the input, returns an [`GlyphDelta`] with a flag
 /// indicating whether or not it can be interpolated.
 ///
+/// Outline coordinates and deltas are rounded and clamped to their serialized
+/// `i16` values before optimization, so `tolerance` applies after rounding.
+/// The final four phantom coordinates are left unchanged.
+///
 /// See:
 /// * <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
 /// * <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
 pub fn iup_delta_optimize(
-    deltas: Vec<Vec2>,
-    coords: Vec<Point>,
+    mut deltas: Vec<Vec2>,
+    mut coords: Vec<Point>,
     tolerance: f64,
     contour_ends: &[usize],
 ) -> Result<Vec<GlyphDelta>, IupError> {
@@ -58,14 +62,23 @@ pub fn iup_delta_optimize(
         });
     }
 
+    // Reference selection must use the same coordinates and deltas as the
+    // serialized glyph. Rounding can change IUP's equality comparisons.
+    for point in &mut coords[..num_coords - NUM_PHANTOM_POINTS] {
+        let (x, y) = point.ot_round();
+        *point = Point::new(x.into(), y.into());
+    }
+    for delta in &mut deltas {
+        let (x, y) = delta.to_point().ot_round();
+        *delta = Vec2::new(x.into(), y.into());
+    }
+
     for offset in (1..=4).rev() {
         contour_ends.push(num_coords.saturating_sub(offset));
     }
 
     let mut result = Vec::with_capacity(num_coords);
     let mut start = 0;
-    let mut deltas = deltas;
-    let mut coords = coords;
     for end in contour_ends {
         let contour = iup_contour_optimize(
             &mut deltas[start..=end],
@@ -577,6 +590,140 @@ fn iup_contour_optimize(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[rstest::rstest]
+    #[case::fractional_coordinates(
+        [0.998, 1001.0, 1001.0, 1.0],
+        [498.0, 499.0, 499.0, 499.0],
+        [498, 499, 499, 499]
+    )]
+    #[case::negative_half_coordinates(
+        [-0.5, -1000.0, -1000.0, 0.49],
+        [-499.0, -499.0, -499.0, -498.0],
+        [-499, -499, -499, -498]
+    )]
+    #[case::fractional_deltas(
+        [1.0, 1001.0, 1001.0, 1.0],
+        [499.51, 0.0, 0.0, 500.49],
+        [500, 0, 0, 500]
+    )]
+    #[case::negative_fractional_deltas(
+        [1.0, 1001.0, 1001.0, 1.0],
+        [-499.51, 0.0, 0.0, -500.49],
+        [-500, 0, 0, -500]
+    )]
+    #[case::negative_half_deltas(
+        [1.0, 1001.0, 1001.0, 1.0],
+        [-499.5, 0.0, 0.0, -500.49],
+        [-499, 0, 0, -500]
+    )]
+    #[case::clamped_coordinates(
+        [32767.0, 32000.0, 32000.0, 32768.0],
+        [499.0, 499.0, 499.0, 498.0],
+        [499, 499, 499, 498]
+    )]
+    #[case::clamped_deltas(
+        [1.0, 1001.0, 1001.0, 1.0],
+        [32767.0, 0.0, 0.0, 32768.0],
+        [32767, 0, 0, 32767]
+    )]
+    fn iup_uses_serialized_values(
+        #[case] xs: [f64; 4],
+        #[case] dx: [f64; 4],
+        #[case] expected: [i16; 4],
+        #[values(false, true)] swap_axes: bool,
+    ) {
+        use crate::tables::{
+            glyf::SimpleGlyph,
+            gvar::{GlyphDeltas, GlyphVariations, Gvar, Tent},
+            variations::PackedPointNumbers,
+        };
+        use read_fonts::{
+            tables::{glyf::PointFlags, gvar::DeltaBuffers},
+            types::{F2Dot14, GlyphId, Point as ReadPoint},
+            FontRead,
+        };
+
+        let point = |x, y| {
+            if swap_axes {
+                Point::new(y, x)
+            } else {
+                Point::new(x, y)
+            }
+        };
+        let mut coords: Vec<_> = xs
+            .into_iter()
+            .zip([1000.0, 1000.0, 0.0, 0.0])
+            .map(|(x, y)| point(x, y))
+            .collect();
+        let mut path = kurbo::BezPath::new();
+        path.move_to(coords[0]);
+        for &p in &coords[1..] {
+            path.line_to(p);
+        }
+        path.close_path();
+        let glyph = SimpleGlyph::from_bezpath(&path).unwrap();
+        let glyph_bytes = crate::dump_table(&glyph).unwrap();
+        let glyph =
+            read_fonts::tables::glyf::SimpleGlyph::read(glyph_bytes.as_slice().into()).unwrap();
+        let mut points: Vec<_> = glyph
+            .points()
+            .map(|p| ReadPoint::new(f32::from(p.x), f32::from(p.y)))
+            .collect();
+        points.extend([ReadPoint::default(); 4]);
+        coords.extend([Point::new(12.25, 34.75); 4]);
+
+        let mut deltas: Vec<_> = dx.into_iter().map(|x| point(x, 0.0).to_vec2()).collect();
+        deltas.extend([
+            Vec2::new(0.49, 0.51),
+            Vec2::new(-0.5, -0.51),
+            Vec2::new(1.5, 2.5),
+            Vec2::new(-1.5, -2.5),
+        ]);
+        let optimized = iup_delta_optimize(deltas, coords, 0.5, &[3]).unwrap();
+        let mut variation = GlyphDeltas::new(vec![Tent::new(F2Dot14::ONE, None)], optimized);
+        // Force sparse encoding so a dense encoding cannot hide invalid optional deltas.
+        variation.best_point_packing = PackedPointNumbers::Some(
+            variation
+                .deltas
+                .iter()
+                .enumerate()
+                .filter_map(|(i, d)| d.required.then_some(i as u16))
+                .collect(),
+        );
+        let gvar = Gvar::new(
+            vec![GlyphVariations::new(GlyphId::NOTDEF, vec![variation])],
+            1,
+        )
+        .unwrap();
+        let bytes = crate::dump_table(&gvar).unwrap();
+        let gvar = read_fonts::tables::gvar::Gvar::read(bytes.as_slice().into()).unwrap();
+        let mut inferred = [ReadPoint::<f32>::default(); 8];
+        assert_eq!(
+            gvar.simple_deltas(
+                GlyphId::NOTDEF,
+                &[F2Dot14::ONE],
+                &points,
+                &mut [PointFlags::default(); 8],
+                &[3],
+                &mut DeltaBuffers {
+                    deltas: &mut inferred,
+                    iup: &mut [ReadPoint::default(); 8]
+                },
+            ),
+            Some(true)
+        );
+        let expected: Vec<_> = expected
+            .into_iter()
+            .map(|x| point(f64::from(x), 0.0))
+            .map(|p| ReadPoint::new(p.x as f32, p.y as f32))
+            .chain(
+                [(0.0, 1.0), (0.0, -1.0), (2.0, 3.0), (-1.0, -2.0)]
+                    .map(|(x, y)| ReadPoint::new(x, y)),
+            )
+            .collect();
+        assert_eq!(inferred.as_slice(), expected);
+    }
 
     struct IupScenario {
         deltas: Vec<Vec2>,
