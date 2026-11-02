@@ -164,11 +164,12 @@ impl<'a> Outlines<'a> {
             .axis_indices_list()
             .transpose()?
             .map_or(0, |lists| lists.count() as usize);
-        let index_count = (0..list_count)
-            .filter_map(|nth| varc.axis_indices(nth).ok())
-            .map(|list| list.count_or_compute())
-            .max()
-            .unwrap_or(0);
+        // An INDEX can declare a huge count without enough offset data.
+        // Stop at the first unreadable entry so initialization stays bounded.
+        let mut index_count = 0;
+        for nth in 0..list_count {
+            index_count = index_count.max(varc.axis_indices(nth)?.count_or_compute());
+        }
         Ok(Self {
             varc,
             coverage,
@@ -1857,6 +1858,38 @@ mod tests {
         assert_eq!(leaf, 0);
         assert_eq!(walk.edges_left, 0);
         assert!(walk.truncated);
+    }
+
+    #[test]
+    fn malformed_axis_index_lists_fail_initialization() {
+        use crate::{FontData, FontRead};
+
+        for index in [
+            // Truncated offset array.
+            &[0, 0, 0, 2, 1, 1][..],
+            // Fuzzer regression: over two billion entries with off_size = 0.
+            &[0x85, 0x85, 0x85, 0x85, 0, 0x62, 0],
+            // A huge count with a valid off_size but no offsets.
+            &[0xFF, 0xFF, 0xFF, 0xFF, 1],
+            // Invalid off_size.
+            &[0, 0, 0, 1, 5],
+            // A backwards offset after a valid list.
+            &[0, 0, 0, 3, 1, 1, 2, 1, 2, 0x80],
+            // An object extending past the end of the data.
+            &[0, 0, 0, 1, 1, 1, 3, 0x80],
+        ] {
+            let mut bytes = alloc::vec![0u8; 24];
+            bytes[..4].copy_from_slice(&0x0001_0000u32.to_be_bytes());
+            bytes[4..8].copy_from_slice(&24u32.to_be_bytes()); // coverage
+            bytes[16..20].copy_from_slice(&28u32.to_be_bytes()); // axis index lists
+            bytes.extend([0, 1, 0, 0]); // empty coverage
+            bytes.extend_from_slice(index);
+            let varc = Varc::read(FontData::new(&bytes)).unwrap();
+            assert!(
+                matches!(Outlines::new(varc, 1000, 0), Err(ReadError::OutOfBounds)),
+                "INDEX bytes: {index:?}"
+            );
+        }
     }
 
     // The index scratch holds the longest list in the table, which may be
