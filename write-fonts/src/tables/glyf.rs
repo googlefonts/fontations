@@ -134,7 +134,7 @@ impl<'a> FontRead<'a> for Glyph {
 
 impl From<SimpleGlyph> for Glyph {
     fn from(value: SimpleGlyph) -> Self {
-        if value.contours.is_empty() {
+        if value.contours.is_empty() && value.instructions.is_empty() {
             Glyph::Empty
         } else {
             Glyph::Simple(value)
