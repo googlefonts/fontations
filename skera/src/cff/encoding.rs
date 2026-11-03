@@ -175,6 +175,12 @@ pub(super) struct IndexLayout {
 }
 impl IndexLayout {
     pub fn new(items: &[Vec<u8>], cff2: bool) -> Result<Self> {
+        Self::with_min_off_size(items, cff2, 1)
+    }
+    pub fn with_min_off_size(items: &[Vec<u8>], cff2: bool, min_off_size: usize) -> Result<Self> {
+        if !(1..=4).contains(&min_off_size) {
+            return Err(Error);
+        }
         let count = u32::try_from(items.len()).map_err(|_| Error)?;
         if !cff2 {
             u16::try_from(count).map_err(|_| Error)?;
@@ -193,6 +199,7 @@ impl IndexLayout {
         } else {
             4
         };
+        let width = width.max(min_off_size);
         let size = if count == 0 {
             header
         } else {
