@@ -196,7 +196,7 @@ impl CompositeGlyph {
 
         for (component, bbox) in source {
             components.push(component);
-            union_box.get_or_insert(bbox).union(bbox);
+            union_box = Some(union_box.map_or(bbox, |union_box| union_box.union(bbox)));
         }
 
         if components.is_empty() {
