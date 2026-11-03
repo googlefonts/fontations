@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Generate small synthetic CFF regression fonts (requires fontTools)."""
+"""Generate small synthetic CFF regression fonts.
+
+Requires FontTools with the split Private DICT blend fixes from
+https://github.com/fonttools/fonttools/pull/4346.
+"""
 from pathlib import Path
 from fontTools.fontBuilder import FontBuilder
+from fontTools.ttLib import TTFont
 from fontTools.misc.psCharStrings import T2CharString
 from fontTools.cffLib import SubrsIndex, FDSelect
 
@@ -92,6 +97,11 @@ f.setupCFF2(
 private = f.font["CFF2"].cff.topDictIndex[0].FDArray[0].Private
 private.BlueValues = [[i] + [0] * 40 for i in range(14)]
 f.save(OUT / "cff2_long_private_blends.otf")
+with TTFont(OUT / "cff2_long_private_blends.otf") as check:
+    assert check["CFF2"].cff.topDictIndex[0].FDArray[0].Private.BlueValues == [
+        [i] + [0] * 40 for i in range(14)
+    ], "Private DICT blend groups did not preserve the requested hint values"
+
 # Two FDs reference the same drawing-only global subroutine.
 f = builder()
 f.setupCFF2(

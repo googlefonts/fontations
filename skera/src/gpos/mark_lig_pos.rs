@@ -339,6 +339,15 @@ subset_lig_component!(ComponentRecord, Offset16);
 subset_lig_component!(ComponentRecord2, Offset24);
 
 impl<'a> SubsetTable<'a> for MarkLigPos<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("MarkLigPos", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(

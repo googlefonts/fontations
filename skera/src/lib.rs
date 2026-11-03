@@ -5,6 +5,7 @@ mod cblc;
 mod cff;
 mod cmap;
 mod colr;
+mod conditions;
 mod cpal;
 mod fvar;
 mod gdef;
@@ -20,7 +21,11 @@ mod hmtx;
 mod hvar;
 mod inc_bimap;
 mod instance;
-pub use instance::{parse_axis_limits, parse_axis_limits_for_font, AxisLimits};
+mod jstf;
+pub use instance::{
+    downgrade_cff2, instance_font, instance_font_with_flags, parse_axis_limits,
+    parse_axis_limits_for_font, AxisLimits,
+};
 mod layout;
 mod math;
 mod maxp;
@@ -37,6 +42,7 @@ mod sbix;
 pub mod serialize;
 mod stat;
 mod unicode_closure;
+mod varc;
 mod variations;
 mod vmtx;
 mod vorg;
@@ -45,13 +51,12 @@ use crate::repack::resolve_overflows;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
-    collect_feature_variations_name_ids, collect_features_with_retained_subs,
-    collect_variable_feature_indices, find_duplicate_features, prune_features,
-    remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
+    prune_features, remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_glyph_map, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
-    populate_gids,
+    parse_glyph_map, parse_glyph_mapping, parse_glyph_names, parse_name_ids, parse_name_languages,
+    parse_tag_list, parse_unicodes, populate_gids,
 };
 use unicode_closure::unicode_closure;
 
@@ -88,6 +93,7 @@ use read_fonts::{
         post::Post,
         sbix::Sbix,
         stat::Stat,
+        varc::Varc,
         variations::NO_VARIATION_INDEX,
         vhea::{Vhea, VheaExtended},
         vmtx::{Vmtx, VmtxExtended},
@@ -102,7 +108,7 @@ use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::FontBuilder;
 
-/// The hash map type used in skera's API, e.g. for [`Plan::new_with_glyph_map`].
+/// The hash map type used in skera's API, e.g. for [`Plan::set_glyph_mapping`].
 pub type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
 pub(crate) type FastHashSet<T> = std::collections::HashSet<T, foldhash::fast::FixedState>;
 
@@ -250,7 +256,6 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
 
     /// If set non-unicode name records will be retained in the subset.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NAME_LEGACY: Self = Self(0x0008);
 
     /// If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
@@ -272,20 +277,16 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_NO_LAYOUT_CLOSURE: Self = Self(0x0200);
 
     /// If set perform IUP delta optimization on the remaining gvar table's deltas.
-    /// This flag is UNIMPLEMENTED yet
+    /// Applies when instancing with `instance_font_with_flags`.
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
 
     /// If set do not pull mirrored versions of input codepoints into the subset.
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
-    /// If set enforce requirements on the output subset to allow it to be used with incremental
-    /// font transfer IFTB patches. Primarily, this forces all outline data to use long (32 bit)
-    /// offsets.
+    /// Force long loca/gvar offsets and CFF/CFF2 CharStrings INDEX offsets for IFTB patches.
     pub const SUBSET_FLAGS_IFTB_REQUIREMENTS: Self = Self(0x1000);
 
-    /// If this flag is set along side SUBSET_FLAGS_RETAIN_GIDS then the number of glyphs in the
-    /// font won't be reduced as a result of subsetting. If necessary empty glyphs will be included
-    /// at the end of the font to keep the number of glyphs unchanged.
+    /// With retained glyph IDs, keep the source glyph count by appending empty glyphs.
     pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
 
     /// If set full CFF2 instances are converted to CID-keyed CFF1 outlines.
@@ -297,7 +298,7 @@ impl SubsetFlags {
     /// glyph IDs. Name-keyed CFF and CFF2 fonts are unaffected.
     pub const SUBSET_FLAGS_CFF_IDENTITY_CHARSET: Self = Self(0x8000);
 
-    /// The combined flag preset used by [`Plan::keep_everything`].
+    /// The combined flag preset used by `Plan::keep_everything`.
     pub const KEEP_EVERYTHING: Self = Self(
         Self::SUBSET_FLAGS_NOTDEF_OUTLINE.0
             | Self::SUBSET_FLAGS_GLYPH_NAMES.0
@@ -352,12 +353,19 @@ impl std::ops::BitOrAssign for SubsetFlags {
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct Plan {
+    instance: Option<Box<instance::pipeline::InstancePlan>>,
+    instance_only: bool,
     unicodes: IntSet<u32>,
     glyphs_requested: IntSet<GlyphId>,
     glyphset_cmaped: IntSet<GlyphId>,
     glyphset_mathed: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
+    glyphset_varced: IntSet<GlyphId>,
+    varc_closure_failed: bool,
+    jstf_closure_failed: bool,
+    jstf_gsub_lookups: IntSet<u16>,
+    jstf_gpos_lookups: IntSet<u16>,
     glyphset: IntSet<GlyphId>,
     /// Old->New glyph id mapping,
     glyph_map: FastHashMap<GlyphId, GlyphId>,
@@ -375,6 +383,7 @@ pub struct Plan {
     subset_flags: SubsetFlags,
     no_subset_tables: IntSet<Tag>,
     drop_tables: IntSet<Tag>,
+    name_ids_requested: IntSet<NameId>,
     name_ids: IntSet<NameId>,
     name_languages: IntSet<u16>,
     name_table_overrides: FastHashMap<name::RecordKey, Vec<u8>>,
@@ -431,24 +440,6 @@ struct Os2Info {
 }
 
 impl Plan {
-    pub(crate) fn identity_glyphs(count: usize, flags: SubsetFlags) -> Self {
-        let mut plan = Self {
-            font_num_glyphs: count,
-            num_output_glyphs: count,
-            subset_flags: flags,
-            ..Default::default()
-        };
-        plan.new_to_old_gid_list = (0..count)
-            .map(|i| {
-                let g = GlyphId::new(i as u32);
-                (g, g)
-            })
-            .collect();
-        plan.glyph_map = plan.new_to_old_gid_list.iter().copied().collect();
-        plan.reverse_glyph_map = plan.glyph_map.clone();
-        plan
-    }
-
     /// Select all glyphs, Unicode mappings, names, scripts, and features.
     ///
     /// Preserve glyph names, legacy naming records, the `.notdef` outline,
@@ -468,12 +459,217 @@ impl Plan {
         )
     }
 
+    /// Like [`Plan::new`], but retained glyphs in `glyph_map` get the requested new glyph ids.
+    ///
+    /// Retained glyphs that aren't in `glyph_map` are numbered after the highest requested new
+    /// glyph id, and glyph 0 always stays glyph 0. Old glyph ids in `glyph_map` aren't added to
+    /// the retained glyphs; include them in `input_gids` for that.
+    ///
+    /// Fails if two glyphs are mapped to the same new glyph id, or if `flags` contains
+    /// [`SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS`] while `glyph_map` isn't empty.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_glyph_map(
+        input_gids: &IntSet<GlyphId>,
+        input_unicodes: &IntSet<u32>,
+        font: &FontRef,
+        flags: SubsetFlags,
+        drop_tables: &IntSet<Tag>,
+        layout_scripts: &IntSet<Tag>,
+        layout_features: &IntSet<Tag>,
+        name_ids: &IntSet<NameId>,
+        name_languages: &IntSet<u16>,
+        glyph_map: &FastHashMap<GlyphId, GlyphId>,
+    ) -> Result<Self, SubsetError> {
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L566>
+        if !glyph_map.is_empty() {
+            let new_gids: IntSet<GlyphId> = glyph_map.values().copied().collect();
+            if new_gids.len() != glyph_map.len() as u64 {
+                return Err(SubsetError::NonUniqueGlyphMap);
+            }
+            if flags.contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS) {
+                return Err(SubsetError::GlyphMapWithRetainGids);
+            }
+        }
+        let mut plan = Self::new(
+            input_gids,
+            input_unicodes,
+            font,
+            flags,
+            drop_tables,
+            layout_scripts,
+            layout_features,
+            name_ids,
+            name_languages,
+        );
+        if !glyph_map.is_empty() {
+            let unicodes = plan.unicode_to_old_glyph_mapping().collect::<Vec<_>>();
+            plan.glyph_map.clear();
+            plan.reverse_glyph_map.clear();
+            plan.new_to_old_gid_list.clear();
+            plan.create_old_gid_to_new_gid_map(glyph_map);
+            plan.glyph_map_gsub.clear();
+            plan.create_glyph_map_gsub();
+            plan.unicode_to_new_gid_list = unicodes
+                .into_iter()
+                .map(|(unicode, old)| (unicode, plan.glyph_map[&old]))
+                .collect();
+        }
+        Ok(plan)
+    }
+
+    /// Apply axis pins or ranges while subsetting the original font.
+    ///
+    /// Planning recomputes closure at the requested variation space. Call this
+    /// before setting a custom glyph mapping. Source variation tables remain
+    /// available even when requested output tables are dropped.
+    pub fn with_axis_limits(
+        self,
+        font: &FontRef,
+        limits: &[AxisLimits],
+    ) -> Result<Self, SubsetError> {
+        if limits.is_empty() {
+            return Ok(self);
+        }
+        let instance = instance::pipeline::InstancePlan::new(font, limits, self.subset_flags)?;
+        if instance.axes.values.is_empty() {
+            return Ok(self);
+        }
+        let mut plan = Self {
+            glyphs_requested: self.glyphs_requested.clone(),
+            font_num_glyphs: self.font_num_glyphs,
+            subset_flags: self.subset_flags,
+            no_subset_tables: self.no_subset_tables,
+            drop_tables: self.drop_tables,
+            name_ids: self.name_ids_requested.clone(),
+            name_ids_requested: self.name_ids_requested,
+            name_languages: self.name_languages,
+            name_table_overrides: self.name_table_overrides,
+            layout_scripts: self.layout_scripts,
+            layout_features: self.layout_features,
+            instance: Some(Box::new(instance)),
+            instance_only: self.instance_only,
+            ..Default::default()
+        };
+        plan.populate_unicodes_to_retain(&self.glyphs_requested, &self.unicodes, font);
+        plan.populate_gids_to_retain(font);
+        plan.create_old_gid_to_new_gid_map(&FastHashMap::default());
+        plan.create_glyph_map_gsub();
+        for (_, gid) in &mut plan.unicode_to_new_gid_list {
+            *gid = plan.glyph_map[gid];
+        }
+        plan.collect_base_var_indices(font);
+        let mut instance = plan.instance.take().unwrap();
+        instance.finish(font, &mut plan)?;
+        plan.instance = Some(instance);
+        Ok(plan)
+    }
+
     /// Returns the original-to-subset glyph mapping, including glyphs added by closure.
     ///
     /// Iteration order is unspecified. With `SUBSET_FLAGS_RETAIN_GIDS`, every
     /// pair has identical original and subset glyph IDs.
     pub fn old_to_new_glyph_mapping(&self) -> impl Iterator<Item = (GlyphId, GlyphId)> + '_ {
         self.glyph_map.iter().map(|(&old, &new)| (old, new))
+    }
+
+    /// Set requested output glyph IDs after closure has selected the glyphs.
+    ///
+    /// Unspecified retained glyphs follow the highest requested output ID,
+    /// in original glyph order. Requests for dropped glyphs are ignored.
+    /// Repeated original IDs use the last request. Output IDs must be unique.
+    /// The resulting mapping must preserve the order of the original glyphs.
+    /// `.notdef` stays at zero, and `SUBSET_FLAGS_RETAIN_GIDS` is incompatible
+    /// with a nonempty custom mapping. Invalid requests leave the plan intact.
+    pub fn set_glyph_mapping(&mut self, mapping: &[(GlyphId, GlyphId)]) -> Result<(), SubsetError> {
+        let invalid = |message: &str| SubsetError::InvalidGlyphMapping(message.into());
+        let requested: std::collections::BTreeMap<_, _> = mapping.iter().copied().collect();
+        if !requested.is_empty()
+            && self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+        {
+            return Err(invalid("custom mapping cannot retain original glyph IDs"));
+        }
+        let mut targets = IntSet::empty();
+        for (&old, &new) in &requested {
+            if new.to_u32() >= u16::MAX as u32 {
+                return Err(invalid("output glyph ID exceeds the glyph-count limit"));
+            }
+            if (old == GlyphId::NOTDEF) != (new == GlyphId::NOTDEF) {
+                return Err(invalid(
+                    "only .notdef can map to zero, and it must remain at zero",
+                ));
+            }
+            if !targets.insert(new) {
+                return Err(invalid("requested output glyph IDs are not unique"));
+            }
+        }
+        let mut mapped = Vec::with_capacity(self.glyphset.len() as usize);
+        let mut remaining = Vec::new();
+        let mut max = 0;
+        for old in self.glyphset.iter() {
+            let new = if old == GlyphId::NOTDEF {
+                Some(GlyphId::NOTDEF)
+            } else {
+                requested.get(&old).copied()
+            };
+            if let Some(new) = new {
+                max = max.max(new.to_u32());
+                mapped.push((new, old));
+            } else {
+                remaining.push(old);
+            }
+        }
+        mapped.sort_unstable();
+        if requested.is_empty()
+            && self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
+        {
+            mapped = self.glyphset.iter().map(|old| (old, old)).collect();
+            max = mapped.last().map_or(0, |&(new, _)| new.to_u32());
+        } else {
+            for old in remaining {
+                max += 1;
+                if max >= u16::MAX as u32 {
+                    return Err(invalid(
+                        "unmapped closure glyphs exceed the glyph-count limit",
+                    ));
+                }
+                mapped.push((GlyphId::new(max), old));
+            }
+        }
+        if !mapped.windows(2).all(|pair| pair[0].1 < pair[1].1) {
+            return Err(invalid("custom mapping must preserve original glyph order"));
+        }
+        let unicodes = self.unicode_to_old_glyph_mapping().collect::<Vec<_>>();
+        self.glyph_map.clear();
+        self.reverse_glyph_map.clear();
+        self.new_to_old_gid_list = mapped;
+        self.num_output_glyphs = if self.new_to_old_gid_list.is_empty() {
+            0
+        } else {
+            max as usize + 1
+        };
+        if self.subset_flags.contains(
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        ) {
+            self.num_output_glyphs = self.font_num_glyphs;
+        }
+        self.glyph_map.extend(
+            self.new_to_old_gid_list
+                .iter()
+                .map(|&(new, old)| (old, new)),
+        );
+        self.reverse_glyph_map
+            .extend(self.new_to_old_gid_list.iter().copied());
+        self.glyph_map_gsub.clear();
+        self.create_glyph_map_gsub();
+        self.unicode_to_new_gid_list = unicodes
+            .into_iter()
+            .filter_map(|(unicode, old)| self.glyph_map.get(&old).map(|&new| (unicode, new)))
+            .collect();
+        Ok(())
     }
 
     /// Returns retained Unicode codepoints and their original glyph IDs.
@@ -546,6 +742,92 @@ impl Plan {
         self.no_subset_tables.clone_from(tables);
     }
 
+    pub(crate) fn for_instance(
+        font: &FontRef,
+        limits: &[AxisLimits],
+        flags: SubsetFlags,
+    ) -> Result<Self, SubsetError> {
+        let instance = instance::pipeline::InstancePlan::new(font, limits, flags)?;
+        let instance = (!instance.axes.values.is_empty()).then(|| Box::new(instance));
+        let mut plan = Self::new_with_instance(
+            &IntSet::all(),
+            &IntSet::all(),
+            font,
+            SubsetFlags::KEEP_EVERYTHING
+                | flags
+                | SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            instance,
+            true,
+        );
+        if let Some(mut instance) = plan.instance.take() {
+            instance.finish(font, &mut plan)?;
+            plan.instance = Some(instance);
+        }
+        Ok(plan)
+    }
+
+    pub(crate) fn identity_glyphs(count: usize, flags: SubsetFlags) -> Self {
+        let mut plan = Self {
+            font_num_glyphs: count,
+            num_output_glyphs: count,
+            subset_flags: flags,
+            ..Default::default()
+        };
+        plan.new_to_old_gid_list = (0..count)
+            .map(|i| {
+                let g = GlyphId::new(i as u32);
+                (g, g)
+            })
+            .collect();
+        plan.glyph_map = plan.new_to_old_gid_list.iter().copied().collect();
+        plan.reverse_glyph_map = plan.glyph_map.clone();
+        plan
+    }
+
+    pub(crate) fn layout_features<'a>(
+        &'a self,
+        tag: Tag,
+        source: Result<read_fonts::tables::layout::FeatureList<'a>, read_fonts::ReadError>,
+    ) -> Result<read_fonts::tables::layout::FeatureList<'a>, read_fonts::ReadError> {
+        use read_fonts::{FontData, FontRead};
+        if let Some(features) = self
+            .instance
+            .as_ref()
+            .and_then(|i| i.layout.features.get(&tag))
+        {
+            read_fonts::tables::layout::FeatureList::read(FontData::new(&features.list))
+        } else {
+            source
+        }
+    }
+    pub(crate) fn layout_variations<'a>(
+        &'a self,
+        tag: Tag,
+        source: Option<
+            Result<read_fonts::tables::layout::FeatureVariations<'a>, read_fonts::ReadError>,
+        >,
+    ) -> Option<Result<read_fonts::tables::layout::FeatureVariations<'a>, read_fonts::ReadError>>
+    {
+        use read_fonts::{FontData, FontRead};
+        if let Some(features) = self
+            .instance
+            .as_ref()
+            .and_then(|i| i.layout.features.get(&tag))
+        {
+            features.variations.as_deref().map(|bytes| {
+                read_fonts::tables::layout::FeatureVariations::read(FontData::new(bytes))
+            })
+        } else {
+            source
+        }
+    }
+
     fn has_identity_glyph_map(&self) -> bool {
         self.num_output_glyphs == self.font_num_glyphs
             && self.new_to_old_gid_list.len() == self.font_num_glyphs
@@ -570,7 +852,7 @@ impl Plan {
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
     ) -> Self {
-        Self::new_impl(
+        Self::new_with_instance(
             input_gids,
             input_unicodes,
             font,
@@ -580,20 +862,13 @@ impl Plan {
             layout_features,
             name_ids,
             name_languages,
-            &FastHashMap::default(),
+            None,
+            false,
         )
     }
 
-    /// Like [`Plan::new`], but retained glyphs in `glyph_map` get the requested new glyph ids.
-    ///
-    /// Retained glyphs that aren't in `glyph_map` are numbered after the highest requested new
-    /// glyph id, and glyph 0 always stays glyph 0. Old glyph ids in `glyph_map` aren't added to
-    /// the retained glyphs; include them in `input_gids` for that.
-    ///
-    /// Fails if two glyphs are mapped to the same new glyph id, or if `flags` contains
-    /// [`SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS`] while `glyph_map` isn't empty.
     #[allow(clippy::too_many_arguments)]
-    pub fn new_with_glyph_map(
+    pub fn new_with_axis_limits(
         input_gids: &IntSet<GlyphId>,
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
@@ -603,19 +878,15 @@ impl Plan {
         layout_features: &IntSet<Tag>,
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
-        glyph_map: &FastHashMap<GlyphId, GlyphId>,
+        limits: &[AxisLimits],
     ) -> Result<Self, SubsetError> {
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L566>
-        if !glyph_map.is_empty() {
-            let new_gids: IntSet<GlyphId> = glyph_map.values().copied().collect();
-            if new_gids.len() != glyph_map.len() as u64 {
-                return Err(SubsetError::NonUniqueGlyphMap);
-            }
-            if flags.contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS) {
-                return Err(SubsetError::GlyphMapWithRetainGids);
-            }
-        }
-        Ok(Self::new_impl(
+        let instance = if limits.is_empty() {
+            None
+        } else {
+            let instance = instance::pipeline::InstancePlan::new(font, limits, flags)?;
+            (!instance.axes.values.is_empty()).then(|| Box::new(instance))
+        };
+        let mut plan = Self::new_with_instance(
             input_gids,
             input_unicodes,
             font,
@@ -625,12 +896,18 @@ impl Plan {
             layout_features,
             name_ids,
             name_languages,
-            glyph_map,
-        ))
+            instance,
+            false,
+        );
+        if let Some(mut instance) = plan.instance.take() {
+            instance.finish(font, &mut plan)?;
+            plan.instance = Some(instance);
+        }
+        Ok(plan)
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn new_impl(
+    fn new_with_instance(
         input_gids: &IntSet<GlyphId>,
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
@@ -640,9 +917,12 @@ impl Plan {
         layout_features: &IntSet<Tag>,
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
-        requested_glyph_map: &FastHashMap<GlyphId, GlyphId>,
+        instance: Option<Box<instance::pipeline::InstancePlan>>,
+        instance_only: bool,
     ) -> Self {
         let mut this = Plan {
+            instance,
+            instance_only,
             glyphs_requested: input_gids.clone(),
             font_num_glyphs: get_font_num_glyphs(font),
             subset_flags: flags,
@@ -650,6 +930,7 @@ impl Plan {
             layout_scripts: layout_scripts.clone(),
             layout_features: layout_features.clone(),
             name_ids: name_ids.clone(),
+            name_ids_requested: name_ids.clone(),
             name_languages: name_languages.clone(),
             ..Default::default()
         };
@@ -661,15 +942,7 @@ impl Plan {
 
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
-        this.create_old_gid_to_new_gid_map(requested_glyph_map);
-
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1f/src/hb-subset-plan.cc#L750>
-        if this.subset_flags.contains(
-            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
-        ) {
-            // We've been requested to maintain the num glyphs count from the input font.
-            this.num_output_glyphs = this.font_num_glyphs;
-        }
+        this.create_old_gid_to_new_gid_map(&FastHashMap::default());
 
         this.create_glyph_map_gsub();
         //update the unicode to new gid list
@@ -788,6 +1061,9 @@ impl Plan {
         }
         self.glyphset_cmaped = self.glyphset_gsub.clone();
 
+        if !self.drop_tables.contains(JSTF) && font.data_for_tag(JSTF).is_some() {
+            self.jstf_closure_failed = jstf::closure(font, self).is_err();
+        }
         // HarfBuzz closes math variants before layout, color and components.
         if !self.drop_tables.contains(Math::TAG) {
             math::closure(font, &mut self.glyphset_gsub);
@@ -807,11 +1083,18 @@ impl Plan {
             self.glyphset_colred = self.glyphset_gsub.clone();
         }
 
+        // HarfBuzz closes VARC components after color and before glyf.
+        self.glyphset_varced = self.glyphset_colred.clone();
+        if !self.drop_tables.contains(Tag::new(b"VARC")) {
+            self.varc_closure_failed = varc::closure(font, &mut self.glyphset_varced).is_err();
+            remove_invalid_gids(&mut self.glyphset_varced, self.font_num_glyphs);
+        }
+
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
         if let Ok((glyf, loca)) = font.selected_glyf_loca(None) {
             let operation_count =
-                self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
-            for gid in self.glyphset_colred.iter() {
+                self.glyphset_varced.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
+            for gid in self.glyphset_varced.iter() {
                 glyf_closure_glyphs(
                     &loca,
                     &glyf,
@@ -823,9 +1106,7 @@ impl Plan {
             }
             remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
         } else {
-            self.glyphset = self.glyphset_colred.clone();
-            // seac components cannot add anything when every valid glyph is
-            // already retained.
+            self.glyphset = self.glyphset_varced.clone();
             if !self.drop_tables.contains(Cff::TAG)
                 && self.glyphset.len() != self.font_num_glyphs as u64
             {
@@ -906,6 +1187,11 @@ impl Plan {
             };
             self.num_output_glyphs = max_glyph.to_u32() as usize + 1;
         }
+        if self.subset_flags.contains(
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS | SubsetFlags::SUBSET_FLAGS_RETAIN_NUM_GLYPHS,
+        ) {
+            self.num_output_glyphs = self.font_num_glyphs;
+        }
         self.glyph_map
             .extend(self.new_to_old_gid_list.iter().map(|x| (x.1, x.0)));
         self.reverse_glyph_map
@@ -960,12 +1246,14 @@ impl Plan {
             //
             // colr_new_deltaset_idx_varidx_map:
             // generate new delta set idx-> new var_idx map if DeltsSetIndexMap exists
-            if let Some(Ok(var_store)) = colr.item_variation_store() {
-                let vardata_count = var_store.item_variation_data_count() as u32;
-                let Ok(var_index_map) = colr.var_index_map().transpose() else {
-                    return;
-                };
-
+            let var_store = colr.item_variation_store().and_then(Result::ok);
+            let Ok(var_index_map) = colr.var_index_map().transpose() else {
+                return;
+            };
+            // An optimized empty store can leave an explicit map containing
+            // only no-variation sentinels. Its paint indices still need remapping.
+            if var_store.is_some() || var_index_map.is_some() {
+                let vardata_count = var_store.map_or(0, |s| s.item_variation_data_count() as u32);
                 let mut delta_set_indices = IntSet::empty();
                 let mut deltaset_idx_var_idx_map = FastHashMap::default();
                 // when a DeltaSetIndexMap is included, collected variation indices are actually delta set indices,
@@ -1016,16 +1304,39 @@ impl Plan {
     }
 
     fn nameid_closure(&mut self, font: &FontRef) {
-        if !self.drop_tables.contains(Tag::new(b"STAT")) {
-            if let Ok(stat) = font.stat() {
-                stat.collect_name_ids(self);
+        if let Some(instance) = self.instance.take() {
+            // Collect names from the metadata this plan will emit, so removed
+            // axes and named instances do not keep their source-only names.
+            use read_fonts::{FontData, FontRead};
+            if !self.drop_tables.contains(Tag::new(b"STAT")) {
+                if let Some(instance::TableChange::Replace(bytes)) =
+                    instance.metadata.get(&Tag::new(b"STAT"))
+                {
+                    if let Ok(stat) = Stat::read(FontData::new(bytes)) {
+                        stat.collect_name_ids(self);
+                    }
+                }
             }
-        };
-
-        //TODO: skip fvar table when all axes are pinned
-        if !self.drop_tables.contains(Tag::new(b"fvar")) {
-            if let Ok(fvar) = font.fvar() {
-                fvar.collect_name_ids(self);
+            if !self.drop_tables.contains(Tag::new(b"fvar")) {
+                if let Some(instance::TableChange::Replace(bytes)) =
+                    instance.metadata.get(&Tag::new(b"fvar"))
+                {
+                    if let Ok(fvar) = Fvar::read(FontData::new(bytes)) {
+                        fvar.collect_name_ids(self);
+                    }
+                }
+            }
+            self.instance = Some(instance);
+        } else {
+            if !self.drop_tables.contains(Tag::new(b"STAT")) {
+                if let Ok(stat) = font.stat() {
+                    stat.collect_name_ids(self);
+                }
+            }
+            if !self.drop_tables.contains(Tag::new(b"fvar")) {
+                if let Ok(fvar) = font.fvar() {
+                    fvar.collect_name_ids(self);
+                }
             }
         }
 
@@ -1049,7 +1360,7 @@ impl Plan {
     }
 
     fn collect_layout_var_indices(&mut self, font: &FontRef) {
-        if self.drop_tables.contains(Tag::new(b"GDEF")) {
+        if self.drop_tables.contains(Tag::new(b"GDEF")) && self.instance.is_none() {
             return;
         }
         let Ok(gdef) = font.gdef() else {
@@ -1068,7 +1379,9 @@ impl Plan {
 
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
-            if let Some(Ok(variations)) = gpos.feature_variations() {
+            if let Some(Ok(variations)) =
+                self.layout_variations(Gpos::TAG, gpos.feature_variations())
+            {
                 layout::collect_feature_variation_condition_indices(
                     &variations,
                     self,
@@ -1079,7 +1392,9 @@ impl Plan {
             }
         }
         if let Ok(gsub) = font.gsub() {
-            if let Some(Ok(variations)) = gsub.feature_variations() {
+            if let Some(Ok(variations)) =
+                self.layout_variations(Gsub::TAG, gsub.feature_variations())
+            {
                 layout::collect_feature_variation_condition_indices(
                     &variations,
                     self,
@@ -1093,6 +1408,10 @@ impl Plan {
             if let Ok(math) = font.math() {
                 math.collect_variation_indices(self, &mut varidx_set);
             }
+        }
+
+        if !self.drop_tables.contains(JSTF) {
+            jstf::collect_variation_indices(font, self, &mut varidx_set);
         }
 
         let vardata_count = var_store.item_variation_data_count() as u32;
@@ -1322,12 +1641,17 @@ fn remap_palette_indices(indices: IntSet<u16>) -> FastHashMap<u16, u16> {
 pub struct SubsetState {
     // whether GDEF ItemVariationStore is retained after subsetting
     has_gdef_varstore: bool,
+    instance_tables: std::collections::BTreeMap<Tag, instance::TableChange>,
 }
 
 #[derive(Debug, Error)]
 pub enum SubsetError {
     #[error("Invalid axis request: {0}")]
     InvalidAxis(String),
+    #[error("Invalid glyph mapping: {0}")]
+    InvalidGlyphMapping(String),
+    #[error("Invalid input glyph name {0}")]
+    InvalidGlyphName(String),
     #[error("Invalid name override: {0}")]
     InvalidNameOverride(&'static str),
     #[error("Invalid input gid {0}")]
@@ -1351,14 +1675,13 @@ pub enum SubsetError {
     #[error("Invalid glyph map entry {0}, expected old_gid:new_gid")]
     InvalidGlyphMapEntry(String),
 
-    #[error("Subsetting table '{0}' failed")]
-    SubsetTableError(Tag),
-
     #[error("The provided custom glyph mapping is not unique")]
     NonUniqueGlyphMap,
 
     #[error("SUBSET_FLAGS_RETAIN_GIDS cannot be set if a custom glyph mapping has been provided")]
     GlyphMapWithRetainGids,
+    #[error("Subsetting table '{0}' failed")]
+    SubsetTableError(Tag),
 }
 
 pub trait NameIdClosure {
@@ -1374,6 +1697,7 @@ pub(crate) trait LayoutClosure {
     /// Remove unreferenced features
     fn prune_features(
         &self,
+        plan: &Plan,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
     ) -> IntSet<u16>;
@@ -1382,6 +1706,7 @@ pub(crate) trait LayoutClosure {
     /// feature index -> the first index of all duplicates for this feature
     fn find_duplicate_features(
         &self,
+        plan: &Plan,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
     ) -> FastHashMap<u16, u16>;
@@ -1443,6 +1768,13 @@ pub trait Subset {
 
 // A helper trait providing a 'subset' method for various subtables that have no associated tag
 pub(crate) trait SubsetTable<'a> {
+    /// A stable borrowed source identity for tables with shareable output.
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        None
+    }
+    fn cached_output(&self) -> Option<Self::Output> {
+        None
+    }
     type ArgsForSubset: 'a;
     type Output: 'a;
     /// Subset this table and write a subset version of this table into serializer
@@ -1462,9 +1794,25 @@ trait Serialize<'a> {
 }
 
 pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
+    if !plan.drop_tables.contains(JSTF) && plan.jstf_closure_failed {
+        return Err(SubsetError::SubsetTableError(JSTF));
+    }
+    if !plan.drop_tables.contains(Varc::TAG)
+        && (plan.varc_closure_failed
+            || (font.data_for_tag(Varc::TAG).is_some()
+                && plan.no_subset_tables.contains(Varc::TAG)
+                && !plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)))
+    {
+        return Err(SubsetError::SubsetTableError(Tag::new(b"VARC")));
+    }
     let mut builder = FontBuilder::<'a>::default();
 
-    let mut state = SubsetState::default();
+    let mut state = SubsetState {
+        instance_tables: instance::pipeline::collect(font, plan)?,
+        ..Default::default()
+    };
     let mut tags_with_dependencies = Vec::with_capacity(5);
     for record in font.table_directory().table_records() {
         let tag = record.tag();
@@ -1510,13 +1858,24 @@ pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, Subse
 
         // TODO: add more tags with dependencies for instancing
         match tag {
-            Gpos::TAG => tags_with_dependencies.push((tag, record.length())),
+            Gpos::TAG | JSTF => tags_with_dependencies.push((tag, record.length())),
             _ => subset(tag, font, plan, &mut builder, record.length(), &mut state)?,
         }
     }
 
     for (tag, table_len) in tags_with_dependencies {
         subset(tag, font, plan, &mut builder, table_len, &mut state)?;
+    }
+    // A missing source avar can acquire identity maps during partial instancing.
+    for tag in [Os2::TAG, Post::TAG, Hvar::TAG, Vvar::TAG] {
+        state.instance_tables.remove(&tag);
+    }
+    for (tag, change) in std::mem::take(&mut state.instance_tables) {
+        if !should_drop_table(tag, plan) {
+            if let instance::TableChange::Replace(bytes) = change {
+                builder.add_raw(tag, bytes);
+            }
+        }
     }
     Ok(builder.build())
 }
@@ -1546,19 +1905,65 @@ fn subset<'a>(
     table_len: u32,
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
-    // The CFF subsetter assembles a finished contiguous table, so adding it to
-    // the font directly avoids copying it through the graph serializer. It also
-    // avoids rerunning the complete CFF subset plan if an estimate is too small.
+    if table_tag == Cff2::TAG
+        && plan.instance_only
+        && plan
+            .instance
+            .as_ref()
+            .is_some_and(|i| !i.rewrites_outlines())
+    {
+        if let Some(data) = font.data_for_tag(table_tag) {
+            builder.add_raw(table_tag, data);
+        }
+        return Ok(());
+    }
+    // Finished outline outputs already use the final glyph mapping. Headers
+    // and metric stores still go through the ordinary table subset functions.
+    if !matches!(&table_tag.into_bytes(), b"OS/2" | b"post") {
+        if let Some(change) = state.instance_tables.remove(&table_tag) {
+            if let instance::TableChange::Replace(bytes) = change {
+                builder.add_raw(table_tag, bytes);
+            }
+            return Ok(());
+        }
+    }
     if (table_tag == Cff::TAG || table_tag == Cff2::TAG)
         && !plan.no_subset_tables.contains(table_tag)
     {
         let data = cff::subset_data(font, plan, table_tag == Cff2::TAG)?;
         if !data.is_empty() {
-            builder.add_raw(table_tag, data);
+            if table_tag == Cff2::TAG
+                && font.fvar().is_err()
+                && plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_DOWNGRADE_CFF2)
+            {
+                let metrics = font
+                    .hmtx()
+                    .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?;
+                let advances = (0..plan.num_output_glyphs)
+                    .map(|i| {
+                        plan.reverse_glyph_map
+                            .get(&GlyphId::new(i as u32))
+                            .and_then(|gid| metrics.advance(*gid))
+                            .unwrap_or(0)
+                    })
+                    .collect::<Vec<_>>();
+                let head = font
+                    .head()
+                    .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?;
+                let data = cff::downgrade_table(
+                    &data,
+                    &advances,
+                    [head.x_min(), head.y_min(), head.x_max(), head.y_max()],
+                )?;
+                builder.add_raw(Cff::TAG, data);
+            } else {
+                builder.add_raw(table_tag, data);
+            }
         }
         return Ok(());
     }
-
     let buf_size = estimate_subset_table_size(font, table_tag, plan);
     let mut s = Serializer::new(buf_size);
     let needed = try_subset(table_tag, font, plan, builder, &mut s, table_len, state);
@@ -1624,6 +2029,8 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Varc::TAG => varc::subset(font, plan, s),
+        JSTF => jstf::subset(font, plan, state, s),
         Math::TAG => font
             .math()
             .map_err(|_| SubsetError::SubsetTableError(Math::TAG))?
@@ -1779,15 +2186,33 @@ fn subset_table<'a>(
             })?
             .subset(plan, font, s, builder),
 
-        Hvar::TAG => font
-            .hvar()
-            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?
-            .subset(plan, font, s, builder),
+        Hvar::TAG => {
+            use read_fonts::{FontData, FontRead};
+            match state.instance_tables.get(&tag) {
+                Some(instance::TableChange::Replace(bytes)) => Hvar::read(FontData::new(bytes))
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?
+                    .subset(plan, font, s, builder),
+                Some(instance::TableChange::Remove) => Ok(()),
+                _ => font
+                    .hvar()
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?
+                    .subset(plan, font, s, builder),
+            }
+        }
 
-        Vvar::TAG => font
-            .vvar()
-            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
-            .subset(plan, font, s, builder),
+        Vvar::TAG => {
+            use read_fonts::{FontData, FontRead};
+            match state.instance_tables.get(&tag) {
+                Some(instance::TableChange::Replace(bytes)) => Vvar::read(FontData::new(bytes))
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?
+                    .subset(plan, font, s, builder),
+                Some(instance::TableChange::Remove) => Ok(()),
+                _ => font
+                    .vvar()
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?
+                    .subset(plan, font, s, builder),
+            }
+        }
 
         Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s),
         // MVAR/CVT: not supported by read-fonts, but we want to pass through it during subsetting
@@ -1819,15 +2244,36 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?
             .subset(plan, font, s, builder),
 
-        Os2::TAG => font
-            .os2()
-            .map_err(|_| SubsetError::SubsetTableError(Os2::TAG))?
-            .subset(plan, font, s, builder),
+        Os2::TAG => {
+            use read_fonts::{FontData, FontRead};
+            match state.instance_tables.get(&tag) {
+                Some(instance::TableChange::Replace(bytes)) => Os2::read(FontData::new(bytes))
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?
+                    .subset(plan, font, s, builder),
+                Some(instance::TableChange::Remove) => Ok(()),
+                _ => font
+                    .os2()
+                    .map_err(|_| SubsetError::SubsetTableError(tag))?
+                    .subset(plan, font, s, builder),
+            }
+        }
 
-        Post::TAG => font
-            .post()
-            .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?
-            .subset(plan, font, s, builder),
+        Post::TAG => {
+            let start = s
+                .embed_bytes(&[])
+                .map_err(|_| SubsetError::SubsetTableError(tag))?;
+            font.post()
+                .map_err(|_| SubsetError::SubsetTableError(tag))?
+                .subset(plan, font, s, builder)?;
+            if let Some(instance::TableChange::Replace(bytes)) = state.instance_tables.get(&tag) {
+                if let (Some(source), Some(dest)) =
+                    (bytes.get(4..32), s.get_mut_data(start + 4..start + 32))
+                {
+                    dest.copy_from_slice(source);
+                }
+            }
+            Ok(())
+        }
 
         Sbix::TAG => font
             .sbix()
@@ -1888,10 +2334,10 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
         .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS)
     {
         if table_tag == Cff::TAG {
-            // Add some extra room for the CFF charset.
+            //Add some extra room for the CFF charset
             bulk += src_glyphs * 16;
         } else if table_tag == Cff2::TAG {
-            // Just extra CharString offsets.
+            // Just extra CharString offsets
             bulk += src_glyphs * 4;
         }
     }

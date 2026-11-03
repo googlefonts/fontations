@@ -52,11 +52,13 @@ pub(super) fn subset_extended_gdef(
         .transpose()
         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
     {
-        if Offset32::serialize_subset(
+        if crate::variations::serialize_store(
             &store,
             s,
             plan,
-            (&plan.gdef_varstore_inner_maps, false),
+            &plan.gdef_varstore_inner_maps,
+            false,
+            read_fonts::types::Tag::new(b"GDEF"),
             varstore_pos,
         )
         .is_empty()?

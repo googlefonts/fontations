@@ -8,7 +8,7 @@ mod extended_tests;
 use extended::{PairSetArray, PairSetData};
 
 use crate::{
-    gpos::value_record::{compute_effective_format, compute_record_len},
+    gpos::value_record::{compute_record_len, effective_format},
     layout::{map_gsub_glyph, ClassDefSubsetStruct, ClassMap},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
@@ -32,6 +32,15 @@ use read_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for PairPos<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("PairPos", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
@@ -63,6 +72,7 @@ pub(crate) struct PairSetInfo<'a> {
 }
 
 fn compute_pair_set_effective_formats(
+    plan: &Plan,
     pair_set: &PairSetData,
     glyph_set: &IntSet<GlyphId>,
     pair_set_info: &mut PairSetInfo,
@@ -89,19 +99,20 @@ fn compute_pair_set_effective_formats(
         }
 
         let value_record1 = ValueRecord::new(font_data, offset + pair_set.width(), value_format1);
-        *new_format1 |= compute_effective_format(&value_record1, strip_hints, strip_empty)?;
+        *new_format1 |= effective_format(&value_record1, plan, strip_hints, strip_empty)?;
 
         let value_record2 = ValueRecord::new(
             font_data,
             offset + pair_set.width() + record1_size,
             value_format2,
         );
-        *new_format2 |= compute_effective_format(&value_record2, strip_hints, strip_empty)?;
+        *new_format2 |= effective_format(&value_record2, plan, strip_hints, strip_empty)?;
     }
     Ok(())
 }
 
 fn compute_effective_pair_formats_1(
+    plan: &Plan,
     glyph_set: &IntSet<GlyphId>,
     pair_set_info: &mut PairSetInfo,
     strip_hints: bool,
@@ -125,6 +136,7 @@ fn compute_effective_pair_formats_1(
                 }?;
 
                 compute_pair_set_effective_formats(
+                    plan,
                     &pair_set,
                     glyph_set,
                     pair_set_info,
@@ -149,6 +161,7 @@ fn compute_effective_pair_formats_1(
                 other => other,
             }?;
             compute_pair_set_effective_formats(
+                plan,
                 &pair_set,
                 glyph_set,
                 pair_set_info,
@@ -333,18 +346,25 @@ macro_rules! subset_glyph_pairs {
                     new_format2: ValueFormat::empty(),
                 };
 
-                if plan
-                    .subset_flags
-                    .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                if plan.instance.is_some()
+                    || plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
                 {
                     // do not strip hints for VF unless it has no GDEF varstore after subsetting
-                    let strip_hints = if font.fvar().is_ok() {
+                    let strip_hints = if !plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                    {
+                        false
+                    } else if font.fvar().is_ok() {
                         !subset_state.has_gdef_varstore
                     } else {
                         true
                     };
 
                     compute_effective_pair_formats_1(
+                        plan,
                         glyph_set,
                         &mut pair_set_info,
                         strip_hints,
@@ -429,6 +449,7 @@ struct PairPosFormat2Info<'a> {
 }
 
 fn compute_effective_pair_formats_2(
+    plan: &Plan,
     pairpos2_info: &mut PairPosFormat2Info,
     class1_map: &ClassMap,
     class2_idxes: &[u16],
@@ -465,8 +486,8 @@ fn compute_effective_pair_formats_2(
             let record1 = ValueRecord::new(font_data, offset, value_format1);
             let record2 = ValueRecord::new(font_data, offset + record1_size, value_format2);
 
-            *new_format1 |= compute_effective_format(&record1, strip_hints, strip_empty)?;
-            *new_format2 |= compute_effective_format(&record2, strip_hints, strip_empty)?;
+            *new_format1 |= effective_format(&record1, plan, strip_hints, strip_empty)?;
+            *new_format2 |= effective_format(&record2, plan, strip_hints, strip_empty)?;
         }
         if *new_format1 == value_format1 && *new_format2 == value_format2 {
             break;
@@ -610,18 +631,25 @@ macro_rules! subset_class_pairs {
                     new_format2: ValueFormat::empty(),
                 };
 
-                if plan
-                    .subset_flags
-                    .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                if plan.instance.is_some()
+                    || plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
                 {
                     // do not strip hints for VF unless it has no GDEF varstore after subsetting
-                    let strip_hints = if font.fvar().is_ok() {
+                    let strip_hints = if !plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                    {
+                        false
+                    } else if font.fvar().is_ok() {
                         !subset_state.has_gdef_varstore
                     } else {
                         true
                     };
 
                     compute_effective_pair_formats_2(
+                        plan,
                         &mut pairpos2_info,
                         &class1_map,
                         &class2_idxes,

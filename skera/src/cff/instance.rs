@@ -438,3 +438,148 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
         },
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{collections::IntSet, types::NameId};
+    use read_fonts::{types::F2Dot14, FontData, FontRead};
+    use write_fonts::tables::variations::*;
+
+    #[test]
+    fn nested_private_dict_blends_use_the_shared_rebaser() {
+        let font = FontRef::new(include_bytes!(
+            "../../test-data/fonts/cff2-nested-blends.otf"
+        ))
+        .unwrap();
+        use read_fonts::TableProvider;
+        let mut source = Source::new(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let mut raw = Vec::new();
+        for number in [100., 0., 10., 20., 0., 1.] {
+            encoding::encode(&mut raw, number, true).unwrap();
+        }
+        raw.push(23);
+        raw.extend([140, 23, 10]);
+        let entry = dict::parse_private(&raw, |ivs| source.region_count(ivs))
+            .unwrap()
+            .remove(0);
+        let values = private_values(&entry, &source, 0).unwrap();
+        assert_eq!(values.len(), 1);
+        assert!(values[0].nested());
+        assert_eq!(
+            values[0]
+                .resolve(&[vec![0.6, 0.5]][..], &mut 200_000)
+                .unwrap(),
+            111.
+        );
+
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wdth=0.5").unwrap()).unwrap();
+        let store = source.font.var_store().unwrap();
+        let mut plan = StorePlan::new(store, &axes).unwrap();
+        let constants = plan.add_constant_region(&[0].into()).unwrap();
+        let gains = vec![gains(store, 0, &axes.coords).unwrap()];
+        let result = Rebaser::new(&plan, &gains, &constants)
+            .value(&values[0], &mut Rounding::private_dict())
+            .unwrap();
+        // The retained wght region and the constant region are the two columns.
+        assert_eq!(
+            result.resolve(&[vec![0.25, 1.]][..], &mut 200_000).unwrap(),
+            108.
+        );
+        let mut encoded = Vec::new();
+        charstring::emit_value(
+            &result,
+            &mut encoded,
+            true,
+            Some(0),
+            &mut 0,
+            513,
+            &mut 200_000,
+        )
+        .unwrap();
+        encoded.push(10);
+        let reread = private_values(
+            &dict::parse_private(&encoded, |ivs| source.region_count(ivs))
+                .unwrap()
+                .remove(0),
+            &source,
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            reread[0]
+                .resolve(&[vec![0.25, 1.]][..], &mut 200_000)
+                .unwrap(),
+            108.
+        );
+
+        // Exercise the real Private DICT assembly and VarData compaction, then
+        // instance the remaining axis through the public font API.
+        source.fds[0].private = vec![entry];
+        let plan = Plan::new(
+            &IntSet::all(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::<NameId>::all(),
+            &IntSet::all(),
+        );
+        let cff = subset::assemble::<Cff2>(
+            &source,
+            &plan,
+            Programs {
+                chars: (0..source.font.num_glyphs() as usize)
+                    .map(|gid| source.font.charstrings().get(gid).unwrap().to_vec())
+                    .collect(),
+                globals: vec![],
+                locals: vec![vec![]; source.fds.len()],
+            },
+        )
+        .unwrap();
+        let mut builder = write_fonts::FontBuilder::new();
+        builder.add_raw(read_fonts::types::Tag::new(b"CFF2"), cff);
+        let input = builder.copy_missing_tables(font.clone()).build();
+        let input = FontRef::new(&input).unwrap();
+        let partial =
+            crate::instance_font(&input, &crate::parse_axis_limits("wdth=0.5").unwrap()).unwrap();
+        let partial = FontRef::new(&partial).unwrap();
+        let full = crate::instance_font(&partial, &crate::parse_axis_limits("wght=0.25").unwrap())
+            .unwrap();
+        let full = FontRef::new(&full).unwrap();
+        let output = Source::new(full.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let private = output.fds[0].private.iter().find(|e| e.op == 10).unwrap();
+        assert_eq!(private.args, [108.]);
+    }
+
+    #[test]
+    fn cff_scalars_keep_half_unit_operands_on_the_correct_side() {
+        let bytes = write_fonts::dump_table(&VariationRegionList::new(
+            1,
+            vec![write_fonts::tables::variations::VariationRegion::new(vec![
+                RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::from_f64(0.75), F2Dot14::ONE),
+            ])],
+        ))
+        .unwrap();
+        let list = read_fonts::tables::variations::VariationRegionList::read(FontData::new(&bytes))
+            .unwrap();
+        let region = list.variation_regions().get(0).unwrap();
+        let gain = region.compute_scalar_f32(&[F2Dot14::from_f64(0.25)]) as f64;
+        let fold = |default, deltas: &[f64], gains: &[f64]| {
+            Value::blended(
+                &Value::plain(default),
+                &deltas.iter().copied().map(Value::plain).collect::<Vec<_>>(),
+                0,
+            )
+            .unwrap()
+            .resolve(&[gains.to_vec()][..], &mut 200_000)
+            .unwrap()
+        };
+        assert_eq!(fold(0., &[1.5], &[gain]), 1.);
+        assert_eq!(fold(0., &[-1.5], &[gain]), -1.);
+        assert_eq!(fold(0.25, &[0.5], &[gain]), 0.);
+        assert_eq!(fold(0.25, &[1.], &[gain]), 1.);
+    }
+}

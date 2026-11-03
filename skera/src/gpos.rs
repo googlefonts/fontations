@@ -12,8 +12,7 @@ mod value_record;
 
 use crate::FastHashMap;
 use crate::{
-    collect_feature_variations_name_ids, collect_features_with_retained_subs,
-    collect_variable_feature_indices, find_duplicate_features,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -33,16 +32,12 @@ use read_fonts::{
 use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gpos<'_> {
-    //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {
             return;
         };
-        let feature_records = feature_list.feature_records();
-        let feature_count = feature_list.feature_count();
-
-        for (feature_record, i) in feature_records.iter().zip(0..feature_count) {
-            if !plan.gpos_features.contains_key(&i) {
+        for (i, feature_record) in feature_list.feature_records().iter().enumerate() {
+            if !plan.gpos_features.contains_key(&(i as u16)) {
                 continue;
             }
             let Ok(feature) = feature_record.feature(feature_list.offset_data()) else {
@@ -50,12 +45,11 @@ impl NameIdClosure for Gpos<'_> {
             };
             feature.collect_name_ids(plan);
         }
-
-        if let Some(Ok(feature_variations)) = self.feature_variations() {
-            collect_feature_variations_name_ids(
-                &feature_variations,
-                feature_records,
-                Gpos::TAG,
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::collect_alternate_feature_name_ids(
+                &variations,
+                feature_list.feature_records(),
+                Self::TAG,
                 plan,
             );
         }
@@ -65,16 +59,19 @@ impl NameIdClosure for Gpos<'_> {
 impl LayoutClosure for Gpos<'_> {
     fn prune_features(
         &self,
+        plan: &Plan,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
     ) -> IntSet<u16> {
-        let alternate_features = if let Some(Ok(feature_variations)) = self.feature_variations() {
+        let alternate_features = if let Some(Ok(feature_variations)) =
+            plan.layout_variations(Self::TAG, self.feature_variations())
+        {
             collect_features_with_retained_subs(&feature_variations, lookup_indices)
         } else {
             IntSet::empty()
         };
 
-        let Ok(feature_list) = self.feature_list() else {
+        let Ok(feature_list) = plan.layout_features(Self::TAG, self.feature_list()) else {
             return IntSet::empty();
         };
         prune_features(
@@ -87,13 +84,14 @@ impl LayoutClosure for Gpos<'_> {
 
     fn find_duplicate_features(
         &self,
+        plan: &Plan,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
     ) -> FastHashMap<u16, u16> {
-        let Ok(feature_list) = self.feature_list() else {
+        let Ok(feature_list) = plan.layout_features(Self::TAG, self.feature_list()) else {
             return FastHashMap::default();
         };
-        let variable_features = match self.feature_variations() {
+        let variable_features = match plan.layout_variations(Self::TAG, self.feature_variations()) {
             Some(Ok(variations)) => collect_variable_feature_indices(&variations),
             _ => IntSet::empty(),
         };
@@ -118,15 +116,38 @@ impl LayoutClosure for Gpos<'_> {
     }
 
     fn closure_glyphs_lookups_features(&self, plan: &mut Plan) {
+        if plan.instance_only {
+            let Ok(list) = plan.layout_features(Self::TAG, self.feature_list()) else {
+                return;
+            };
+            let features: FastHashMap<_, _> = (0..list.feature_count()).map(|i| (i, i)).collect();
+            let (scripts, _) = self.prune_langsys(&features, &plan.layout_scripts);
+            let Ok(lookups) = self.lookup_list() else {
+                return;
+            };
+            plan.gpos_lookups = (0..lookups.lookup_count()).map(|i| (i, i)).collect();
+            plan.gpos_features = features.clone();
+            plan.gpos_features_w_duplicates = features;
+            plan.gpos_script_langsys = scripts;
+            return;
+        }
+
         let Ok(feature_indices) =
             self.collect_features(&plan.layout_scripts, &IntSet::all(), &plan.layout_features)
         else {
             return;
         };
 
-        let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
+        let Ok(mut lookup_indices) = crate::layout::collect_planned_lookups(
+            plan,
+            Self::TAG,
+            self.feature_list(),
+            self.feature_variations(),
+            &feature_indices,
+        ) else {
             return;
         };
+        lookup_indices.union(&plan.jstf_gpos_lookups);
         if self
             .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
             .is_err()
@@ -134,9 +155,9 @@ impl LayoutClosure for Gpos<'_> {
             return;
         };
 
-        let feature_indices = self.prune_features(&lookup_indices, feature_indices);
+        let feature_indices = self.prune_features(plan, &lookup_indices, feature_indices);
         let duplicate_feature_index_map =
-            self.find_duplicate_features(&lookup_indices, feature_indices);
+            self.find_duplicate_features(plan, &lookup_indices, feature_indices);
 
         let (script_langsys_map, feature_indices) =
             self.prune_langsys(&duplicate_feature_index_map, &plan.layout_scripts);
@@ -199,8 +220,8 @@ fn subset_gpos(
 
     let mut feature_records: &[FeatureRecord] = &[];
     if !gpos.feature_list_offset().is_null() {
-        let feature_list = gpos
-            .feature_list()
+        let feature_list = plan
+            .layout_features(Gpos::TAG, gpos.feature_list())
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         feature_records = feature_list.feature_records();
         Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
@@ -214,8 +235,8 @@ fn subset_gpos(
         Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
     }
 
-    if let Some(feature_variations) = gpos
-        .feature_variations()
+    if let Some(feature_variations) = plan
+        .layout_variations(Gpos::TAG, gpos.feature_variations())
         .transpose()
         .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
     {
@@ -244,6 +265,24 @@ fn subset_gpos(
 crate::layout::header::subset_extended_layout!(Gpos, gpos_lookups);
 
 impl<'a> SubsetTable<'a> for PositionLookup<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        let data = match self {
+            Self::Single(v) => v.offset_data(),
+            Self::Pair(v) => v.offset_data(),
+            Self::Cursive(v) => v.offset_data(),
+            Self::MarkToBase(v) => v.offset_data(),
+            Self::MarkToLig(v) => v.offset_data(),
+            Self::MarkToMark(v) => v.offset_data(),
+            Self::Contextual(v) => v.offset_data(),
+            Self::ChainContextual(v) => v.offset_data(),
+            Self::Extension(v) => v.offset_data(),
+        };
+        Some(("PositionLookup", data.as_bytes().as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
@@ -348,12 +387,16 @@ impl CollectVariationIndices for Gpos<'_> {
             return;
         };
 
+        let mut visited = crate::FastHashSet::default();
         let lookups = lookups.lookups();
         for i in plan.gpos_lookups.keys() {
             let Ok(lookup) = lookups.get(*i as usize) else {
                 return;
             };
 
+            if !visited.insert(lookup.source_key().unwrap().1) {
+                continue;
+            }
             match lookup.subtables() {
                 Ok(subs) => subs.collect_variation_indices(plan, varidx_set),
                 Err(ReadError::NullOffset) => continue,
@@ -392,10 +435,15 @@ impl CollectVariationIndices for PositionSubtables<'_> {
 
 impl<'a, T, Ext> CollectVariationIndices for Subtables<'a, T, Ext>
 where
-    T: CollectVariationIndices + Intersect + FontRead<'a, Args = ()> + 'a,
+    T: CollectVariationIndices
+        + Intersect
+        + FontRead<'a, Args = ()>
+        + read_fonts::MinByteRange<'a>
+        + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        let mut visited = crate::FastHashSet::default();
         for t in self.iter().filter_map(|table| match table {
             Err(ReadError::NullOffset) => None,
             other => Some(other),
@@ -404,6 +452,9 @@ where
                 return;
             };
 
+            if !visited.insert(t.min_table_bytes().as_ptr() as usize) {
+                continue;
+            }
             let Ok(intersect) = t.intersects(&plan.glyphset_gsub) else {
                 return;
             };
@@ -470,7 +521,8 @@ mod test {
         feature_indices.insert(3_u16);
         feature_indices.insert(4_u16);
 
-        let feature_index_map = gpos.find_duplicate_features(&lookups, feature_indices);
+        let feature_index_map =
+            gpos.find_duplicate_features(&Plan::default(), &lookups, feature_indices);
         // with only lookup index=0
         // feature=1 and feature=2 are duplicates
         // feature=3 and feature=4 are duplicates
@@ -490,7 +542,8 @@ mod test {
         feature_indices.insert(2_u16);
         feature_indices.insert(3_u16);
         feature_indices.insert(4_u16);
-        let feature_index_map = gpos.find_duplicate_features(&lookups, feature_indices);
+        let feature_index_map =
+            gpos.find_duplicate_features(&Plan::default(), &lookups, feature_indices);
         // with only lookup index=0
         // feature=1 and feature=2 are duplicates
         // feature=3 and feature=4 are duplicates

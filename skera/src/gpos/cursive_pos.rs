@@ -164,6 +164,15 @@ collect_cursive_variations!(CursivePosFormat1);
 collect_cursive_variations!(CursivePosFormat2);
 
 impl<'a> SubsetTable<'a> for CursivePos<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("CursivePos", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
