@@ -110,10 +110,10 @@ pub(super) fn resolve_clip_box(instance: &ColrInstance, clip_box: &ClipBox) -> B
         ClipBox::Format2(clip_box) => {
             let deltas = instance.var_deltas::<4>(clip_box.var_index_base());
             BoundingBox {
-                x_min: clip_box.x_min().apply_delta(deltas[0]),
-                y_min: clip_box.y_min().apply_delta(deltas[1]),
-                x_max: clip_box.x_max().apply_delta(deltas[2]),
-                y_max: clip_box.y_max().apply_delta(deltas[3]),
+                x_min: clip_box.x_min().apply_delta(deltas[0]).floor(),
+                y_min: clip_box.y_min().apply_delta(deltas[1]).floor(),
+                x_max: clip_box.x_max().apply_delta(deltas[2]).ceil(),
+                y_max: clip_box.y_max().apply_delta(deltas[3]).ceil(),
             }
         }
     }
