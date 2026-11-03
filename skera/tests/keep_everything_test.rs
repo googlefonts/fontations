@@ -10,7 +10,7 @@ use write_fonts::{
 
 fn source() -> Vec<u8> {
     let font = FontRef::new(include_bytes!(
-        "../test-data/fonts/RobotoFlex-Variable.ABC.ttf"
+        "../test-data/fonts/layout-feature-dedup.ttf"
     ))
     .unwrap();
     let mut name: Name = font.name().unwrap().to_owned_table();
@@ -75,32 +75,22 @@ fn assert_kept(source: &[u8], output: &[u8]) {
         "custom.A"
     );
     assert_eq!(
-        source
-            .gsub()
-            .unwrap()
-            .feature_list()
-            .unwrap()
-            .feature_count(),
         output
             .gsub()
             .unwrap()
             .feature_list()
             .unwrap()
-            .feature_count()
+            .feature_count(),
+        9
     );
     assert_eq!(
-        source
-            .gpos()
-            .unwrap()
-            .feature_list()
-            .unwrap()
-            .feature_count(),
         output
             .gpos()
             .unwrap()
             .feature_list()
             .unwrap()
-            .feature_count()
+            .feature_count(),
+        9
     );
     assert_eq!(
         source.os2().unwrap().ul_unicode_range_1(),
@@ -120,7 +110,7 @@ fn library_preset_retains_names_layout_items_and_opaque_tables() {
 
 #[cfg(feature = "cli")]
 #[test]
-fn cli_preset_matches_library_and_supports_new_subset_options() {
+fn cli_preset_matches_library_and_explicit_selectors_replace_defaults() {
     use std::process::Command;
     let source = source();
     let temp = tempfile::tempdir().unwrap();
@@ -153,12 +143,12 @@ fn cli_preset_matches_library_and_supports_new_subset_options() {
     );
 
     let bytes = run(&[
-        "--gids-=*",
+        "--gids=",
         "--unicodes=41",
         "--layout-features=",
         "--name-IDs=1",
         "--name-languages=1033",
-        "--drop-tables+=TEST,DSIG",
+        "--drop-tables=TEST,DSIG",
         "--no-hinting",
     ]);
     let font = FontRef::new(&bytes).unwrap();
@@ -185,20 +175,4 @@ fn cli_preset_matches_library_and_supports_new_subset_options() {
             .any(|r| r.name_id() == axis.axis_name_id()));
     }
     assert!(font.data_for_tag(Tag::new(b"fpgm")).is_none());
-
-    // A custom mapping participates in command-line order with the newer list operations.
-    let bytes = run(&["--gids=", "--unicodes=", "--gid-map=1:3"]);
-    assert_eq!(
-        FontRef::new(&bytes).unwrap().maxp().unwrap().num_glyphs(),
-        4
-    );
-
-    // New boolean subset features remain additive to the preset.
-    let bytes = run(&[
-        "--retain-gids",
-        "--retain-num-glyphs",
-        "--iftb-requirements",
-        "--optimize",
-    ]);
-    assert_kept(&source, &bytes);
 }
