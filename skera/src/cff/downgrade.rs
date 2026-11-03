@@ -272,3 +272,153 @@ fn split(commands: &[Command], width: bool) -> Result<Vec<Command>> {
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{
+        model::glyph::outline::PathElement,
+        ps::{cff::CffFontRef, charstring::CommandSink},
+        types::Fixed,
+    };
+    use write_fonts::FontBuilder;
+
+    fn font(program: Vec<u8>) -> Vec<u8> {
+        let input = std::fs::read("test-data/fonts/Cantarell-VF-ABC.otf").unwrap();
+        let source = FontRef::new(&input).unwrap();
+        let chars = encoding::index(&[program.clone(), program], true).unwrap();
+        let mut dummy = Vec::new();
+        link(&mut dummy, 17, &[0]).unwrap();
+        link(&mut dummy, 0x124, &[0]).unwrap();
+        let start = 5 + dummy.len() + 4;
+        let private = [139, 12, 17]; // LanguageGroup 0
+        let mut fd = Vec::new();
+        link(&mut fd, 18, &[private.len(), start]).unwrap();
+        let fdarray = encoding::index(&[fd], true).unwrap();
+        let char_start = start + private.len();
+        let mut top = Vec::new();
+        link(&mut top, 17, &[char_start]).unwrap();
+        link(&mut top, 0x124, &[char_start + chars.len()]).unwrap();
+        let mut cff = vec![2, 0, 5];
+        cff.extend((top.len() as u16).to_be_bytes());
+        cff.extend(top);
+        cff.extend([0; 4]);
+        cff.extend(private);
+        cff.extend(chars);
+        cff.extend(fdarray);
+        let mut builder = FontBuilder::new();
+        builder.add_raw(
+            Tag::new(b"head"),
+            source.data_for_tag(Tag::new(b"head")).unwrap(),
+        );
+        let mut hhea = source
+            .data_for_tag(Tag::new(b"hhea"))
+            .unwrap()
+            .as_bytes()
+            .to_vec();
+        hhea[34..36].copy_from_slice(&2u16.to_be_bytes());
+        builder.add_raw(Tag::new(b"hhea"), hhea);
+        builder.add_raw(Tag::new(b"hmtx"), vec![2, 138, 0, 0, 2, 188, 0, 0]);
+        builder.add_raw(Tag::new(b"maxp"), vec![0, 0, 0x50, 0, 0, 2]);
+        builder.add_raw(Tag::new(b"CFF2"), cff);
+        builder.build()
+    }
+    #[derive(Default, Debug, PartialEq)]
+    struct Hints {
+        stems: Vec<(bool, Fixed, Fixed)>,
+        masks: Vec<(bool, Vec<u8>)>,
+    }
+    impl CommandSink for Hints {
+        fn move_to(&mut self, _: Fixed, _: Fixed) {}
+        fn line_to(&mut self, _: Fixed, _: Fixed) {}
+        fn curve_to(&mut self, _: Fixed, _: Fixed, _: Fixed, _: Fixed, _: Fixed, _: Fixed) {}
+        fn close(&mut self) {}
+        fn hstem(&mut self, a: Fixed, b: Fixed) {
+            self.stems.push((false, a, b));
+        }
+        fn vstem(&mut self, a: Fixed, b: Fixed) {
+            self.stems.push((true, a, b));
+        }
+        fn hint_mask(&mut self, m: &[u8]) {
+            self.masks.push((false, m.to_vec()));
+        }
+        fn counter_mask(&mut self, m: &[u8]) {
+            self.masks.push((true, m.to_vec()));
+        }
+    }
+    #[test]
+    fn packed_operators_fit_cff1_and_preserve_geometry_hints_and_widths() {
+        for (op, n) in [
+            (1, 100),
+            (3, 100),
+            (18, 100),
+            (23, 100),
+            (19, 100),
+            (20, 100),
+            (5, 100),
+            (6, 101),
+            (7, 101),
+            (8, 102),
+            (24, 104),
+            (25, 106),
+            (26, 101),
+            (27, 101),
+            (30, 101),
+            (31, 101),
+        ] {
+            let hint = matches!(op, 1 | 3 | 18 | 23 | 19 | 20);
+            let mut program = Vec::new();
+            if !hint {
+                program.extend([139, 139, 21]);
+            }
+            for i in 0..n {
+                encoding::encode(&mut program, 1. + (i % 3) as f64, false).unwrap();
+            }
+            encoding::emit_op(&mut program, op);
+            if matches!(op, 19 | 20) {
+                program.extend([0xff; 7]);
+            }
+            if hint {
+                program.extend([139, 139, 21, 140, 140, 5]);
+            }
+            let data = font(program);
+            let original = FontRef::new(&data).unwrap();
+            let data = crate::downgrade_cff2(&original).unwrap();
+            let converted = FontRef::new(&data).unwrap();
+            let a = CffFontRef::new(
+                original.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+                0,
+                None,
+            )
+            .unwrap();
+            let b = CffFontRef::new(
+                converted
+                    .data_for_tag(Tag::new(b"CFF "))
+                    .unwrap()
+                    .as_bytes(),
+                0,
+                None,
+            )
+            .unwrap();
+            for (gid, width) in [(0, 650), (1, 700)] {
+                let gid = GlyphId::new(gid);
+                let sa = a.subfont(0, &[]).unwrap();
+                let sb = b.subfont(0, &[]).unwrap();
+                let mut pa = Vec::<PathElement>::new();
+                let mut pb = Vec::<PathElement>::new();
+                a.draw(&sa, gid, &[], None, &mut pa).unwrap();
+                b.draw(&sb, gid, &[], None, &mut pb).unwrap();
+                assert_eq!(pa, pb, "op={op}");
+                let mut ha = Hints::default();
+                let mut hb = Hints::default();
+                a.evaluate_charstring(&sa, gid, &[], &mut ha).unwrap();
+                b.evaluate_charstring(&sb, gid, &[], &mut hb).unwrap();
+                assert_eq!(ha, hb, "op={op}");
+                assert_eq!(
+                    b.evaluate_width(&sb, gid, &[]).unwrap().unwrap().to_i32(),
+                    width
+                );
+            }
+        }
+    }
+}

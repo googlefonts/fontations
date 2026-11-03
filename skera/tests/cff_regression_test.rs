@@ -181,6 +181,19 @@ fn long_private_blends_and_fd_independent_globals_survive() {
             None,
         )
         .unwrap();
+        if filename == "cff2_long_private_blends.otf" {
+            let (_, hints) = cff.subfont_hinted(0, &[]).unwrap();
+            let zones: Vec<_> = hints
+                .blues
+                .values()
+                .iter()
+                .map(|(a, b)| (a.to_i32(), b.to_i32()))
+                .collect();
+            assert_eq!(
+                zones,
+                (0..7).map(|i| (2 * i, 2 * i + 1)).collect::<Vec<_>>()
+            );
+        }
         if filename == "cff2_shared_global.otf" {
             assert_eq!(cff.global_subrs().count(), 1);
             assert_ne!(

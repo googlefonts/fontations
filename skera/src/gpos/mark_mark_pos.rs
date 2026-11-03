@@ -297,6 +297,15 @@ subset_mark2_record!(Mark2Record, Offset16);
 subset_mark2_record!(Mark2Record2, Offset24);
 
 impl<'a> SubsetTable<'a> for MarkMarkPos<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("MarkMarkPos", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(

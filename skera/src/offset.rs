@@ -25,12 +25,42 @@ impl<O: Scalar> SerializeSubset for O {
         args: T::ArgsForSubset,
         pos: usize,
     ) -> Result<T::Output, SerializeErrorFlags> {
-        s.push()?;
-        match t.subset(plan, s, args) {
+        let key = t.source_key();
+        if let Some(key) = key {
+            if let Some(&obj_idx) = s.source_objects.get(&key) {
+                if let Some(output) = t.cached_output() {
+                    s.add_link(
+                        pos..pos + O::RAW_BYTE_LEN,
+                        obj_idx,
+                        OffsetWhence::Head,
+                        0,
+                        false,
+                    )?;
+                    return Ok(output);
+                }
+            }
+            if s.active_sources.len() >= crate::MAX_NESTING_LEVEL || !s.active_sources.insert(key) {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+            }
+        }
+        if let Err(error) = s.push() {
+            if let Some(key) = key {
+                s.active_sources.remove(&key);
+            }
+            return Err(error);
+        }
+        let result = t.subset(plan, s, args);
+        if let Some(key) = key {
+            s.active_sources.remove(&key);
+        }
+        match result {
             Ok(ret) => {
                 let Some(obj_idx) = s.pop_pack(true) else {
                     return Err(s.error());
                 };
+                if let Some(key) = key {
+                    s.source_objects.insert(key, obj_idx);
+                }
                 s.add_link(
                     pos..pos + O::RAW_BYTE_LEN,
                     obj_idx,
@@ -40,9 +70,9 @@ impl<O: Scalar> SerializeSubset for O {
                 )?;
                 Ok(ret)
             }
-            Err(e) => {
+            Err(error) => {
                 s.pop_discard();
-                Err(e)
+                Err(error)
             }
         }
     }

@@ -5,7 +5,7 @@ mod extended_tests;
 
 use crate::FastHashMap;
 use crate::{
-    gpos::value_record::{compute_effective_format, compute_record_len},
+    gpos::value_record::{compute_record_len, effective_format},
     layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
@@ -26,6 +26,15 @@ use read_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for SinglePos<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("SinglePos", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
@@ -74,18 +83,24 @@ macro_rules! single_value_position {
                 }
 
                 let value_record = self.value_record();
-                let new_format = if plan
-                    .subset_flags
-                    .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                let new_format = if plan.instance.is_some()
+                    || plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
                 {
                     let (state, font) = args;
                     // do not strip hints for VF unless it has no GDEF varstore after subsetting
-                    let strip_hints = if font.fvar().is_ok() {
+                    let strip_hints = if !plan
+                        .subset_flags
+                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+                    {
+                        false
+                    } else if font.fvar().is_ok() {
                         !state.has_gdef_varstore
                     } else {
                         true
                     };
-                    compute_effective_format(&value_record, strip_hints, true)
+                    effective_format(&value_record, plan, strip_hints, true)
                         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
                 } else {
                     self.value_format()
@@ -141,12 +156,18 @@ fn compute_new_value_format(
         singlepos_info.font_data,
         &mut singlepos_info.new_format,
     );
-    if plan
-        .subset_flags
-        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+    if plan.instance.is_some()
+        || plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
     {
         // do not strip hints for VF unless it has no GDEF varstore after subsetting
-        let strip_hints = if font.fvar().is_ok() {
+        let strip_hints = if !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+        {
+            false
+        } else if font.fvar().is_ok() {
             !has_gdef_varstore
         } else {
             true
@@ -155,7 +176,7 @@ fn compute_new_value_format(
         for i in retained_rec_idxes.iter() {
             let offset = records_offset + i as usize * record_size;
             let value_record = ValueRecord::new(font_data, offset, value_format);
-            *new_format |= compute_effective_format(&value_record, strip_hints, true)?;
+            *new_format |= effective_format(&value_record, plan, strip_hints, true)?;
         }
     } else {
         *new_format = value_format;
@@ -251,17 +272,18 @@ macro_rules! array_value_position {
                     value_format,
                 );
 
-                let table_format = if retained_rec_idxes
-                    .iter()
-                    .skip(1)
-                    .map(|i| {
-                        ValueRecord::new(
-                            font_data,
-                            records_offset + i as usize * record_size,
-                            value_format,
-                        )
-                    })
-                    .all(|rec| rec == first_retained_rec)
+                let table_format = if !plan.instance_only
+                    && retained_rec_idxes
+                        .iter()
+                        .skip(1)
+                        .map(|i| {
+                            ValueRecord::new(
+                                font_data,
+                                records_offset + i as usize * record_size,
+                                value_format,
+                            )
+                        })
+                        .all(|rec| rec == first_retained_rec)
                 {
                     1
                 } else {

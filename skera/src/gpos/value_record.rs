@@ -78,6 +78,67 @@ pub(crate) fn compute_effective_format(
     Ok(effective)
 }
 
+/// Instancing can create a scalar field from a device-only record and can
+/// remove a device whose residual row has become constant.
+pub(crate) fn effective_format(
+    record: &ValueRecord,
+    plan: &Plan,
+    strip_hints: bool,
+    strip_empty: bool,
+) -> Result<ValueFormat, ReadError> {
+    if plan.instance.is_none() {
+        return compute_effective_format(record, strip_hints, strip_empty);
+    }
+    let strip_empty = strip_empty
+        && plan
+            .subset_flags
+            .contains(crate::SubsetFlags::SUBSET_FLAGS_NO_HINTING);
+    let mut result = record.format();
+    for ((field, device_field), (value, device)) in
+        NON_DEVICE_FIELDS.into_iter().zip(DEVICE_FIELDS).zip([
+            (record.x_placement(), record.x_placement_device()),
+            (record.y_placement(), record.y_placement_device()),
+            (record.x_advance(), record.x_advance_device()),
+            (record.y_advance(), record.y_advance_device()),
+        ])
+    {
+        let device = device.transpose()?;
+        let delta = crate::layout::device_delta(device.as_ref(), &plan.layout_varidx_delta_map);
+        let adjusted = crate::layout::add_device_delta(
+            value.unwrap_or(0),
+            device.as_ref(),
+            &plan.layout_varidx_delta_map,
+        );
+        if delta != 0 {
+            result |= field;
+        }
+        if strip_empty && adjusted == 0 {
+            result -= field;
+        }
+        if let Some(device) = device {
+            match device {
+                DeviceOrVariationIndex::VariationIndex(index) => {
+                    if plan
+                        .layout_varidx_delta_map
+                        .get(&crate::layout::variation_index(&index))
+                        .is_none_or(|v| v.0 == u32::MAX)
+                    {
+                        result -= device_field;
+                    }
+                }
+                DeviceOrVariationIndex::Device(_) => {
+                    if strip_hints {
+                        result -= device_field;
+                    }
+                }
+            }
+        } else {
+            result -= device_field;
+        }
+    }
+    Ok(result)
+}
+
 impl<'a> SubsetTable<'a> for ValueRecord<'_> {
     type ArgsForSubset = ValueFormat;
     type Output = ();
@@ -92,26 +153,31 @@ impl<'a> SubsetTable<'a> for ValueRecord<'_> {
             return Ok(());
         }
 
-        let mut offset = self.offset();
         let font_data = self.offset_data();
         let value_format = self.format();
-
-        for field in NON_DEVICE_FIELDS {
-            if !value_format.contains(field) {
-                continue;
+        let mut offset = self.offset()
+            + NON_DEVICE_FIELDS
+                .iter()
+                .filter(|&&v| value_format.contains(v))
+                .count()
+                * 2;
+        for (field, (value, device)) in NON_DEVICE_FIELDS.into_iter().zip([
+            (self.x_placement(), self.x_placement_device()),
+            (self.y_placement(), self.y_placement_device()),
+            (self.x_advance(), self.x_advance_device()),
+            (self.y_advance(), self.y_advance_device()),
+        ]) {
+            if new_format.contains(field) {
+                let device = device
+                    .transpose()
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+                s.embed(crate::layout::add_device_delta(
+                    value.unwrap_or(0),
+                    device.as_ref(),
+                    &plan.layout_varidx_delta_map,
+                ))?;
             }
-            if !new_format.contains(field) {
-                offset += 2;
-                continue;
-            }
-
-            let value_bytes = font_data
-                .slice(offset..offset + 2)
-                .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-            s.embed_bytes(value_bytes.as_bytes())?;
-            offset += 2;
         }
-
         for field in DEVICE_FIELDS {
             if !value_format.contains(field) {
                 continue;

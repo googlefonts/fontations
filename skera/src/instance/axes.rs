@@ -537,6 +537,73 @@ mod tests {
     use super::*;
 
     #[test]
+    fn nonfinite_api_ranges_return_errors() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (min, max) in [
+            (f32::NAN, f32::NAN),
+            (f32::NAN, 900.),
+            (f32::NEG_INFINITY, f32::INFINITY),
+            (900., 100.),
+        ] {
+            assert!(matches!(
+                crate::instance_font(
+                    &font,
+                    &[AxisLimits::Range {
+                        tag: Tag::new(b"wght"),
+                        min,
+                        default: None,
+                        max,
+                    }]
+                ),
+                Err(SubsetError::InvalidAxis(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn untouched_axis_records_preserve_all_fixed_point_bits() {
+        use write_fonts::{from_obj::ToOwnedTable, tables::fvar::Fvar};
+
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let original: Fvar = font.fvar().unwrap().to_owned_table();
+        let expected = &original.axis_instance_arrays.axes[0];
+        assert_ne!(
+            expected.default_value.to_f64(),
+            expected.default_value.to_f32() as f64
+        );
+        for request in ["CNTR=drop", "CNTR=25:50:75"] {
+            let bytes = crate::instance_font(&font, &parse_axis_limits(request).unwrap()).unwrap();
+            let instance = FontRef::new(&bytes).unwrap();
+            let actual: Fvar = instance.fvar().unwrap().to_owned_table();
+            assert_eq!(&actual.axis_instance_arrays.axes[0], expected, "{request}");
+        }
+    }
+
+    #[test]
+    fn invalid_source_axis_bounds_return_an_error() {
+        use write_fonts::FontBuilder;
+        use write_fonts::{from_obj::ToOwnedTable, tables::fvar::Fvar};
+
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut fvar: Fvar = font.fvar().unwrap().to_owned_table();
+        fvar.axis_instance_arrays.axes[0].min_value = read_fonts::types::Fixed::from_f64(1000.);
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+        }
+        builder.add_table(&fvar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert!(matches!(
+            crate::instance_font(&font, &parse_axis_limits("wght=700").unwrap()),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Tag::new(b"fvar")
+        ));
+    }
+
+    #[test]
     fn axis_request_syntax() {
         assert_eq!(
             parse_axis_limits("wght=650,CNTR=drop").unwrap(),

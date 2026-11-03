@@ -93,11 +93,13 @@ fn subset_gdef(
         {
             let snapshot_version2 = s.snapshot();
             let var_store_offset_pos = s.embed(0_u32)?;
-            match Offset32::serialize_subset(
+            match crate::variations::serialize_store(
                 &var_store,
                 s,
                 plan,
-                (&plan.gdef_varstore_inner_maps, false),
+                &plan.gdef_varstore_inner_maps,
+                false,
+                read_fonts::types::Tag::new(b"GDEF"),
                 var_store_offset_pos,
             ) {
                 Ok(()) => {
@@ -519,7 +521,11 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
         }
 
         let format_pos = s.embed(self.caret_value_format())?;
-        s.embed(self.coordinate())?;
+        s.embed(crate::layout::add_device_delta(
+            self.coordinate(),
+            self.device().ok().as_ref(),
+            &plan.layout_varidx_delta_map,
+        ))?;
 
         let snap = s.snapshot();
         let device_offset_pos = s.embed(0_u16)?;

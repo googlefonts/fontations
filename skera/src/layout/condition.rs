@@ -36,7 +36,7 @@ impl<'a> SubsetTable<'a> for NestedCondition<'_> {
                     .copied()
                     .unwrap_or((NO_VARIATION_INDEX, 0));
                 let value = i32::from(table.default_value())
-                    .checked_add(delta)
+                    .checked_add(if plan.instance.is_some() { 0 } else { delta })
                     .and_then(|value| i16::try_from(value).ok())
                     .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
                 s.embed(table.format())?;

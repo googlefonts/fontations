@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! CFF1 and CFF2 subsetters. Shared interpreter policies mirror HarfBuzz's
 //! template parameters without exposing them as a public extension API.
 
@@ -56,8 +55,8 @@ pub(crate) fn subset_data(
 pub(crate) fn instance_subset(
     font: &FontRef,
     plan: &Plan,
-    axes: &crate::instance::AxisPlan,
 ) -> std::result::Result<Vec<u8>, SubsetError> {
+    let axes = &plan.instance.as_ref().unwrap().consumer_axes;
     let table = font
         .cff2()
         .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?;
