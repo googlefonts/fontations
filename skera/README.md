@@ -28,6 +28,10 @@ and CFF/CFF2 CharStrings offsets for incremental font transfer patches.
 `--no-bidi-closure` omits mirrored Unicode variants from the subset.
 Use `--name-IDs` and `--name-languages` to select naming records;
 `--name-legacy` also keeps records for non-Unicode platforms.
+The library's `Plan::override_name_table` replaces or inserts individual
+records, including records excluded by those filters. Passing `None` or an
+empty string removes a record. Macintosh overrides accept ASCII text;
+other platforms encode text as UTF-16BE.
 
 CFF1 and CFF2 outlines support subsetting with retained subroutines, optional
 desubroutinization (`--desubroutinize`), hint removal (`--no-hinting`), and
@@ -100,6 +104,10 @@ plain options replace their sets, and `*` selects all entries or removes all
 entries with `-`. `--text=*` also selects all mapped Unicode characters.
 
 For font collections, `--face-index` selects a face; the default is zero.
+
+MATH subsetting retains the variants and assembly parts of selected glyphs,
+remaps their references, and preserves constants, per-glyph math values,
+kerning and device adjustments.
 
 ## Installation
 

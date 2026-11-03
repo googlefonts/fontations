@@ -27,6 +27,7 @@ pub use instance::{
     parse_axis_limits_for_font, AxisLimits,
 };
 mod layout;
+mod math;
 mod maxp;
 mod metrics;
 mod name;
@@ -68,7 +69,7 @@ use read_fonts::{
         cblc::Cblc,
         cff::Cff,
         cff2::Cff2,
-        cmap::{Cmap, Dmap},
+        cmap::{Cmap, Dmap, PlatformId},
         colr::Colr,
         cpal::Cpal,
         cvar::Cvar,
@@ -85,6 +86,7 @@ use read_fonts::{
         hmtx::{Hmtx, HmtxExtended},
         hvar::Hvar,
         loca::Loca,
+        math::Math,
         maxp::{Maxp, MaxpExtended},
         name::Name,
         os2::Os2,
@@ -106,7 +108,9 @@ use skrifa::MetadataProvider;
 use thiserror::Error;
 use write_fonts::FontBuilder;
 
-type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
+/// The hash map type used in skera's API, e.g. for [`Plan::new_with_glyph_map`].
+pub type FastHashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
+pub(crate) type FastHashSet<T> = std::collections::HashSet<T, foldhash::fast::FixedState>;
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: usize = read_fonts::limits::MAX_RECURSION_DEPTH;
@@ -352,6 +356,7 @@ pub struct Plan {
     unicodes: IntSet<u32>,
     glyphs_requested: IntSet<GlyphId>,
     glyphset_cmaped: IntSet<GlyphId>,
+    glyphset_mathed: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
     glyphset_varced: IntSet<GlyphId>,
@@ -378,6 +383,7 @@ pub struct Plan {
     drop_tables: IntSet<Tag>,
     name_ids: IntSet<NameId>,
     name_languages: IntSet<u16>,
+    name_table_overrides: FastHashMap<name::RecordKey, Vec<u8>>,
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
 
@@ -567,6 +573,58 @@ impl Plan {
             })
     }
 
+    /// Replace, insert, or remove a naming record, matching HarfBuzz's override API.
+    ///
+    /// Nonempty overrides are inserted even when their name ID, language, or
+    /// platform would otherwise be filtered out. `None` or an empty string
+    /// removes the record. Macintosh strings must be ASCII; other platforms
+    /// use UTF-16BE. Invalid requests leave the previous override intact.
+    /// Drop-table and table passthrough rules still take precedence.
+    pub fn override_name_table(
+        &mut self,
+        name_id: NameId,
+        platform_id: u16,
+        encoding_id: u16,
+        language_id: u16,
+        text: Option<&str>,
+    ) -> Result<(), SubsetError> {
+        let text = text.unwrap_or_default();
+        let is_macintosh = platform_id == PlatformId::Macintosh as u16;
+        let capacity = if is_macintosh {
+            if !text.is_ascii() {
+                return Err(SubsetError::InvalidNameOverride(
+                    "Macintosh overrides require ASCII text",
+                ));
+            }
+            text.len()
+        } else if text.len() <= u16::MAX as usize / 2 {
+            // Twice the UTF-8 length bounds UTF-16BE, so short names always fit.
+            text.len() * 2
+        } else {
+            // Stop counting once the encoded name is too long to store.
+            text.encode_utf16().take(u16::MAX as usize / 2 + 1).count() * 2
+        };
+        if capacity > u16::MAX as usize {
+            return Err(SubsetError::InvalidNameOverride(
+                "encoded name exceeds 65535 bytes",
+            ));
+        }
+        let bytes = if is_macintosh {
+            text.as_bytes().to_vec()
+        } else {
+            let mut bytes = Vec::with_capacity(capacity);
+            for unit in text.encode_utf16() {
+                bytes.extend_from_slice(&unit.to_be_bytes());
+            }
+            // Avoid retaining excess capacity from the short-name upper bound.
+            bytes.shrink_to_fit();
+            bytes
+        };
+        self.name_table_overrides
+            .insert((platform_id, encoding_id, language_id, name_id), bytes);
+        Ok(())
+    }
+
     /// Replaces the table tags that are copied without subsetting.
     ///
     /// Drop-table rules and hint removal still take precedence. Copying tables
@@ -741,6 +799,12 @@ impl Plan {
         if !self.drop_tables.contains(JSTF) && font.data_for_tag(JSTF).is_some() {
             self.jstf_closure_failed = jstf::closure(font, self).is_err();
         }
+        // HarfBuzz closes math variants before layout, color and components.
+        if !self.drop_tables.contains(Math::TAG) {
+            math::closure(font, &mut self.glyphset_gsub);
+            remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
+        }
+        self.glyphset_mathed = self.glyphset_gsub.clone();
 
         // layout closure
         self.layout_populate_gids_to_retain(font);
@@ -1020,6 +1084,11 @@ impl Plan {
                 );
             }
         }
+        if !self.drop_tables.contains(Math::TAG) {
+            if let Ok(math) = font.math() {
+                math.collect_variation_indices(self, &mut varidx_set);
+            }
+        }
 
         if !self.drop_tables.contains(JSTF) {
             jstf::collect_variation_indices(font, self, &mut varidx_set);
@@ -1262,6 +1331,8 @@ pub enum SubsetError {
     InvalidGlyphMapping(String),
     #[error("Invalid input glyph name {0}")]
     InvalidGlyphName(String),
+    #[error("Invalid name override: {0}")]
+    InvalidNameOverride(&'static str),
     #[error("Invalid input gid {0}")]
     InvalidGid(String),
 
@@ -1558,6 +1629,10 @@ fn subset_table<'a>(
     match tag {
         Varc::TAG => varc::subset(font, plan, s),
         JSTF => jstf::subset(font, plan, state, s),
+        Math::TAG => font
+            .math()
+            .map_err(|_| SubsetError::SubsetTableError(Math::TAG))?
+            .subset(plan, font, s, builder),
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
@@ -1796,6 +1871,15 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
 
     let table_len = table_data.len();
     let mut bulk: usize = 8192;
+    if table_tag == Name::TAG {
+        // Required for correctness: try_subset stops growing the buffer at
+        // table_len * 256, which a large override on a tiny name table can exceed.
+        bulk += plan
+            .name_table_overrides
+            .values()
+            .map(|bytes| bytes.len() + name::NAME_RECORD_SIZE)
+            .sum::<usize>();
+    }
     let src_glyphs = plan.font_num_glyphs;
     let dst_glyphs = plan.num_output_glyphs;
 

@@ -8,7 +8,7 @@ compares skera's output to these files byte for byte.
 
 Like the integration test, instances and IUP options are ignored, the profiles
 downgrade-cff2.txt and desubroutinize.txt are skipped, and --downgrade-cff2 is ignored in other
-profiles. MATH tables are dropped, since skera doesn't subset them yet.
+profiles.
 
 Usage:
     generate-expected-outputs.py <hb-subset> <skera> [<test suite file> ...]
@@ -40,8 +40,8 @@ TEST_DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 SKIPPED_PROFILES = {"downgrade-cff2.txt", "desubroutinize.txt"}
 # Not supported by skera yet; ignored for both tools, like in the integration test.
 IGNORED_FLAGS = {"--downgrade-cff2"}
-# DSIG, which hb-subset's test runner also drops, and tables skera can't subset yet.
-DROP_TABLES = "--drop-tables+=DSIG,MATH"
+# DSIG, which hb-subset's test runner also drops.
+DROP_TABLES = "--drop-tables+=DSIG"
 SECTIONS = ("FONTS:", "PROFILES:", "SUBSETS:", "INSTANCES:", "OPTIONS:", "IUP_OPTIONS:")
 
 

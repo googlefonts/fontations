@@ -66,11 +66,12 @@ pub(super) fn convert(font: &FontRef) -> Result<Vec<u8>> {
         nominals.push((min + max).div_ceil(2) as u16);
     }
     let mut chars = Vec::new();
+    let mut stack = charstring::operand_stack::<Cff2>();
     for (gid, &fd) in old_fds.iter().enumerate() {
         let mut rec = Flattener::default();
-        let mut interp = Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, 0, false);
+        let mut interp = Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, false, &mut stack);
         interp.run(
-            Program::Glyph(gid),
+            Program::Glyph(gid as u32),
             source.font.charstrings().get(gid).unwrap_or(&[]),
         )?;
         let width = metrics.advance(GlyphId::new(gid as u32)).ok_or(Error)?;

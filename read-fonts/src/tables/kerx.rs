@@ -200,10 +200,13 @@ impl Subtable2<'_> {
     pub fn kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         let left: u16 = left.to_u32().try_into().ok()?;
         let right: u16 = right.to_u32().try_into().ok()?;
-        let left_idx = self.left_offset_table.value(left).unwrap_or(0) as usize;
-        let right_idx = self.right_offset_table.value(right).unwrap_or(0) as usize;
+        // The class values are byte offsets into the kerning array: the left
+        // values are pre-multiplied by the row width and the right values by
+        // the size of a kerning value (two).
+        let left_offset = self.left_offset_table.value(left).unwrap_or(0) as usize;
+        let right_offset = self.right_offset_table.value(right).unwrap_or(0) as usize;
         self.array
-            .get(left_idx + right_idx)
+            .get((left_offset + right_offset) / 2)
             .map(|value| value.get() as i32)
     }
 }
@@ -666,26 +669,29 @@ mod tests {
                     .push(row_count as u16)
                     .push(column_count as u16);
             } else {
-                // rowWidth
-                buf = buf.push(row_count);
+                // rowWidth, in bytes
+                buf = buf.push(column_count * 2);
             }
             // Map 4 glyphs
             // 0 => row 0, column 0
             // 1 => row 2, column 1
             // 2 => row 1, column 2
             // 3 => row 2, column 0
-            // values in the row table are pre-multiplied by column count
+            // values in the row table are pre-multiplied by column count;
+            // format 2 stores both tables as byte offsets, so its values are
+            // also multiplied by the size of a kerning value
+            let value_size = if self.is_six() { 1 } else { 2 };
             #[allow(clippy::erasing_op, clippy::identity_op)]
             let row_table = build_lookup(
                 &[
-                    0 * column_count,
-                    2 * column_count,
-                    1 * column_count,
-                    2 * column_count,
+                    0 * column_count * value_size,
+                    2 * column_count * value_size,
+                    1 * column_count * value_size,
+                    2 * column_count * value_size,
                 ],
                 is_long,
             );
-            let column_table = build_lookup(&[0, 1, 2, 0], is_long);
+            let column_table = build_lookup(&[0, value_size, 2 * value_size, 0], is_long);
             // 3x3 kerning matrix
             let kerning_array = [0i32, 10, 20, 30, -10, -20, 8, 4, -2];
             let mut offset =

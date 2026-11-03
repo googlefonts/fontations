@@ -1,6 +1,6 @@
 //! Continuous CFF2 control bounds with float scalars and double coordinates.
 use super::{
-    charstring::{CharStringActions, Interpreter, Program, Value},
+    charstring::{self, CharStringActions, Interpreter, Program, Value},
     instance::gains,
     source::{Cff2, Source},
     Error, Result,
@@ -185,6 +185,7 @@ pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64;
     } else {
         vec![]
     };
+    let mut stack = charstring::operand_stack::<Cff2>();
     (0..font.maxp().map_err(|_| Error)?.num_glyphs() as usize)
         .map(|gid| {
             if gid >= source.font.num_glyphs() as usize {
@@ -200,9 +201,9 @@ pub(super) fn bounds(font: &FontRef, axes: &AxisPlan) -> Result<Vec<Option<[f64;
                 result: Ok(()),
                 remaining: 200_000,
             };
-            Interpreter::<Cff2, _, _>::new(&source, &mut bounds, fd, source.fds[fd].ivs, false)
+            Interpreter::<Cff2, _, _>::new(&source, &mut bounds, fd, false, &mut stack)
                 .run(
-                    Program::Glyph(gid),
+                    Program::Glyph(gid as u32),
                     source.font.charstrings().get(gid).ok_or(Error)?,
                 )?;
             bounds.result?;

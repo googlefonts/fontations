@@ -88,12 +88,13 @@ fn private_values(entry: &dict::Entry, source: &Source, ivs: usize) -> Result<Ve
 
 fn complex_blends(source: &Source) -> Result<BTreeSet<usize>> {
     let mut collector = ComplexBlends::default();
+    let mut stack = charstring::operand_stack::<Cff2>();
     for gid in 0..source.font.num_glyphs() as usize {
         let fd = source.fd(read_fonts::types::GlyphId::new(gid as u32))?;
         let mut interpreter =
-            Interpreter::<Cff2, _, _>::new(source, &mut collector, fd, source.fds[fd].ivs, false);
+            Interpreter::<Cff2, _, _>::new(source, &mut collector, fd, false, &mut stack);
         interpreter.run(
-            Program::Glyph(gid),
+            Program::Glyph(gid as u32),
             source.font.charstrings().get(gid).ok_or(Error)?,
         )?;
     }
@@ -145,13 +146,14 @@ pub(super) fn instance(
         }
     }
     let mut chars = Vec::new();
+    let mut stack = charstring::operand_stack::<Cff2>();
     for gid in 0..source.font.num_glyphs() as usize {
         let fd = source.fd(read_fonts::types::GlyphId::new(gid as u32))?;
         let mut rec = Flattener::default();
         let mut interp =
-            Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, source.fds[fd].ivs, false);
+            Interpreter::<Cff2, _, _>::new(&source, &mut rec, fd, false, &mut stack);
         interp.run(
-            Program::Glyph(gid),
+            Program::Glyph(gid as u32),
             source.font.charstrings().get(gid).ok_or(Error)?,
         )?;
         let mut rebaser = store_plan
@@ -298,13 +300,14 @@ fn compact(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>> {
     };
     let mut used = BTreeSet::new();
     let mut commands = Vec::new();
+    let mut stack = charstring::operand_stack::<Cff2>();
     for gid in 0..source.font.num_glyphs() as usize {
         let fd = source.fd(read_fonts::types::GlyphId::new(gid as u32))?;
         let mut recorder = Flattener::default();
         let mut interp =
-            Interpreter::<Cff2, _, _>::new(&source, &mut recorder, fd, source.fds[fd].ivs, false);
+            Interpreter::<Cff2, _, _>::new(&source, &mut recorder, fd, false, &mut stack);
         interp.run(
-            Program::Glyph(gid),
+            Program::Glyph(gid as u32),
             source.font.charstrings().get(gid).ok_or(Error)?,
         )?;
         used.extend(

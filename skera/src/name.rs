@@ -1,20 +1,20 @@
 //! impl subset() for name table
 use crate::{
     serialize::{OffsetWhence, Serializer},
-    Plan, Subset,
+    FastHashSet, Plan, Subset,
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
 
 use read_fonts::{
     tables::name::{Name, NameRecord},
-    types::FixedSize,
+    types::{FixedSize, NameId},
     FontRef, TopLevelTable,
 };
 use write_fonts::FontBuilder;
 
 // reference: subset() for name table in harfbuzz
-// https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/name/name.hh#L387
+// https://github.com/harfbuzz/harfbuzz/blob/d659591a6d7709f65bdfd0f002397c6056ef4bf6/src/OT/name/name.hh#L387
 impl Subset for Name<'_> {
     fn subset(
         &self,
@@ -23,98 +23,94 @@ impl Subset for Name<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let name_records = self.name_record();
-        //TODO: support name_table_override
-        //TODO: support name table version 1
-        let mut retained_name_record_idxes = name_records
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, record)| {
-                if !plan.name_ids.contains(record.name_id())
-                    || !plan.name_languages.contains(record.language_id())
-                    || (!plan
-                        .subset_flags
-                        .contains(SubsetFlags::SUBSET_FLAGS_NAME_LEGACY)
-                        && !record.is_unicode())
-                {
-                    return None;
+        let data = self.offset_data().as_bytes();
+        // name_record() returns an empty slice if the declared range is out of
+        // bounds. Reject that malformed table instead of silently losing names.
+        data.get(self.name_record_byte_range())
+            .ok_or(SubsetTableError(Name::TAG))?;
+        let overrides = &plan.name_table_overrides;
+        let mut records = Vec::with_capacity(self.count() as usize + overrides.len());
+        let mut overridden = FastHashSet::default();
+        let storage_offset = self.storage_offset() as usize;
+        for record in self.name_record() {
+            if !plan.name_ids.contains(record.name_id())
+                || !plan.name_languages.contains(record.language_id())
+                || (!plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NAME_LEGACY)
+                    && !record.is_unicode())
+            {
+                continue;
+            }
+            let key = (
+                record.platform_id(),
+                record.encoding_id(),
+                record.language_id(),
+                record.name_id(),
+            );
+            let bytes = match overrides.get(&key) {
+                Some(override_bytes) => {
+                    overridden.insert(key);
+                    if override_bytes.is_empty() {
+                        continue;
+                    }
+                    override_bytes.as_slice()
                 }
-                Some(idx)
-            })
-            .collect::<Vec<_>>();
-
-        retained_name_record_idxes.sort_unstable_by_key(|nr| {
-            let nr = name_records[*nr];
-            (
-                nr.platform_id(),
-                nr.encoding_id(),
-                nr.language_id(),
-                nr.name_id().to_u16(),
-                nr.length(),
-            )
-        });
-
-        // version
-        // TODO: support version 1
-        s.embed(0_u16)
-            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-        //count
-        let count = retained_name_record_idxes.len() as u16;
-        s.embed(count)
-            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-        //storage_offset
-        let storage_offset = count * NameRecord::RAW_BYTE_LEN as u16 + 6;
-        s.embed(storage_offset)
-            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-
-        serialize_name_records(self, s, &retained_name_record_idxes)
+                None if record.length() == 0 => &[],
+                None => {
+                    let start = storage_offset + record.string_offset().to_u32() as usize;
+                    data.get(start..start + record.length() as usize)
+                        .ok_or(SubsetTableError(Name::TAG))?
+                }
+            };
+            records.push((key, bytes));
+        }
+        // Overrides take precedence over selection filters. Insert missing
+        // nonempty records after filtering, just as HarfBuzz's name serializer.
+        for (&key, bytes) in overrides {
+            if !bytes.is_empty() && !overridden.contains(&key) {
+                records.push((key, bytes.as_slice()));
+            }
+        }
+        records.sort_unstable_by_key(|(key, bytes)| (*key, bytes.len()));
+        let count = u16::try_from(records.len()).map_err(|_| SubsetTableError(Name::TAG))?;
+        let storage_offset = u16::try_from(records.len() * NAME_RECORD_SIZE + 6)
+            .map_err(|_| SubsetTableError(Name::TAG))?;
+        // HarfBuzz emits format 0; language-tag records are not supported yet.
+        let format = 0u16;
+        for value in [format, count, storage_offset] {
+            s.embed(value).map_err(|_| SubsetTableError(Name::TAG))?;
+        }
+        serialize_name_records(s, &records)
     }
 }
 
+// Field order matches the name table's sort order: platform, encoding, language, name ID.
+pub(crate) type RecordKey = (u16, u16, u16, NameId);
+
 fn serialize_name_records(
-    name: &Name,
     s: &mut Serializer,
-    retained_name_record_idxes: &[usize],
+    records: &[(RecordKey, &[u8])],
 ) -> Result<(), SubsetError> {
-    let data = name.offset_data().as_bytes();
-    let name_records = name.name_record();
-    let name_records_bytes = data
-        .get(name.name_record_byte_range())
-        .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
-    let storage_start = name.storage_offset() as usize;
-    for idx in retained_name_record_idxes.iter() {
-        let len = s.length();
-        let record_pos = idx * NAME_RECORD_SIZE;
-        let record_bytes = name_records_bytes
-            .get(record_pos..record_pos + NAME_RECORD_SIZE)
-            .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
-        s.embed_bytes(record_bytes)
-            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-
-        let record = name_records[*idx];
-        let offset = record.string_offset().to_u32() as usize;
-
-        // 10 is the position of offset field within a NameRecord
-        let offset_pos = len + 10;
-        let str_len = record.length();
-        // empty name str
-        if str_len == 0 {
-            s.copy_assign(offset_pos, 0_u16);
+    for &((platform, encoding, language, id), bytes) in records {
+        let offset_pos = s.length() + NAME_RECORD_SIZE - 2;
+        for value in [
+            platform,
+            encoding,
+            language,
+            id.to_u16(),
+            bytes.len() as u16,
+            0,
+        ] {
+            s.embed(value).map_err(|_| SubsetTableError(Name::TAG))?;
+        }
+        if bytes.is_empty() {
             continue;
         }
-        s.push()
-            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-
-        //copy string data
-        let str_start = storage_start + offset;
-        let str_bytes = data
-            .get(str_start..str_start + str_len as usize)
-            .ok_or(SubsetTableError(Name::TAG))?;
-        s.embed_bytes(str_bytes)
-            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-        let obj_idx = s
-            .pop_pack(true)
-            .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
+        s.push().map_err(|_| SubsetTableError(Name::TAG))?;
+        s.embed_bytes(bytes)
+            .map_err(|_| SubsetTableError(Name::TAG))?;
+        let obj_idx = s.pop_pack(true).ok_or(SubsetTableError(Name::TAG))?;
         s.add_link(
             offset_pos..offset_pos + 2,
             obj_idx,
@@ -122,19 +118,19 @@ fn serialize_name_records(
             0,
             false,
         )
-        .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
+        .map_err(|_| SubsetTableError(Name::TAG))?;
     }
     Ok(())
 }
 
-//NameRecord size in bytes
-const NAME_RECORD_SIZE: usize = NameRecord::RAW_BYTE_LEN;
+// NameRecord size in bytes
+pub(crate) const NAME_RECORD_SIZE: usize = NameRecord::RAW_BYTE_LEN;
 
 #[cfg(test)]
 mod test {
     use super::*;
     use read_fonts::types::Tag;
-    use read_fonts::{types::NameId, TableProvider};
+    use read_fonts::TableProvider;
 
     /// Returns a copy of `font_bytes` with the `count` field of the `name`
     /// table header overwritten, so that the header claims more name records

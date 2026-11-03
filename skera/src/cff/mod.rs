@@ -60,8 +60,14 @@ pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
     }
 }
 
-fn charstring_may_end_in_seac(data: &[u8]) -> bool {
-    if data.iter().any(|byte| matches!(byte, 10 | 29)) {
+// A glyph's own endchar must be its final byte for this precheck to find it.
+// Unreachable trailing bytes can hide seac when no subroutine ends the glyph.
+fn charstring_may_end_in_seac(data: &[u8], subrs_may_end_in_seac: bool) -> bool {
+    // When a source subroutine might terminate the glyph with endchar, interpret
+    // possible calls even without a final endchar in the glyph, including calls
+    // with unreachable trailing bytes. Call bytes might occur inside an operand
+    // or mask, but treating those cases as possible calls is safe.
+    if subrs_may_end_in_seac && data.iter().any(|byte| matches!(byte, 10 | 29)) {
         return true;
     }
     let Some((&14, body)) = data.split_last() else {
@@ -70,11 +76,46 @@ fn charstring_may_end_in_seac(data: &[u8]) -> bool {
     let Some(&last) = body.last() else {
         return false;
     };
-    matches!(last, 32..=246)
+    // Type 2 numbers are not self-synchronizing backwards. Interpret only
+    // when a number encoding, or a call that can leave operands on the shared
+    // stack, could immediately precede endchar.
+    matches!(last, 10 | 29 | 32..=246)
+        // Escaped operators include stack-preserving operations such as the
+        // deprecated dotsection. Without interpreting the program, their
+        // result stack cannot be ruled out as seac operands.
         || (body.len() >= 2 && body[body.len() - 2] == 12)
         || (body.len() >= 2 && matches!(body[body.len() - 2], 247..=254))
         || (body.len() >= 3 && body[body.len() - 3] == 28)
         || (body.len() >= 5 && body[body.len() - 5] == 255)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::charstring_may_end_in_seac;
+
+    #[test]
+    fn seac_precheck_accepts_only_possible_trailing_operands() {
+        for data in [
+            &[139, 14][..],
+            &[247, 0, 14],
+            &[28, 0, 0, 14],
+            &[255, 0, 0, 0, 0, 14],
+            &[10, 14],
+            &[29, 14],
+            &[32, 10],
+            &[32, 10, 5],
+            &[139, 139, 204, 247, 86, 12, 0, 14],
+        ] {
+            assert!(charstring_may_end_in_seac(data, true));
+        }
+        for data in [&[32, 10, 14][..], &[32, 29, 14]] {
+            assert!(charstring_may_end_in_seac(data, false));
+        }
+        for data in [&[][..], &[14], &[139, 11], &[5, 14], &[247, 14]] {
+            assert!(!charstring_may_end_in_seac(data, true));
+        }
+        assert!(!charstring_may_end_in_seac(&[32, 10], false));
+    }
 }
 
 impl crate::instance::Instance<crate::instance::FontContext<'_>>

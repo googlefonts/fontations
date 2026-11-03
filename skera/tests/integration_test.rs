@@ -340,9 +340,6 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
     let mut drop_tables = IntSet::empty();
     drop_tables.extend_unsorted(DEFAULT_DROP_TABLES.iter().copied());
 
-    //TODO: remove drop_tables once we support those tables
-    drop_tables.insert(Tag::new(b"MATH"));
-
     let mut name_ids = IntSet::<NameId>::empty();
     name_ids.insert_range(NameId::from(0)..=NameId::from(6));
 
