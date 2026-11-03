@@ -15,6 +15,35 @@ pub(crate) fn error(s: &mut Serializer, tag: Tag, flag: SerializeErrorFlags) -> 
     SubsetError::SubsetTableError(tag)
 }
 
+fn num_long_metrics(count: usize, advance: impl Fn(usize) -> u16) -> usize {
+    if count == 0 {
+        return 0;
+    }
+    let mut num_long = count;
+    let last = advance(count - 1);
+    while num_long > 1 && advance(num_long - 2) == last {
+        num_long -= 1;
+    }
+    num_long
+}
+/// Compress the final glyph-order metrics produced by outline instancing,
+/// using the same trailing-advance rule as ordinary subsetting.
+pub(crate) fn compress_instanced(metrics: &mut Vec<u8>, header: &mut [u8]) {
+    let count = metrics.len() / 4;
+    let num_long = num_long_metrics(count, |i| {
+        u16::from_be_bytes([metrics[i * 4], metrics[i * 4 + 1]])
+    });
+    for i in num_long..count {
+        let bearing = [metrics[i * 4 + 2], metrics[i * 4 + 3]];
+        let pos = num_long * 4 + (i - num_long) * 2;
+        metrics[pos..pos + 2].copy_from_slice(&bearing);
+    }
+    metrics.truncate(num_long * 4 + (count - num_long) * 2);
+    if let Some(dest) = header.get_mut(34..36) {
+        dest.copy_from_slice(&(num_long as u16).to_be_bytes());
+    }
+}
+
 pub(crate) fn subset_metrics(
     records: &GlyphMetricRecords<'_>,
     header: &[u8],
@@ -49,11 +78,7 @@ pub(crate) fn subset_metrics(
             .and_then(|old_gid| records.advance(*old_gid))
             .unwrap_or(0)
     };
-    let mut num_long = plan.num_output_glyphs;
-    let last_advance = advance(num_long - 1);
-    while num_long > 1 && advance(num_long - 2) == last_advance {
-        num_long -= 1;
-    }
+    let num_long = num_long_metrics(plan.num_output_glyphs, advance);
     let count = if wide {
         u32::try_from(num_long).map(|n| n.to_be_bytes().to_vec())
     } else {

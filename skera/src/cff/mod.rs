@@ -1,9 +1,14 @@
+#![allow(dead_code)]
 //! CFF1 and CFF2 subsetters. Shared interpreter policies mirror HarfBuzz's
 //! template parameters without exposing them as a public extension API.
 
+mod blend;
+mod bounds;
 mod charstring;
 mod dict;
+mod downgrade;
 mod encoding;
+mod instance;
 mod source;
 mod subset;
 
@@ -48,6 +53,18 @@ pub(crate) fn subset_data(
     .map_err(|_| SubsetError::SubsetTableError(tag))
 }
 
+pub(crate) fn instance_subset(
+    font: &FontRef,
+    plan: &Plan,
+    axes: &crate::instance::AxisPlan,
+) -> std::result::Result<Vec<u8>, SubsetError> {
+    let table = font
+        .cff2()
+        .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))?;
+    instance::instance_subset(font, axes, &table, plan)
+        .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+}
+
 pub(crate) fn closure(font: &FontRef, glyphs: &mut IntSet<GlyphId>) {
     if let Some(data) = font.data_for_tag(Tag::new(b"CFF ")) {
         if let Ok(source) = source::Source::new(data.as_bytes()) {
@@ -83,6 +100,28 @@ fn charstring_may_end_in_seac(data: &[u8], subrs_may_end_in_seac: bool) -> bool 
         || (body.len() >= 2 && matches!(body[body.len() - 2], 247..=254))
         || (body.len() >= 3 && body[body.len() - 3] == 28)
         || (body.len() >= 5 && body[body.len() - 5] == 255)
+}
+
+pub(crate) fn instance_subset_bounds(
+    font: &FontRef,
+    axes: &crate::instance::AxisPlan,
+    plan: &Plan,
+) -> std::result::Result<Vec<Option<[f64; 4]>>, SubsetError> {
+    bounds::bounds(font, axes, Some(plan))
+        .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+}
+
+pub(crate) fn downgrade_table(
+    data: &[u8],
+    advances: &[u16],
+    bbox: [i16; 4],
+) -> std::result::Result<Vec<u8>, SubsetError> {
+    downgrade::convert_table(data, advances, bbox)
+        .map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
+}
+
+pub(crate) fn downgrade(font: &FontRef) -> std::result::Result<Vec<u8>, SubsetError> {
+    downgrade::convert(font).map_err(|_| SubsetError::SubsetTableError(Tag::new(b"CFF2")))
 }
 
 #[cfg(test)]
