@@ -24,9 +24,10 @@ required-features = ["cli"]
 [features]
 default = []
 cli = ["clap"]
+spec_next = ["skrifa/spec_next"]
 
 [dependencies]
-write-fonts = { workspace = true, features = ["read"] }
+write-fonts = { workspace = true, features = ["read", "tables"] }
 read-fonts = { workspace = true, features = ["std"] }
 foldhash = { workspace = true }
 clap = { version = "4.5.4", features = ["derive"], optional = true }
