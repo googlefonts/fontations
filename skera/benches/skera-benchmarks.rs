@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use read_fonts::{collections::IntSet, types::NameId, FontRef};
+use read_fonts::{collections::IntSet, types::NameId, FontRef, TableProvider};
 use skera::{subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES};
+use skrifa::MetadataProvider;
 use std::{path::Path, time::Duration};
 
 fn read_test_font(file_name: &str) -> Vec<u8> {
@@ -128,6 +129,82 @@ fn benchmark_subset_slow(c: &mut Criterion) {
         });
 }
 
+fn benchmark_instance_subset(c: &mut Criterion) {
+    use skera::{instance_font_with_flags, AxisLimits};
+    let mut group = c.benchmark_group("instance-subset");
+    group
+        .sample_size(20)
+        .warm_up_time(Duration::from_secs(1))
+        .measurement_time(Duration::from_secs(2));
+    for name in [
+        "RobotoFlex-Variable.ttf",
+        "AdobeVFPrototype.otf",
+        "colr-affine-values.ttf",
+    ] {
+        let bytes = read_test_font(name);
+        let font = FontRef::new(&bytes).unwrap();
+        let fvar = font.fvar().unwrap();
+        let axis = &fvar.axes().unwrap()[0];
+        let limits = [AxisLimits::Pin {
+            tag: axis.axis_tag(),
+            value: axis.default_value().to_f32()
+                + (axis.max_value().to_f32() - axis.default_value().to_f32()) * 0.75,
+        }];
+        let codepoints = if name == "colr-affine-values.ttf" {
+            [97u32, 98, 99]
+        } else {
+            [65u32, 66, 67]
+        };
+        let glyphs = codepoints
+            .into_iter()
+            .map(|cp| font.charmap().map(cp).unwrap())
+            .collect();
+        let empty = IntSet::empty();
+        let drop_tables = IntSet::empty();
+        let all = IntSet::all();
+        let all_names = IntSet::all();
+        let all_languages = IntSet::all();
+        group.bench_function(format!("{name}/combined"), |b| {
+            b.iter(|| {
+                let plan = Plan::new_with_axis_limits(
+                    &glyphs,
+                    &empty,
+                    &font,
+                    SubsetFlags::default(),
+                    &drop_tables,
+                    &all,
+                    &all,
+                    &all_names,
+                    &all_languages,
+                    &limits,
+                )
+                .unwrap();
+                subset_font(&font, &plan).unwrap()
+            })
+        });
+        group.bench_function(format!("{name}/staged"), |b| {
+            b.iter(|| {
+                let bytes =
+                    instance_font_with_flags(&font, &limits, SubsetFlags::default()).unwrap();
+                let font = FontRef::new(&bytes).unwrap();
+                let plan = Plan::new(
+                    &glyphs,
+                    &empty,
+                    &font,
+                    SubsetFlags::default(),
+                    &drop_tables,
+                    &all,
+                    &all,
+                    &all_names,
+                    &all_languages,
+                );
+                subset_font(&font, &plan).unwrap()
+            })
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(benches, benchmark_subset);
 criterion_group! {
     name = benches_medium;
@@ -139,4 +216,5 @@ criterion_group! {
     config = Criterion::default().measurement_time(Duration::from_secs(30));
     targets = benchmark_subset_slow
 }
-criterion_main!(benches, benches_medium, benches_slow);
+criterion_group!(benches_instance, benchmark_instance_subset);
+criterion_main!(benches, benches_medium, benches_slow, benches_instance);
