@@ -1491,9 +1491,10 @@ impl Graph {
             }
         }
 
-        if !self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())? {
-            return Ok(false);
-        }
+        // An overflow root still needs a new packing space when no duplication is
+        // needed, so move already-isolated roots as well.
+        // ref: <https://github.com/harfbuzz/harfbuzz/commit/22248564c1eb107ba51dced50cc4d8b904e02808>
+        self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())?;
         self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
@@ -1603,14 +1604,17 @@ impl Graph {
 
     fn resolve_shared_overflow(
         &mut self,
-        overflow: &Overflow,
+        overflow_index: usize,
         overflows: &[Overflow],
     ) -> Result<bool, RepackError> {
         // Find all of the parents in overflowing links that link to this same child node.
         // try duplicating the child node and re-assigning all of these parents to the duplicate.
+        // As in HarfBuzz, only overflows up to and including overflow_index are considered.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
+        let overflow = &overflows[overflow_index];
         let child_idx = overflow.child();
         let mut parents = IntSet::empty();
-        for o in overflows {
+        for o in &overflows[..=overflow_index] {
             if o.child() == child_idx {
                 parents.insert(o.parent() as u32);
             }
@@ -1644,10 +1648,10 @@ impl Graph {
         let mut priority_bumped_parents = IntSet::empty();
         let mut resolution_attempted = false;
         // try resolving the furthest overflows first
-        for overflow in overflows.iter().rev() {
+        for (overflow_index, overflow) in overflows.iter().enumerate().rev() {
             let child_idx = overflow.child();
             if self.vertices[child_idx].is_shared()
-                && self.resolve_shared_overflow(overflow, overflows)?
+                && self.resolve_shared_overflow(overflow_index, overflows)?
             {
                 return Ok(true);
             }
@@ -2466,6 +2470,91 @@ pub(crate) mod test {
             .duplicate_subgraph(graph.root_idx(), &mut index_map, &mut visited)
             .is_ok());
         assert_eq!(index_map.len(), 2001);
+    }
+
+    // Only overflows up to and including the one being resolved contribute parents
+    // to the duplication, matching HarfBuzz.
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
+    #[test]
+    fn test_resolve_shared_overflow_uses_preceding_parents() {
+        let mut s = Serializer::new(100);
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"c", 1, false);
+
+        let mut parents = [0; 3];
+        for (i, p) in parents.iter_mut().enumerate() {
+            start_object(&mut s, &[b'p', b'0' + i as u8], 2);
+            add_offset(&mut s, child);
+            *p = s.pop_pack(false).unwrap();
+        }
+
+        start_object(&mut s, b"r", 1);
+        for p in parents {
+            add_offset(&mut s, p);
+        }
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.update_parents().unwrap();
+        let overflows: Vec<Overflow> = parents
+            .iter()
+            .map(|p| Overflow(((*p as u64) << 32) | child as u64))
+            .collect();
+
+        // Resolving the second overflow must only reassign the first two parents.
+        assert!(graph.resolve_shared_overflow(1, &overflows).unwrap());
+        let child_of = |g: &Graph, p: ObjIdx| g.vertices[p].real_links()[0].obj_idx();
+        let clone = child_of(&graph, parents[0]);
+        assert_ne!(clone, child);
+        assert_eq!(child_of(&graph, parents[1]), clone);
+        assert_eq!(child_of(&graph, parents[2]), child);
+    }
+
+    // An overflowing root whose subgraph is already isolated (so no duplication is
+    // needed) must still be moved into a new space.
+    // ref: <https://github.com/harfbuzz/harfbuzz/commit/22248564c1eb107ba51dced50cc4d8b904e02808>
+    #[test]
+    fn test_try_isolating_already_isolated_roots() {
+        let large_bytes = [b'a'; 60000];
+        let mut s = Serializer::new(160000);
+        s.start_serialize().unwrap();
+        let obj_d = add_object(&mut s, b"d", 1, false);
+        let obj_e = add_object(&mut s, b"e", 1, false);
+
+        start_object(&mut s, &large_bytes, 60000);
+        add_offset(&mut s, obj_d);
+        let obj_b = s.pop_pack(false).unwrap();
+
+        start_object(&mut s, &large_bytes, 60000);
+        add_offset(&mut s, obj_e);
+        let obj_c = s.pop_pack(false).unwrap();
+
+        start_object(&mut s, b"a", 1);
+        add_wide_offset(&mut s, obj_b);
+        add_wide_offset(&mut s, obj_c);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.update_parents().unwrap();
+        // Put both disjoint 32-bit subgraphs into the same space.
+        graph.vertices[obj_b].space = 1;
+        graph.vertices[obj_c].space = 1;
+        graph.num_roots_for_space = vec![1, 2];
+        graph.sort_shortest_distance().unwrap();
+
+        let overflows = graph.overflows();
+        assert!(!overflows.is_empty());
+
+        assert!(graph.try_isolating_subgraphs(&overflows).unwrap());
+        assert_eq!(graph.num_roots_for_space, vec![1, 1, 1]);
+        let mut spaces = [graph.vertices[obj_b].space, graph.vertices[obj_c].space];
+        spaces.sort();
+        assert_eq!(spaces, [1, 2]);
+
+        graph.sort_shortest_distance().unwrap();
+        assert!(!graph.has_overflows());
     }
 
     #[test]
