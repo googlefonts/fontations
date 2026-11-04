@@ -97,49 +97,48 @@ pub mod tags {
 
 include!("../../generated/generated_mvar.rs");
 
-impl<'a> Mvar<'a> {
-    /// The stride between value records.
-    ///
-    /// `valueRecordSize` may be larger than the record's own size, reserving
-    /// trailing bytes per record; the stride is that field, not the fixed
-    /// record size. `None` when it is smaller than the record, which is
-    /// malformed.
-    fn value_record_stride(&self) -> Option<usize> {
-        let stride = self.value_record_size() as usize;
-        (stride >= ValueRecord::RAW_BYTE_LEN).then_some(stride)
-    }
+impl ReadArgs for ValueRecord {
+    type Args = u16;
+}
 
-    /// The value record at `index`, read at the `valueRecordSize` stride.
-    ///
-    /// The generated [`value_records`](Self::value_records) accessor assumes
-    /// the fixed record size, so it reads the wrong bytes whenever
-    /// `valueRecordSize` is larger; lookups go through this instead.
-    fn value_record(&self, index: usize) -> Option<&'a ValueRecord> {
-        let stride = self.value_record_stride()?;
-        let offset = self
-            .value_records_byte_range()
-            .start
-            .checked_add(index.checked_mul(stride)?)?;
-        self.offset_data().read_ref_at::<ValueRecord>(offset).ok()
-    }
-
-    /// Binary searches the value records for `tag`, honoring the record
-    /// stride. Records are in binary order of their tag.
-    fn value_record_for_tag(&self, tag: Tag) -> Option<&'a ValueRecord> {
-        use core::cmp::Ordering;
-        let mut lo = 0usize;
-        let mut hi = self.value_record_count() as usize;
-        while lo < hi {
-            let mid = lo + (hi - lo) / 2;
-            let record = self.value_record(mid)?;
-            match tag.cmp(&record.value_tag()) {
-                Ordering::Less => hi = mid,
-                Ordering::Greater => lo = mid + 1,
-                Ordering::Equal => return Some(record),
-            }
+impl ComputeSize for ValueRecord {
+    fn compute_size(value_record_size: u16) -> Result<usize, ReadError> {
+        let size = value_record_size as usize;
+        if size < Self::RAW_BYTE_LEN {
+            return Err(ReadError::MalformedData(
+                "MVAR value record size is too small",
+            ));
         }
-        None
+        // The table may reserve trailing bytes for future record fields.
+        Ok(size)
     }
+}
+
+crate::impl_font_read_at!(ValueRecord);
+
+impl FontRead<'_> for ValueRecord {
+    fn read_with_args(data: FontData<'_>, value_record_size: u16) -> Result<Self, ReadError> {
+        let size = Self::compute_size(value_record_size)?;
+        let data = data.slice(..size).ok_or(ReadError::OutOfBounds)?;
+        data.read_ref_at(0).copied()
+    }
+}
+
+/// Binary searches the records, which are in binary order of their tag.
+fn value_record_for_tag(records: &ComputedArray<'_, ValueRecord>, tag: Tag) -> Option<ValueRecord> {
+    use core::cmp::Ordering;
+    let mut lo = 0usize;
+    let mut hi = records.len();
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let record = records.get(mid).ok()?;
+        match tag.cmp(&record.value_tag()) {
+            Ordering::Less => hi = mid,
+            Ordering::Greater => lo = mid + 1,
+            Ordering::Equal => return Some(record),
+        }
+    }
+    None
 }
 
 /// `MVAR` at one location, with the variation store resolved once.
@@ -147,7 +146,7 @@ impl<'a> Mvar<'a> {
 /// Prefer this over [`Mvar::metric_delta`] when reading more than one metric;
 /// that resolves the store on every lookup.
 pub struct MvarInstance<'a> {
-    mvar: Mvar<'a>,
+    records: ComputedArray<'a, ValueRecord>,
     ivs: ItemVariationStore<'a>,
     coords: &'a [F2Dot14],
 }
@@ -162,7 +161,7 @@ impl<'a> Mvar<'a> {
             return None;
         }
         Some(MvarInstance {
-            mvar: self.clone(),
+            records: self.value_records(),
             ivs: self.item_variation_store()?.ok()?,
             coords,
         })
@@ -177,7 +176,7 @@ impl MvarInstance<'_> {
     /// to the value the metric's own table holds, and left unrounded so a
     /// caller can round it its own way.
     pub fn get(&self, tag: Tag) -> Option<F48Dot16> {
-        let record = self.mvar.value_record_for_tag(tag)?;
+        let record = value_record_for_tag(&self.records, tag)?;
         self.ivs.compute_delta(
             DeltaSetIndex {
                 outer: record.delta_set_outer_index(),
@@ -196,7 +195,7 @@ impl Mvar<'_> {
     /// `None` for a metric the font does not vary, and for one it states
     /// unreadably.
     pub fn metric_delta(&self, tag: Tag, coords: &[F2Dot14]) -> Option<Fixed> {
-        let record = self.value_record_for_tag(tag)?;
+        let record = value_record_for_tag(&self.value_records(), tag)?;
         let ivs = self.item_variation_store()?.ok()?;
         Some(Fixed::from_i32(
             ivs.compute_delta(
@@ -239,7 +238,8 @@ mod tests {
         let coords = far();
         let instance = mvar.at(&coords).expect("a location away from the default");
         let mut varied = 0;
-        for record in mvar.value_records() {
+        for record in mvar.value_records().iter() {
+            let record = record.unwrap();
             let tag = record.value_tag();
             let exact = instance.get(tag).expect("a tag the table states");
             let rounded = mvar.metric_delta(tag, &coords).unwrap();
@@ -269,6 +269,7 @@ mod tests {
         let fractional = mvar
             .value_records()
             .iter()
+            .map(Result::unwrap)
             .filter_map(|record| instance.get(record.value_tag()))
             .any(|delta| delta.to_bits() & 0xFFFF != 0);
         assert!(fractional, "no metric delta carried a fraction");
@@ -317,6 +318,30 @@ mod tests {
             .push(1u16) // region index count
             .push(0u16) // region index
             .extend([100i16, -50, 25])
+    }
+
+    #[test]
+    fn value_records_honor_the_declared_stride() {
+        for stride in [8, 9, 12, 32] {
+            let bytes = mvar_with_stride(stride);
+            let mvar = Mvar::read(FontData::new(bytes.as_slice())).unwrap();
+            let records = mvar.value_records();
+            assert_eq!(records.len(), 3);
+            assert_eq!(
+                mvar.value_records_byte_range(),
+                12..12 + 3 * stride as usize
+            );
+
+            let iterated = records.iter().collect::<Result<Vec<_>, _>>().unwrap();
+            for (i, tag) in [b"hasc", b"hdsc", b"hlgp"].iter().enumerate() {
+                let record = records.get(i).unwrap();
+                assert_eq!(record.value_tag(), Tag::new(tag));
+                assert_eq!(record.delta_set_outer_index(), 0);
+                assert_eq!(record.delta_set_inner_index(), i as u16);
+                assert_eq!(iterated[i], record);
+            }
+            assert!(records.get(3).is_err());
+        }
     }
 
     #[test]
@@ -370,13 +395,28 @@ mod tests {
         // `valueRecordSize` must be at least the defined record size; a smaller
         // one is rejected without reading past the array or panicking.
         let mut bytes = mvar_with_stride(12).as_slice().to_vec();
-        bytes[6] = 0;
-        bytes[7] = 4; // valueRecordSize = 4
-        let mvar = Mvar::read(FontData::new(&bytes)).unwrap();
-        assert_eq!(mvar.value_record_size(), 4);
-        let coords = [F2Dot14::from_f32(1.0)];
-        assert!(mvar.metric_delta(Tag::new(b"hasc"), &coords).is_none());
-        let instance = mvar.at(&coords).unwrap();
-        assert!(instance.get(Tag::new(b"hasc")).is_none());
+        for size in 0..8u16 {
+            bytes[6..8].copy_from_slice(&size.to_be_bytes());
+            let mvar = Mvar::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(mvar.value_record_size(), size);
+            let records = mvar.value_records();
+            assert!(records.is_empty());
+            assert!(records.get(0).is_err());
+            assert_eq!(records.iter().count(), 0);
+            let coords = [F2Dot14::ONE];
+            assert!(mvar.metric_delta(Tag::new(b"hasc"), &coords).is_none());
+            let instance = mvar.at(&coords).unwrap();
+            assert!(instance.get(Tag::new(b"hasc")).is_none());
+        }
+    }
+
+    #[test]
+    fn truncated_value_records_are_not_read() {
+        let bytes = mvar_with_stride(12);
+        // All defined fields are present, but the last record's padding is cut off.
+        let data = &bytes.as_slice()[..12 + 3 * 12 - 1];
+        let mvar = Mvar::read(FontData::new(data)).unwrap();
+        assert!(mvar.value_records().is_empty());
+        assert!(mvar.metric_delta(tags::HASC, &[F2Dot14::ONE]).is_none());
     }
 }
