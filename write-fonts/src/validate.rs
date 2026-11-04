@@ -224,6 +224,10 @@ impl<T: Validate> Validate for BTreeSet<T> {
     }
 }
 
+impl Validate for String {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

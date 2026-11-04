@@ -60,6 +60,7 @@ impl Validate for Name {
                 if self.name_record.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
+                self.name_record.validate_impl(ctx);
                 self.check_sorted_and_unique_name_records(ctx);
             });
             ctx.in_field("lang_tag_record", |ctx| {
@@ -199,6 +200,7 @@ impl Validate for NameRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("NameRecord", |ctx| {
             ctx.in_field("string", |ctx| {
+                self.string.validate_impl(ctx);
                 self.validate_string_data(ctx);
             });
         })
