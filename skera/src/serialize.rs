@@ -87,7 +87,15 @@ pub enum OffsetWhence {
     Absolute,
 }
 
-type PoolIdx = usize;
+// Index of an object in the serializer's object pool. The pool holds at most one object per
+// packed or in-progress object, so indices are stored as u32 like ObjIdx.
+type PoolIdx = u32;
+
+#[inline]
+fn to_pool_idx(idx: usize) -> PoolIdx {
+    debug_assert!(PoolIdx::try_from(idx).is_ok());
+    idx as PoolIdx
+}
 
 // Reference Harfbuzz implementation:
 // <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L69>
@@ -1018,21 +1026,21 @@ impl ObjectPool {
                 .iter_mut()
                 .enumerate()
             {
-                obj.next = Some(len + idx + 1);
+                obj.next = Some(to_pool_idx(len + idx + 1));
             }
 
             self.chunks.last_mut().unwrap().next = None;
-            self.next = Some(len);
+            self.next = Some(to_pool_idx(len));
         }
 
         let pool_idx = self.next.unwrap();
-        self.next = self.chunks[pool_idx].next;
+        self.next = self.chunks[pool_idx as usize].next;
 
         pool_idx
     }
 
     fn release(&mut self, pool_idx: PoolIdx) {
-        let Some(obj_wrap) = self.chunks.get_mut(pool_idx) else {
+        let Some(obj_wrap) = self.chunks.get_mut(pool_idx as usize) else {
             return;
         };
 
@@ -1042,11 +1050,11 @@ impl ObjectPool {
     }
 
     fn get_obj_mut(&mut self, pool_idx: PoolIdx) -> Option<&mut Object> {
-        self.chunks.get_mut(pool_idx).map(|o| &mut o.obj)
+        self.chunks.get_mut(pool_idx as usize).map(|o| &mut o.obj)
     }
 
     fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
-        self.chunks.get(pool_idx).map(|o| &o.obj)
+        self.chunks.get(pool_idx as usize).map(|o| &o.obj)
     }
 
     fn next_idx(&self, pool_idx: PoolIdx) -> Option<PoolIdx> {
