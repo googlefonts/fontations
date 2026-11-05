@@ -290,6 +290,14 @@ impl Serializer {
         }
     }
 
+    /// Reserves room for `num_objects` objects, so that serializing a known number of objects
+    /// doesn't over-allocate by growing the object pool and the packed object list.
+    pub(crate) fn reserve_objects(&mut self, num_objects: usize) {
+        // +1 for the object being serialized before it's packed.
+        self.object_pool.reserve(num_objects + 1);
+        self.packed.reserve_exact(num_objects);
+    }
+
     /// Appends a the byte representation of a single scalar type onto the buffer.
     pub fn embed(&mut self, obj: impl Scalar) -> Result<usize, SerializeErrorFlags> {
         let raw = obj.to_raw();
@@ -991,6 +999,12 @@ struct ObjectPool {
 
 impl ObjectPool {
     const ALLOC_CHUNKS_LEN: usize = 64;
+
+    // Reserves room for `num_objects` more objects; the pool grows a chunk at a time.
+    fn reserve(&mut self, num_objects: usize) {
+        self.chunks
+            .reserve_exact(num_objects.next_multiple_of(Self::ALLOC_CHUNKS_LEN));
+    }
     fn alloc(&mut self) -> PoolIdx {
         let len = self.chunks.len();
         if self.next.is_none() {

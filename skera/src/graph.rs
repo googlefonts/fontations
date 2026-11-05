@@ -858,6 +858,7 @@ impl Graph {
 
     pub(crate) fn serialize(&self) -> Result<Vec<u8>, SerializeErrorFlags> {
         let mut s = Serializer::new(self.total_size_in_bytes());
+        s.reserve_objects(self.ordering.len());
         s.start_serialize()?;
 
         let vertices = &self.vertices;
