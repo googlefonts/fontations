@@ -1406,6 +1406,16 @@ impl Graph {
         Ok(())
     }
 
+    // Makes room for one more vertex. Vertices are only added a few at a time (duplication and
+    // splitting), so grow by 1.5x like HarfBuzz's vectors instead of letting Vec double, which
+    // would reserve space for as many vertices again as the graph started with.
+    fn reserve_vertex(&mut self) {
+        let len = self.vertices.len();
+        if len == self.vertices.capacity() {
+            self.vertices.reserve_exact(len / 2 + 8);
+        }
+    }
+
     /// Creates a copy of the specified vertex and returns the new vertex idx.
     fn duplicate_vertex(
         &mut self,
@@ -1419,6 +1429,7 @@ impl Graph {
         self.positions_invalid = true;
         self.distance_invalid = true;
 
+        self.reserve_vertex();
         self.ordering.push(clone_idx);
 
         let v = self
@@ -1713,6 +1724,7 @@ impl Graph {
             ..Default::default()
         };
 
+        self.reserve_vertex();
         self.vertices.push(new_vertex);
         self.ordering.push(new_idx);
 
