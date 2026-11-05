@@ -48,6 +48,41 @@ mod tests {
         assert_eq!(read.value_records().len(), 0);
     }
 
+    #[test]
+    fn padded_value_records_roundtrip() {
+        let mut builder = VariationStoreBuilder::new(1);
+        builder.add_deltas(vec![(test_regions()[0].clone(), 100)]);
+        let (store, _) = builder.build();
+        let table = Mvar::new(
+            MajorMinor::VERSION_1_0,
+            Some(store),
+            vec![
+                ValueRecord::new(Tag::new(b"hasc"), 0, 0),
+                ValueRecord::new(Tag::new(b"hdsc"), 0, 0),
+                ValueRecord::new(Tag::new(b"hlgp"), 0, 0),
+            ],
+        );
+        let bytes = dump_table(&table).unwrap();
+        let read = read_mvar::Mvar::read(FontData::new(&bytes)).unwrap();
+        let records_range = read.value_records_byte_range();
+        let store_offset = read.item_variation_store_offset().offset().to_u32() as u16;
+        let mut padded = bytes[..records_range.start].to_vec();
+        padded[6..8].copy_from_slice(&12u16.to_be_bytes());
+        padded[10..12].copy_from_slice(&(store_offset + 12).to_be_bytes());
+        for record in bytes[records_range.clone()].chunks_exact(8) {
+            padded.extend_from_slice(record);
+            padded.extend_from_slice(&[0xFF; 4]);
+        }
+        padded.extend_from_slice(&bytes[records_range.end..]);
+
+        let read = read_mvar::Mvar::read(FontData::new(&padded)).unwrap();
+        assert_eq!(read.value_record_size(), 12);
+        let owned: Mvar = read.to_owned_table();
+        assert_eq!(owned.value_records, table.value_records);
+        assert_eq!(owned.value_record_size, 8);
+        assert_eq!(dump_table(&owned).unwrap(), bytes);
+    }
+
     fn reg_coords(min: f32, default: f32, max: f32) -> RegionAxisCoordinates {
         RegionAxisCoordinates {
             start_coord: F2Dot14::from_f32(min),
@@ -118,7 +153,7 @@ mod tests {
         assert!(read.item_variation_store().is_some());
 
         assert_value_record(
-            &read.value_records()[0],
+            &read.value_records().get(0).unwrap(),
             ValueRecord::new(Tag::new(b"hasc"), 0, 1),
         );
         assert_eq!(read_metric_delta(&read, b"hasc", &[0.0]), 0.0);
@@ -127,7 +162,7 @@ mod tests {
         assert_eq!(read_metric_delta(&read, b"hasc", &[1.0]), 10.0);
 
         assert_value_record(
-            &read.value_records()[1],
+            &read.value_records().get(1).unwrap(),
             ValueRecord::new(Tag::new(b"hdsc"), 0, 0),
         );
         assert_eq!(read_metric_delta(&read, b"hdsc", &[0.0]), 0.0);

@@ -12,6 +12,8 @@ table Mvar {
     #[compile(0)]
     _reserved: u16,
     /// The size in bytes of each value record — must be greater than zero.
+    // Owned records omit any reserved trailing bytes.
+    #[to_owned(8)]
     value_record_size: u16,
     /// The number of value records — may be zero.
     value_record_count: u16,
@@ -20,7 +22,8 @@ table Mvar {
     item_variation_store_offset: Offset16<ItemVariationStore>,
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.
     #[count($value_record_count)]
-    value_records: [ValueRecord],
+    #[read_with($value_record_size)]
+    value_records: ComputedArray<ValueRecord>,
 }
 
 /// [ValueRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/mvar#table-formats) metrics variation record

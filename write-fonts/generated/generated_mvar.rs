@@ -62,10 +62,14 @@ impl<'a> FromObjRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {
         let offset_data = obj.offset_data();
         Mvar {
             version: obj.version(),
-            value_record_size: obj.value_record_size(),
+            value_record_size: 8,
             value_record_count: obj.value_record_count(),
             item_variation_store: obj.item_variation_store().to_owned_table(),
-            value_records: obj.value_records().to_owned_obj(offset_data),
+            value_records: obj
+                .value_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
         }
     }
 }

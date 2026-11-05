@@ -95,12 +95,9 @@ impl<'a> Mvar<'a> {
     }
 
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.
-    pub fn value_records(&self) -> &'a [ValueRecord] {
+    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.value_records_byte_range();
-        self.offset_data()
-            .read_array(range)
-            .ok()
-            .unwrap_or_default()
+        ComputedArray::new(self.offset_data(), range, self.value_record_size()).unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -136,9 +133,9 @@ impl<'a> Mvar<'a> {
     pub fn value_records_byte_range(&self) -> Range<usize> {
         let value_record_count = self.value_record_count();
         let start = self.item_variation_store_offset_byte_range().end;
-        let end = start.saturating_add(
-            (transforms::to_usize(value_record_count)).saturating_mul(ValueRecord::RAW_BYTE_LEN),
-        );
+        let end = start.saturating_add((transforms::to_usize(value_record_count)).saturating_mul(
+            <ValueRecord as ComputeSize>::compute_size(self.value_record_size()).unwrap_or(0),
+        ));
         start..end
     }
 }
