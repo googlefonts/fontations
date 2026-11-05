@@ -149,7 +149,18 @@ impl LinkWidth {
     }
 }
 
-pub(crate) type ObjIdx = usize;
+/// Index of a packed object (and of a vertex in the repacker's graph).
+///
+/// Object counts are bounded (the repacker caps them at MAX_VERTICES), so indices are stored
+/// as u32, which keeps links and the graph's index tables small.
+pub(crate) type ObjIdx = u32;
+
+/// Converts a count or position in an object list to an ObjIdx.
+#[inline]
+pub(crate) fn to_obj_idx(idx: usize) -> ObjIdx {
+    debug_assert!(ObjIdx::try_from(idx).is_ok());
+    idx as ObjIdx
+}
 
 #[derive(Default, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct Link {
@@ -558,7 +569,7 @@ impl Serializer {
         }
 
         self.packed.push(pool_idx);
-        let obj_idx = self.packed.len() - 1;
+        let obj_idx = to_obj_idx(self.packed.len() - 1);
 
         if share {
             self.packed_map.set_with_hash(pool_idx, hash, obj_idx);
@@ -759,7 +770,7 @@ impl Serializer {
             if other_idx == obj_idx {
                 continue;
             }
-            let Some(pool_idx) = self.packed.get(other_idx) else {
+            let Some(pool_idx) = self.packed.get(other_idx as usize) else {
                 return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             let Some(other_obj) = self.object_pool.get_obj_mut(*pool_idx) else {
@@ -807,7 +818,7 @@ impl Serializer {
 
             for link in parent_obj.real_links.iter() {
                 let Some(child_obj) = packed
-                    .get(link.objidx)
+                    .get(link.objidx as usize)
                     .and_then(|child_pool_idx| object_pool.get_obj(*child_pool_idx))
                 else {
                     self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
