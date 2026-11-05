@@ -51,7 +51,8 @@ pub(crate) enum Parents {
     #[default]
     Empty,
     Single(ObjIdx),
-    Multiple(FastHashMap<ObjIdx, usize>),
+    // Boxed: most vertices have a single parent, so keep the common variants small.
+    Multiple(Box<FastHashMap<ObjIdx, usize>>),
 }
 
 #[derive(Clone, Debug)]
@@ -234,7 +235,36 @@ pub(crate) struct Vertex {
     incoming_edges: usize,
     has_incoming_virtual_edges: bool,
     parents: Parents,
-    virtual_parents: IntSet<u32>,
+    virtual_parents: VirtualParents,
+}
+
+/// The set of parents linking to a vertex with virtual links.
+///
+/// Few vertices have virtual parents, so the set is only allocated when needed; an inline
+/// IntSet would add 72 bytes to every vertex.
+#[derive(Default, Debug)]
+struct VirtualParents(Option<Box<IntSet<u32>>>);
+
+impl VirtualParents {
+    fn clear(&mut self) {
+        if let Some(set) = &mut self.0 {
+            set.clear();
+        }
+    }
+
+    fn insert(&mut self, parent_idx: u32) {
+        self.0
+            .get_or_insert_with(Default::default)
+            .insert(parent_idx);
+    }
+
+    fn remove(&mut self, parent_idx: u32) -> bool {
+        self.0.as_mut().is_some_and(|set| set.remove(parent_idx))
+    }
+
+    fn len(&self) -> u64 {
+        self.0.as_ref().map_or(0, |set| set.len())
+    }
 }
 
 impl Vertex {
@@ -299,7 +329,7 @@ impl Vertex {
                     .entry(parent_idx)
                     .and_modify(|c| *c += 1)
                     .or_insert(1_usize);
-                self.parents = Parents::Multiple(parents);
+                self.parents = Parents::Multiple(Box::new(parents));
 
                 self.incoming_edges += 1;
             }
