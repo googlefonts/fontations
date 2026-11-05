@@ -228,11 +228,14 @@ pub(crate) struct Vertex {
     virtual_links: Vec<Link>,
 
     distance: u64,
-    space: usize,
+    // space, start, end and incoming_edges are bounded (by MAX_SPACES, the table size and the
+    // number of links) and are stored as u32 to keep vertices small.
+    space: u32,
     priority: u8,
-    start: usize,
-    end: usize,
-    incoming_edges: usize,
+    // u32::MAX if the position doesn't fit in a u32; see update_positions().
+    start: u32,
+    end: u32,
+    incoming_edges: u32,
     has_incoming_virtual_edges: bool,
     parents: Parents,
     virtual_parents: VirtualParents,
@@ -365,9 +368,9 @@ impl Vertex {
                 };
 
                 if remove_all_edges || num_edges_to_remove > *num_edges {
-                    self.incoming_edges -= *num_edges;
+                    self.incoming_edges -= *num_edges as u32;
                 } else {
-                    self.incoming_edges -= num_edges_to_remove;
+                    self.incoming_edges -= num_edges_to_remove as u32;
                 }
 
                 if *num_edges > num_edges_to_remove && !remove_all_edges {
@@ -485,7 +488,7 @@ impl Vertex {
     }
 
     fn incoming_edges(&self) -> usize {
-        self.incoming_edges
+        self.incoming_edges as usize
     }
 
     // return if this vertex is shared by real parents
@@ -801,8 +804,8 @@ impl Graph {
                     link.link_width() as u8
                 };
 
-                let child_weight =
-                    child_v.tail - child_v.head + (1 << (link_width * 8)) * (child_v.space + 1);
+                let child_weight = child_v.tail - child_v.head
+                    + (1 << (link_width * 8)) * (child_v.space as usize + 1);
                 let child_distance = next_distance + child_weight as u64;
                 if child_distance < distance_map[child_idx] {
                     distance_map[child_idx] = child_distance;
@@ -899,13 +902,17 @@ impl Graph {
             return;
         }
 
+        // Positions are stored as u32. A table that doesn't fit in 4GB can't be stored in a
+        // font, so saturate: offset_overflows() reports any link involving a saturated position
+        // as overflowing.
+        let to_pos = |pos: usize| u32::try_from(pos).unwrap_or(u32::MAX);
         let mut cur_pos = 0;
         let vertices = &mut self.vertices;
         for i in &self.ordering {
             let v = &mut vertices[*i as usize];
-            v.start = cur_pos;
+            v.start = to_pos(cur_pos);
             cur_pos += v.tail - v.head;
-            v.end = cur_pos;
+            v.end = to_pos(cur_pos);
         }
 
         self.positions_invalid = false;
@@ -915,11 +922,14 @@ impl Graph {
     fn offset_overflows(&self, parent_v: &Vertex, link: &Link) -> bool {
         let vertices = &self.vertices;
         let child_v = &vertices[link.obj_idx() as usize];
+        if [child_v.start, parent_v.start, parent_v.end].contains(&u32::MAX) {
+            return link.link_width() != LinkWidth::Zero;
+        }
         let mut offset = match link.whence() {
             OffsetWhence::Head => child_v.start - parent_v.start,
             OffsetWhence::Tail => child_v.start - parent_v.end,
             OffsetWhence::Absolute => child_v.start,
-        };
+        } as usize;
 
         let bias = link.bias() as usize;
         assert!(offset >= bias);
@@ -1008,7 +1018,7 @@ impl Graph {
 
             let vertices = &mut self.vertices;
             for obj_idx in connected_roots.iter() {
-                vertices[obj_idx as usize].space = next_space;
+                vertices[obj_idx as usize].space = next_space as u32;
             }
         }
         Ok(true)
@@ -1538,7 +1548,7 @@ impl Graph {
             return Err(RepackError::GraphErrorInvalidObjIndex);
         };
         if v.space > 0 {
-            return Ok((v.space, obj_idx));
+            return Ok((v.space as usize, obj_idx));
         }
 
         let Some(parent_idx) = v.iter_parents().nth(0) else {
@@ -1558,7 +1568,7 @@ impl Graph {
         }
         let vertices = &mut self.vertices;
         for idx in indices.iter() {
-            vertices[idx as usize].space = new_space;
+            vertices[idx as usize].space = new_space as u32;
         }
 
         let num_indices = indices.len() as usize;
@@ -2540,6 +2550,28 @@ pub(crate) mod test {
         assert_ne!(clone, child);
         assert_eq!(child_of(&graph, parents[1]), clone);
         assert_eq!(child_of(&graph, parents[2]), child);
+    }
+
+    // Positions that don't fit in a u32 are saturated, and links involving them are reported
+    // as overflowing.
+    #[test]
+    fn test_saturated_positions_overflow() {
+        let mut s = Serializer::new(100);
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"child", 5, false);
+        start_object(&mut s, b"p", 1);
+        add_offset(&mut s, child);
+        let parent = s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.sort_shortest_distance().unwrap();
+        assert!(!graph.has_overflows());
+
+        graph.update_positions();
+        graph.vertices[child as usize].start = u32::MAX;
+        let link = graph.vertices[parent as usize].real_links()[0];
+        assert!(graph.offset_overflows(&graph.vertices[parent as usize], &link));
     }
 
     // An overflowing root whose subgraph is already isolated (so no duplication is
