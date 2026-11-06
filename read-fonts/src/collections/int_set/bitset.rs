@@ -198,6 +198,7 @@ impl U32Set {
             Err(info_index) => info_index,
         };
 
+        let mut total_removed = 0u64;
         loop {
             let Some(info) = self.page_map.get(info_index) else {
                 break;
@@ -208,18 +209,23 @@ impl U32Set {
 
             if info.major_value > end_major {
                 break;
-            } else if info.major_value == start_major {
+            }
+            let pre_len = page.len();
+            if info.major_value == start_major {
                 page.remove_range(start, Self::major_end(start_major).min(end));
+                total_removed += (pre_len - page.len()) as u64;
             } else if info.major_value == end_major {
                 page.remove_range(Self::major_start(end_major), end);
+                total_removed += (pre_len - page.len()) as u64;
                 break;
             } else {
                 page.clear();
+                total_removed += pre_len as u64;
             }
             info_index += 1;
         }
 
-        self.recompute_length();
+        self.length -= total_removed;
     }
 
     /// Returns true if val is a member of this set.
@@ -1918,5 +1924,501 @@ mod test {
 
         assert_eq!(a.intersection_len(&c), 0);
         assert_eq!(c.intersection_len(&a), 0);
+    }
+
+    impl U32Set {
+        fn remove_range_old(&mut self, range: RangeInclusive<u32>) {
+            let start = *(range.start());
+            let end = *(range.end());
+            if start > end {
+                return;
+            }
+
+            let start_major = Self::get_major_value(start);
+            let end_major = Self::get_major_value(end);
+            let mut info_index = match self
+                .page_map
+                .binary_search_by(|probe| probe.major_value.cmp(&start_major))
+            {
+                Ok(info_index) => info_index,
+                Err(info_index) => info_index,
+            };
+
+            loop {
+                let Some(info) = self.page_map.get(info_index) else {
+                    break;
+                };
+                let Some(page) = self.pages.get_mut(info.index as usize) else {
+                    break;
+                };
+
+                if info.major_value > end_major {
+                    break;
+                } else if info.major_value == start_major {
+                    page.remove_range(start, Self::major_end(start_major).min(end));
+                } else if info.major_value == end_major {
+                    page.remove_range(Self::major_start(end_major), end);
+                    break;
+                } else {
+                    page.clear();
+                }
+                info_index += 1;
+            }
+
+            self.recompute_length();
+        }
+
+        fn process_old<Op>(&mut self, op: Op, other: &U32Set)
+        where
+            Op: Fn(&BitPage, &BitPage) -> BitPage,
+        {
+            self.process(op, other);
+        }
+
+        fn process_accum<Op>(&mut self, op: Op, other: &U32Set)
+        where
+            Op: Fn(&BitPage, &BitPage) -> BitPage,
+        {
+            let (passthrough_left, passthrough_right) = U32Set::passthrough_behavior(&op);
+
+            let mut len_a = self.pages.len();
+            let len_b = other.pages.len();
+            let mut idx_a = 0;
+            let mut idx_b = 0;
+            let mut count = 0;
+            let mut write_idx = 0;
+
+            while idx_a < len_a && idx_b < len_b {
+                let a_major = self.page_map[idx_a].major_value;
+                let b_major = other.page_map[idx_b].major_value;
+
+                match a_major.cmp(&b_major) {
+                    Ordering::Equal => {
+                        if !passthrough_left {
+                            if write_idx < idx_a {
+                                self.page_map[write_idx] = self.page_map[idx_a];
+                            }
+                            write_idx += 1;
+                        }
+                        count += 1;
+                        idx_a += 1;
+                        idx_b += 1;
+                    }
+                    Ordering::Less => {
+                        if passthrough_left {
+                            count += 1;
+                        }
+                        idx_a += 1;
+                    }
+                    Ordering::Greater => {
+                        if passthrough_right {
+                            count += 1;
+                        }
+                        idx_b += 1;
+                    }
+                }
+            }
+
+            if passthrough_left {
+                count += len_a - idx_a;
+            }
+            if passthrough_right {
+                count += len_b - idx_b;
+            }
+
+            let mut next_page = len_a;
+            if !passthrough_left {
+                len_a = write_idx;
+                next_page = write_idx;
+                self.compact(write_idx);
+            }
+
+            self.resize(count);
+            let new_count = count;
+
+            let mut length = if passthrough_left { self.length } else { 0 };
+            idx_a = len_a;
+            idx_b = len_b;
+            while idx_a > 0 && idx_b > 0 {
+                match self.page_map[idx_a - 1]
+                    .major_value
+                    .cmp(&other.page_map[idx_b - 1].major_value)
+                {
+                    Ordering::Equal => {
+                        idx_a -= 1;
+                        idx_b -= 1;
+                        count -= 1;
+                        self.page_map[count] = self.page_map[idx_a];
+                        let page_a = self.page_for_index(idx_a).unwrap();
+                        let page_b = other.page_for_index(idx_b).unwrap();
+                        if passthrough_left {
+                            length -= page_a.len() as u64;
+                        }
+                        let new_page = op(page_a, page_b);
+                        length += new_page.len() as u64;
+                        *self.page_for_index_mut(count).unwrap() = new_page;
+                    }
+                    Ordering::Greater => {
+                        idx_a -= 1;
+                        if passthrough_left {
+                            count -= 1;
+                            self.page_map[count] = self.page_map[idx_a];
+                        }
+                    }
+                    Ordering::Less => {
+                        idx_b -= 1;
+                        if passthrough_right {
+                            count -= 1;
+                            self.page_map[count].major_value = other.page_map[idx_b].major_value;
+                            self.page_map[count].index = next_page as u32;
+                            next_page += 1;
+                            let page_b = other.page_for_index(idx_b).unwrap();
+                            length += page_b.len() as u64;
+                            *self.page_for_index_mut(count).unwrap() = page_b.clone();
+                        }
+                    }
+                }
+            }
+
+            if passthrough_left {
+                while idx_a > 0 {
+                    idx_a -= 1;
+                    count -= 1;
+                    self.page_map[count] = self.page_map[idx_a];
+                }
+            }
+
+            if passthrough_right {
+                while idx_b > 0 {
+                    idx_b -= 1;
+                    count -= 1;
+                    self.page_map[count].major_value = other.page_map[idx_b].major_value;
+                    self.page_map[count].index = next_page as u32;
+                    next_page += 1;
+                    let page_b = other.page_for_index(idx_b).unwrap();
+                    length += page_b.len() as u64;
+                    *self.page_for_index_mut(count).unwrap() = page_b.clone();
+                }
+            }
+
+            self.resize(new_count);
+            self.length = length;
+        }
+    }
+
+    fn run_paired<F1, F2>(name: &str, pairs: usize, reps: usize, mut f_old: F1, mut f_new: F2)
+    where
+        F1: FnMut(usize),
+        F2: FnMut(usize),
+    {
+        for _ in 0..20 {
+            f_old(reps);
+            f_new(reps);
+        }
+
+        let mut ratios = Vec::with_capacity(pairs);
+        let mut old_ns_vec = Vec::with_capacity(pairs);
+        let mut new_ns_vec = Vec::with_capacity(pairs);
+        let mut wins = 0usize;
+
+        for p in 0..pairs {
+            let (d_old, d_new) = if p % 2 == 0 {
+                let t0 = std::time::Instant::now();
+                f_old(reps);
+                let d_old = t0.elapsed();
+                let t1 = std::time::Instant::now();
+                f_new(reps);
+                let d_new = t1.elapsed();
+                (d_old, d_new)
+            } else {
+                let t1 = std::time::Instant::now();
+                f_new(reps);
+                let d_new = t1.elapsed();
+                let t0 = std::time::Instant::now();
+                f_old(reps);
+                let d_old = t0.elapsed();
+                (d_old, d_new)
+            };
+
+            let old_ns = d_old.as_nanos() as f64 / reps as f64;
+            let new_ns = d_new.as_nanos() as f64 / reps as f64;
+            if old_ns > 0.0 {
+                let pct = (new_ns - old_ns) / old_ns * 100.0;
+                ratios.push(pct);
+                old_ns_vec.push(old_ns);
+                new_ns_vec.push(new_ns);
+                if new_ns < old_ns {
+                    wins += 1;
+                }
+            }
+        }
+
+        ratios.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        old_ns_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        new_ns_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let n = ratios.len();
+        let med_old = old_ns_vec[n / 2];
+        let med_new = new_ns_vec[n / 2];
+        let med_pct = ratios[n / 2];
+        let half_width = (0.98 * (n as f64).sqrt()) as usize;
+        let ci_lo = ratios[(n / 2).saturating_sub(half_width)];
+        let ci_hi = ratios[(n / 2 + half_width).min(n - 1)];
+
+        println!(
+            "{:<44} | old: {:>8.2} ns | new: {:>8.2} ns | paired Δ: {:>+6.2}% [{:>+6.2}%, {:>+6.2}%] | win: {:>5.1}%",
+            name,
+            med_old,
+            med_new,
+            med_pct,
+            ci_lo,
+            ci_hi,
+            (wins as f64 / n as f64) * 100.0
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn paired_benchmark() {
+        use std::hint::black_box;
+
+        println!("\n=== INTERLEAVED ABBA PAIRED BENCHMARKS (N=400 pairs) ===");
+
+        let base_page = BitPage::from_iter((0..512).step_by(3));
+        for &(label, first, last) in &[
+            ("BitPage::insert_range (1 word: 10..=25)", 10u32, 25u32),
+            ("BitPage::insert_range (4 words: 10..=250)", 10u32, 250u32),
+            ("BitPage::insert_range (8 words: 1..=510)", 1u32, 510u32),
+            ("BitPage::insert_range (full: 0..=511)", 0u32, 511u32),
+        ] {
+            run_paired(
+                label,
+                400,
+                500,
+                |reps| {
+                    for _ in 0..reps {
+                        let mut p = black_box(base_page.clone());
+                        p.insert_range_old(black_box(first), black_box(last));
+                        black_box(p.len());
+                    }
+                },
+                |reps| {
+                    for _ in 0..reps {
+                        let mut p = black_box(base_page.clone());
+                        p.insert_range(black_box(first), black_box(last));
+                        black_box(p.len());
+                    }
+                },
+            );
+        }
+
+        run_paired(
+            "BitPage::insert_range (no shortcut 0..=511)",
+            400,
+            500,
+            |reps| {
+                for _ in 0..reps {
+                    let mut p = black_box(base_page.clone());
+                    p.insert_range_old(black_box(0), black_box(511));
+                    black_box(p.len());
+                }
+            },
+            |reps| {
+                for _ in 0..reps {
+                    let mut p = black_box(base_page.clone());
+                    p.insert_range_inc_no_shortcut(black_box(0), black_box(511));
+                    black_box(p.len());
+                }
+            },
+        );
+
+        for &(label, first, last) in &[
+            ("BitPage::remove_range (1 word: 10..=25)", 10u32, 25u32),
+            ("BitPage::remove_range (4 words: 10..=250)", 10u32, 250u32),
+            ("BitPage::remove_range (8 words: 1..=510)", 1u32, 510u32),
+            ("BitPage::remove_range (full: 0..=511)", 0u32, 511u32),
+        ] {
+            run_paired(
+                label,
+                400,
+                500,
+                |reps| {
+                    for _ in 0..reps {
+                        let mut p = black_box(base_page.clone());
+                        p.remove_range_old(black_box(first), black_box(last));
+                        black_box(p.len());
+                    }
+                },
+                |reps| {
+                    for _ in 0..reps {
+                        let mut p = black_box(base_page.clone());
+                        p.remove_range(black_box(first), black_box(last));
+                        black_box(p.len());
+                    }
+                },
+            );
+        }
+
+        let page_b = BitPage::from_iter((0..512).step_by(5));
+        run_paired(
+            "BitPage::process (union)",
+            400,
+            1000,
+            |reps| {
+                for _ in 0..reps {
+                    let p = BitPage::union(black_box(&base_page), black_box(&page_b));
+                    black_box(p.len());
+                }
+            },
+            |reps| {
+                for _ in 0..reps {
+                    let p = BitPage::union_fused(black_box(&base_page), black_box(&page_b));
+                    black_box(p.len());
+                }
+            },
+        );
+
+        let mut set_64p = U32Set::empty();
+        let mut set_512p = U32Set::empty();
+        for p in 0..64u32 {
+            for k in (0..512u32).step_by(8) {
+                set_64p.insert(p * 1024 + k);
+            }
+        }
+        for p in 0..512u32 {
+            for k in (0..512u32).step_by(8) {
+                set_512p.insert(p * 1024 + k);
+            }
+        }
+
+        run_paired(
+            "U32Set::remove_range (clamp_tail, 64 pages)",
+            400,
+            200,
+            |reps| {
+                let mut s = set_64p.clone();
+                for _ in 0..reps {
+                    s.remove_range_old(black_box(100_000)..=black_box(u32::MAX));
+                    black_box(s.len());
+                }
+            },
+            |reps| {
+                let mut s = set_64p.clone();
+                for _ in 0..reps {
+                    s.remove_range(black_box(100_000)..=black_box(u32::MAX));
+                    black_box(s.len());
+                }
+            },
+        );
+
+        run_paired(
+            "U32Set::remove_range (clamp_tail, 512 pages)",
+            400,
+            50,
+            |reps| {
+                let mut s = set_512p.clone();
+                for _ in 0..reps {
+                    s.remove_range_old(black_box(600_000)..=black_box(u32::MAX));
+                    black_box(s.len());
+                }
+            },
+            |reps| {
+                let mut s = set_512p.clone();
+                for _ in 0..reps {
+                    s.remove_range(black_box(600_000)..=black_box(u32::MAX));
+                    black_box(s.len());
+                }
+            },
+        );
+
+        run_paired(
+            "U32Set::remove_range (1 page, 64 pages)",
+            400,
+            200,
+            |reps| {
+                let mut s = set_64p.clone();
+                for _ in 0..reps {
+                    s.remove_range_old(black_box(32_768)..=black_box(32_800));
+                    black_box(s.len());
+                }
+            },
+            |reps| {
+                let mut s = set_64p.clone();
+                for _ in 0..reps {
+                    s.remove_range(black_box(32_768)..=black_box(32_800));
+                    black_box(s.len());
+                }
+            },
+        );
+
+        let mut set_64p_b = U32Set::empty();
+        for p in 0..64u32 {
+            for k in (0..512u32).step_by(6) {
+                set_64p_b.insert(p * 1024 + k);
+            }
+        }
+        let mut set_small = U32Set::empty();
+        set_small.insert(1024 + 3);
+        set_small.insert(32_768 + 5);
+
+        run_paired(
+            "U32Set::process (union equal, 64 pages)",
+            400,
+            50,
+            |reps| {
+                for _ in 0..reps {
+                    let mut a = set_64p.clone();
+                    a.process_old(BitPage::union, black_box(&set_64p_b));
+                    black_box(a.len());
+                }
+            },
+            |reps| {
+                for _ in 0..reps {
+                    let mut a = set_64p.clone();
+                    a.process_accum(BitPage::union, black_box(&set_64p_b));
+                    black_box(a.len());
+                }
+            },
+        );
+
+        run_paired(
+            "U32Set::process (union small_rhs, 64 pages)",
+            400,
+            50,
+            |reps| {
+                for _ in 0..reps {
+                    let mut a = set_64p.clone();
+                    a.process_old(BitPage::union, black_box(&set_small));
+                    black_box(a.len());
+                }
+            },
+            |reps| {
+                for _ in 0..reps {
+                    let mut a = set_64p.clone();
+                    a.process_accum(BitPage::union, black_box(&set_small));
+                    black_box(a.len());
+                }
+            },
+        );
+
+        run_paired(
+            "U32Set::process (intersect equal, 64 pages)",
+            400,
+            50,
+            |reps| {
+                for _ in 0..reps {
+                    let mut a = set_64p.clone();
+                    a.process_old(BitPage::intersect, black_box(&set_64p_b));
+                    black_box(a.len());
+                }
+            },
+            |reps| {
+                for _ in 0..reps {
+                    let mut a = set_64p.clone();
+                    a.process_accum(BitPage::intersect, black_box(&set_64p_b));
+                    black_box(a.len());
+                }
+            },
+        );
     }
 }

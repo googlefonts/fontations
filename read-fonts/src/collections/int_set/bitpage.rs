@@ -165,45 +165,60 @@ impl BitPage {
     pub(crate) fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
         let last = last & PAGE_MASK;
-        let first_elem_idx = first / ELEM_BITS;
-        let last_elem_idx = last / ELEM_BITS;
+        let first_elem_idx = (first / ELEM_BITS) as usize;
+        let last_elem_idx = (last / ELEM_BITS) as usize;
 
-        let mut added = 0;
-        for elem_idx in first_elem_idx..=last_elem_idx {
-            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
-            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+        let start_mask = u64::MAX << (first & ELEM_MASK);
+        let end_mask = u64::MAX >> ((ELEM_BITS - 1) - (last & ELEM_MASK));
 
-            let end_shift = ELEM_BITS - elem_last - 1;
-            let mask = u64::MAX << (elem_start + end_shift);
-            let mask = mask >> end_shift;
-
-            let elem = &mut self.storage[elem_idx as usize];
-            added += (mask & !*elem).count_ones();
+        if first_elem_idx == last_elem_idx {
+            let mask = start_mask & end_mask;
+            let elem = &mut self.storage[first_elem_idx];
+            self.length += (!*elem & mask).count_ones();
             *elem |= mask;
-        }
+        } else {
+            let mut added = (!self.storage[first_elem_idx] & start_mask).count_ones();
+            self.storage[first_elem_idx] |= start_mask;
 
-        self.length += added;
+            for elem in &mut self.storage[(first_elem_idx + 1)..last_elem_idx] {
+                added += elem.count_zeros();
+                *elem = u64::MAX;
+            }
+
+            added += (!self.storage[last_elem_idx] & end_mask).count_ones();
+            self.storage[last_elem_idx] |= end_mask;
+            self.length += added;
+        }
     }
 
     /// Marks all values `[first, last]` as not members of this set.
     pub(crate) fn remove_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
         let last = last & PAGE_MASK;
-        let first_elem_idx = first / ELEM_BITS;
-        let last_elem_idx = last / ELEM_BITS;
+        let first_elem_idx = (first / ELEM_BITS) as usize;
+        let last_elem_idx = (last / ELEM_BITS) as usize;
 
-        for elem_idx in first_elem_idx..=last_elem_idx {
-            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
-            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+        let start_mask = u64::MAX << (first & ELEM_MASK);
+        let end_mask = u64::MAX >> ((ELEM_BITS - 1) - (last & ELEM_MASK));
 
-            let end_shift = ELEM_BITS - elem_last - 1;
-            let mask = u64::MAX << (elem_start + end_shift);
-            let mask = !(mask >> end_shift);
+        if first_elem_idx == last_elem_idx {
+            let mask = start_mask & end_mask;
+            let elem = &mut self.storage[first_elem_idx];
+            self.length -= (*elem & mask).count_ones();
+            *elem &= !mask;
+        } else {
+            let mut removed = (self.storage[first_elem_idx] & start_mask).count_ones();
+            self.storage[first_elem_idx] &= !start_mask;
 
-            self.storage[elem_idx as usize] &= mask;
+            for elem in &mut self.storage[(first_elem_idx + 1)..last_elem_idx] {
+                removed += elem.count_ones();
+                *elem = 0;
+            }
+
+            removed += (self.storage[last_elem_idx] & end_mask).count_ones();
+            self.storage[last_elem_idx] &= !end_mask;
+            self.length -= removed;
         }
-
-        self.recompute_length();
     }
 
     pub(crate) fn clear(&mut self) {
@@ -424,6 +439,83 @@ impl std::cmp::PartialEq for BitPage {
 }
 
 impl std::cmp::Eq for BitPage {}
+
+#[cfg(test)]
+impl BitPage {
+    pub(crate) fn insert_range_old(&mut self, first: u32, last: u32) {
+        let first = first & PAGE_MASK;
+        let last = last & PAGE_MASK;
+        let first_elem_idx = first / ELEM_BITS;
+        let last_elem_idx = last / ELEM_BITS;
+
+        for elem_idx in first_elem_idx..=last_elem_idx {
+            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
+            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+
+            let end_shift = ELEM_BITS - elem_last - 1;
+            let mask = u64::MAX << (elem_start + end_shift);
+            let mask = mask >> end_shift;
+
+            self.storage[elem_idx as usize] |= mask;
+        }
+
+        self.recompute_length();
+    }
+
+    pub(crate) fn insert_range_inc_no_shortcut(&mut self, first: u32, last: u32) {
+        let first = first & PAGE_MASK;
+        let last = last & PAGE_MASK;
+        let first_elem_idx = first / ELEM_BITS;
+        let last_elem_idx = last / ELEM_BITS;
+
+        let mut added = 0;
+        for elem_idx in first_elem_idx..=last_elem_idx {
+            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
+            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+
+            let end_shift = ELEM_BITS - elem_last - 1;
+            let mask = u64::MAX << (elem_start + end_shift);
+            let mask = mask >> end_shift;
+
+            let elem = &mut self.storage[elem_idx as usize];
+            added += (!*elem & mask).count_ones();
+            *elem |= mask;
+        }
+        self.length += added;
+    }
+
+    pub(crate) fn remove_range_old(&mut self, first: u32, last: u32) {
+        let first = first & PAGE_MASK;
+        let last = last & PAGE_MASK;
+        let first_elem_idx = first / ELEM_BITS;
+        let last_elem_idx = last / ELEM_BITS;
+
+        for elem_idx in first_elem_idx..=last_elem_idx {
+            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
+            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+
+            let end_shift = ELEM_BITS - elem_last - 1;
+            let mask = u64::MAX << (elem_start + end_shift);
+            let mask = !(mask >> end_shift);
+
+            self.storage[elem_idx as usize] &= mask;
+        }
+
+        self.recompute_length();
+    }
+
+    pub(crate) fn union_fused(a: &BitPage, b: &BitPage) -> BitPage {
+        let mut out = BitPage::new_zeroes();
+        let mut len = 0;
+        for i in 0usize..(PAGE_SIZE as usize) {
+            let v = a.storage[i] | b.storage[i];
+            out.storage[i] = v;
+            len += v.count_ones();
+        }
+        out.length = len;
+        out
+    }
+}
 
 #[cfg(test)]
 mod test {
