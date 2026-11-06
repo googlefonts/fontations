@@ -105,11 +105,20 @@ impl LookupClosure for PositionLookup<'_> {
             return Ok(());
         }
 
+        let subtables = self.subtables()?;
+        // Contextual subtables are checked for intersection as they are
+        // visited, and mark the lookup inactive if none of them intersect.
+        if matches!(
+            subtables,
+            PositionSubtables::Contextual(_) | PositionSubtables::ChainContextual(_)
+        ) {
+            return subtables.closure_lookups(c, lookup_index);
+        }
+
         if !self.intersects(c.glyphs())? {
             c.set_lookup_inactive(lookup_index);
-            return Ok(());
         }
-        self.subtables()?.closure_lookups(c, lookup_index)
+        Ok(())
     }
 }
 

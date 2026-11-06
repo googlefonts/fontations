@@ -491,12 +491,31 @@ where
     T: LookupClosure + Intersect + FontRead<'a, Args = ()> + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
-    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+    /// Runs lookup closure on the subtables that intersect the glyph set, and
+    /// marks the lookup at `lookup_index` inactive if none of them do.
+    ///
+    /// This checks each subtable only once, instead of running a separate
+    /// `intersects` pass over the lookup first. A subtable that doesn't
+    /// intersect the glyph set recurses into no lookups, so skipping it
+    /// changes nothing.
+    fn closure_lookups(
+        &self,
+        c: &mut LookupClosureCtx,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        let mut intersects = false;
         for t in self.iter().filter_map(|table| match table {
             Err(ReadError::NullOffset) => None,
             other => Some(other),
         }) {
-            t?.closure_lookups(c, arg)?;
+            let t = t?;
+            if t.intersects(c.glyphs())? {
+                intersects = true;
+                t.closure_lookups(c, lookup_index)?;
+            }
+        }
+        if !intersects {
+            c.set_lookup_inactive(lookup_index);
         }
         Ok(())
     }
@@ -982,37 +1001,37 @@ impl ContextFormat3<'_> {
     }
 
     pub(crate) fn matches_glyphs(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        for index in 0..self.input_count() {
-            let coverage = match self.coverage(index) {
-                Err(ReadError::NullOffset) => return Ok(false),
-                other => other?,
-            };
-            if !coverage.intersects(glyphs) {
-                return Ok(false);
+        match self {
+            Self::Plain(table) => all_coverages_intersect(table.coverages().iter(), glyphs),
+            Self::PlainWide(table) => all_coverages_intersect(table.coverages().iter(), glyphs),
+            Self::Chain(table) => {
+                Ok(
+                    all_coverages_intersect(table.input_coverages().iter(), glyphs)?
+                        && all_coverages_intersect(table.backtrack_coverages().iter(), glyphs)?
+                        && all_coverages_intersect(table.lookahead_coverages().iter(), glyphs)?,
+                )
             }
         }
-        let (backtrack, lookahead) = match self {
-            Self::Plain(_) | Self::PlainWide(_) => (None, None),
-            Self::Chain(table) => (
-                Some(table.backtrack_coverages()),
-                Some(table.lookahead_coverages()),
-            ),
-        };
-
-        for coverage in backtrack
-            .into_iter()
-            .flat_map(|x| x.iter_as_nullable())
-            .chain(lookahead.into_iter().flat_map(|x| x.iter_as_nullable()))
-        {
-            let Some(coverage) = coverage.transpose()? else {
-                return Ok(false);
-            };
-            if !coverage.intersects(glyphs) {
-                return Ok(false);
-            }
-        }
-        Ok(true)
     }
+}
+
+/// Returns true if every coverage table intersects `glyphs`.
+///
+/// A null offset counts as a coverage that doesn't intersect.
+fn all_coverages_intersect<'a>(
+    coverages: impl Iterator<Item = Result<CoverageTable<'a>, ReadError>>,
+    glyphs: &IntSet<GlyphId>,
+) -> Result<bool, ReadError> {
+    for coverage in coverages {
+        let coverage = match coverage {
+            Err(ReadError::NullOffset) => return Ok(false),
+            other => other?,
+        };
+        if !coverage.intersects(glyphs) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 impl Intersect for ContextFormat1<'_> {
@@ -1189,6 +1208,7 @@ impl LookupClosure for ContextFormat3<'_> {
 }
 
 impl Intersect for SequenceContext<'_> {
+    #[inline]
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).intersects(glyph_set),
@@ -1221,6 +1241,7 @@ impl LookupClosure for SequenceContext<'_> {
 }
 
 impl Intersect for ChainedSequenceContext<'_> {
+    #[inline]
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
