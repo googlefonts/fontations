@@ -26,18 +26,12 @@ impl<T: Copy + PartialOrd> PriorityQueue<T> {
 
     #[inline]
     pub(crate) fn pop(&mut self) -> Option<(T, usize)> {
-        if self.heap.is_empty() {
-            return None;
-        }
-
-        let ret = self.heap[0];
-        let new_len = self.heap.len() - 1;
-        self.heap.swap(0, new_len);
-        self.heap.truncate(new_len);
-
-        if new_len != 0 {
-            self.bubble_down(0);
-        }
+        let last = self.heap.pop()?;
+        let Some(first) = self.heap.first_mut() else {
+            return Some(last);
+        };
+        let ret = std::mem::replace(first, last);
+        self.bubble_down(0);
         Some(ret)
     }
 
@@ -46,54 +40,60 @@ impl<T: Copy + PartialOrd> PriorityQueue<T> {
         self.heap.is_empty()
     }
 
+    // Moves the item at `index` up to its place. This performs the same comparisons and
+    // ends in the same heap layout as repeatedly swapping with the parent (as HarfBuzz
+    // does), but moves the item through a "hole" instead of writing it at every level.
     #[inline]
     fn bubble_up(&mut self, index: usize) {
-        let length = self.heap.len();
+        let heap = self.heap.as_mut_slice();
+        let item = heap[index];
         let mut cur_index = index;
         while cur_index != 0 {
-            assert!(cur_index < length);
-
             let parent_index = parent(cur_index);
-            assert!(parent_index < length);
-            if self.heap[parent_index].0 <= self.heap[cur_index].0 {
-                return;
+            let parent_item = heap[parent_index];
+            if parent_item.0 <= item.0 {
+                break;
             }
-
-            self.heap.swap(cur_index, parent_index);
+            heap[cur_index] = parent_item;
             cur_index = parent_index;
         }
+        heap[cur_index] = item;
     }
 
+    // Moves the item at `index` down to its place, through a "hole" like bubble_up.
+    //
+    // Picks the same child as HarfBuzz (the left child unless the right one is smaller or
+    // equal), but without a data-dependent branch: which child is smaller is close to random,
+    // so a branch here is mispredicted about half of the time.
     #[inline]
     fn bubble_down(&mut self, index: usize) {
-        let length = self.heap.len();
+        let heap = self.heap.as_mut_slice();
+        let length = heap.len();
+        let item = heap[index];
         let mut cur_index = index;
+        // Nodes with two children.
         loop {
-            assert!(cur_index < length);
-
             let left = left_child(cur_index);
-            if left >= length {
+            let right = left + 1;
+            if right >= length {
+                break;
+            }
+            let child = left + usize::from(heap[right].0 <= heap[left].0);
+            let child_item = heap[child];
+            if item.0 <= child_item.0 {
+                heap[cur_index] = item;
                 return;
             }
-
-            let right = right_child(cur_index);
-            let has_right_child = right < length;
-
-            let val = self.heap[cur_index].0;
-            let left_val = self.heap[left].0;
-            if val <= left_val && (!has_right_child || val <= self.heap[right].0) {
-                return;
-            }
-
-            let child = if !has_right_child || left_val < self.heap[right].0 {
-                left
-            } else {
-                right
-            };
-
-            self.heap.swap(cur_index, child);
+            heap[cur_index] = child_item;
             cur_index = child;
         }
+        // A last node may have only a left child.
+        let left = left_child(cur_index);
+        if left < length && heap[left].0 < item.0 {
+            heap[cur_index] = heap[left];
+            cur_index = left;
+        }
+        heap[cur_index] = item;
     }
 }
 
@@ -105,11 +105,6 @@ fn parent(child_index: usize) -> usize {
 #[inline]
 fn left_child(index: usize) -> usize {
     2 * index + 1
-}
-
-#[inline]
-fn right_child(index: usize) -> usize {
-    2 * index + 2
 }
 
 #[cfg(test)]
