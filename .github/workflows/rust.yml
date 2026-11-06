@@ -207,7 +207,7 @@ jobs:
         run: cargo build -p font-types --target thumbv7em-none-eabihf --no-default-features
 
       - name: cargo build read-fonts
-        run: cargo build -p read-fonts --target thumbv7em-none-eabihf --no-default-features --features=libm
+        run: cargo build -p read-fonts --target thumbv7em-none-eabihf --no-default-features
 
       - name: cargo build skrifa
         run: cargo build -p skrifa --target thumbv7em-none-eabihf --no-default-features --features=libm

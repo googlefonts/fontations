@@ -564,16 +564,13 @@ impl Scale for ScaleF32 {
         if scale_offset {
             // FreeType implements hypot; we can just use the provided one.
             fn hypot(a: f32, b: f32) -> f32 {
-                #[cfg(not(feature = "libm"))]
+                #[cfg(not(feature = "std"))]
                 {
+                    use core_maths::CoreFloat;
                     a.hypot(b)
                 }
-                #[cfg(feature = "libm")]
+                #[cfg(feature = "std")]
                 {
-                    // Unused when `std` is also on, which is allowed: the
-                    // inherent method wins there. Matches `tables::varc`.
-                    #[allow(unused_imports)]
-                    use core_maths::CoreFloat;
                     a.hypot(b)
                 }
             }

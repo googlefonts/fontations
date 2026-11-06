@@ -34,7 +34,9 @@ experimental_font_api = []
 experimental_traverse = []
 default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
-libm = ["dep:core_maths"]
+# Kept so existing `--features libm` manifests still resolve. The math
+# crate is always linked; its methods are imported only when `std` is off.
+libm = []
 # Support for mapping glyph names <-> unicode via the Adobe glyph list
 agl = []
 
@@ -44,7 +46,7 @@ smallvec = { workspace = true }
 font-types = { workspace = true, features = ["bytemuck"] }
 yoke = { workspace = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
-core_maths = { workspace = true, optional = true }
+core_maths = { workspace = true }
 bytemuck = { workspace = true }
 once_cell = { workspace = true }
 

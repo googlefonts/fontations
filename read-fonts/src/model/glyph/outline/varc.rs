@@ -35,7 +35,7 @@ use core::{
 };
 use yoke::Yokeable;
 
-#[cfg(feature = "libm")]
+#[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use core_maths::CoreFloat;
 

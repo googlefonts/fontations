@@ -11,7 +11,7 @@ use crate::{
 };
 use core::ops::{Deref, Range};
 
-#[cfg(feature = "libm")]
+#[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use core_maths::CoreFloat;
 

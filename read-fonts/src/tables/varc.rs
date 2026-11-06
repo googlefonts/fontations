@@ -5,7 +5,7 @@ use super::variations::PackedDeltas;
 pub use crate::ps::cff::index::Index2;
 use crate::types::{F2Dot14, Matrix};
 
-#[cfg(feature = "libm")]
+#[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use core_maths::*;
 
