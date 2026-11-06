@@ -107,7 +107,7 @@ impl U32Set {
         for major in major_start..=major_end {
             let page_start = start.max(Self::major_start(major));
             let page_end = end.min(Self::major_start(major) + (PAGE_BITS - 1));
-            let page = self.ensure_page_for_major_mut(major);
+            let page = self.ensure_page_for_major_cached_mut(major);
             let pre_len = page.len();
             page.insert_range(page_start, page_end);
             let delta_len = page.len() - pre_len;
@@ -864,6 +864,33 @@ impl U32Set {
     #[inline(always)]
     fn ensure_page_for_major_mut(&mut self, major_value: u32) -> &mut BitPage {
         let page_index = self.ensure_page_index_for_major(major_value);
+        self.pages.get_mut(page_index).unwrap()
+    }
+
+    /// Like [`Self::ensure_page_for_major_mut`], but first checks the page
+    /// found by the previous lookup, which makes runs of calls on the same
+    /// page (for example, inserting sorted ranges) skip the page_map search.
+    fn ensure_page_for_major_cached_mut(&mut self, major_value: u32) -> &mut BitPage {
+        let last = self
+            .last_page_map_index
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let page_index = match self.page_map.get(last) {
+            Some(info) if info.major_value == major_value => info.index as usize,
+            _ => {
+                let map_index = match self
+                    .page_map
+                    .binary_search_by(|probe| probe.major_value.cmp(&major_value))
+                {
+                    Ok(map_index) => map_index,
+                    Err(map_index) => {
+                        self.insert_page_for_major(map_index, major_value);
+                        map_index
+                    }
+                };
+                self.set_last_page_map_index(map_index);
+                self.page_map[map_index].index as usize
+            }
+        };
         self.pages.get_mut(page_index).unwrap()
     }
 
