@@ -1111,12 +1111,20 @@ impl LookupClosure for SubstitutionLookup<'_> {
             return Ok(());
         }
 
-        if !self.intersects(c.glyphs())? {
-            c.set_lookup_inactive(lookup_index);
-            return Ok(());
+        let subtables = self.subtables()?;
+        // Contextual subtables are checked for intersection as they are
+        // visited, and mark the lookup inactive if none of them intersect.
+        if matches!(
+            subtables,
+            SubstitutionSubtables::Contextual(_) | SubstitutionSubtables::ChainContextual(_)
+        ) {
+            return subtables.closure_lookups(c, lookup_index);
         }
 
-        self.subtables()?.closure_lookups(c, lookup_index)
+        if !self.intersects(c.glyphs())? {
+            c.set_lookup_inactive(lookup_index);
+        }
+        Ok(())
     }
 }
 

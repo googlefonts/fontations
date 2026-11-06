@@ -491,12 +491,31 @@ where
     T: LookupClosure + Intersect + FontRead<'a, Args = ()> + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
-    fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
+    /// Runs lookup closure on the subtables that intersect the glyph set, and
+    /// marks the lookup at `lookup_index` inactive if none of them do.
+    ///
+    /// This checks each subtable only once, instead of running a separate
+    /// `intersects` pass over the lookup first. A subtable that doesn't
+    /// intersect the glyph set recurses into no lookups, so skipping it
+    /// changes nothing.
+    fn closure_lookups(
+        &self,
+        c: &mut LookupClosureCtx,
+        lookup_index: u16,
+    ) -> Result<(), ReadError> {
+        let mut intersects = false;
         for t in self.iter().filter_map(|table| match table {
             Err(ReadError::NullOffset) => None,
             other => Some(other),
         }) {
-            t?.closure_lookups(c, arg)?;
+            let t = t?;
+            if t.intersects(c.glyphs())? {
+                intersects = true;
+                t.closure_lookups(c, lookup_index)?;
+            }
+        }
+        if !intersects {
+            c.set_lookup_inactive(lookup_index);
         }
         Ok(())
     }
