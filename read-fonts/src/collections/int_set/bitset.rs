@@ -198,6 +198,7 @@ impl U32Set {
             Err(info_index) => info_index,
         };
 
+        let mut total_removed = 0;
         loop {
             let Some(info) = self.page_map.get(info_index) else {
                 break;
@@ -208,18 +209,22 @@ impl U32Set {
 
             if info.major_value > end_major {
                 break;
-            } else if info.major_value == start_major {
+            }
+            let pre_len = page.len();
+            if info.major_value == start_major {
                 page.remove_range(start, Self::major_end(start_major).min(end));
             } else if info.major_value == end_major {
                 page.remove_range(Self::major_start(end_major), end);
+                total_removed += (pre_len - page.len()) as u64;
                 break;
             } else {
                 page.clear();
             }
+            total_removed += (pre_len - page.len()) as u64;
             info_index += 1;
         }
 
-        self.recompute_length();
+        self.length -= total_removed;
     }
 
     /// Returns true if val is a member of this set.
