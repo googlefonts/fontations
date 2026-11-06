@@ -87,7 +87,15 @@ pub enum OffsetWhence {
     Absolute,
 }
 
-type PoolIdx = usize;
+// Index of an object in the serializer's object pool. The pool holds at most one object per
+// packed or in-progress object, so indices are stored as u32 like ObjIdx.
+type PoolIdx = u32;
+
+#[inline]
+fn to_pool_idx(idx: usize) -> PoolIdx {
+    debug_assert!(PoolIdx::try_from(idx).is_ok());
+    idx as PoolIdx
+}
 
 // Reference Harfbuzz implementation:
 // <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh#L69>
@@ -149,7 +157,18 @@ impl LinkWidth {
     }
 }
 
-pub(crate) type ObjIdx = usize;
+/// Index of a packed object (and of a vertex in the repacker's graph).
+///
+/// Object counts are bounded (the repacker caps them at MAX_VERTICES), so indices are stored
+/// as u32, which keeps links and the graph's index tables small.
+pub(crate) type ObjIdx = u32;
+
+/// Converts a count or position in an object list to an ObjIdx.
+#[inline]
+pub(crate) fn to_obj_idx(idx: usize) -> ObjIdx {
+    debug_assert!(ObjIdx::try_from(idx).is_ok());
+    idx as ObjIdx
+}
 
 #[derive(Default, Eq, PartialEq, Clone, Copy, Debug)]
 pub(crate) struct Link {
@@ -277,6 +296,14 @@ impl Serializer {
             packed: Vec::new(),
             ..Default::default()
         }
+    }
+
+    /// Reserves room for `num_objects` objects, so that serializing a known number of objects
+    /// doesn't over-allocate by growing the object pool and the packed object list.
+    pub(crate) fn reserve_objects(&mut self, num_objects: usize) {
+        // +1 for the object being serialized before it's packed.
+        self.object_pool.reserve(num_objects + 1);
+        self.packed.reserve_exact(num_objects);
     }
 
     /// Appends a the byte representation of a single scalar type onto the buffer.
@@ -558,7 +585,7 @@ impl Serializer {
         }
 
         self.packed.push(pool_idx);
-        let obj_idx = self.packed.len() - 1;
+        let obj_idx = to_obj_idx(self.packed.len() - 1);
 
         if share {
             self.packed_map.set_with_hash(pool_idx, hash, obj_idx);
@@ -759,7 +786,7 @@ impl Serializer {
             if other_idx == obj_idx {
                 continue;
             }
-            let Some(pool_idx) = self.packed.get(other_idx) else {
+            let Some(pool_idx) = self.packed.get(other_idx as usize) else {
                 return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             let Some(other_obj) = self.object_pool.get_obj_mut(*pool_idx) else {
@@ -807,7 +834,7 @@ impl Serializer {
 
             for link in parent_obj.real_links.iter() {
                 let Some(child_obj) = packed
-                    .get(link.objidx)
+                    .get(link.objidx as usize)
                     .and_then(|child_pool_idx| object_pool.get_obj(*child_pool_idx))
                 else {
                     self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
@@ -980,6 +1007,12 @@ struct ObjectPool {
 
 impl ObjectPool {
     const ALLOC_CHUNKS_LEN: usize = 64;
+
+    // Reserves room for `num_objects` more objects; the pool grows a chunk at a time.
+    fn reserve(&mut self, num_objects: usize) {
+        self.chunks
+            .reserve_exact(num_objects.next_multiple_of(Self::ALLOC_CHUNKS_LEN));
+    }
     fn alloc(&mut self) -> PoolIdx {
         let len = self.chunks.len();
         if self.next.is_none() {
@@ -993,21 +1026,21 @@ impl ObjectPool {
                 .iter_mut()
                 .enumerate()
             {
-                obj.next = Some(len + idx + 1);
+                obj.next = Some(to_pool_idx(len + idx + 1));
             }
 
             self.chunks.last_mut().unwrap().next = None;
-            self.next = Some(len);
+            self.next = Some(to_pool_idx(len));
         }
 
         let pool_idx = self.next.unwrap();
-        self.next = self.chunks[pool_idx].next;
+        self.next = self.chunks[pool_idx as usize].next;
 
         pool_idx
     }
 
     fn release(&mut self, pool_idx: PoolIdx) {
-        let Some(obj_wrap) = self.chunks.get_mut(pool_idx) else {
+        let Some(obj_wrap) = self.chunks.get_mut(pool_idx as usize) else {
             return;
         };
 
@@ -1017,11 +1050,11 @@ impl ObjectPool {
     }
 
     fn get_obj_mut(&mut self, pool_idx: PoolIdx) -> Option<&mut Object> {
-        self.chunks.get_mut(pool_idx).map(|o| &mut o.obj)
+        self.chunks.get_mut(pool_idx as usize).map(|o| &mut o.obj)
     }
 
     fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
-        self.chunks.get(pool_idx).map(|o| &o.obj)
+        self.chunks.get(pool_idx as usize).map(|o| &o.obj)
     }
 
     fn next_idx(&self, pool_idx: PoolIdx) -> Option<PoolIdx> {

@@ -41,7 +41,7 @@ pub(crate) fn split_ligature_subst(
     }
 
     let cov_glyphs = coverage_glyphs(graph, coverage_idx)?;
-    let mut out: Vec<usize> = Vec::with_capacity(split_points.len() + 1);
+    let mut out: Vec<ObjIdx> = Vec::with_capacity(split_points.len() + 1);
     for i in 0..split_points.len() {
         // [start,end) range
         let start = split_points[i];
@@ -279,7 +279,7 @@ fn clone_range(
         fix_virtual_links(graph, &all_lig_idxes, coverage_idx, new_coverage_idx)?;
     }
 
-    graph.vertices[new_lig_subst_idx].tail -=
+    graph.vertices[new_lig_subst_idx as usize].tail -=
         (lig_set_count - new_lig_set_count as usize) * Offset16::RAW_BYTE_LEN;
     let mut new_lig_subst = LigatureSubstFormat1::from_graph(graph, new_lig_subst_idx)?;
     new_lig_subst.set_format(1);
@@ -399,8 +399,8 @@ fn fix_coverage_links(
 
     let mut lig_idxes = IntSet::empty();
     find_all_child_idxes(graph, table_idx, 2, &mut lig_idxes)?;
-    lig_idxes.remove(table_idx as u32);
-    lig_idxes.remove(coverage_idx as u32);
+    lig_idxes.remove(table_idx);
+    lig_idxes.remove(coverage_idx);
 
     let new_coverage_idx = graph.remap_child(
         table_idx,
@@ -445,7 +445,7 @@ fn compact_lig_set(graph: &mut Graph, liga_set_index: ObjIdx) -> Result<(), Repa
 
     let subtract_len = (old_lig_count - num_liga) * Offset16::RAW_BYTE_LEN;
 
-    let lig_set_v = &mut graph.vertices[liga_set_index];
+    let lig_set_v = &mut graph.vertices[liga_set_index as usize];
     let mut new_pos = LigatureSet::MIN_SIZE as u32;
 
     for l in lig_set_v.real_links.sorted_iter_mut() {
@@ -464,7 +464,7 @@ fn find_all_child_idxes(
     depth: u8,
     out: &mut IntSet<u32>,
 ) -> Result<(), RepackError> {
-    if !out.insert(start_idx as u32) {
+    if !out.insert(start_idx) {
         return Ok(());
     }
 
@@ -491,7 +491,6 @@ fn fix_virtual_links(
     coverage_idx: ObjIdx,
 ) -> Result<(), RepackError> {
     for idx in lig_idxes.iter() {
-        let idx = idx as usize;
         let v = graph
             .mut_vertex(idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;

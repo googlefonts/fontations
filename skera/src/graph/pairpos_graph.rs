@@ -691,7 +691,7 @@ fn size_of_value_record_children(
     header_size: usize,
     value_record_index: u32,
     visited: &mut IntSet<u32>,
-    queue: &mut Vec<usize>,
+    queue: &mut Vec<ObjIdx>,
 ) -> Result<usize, RepackError> {
     let mut size = 0;
     let record_start_pos = header_size as u32 + value_record_index * 2;

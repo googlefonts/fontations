@@ -4,7 +4,9 @@
 use crate::FastHashMap;
 use crate::{
     priority_queue::PriorityQueue,
-    serialize::{Link, LinkWidth, ObjIdx, OffsetWhence, SerializeErrorFlags, Serializer},
+    serialize::{
+        to_obj_idx, Link, LinkWidth, ObjIdx, OffsetWhence, SerializeErrorFlags, Serializer,
+    },
 };
 use read_fonts::{collections::IntSet, types::Uint24};
 
@@ -36,11 +38,11 @@ pub(crate) struct Overflow(u64);
 
 impl Overflow {
     fn child(&self) -> ObjIdx {
-        (self.0 as usize) & 0xFFFFFFFF
+        self.0 as ObjIdx
     }
 
     fn parent(&self) -> ObjIdx {
-        (self.0 >> 32) as usize
+        (self.0 >> 32) as ObjIdx
     }
 }
 
@@ -49,7 +51,8 @@ pub(crate) enum Parents {
     #[default]
     Empty,
     Single(ObjIdx),
-    Multiple(FastHashMap<ObjIdx, usize>),
+    // Boxed: most vertices have a single parent, so keep the common variants small.
+    Multiple(Box<FastHashMap<ObjIdx, usize>>),
 }
 
 #[derive(Clone, Debug)]
@@ -225,14 +228,46 @@ pub(crate) struct Vertex {
     virtual_links: Vec<Link>,
 
     distance: u64,
-    space: usize,
+    // space, start, end and incoming_edges are bounded (by MAX_SPACES, the table size and the
+    // number of links) and are stored as u32 to keep vertices small.
+    space: u32,
     priority: u8,
-    start: usize,
-    end: usize,
-    incoming_edges: usize,
+    // u32::MAX if the position doesn't fit in a u32; see update_positions().
+    start: u32,
+    end: u32,
+    incoming_edges: u32,
     has_incoming_virtual_edges: bool,
     parents: Parents,
-    virtual_parents: IntSet<u32>,
+    virtual_parents: VirtualParents,
+}
+
+/// The set of parents linking to a vertex with virtual links.
+///
+/// Few vertices have virtual parents, so the set is only allocated when needed; an inline
+/// IntSet would add 72 bytes to every vertex.
+#[derive(Default, Debug)]
+struct VirtualParents(Option<Box<IntSet<u32>>>);
+
+impl VirtualParents {
+    fn clear(&mut self) {
+        if let Some(set) = &mut self.0 {
+            set.clear();
+        }
+    }
+
+    fn insert(&mut self, parent_idx: u32) {
+        self.0
+            .get_or_insert_with(Default::default)
+            .insert(parent_idx);
+    }
+
+    fn remove(&mut self, parent_idx: u32) -> bool {
+        self.0.as_mut().is_some_and(|set| set.remove(parent_idx))
+    }
+
+    fn len(&self) -> u64 {
+        self.0.as_ref().map_or(0, |set| set.len())
+    }
 }
 
 impl Vertex {
@@ -281,7 +316,7 @@ impl Vertex {
     fn add_parent(&mut self, parent_idx: ObjIdx, is_virtual: bool) {
         self.has_incoming_virtual_edges |= is_virtual;
         if is_virtual {
-            self.virtual_parents.insert(parent_idx as u32);
+            self.virtual_parents.insert(parent_idx);
         }
 
         match &mut self.parents {
@@ -297,7 +332,7 @@ impl Vertex {
                     .entry(parent_idx)
                     .and_modify(|c| *c += 1)
                     .or_insert(1_usize);
-                self.parents = Parents::Multiple(parents);
+                self.parents = Parents::Multiple(Box::new(parents));
 
                 self.incoming_edges += 1;
             }
@@ -333,16 +368,16 @@ impl Vertex {
                 };
 
                 if remove_all_edges || num_edges_to_remove > *num_edges {
-                    self.incoming_edges -= *num_edges;
+                    self.incoming_edges -= *num_edges as u32;
                 } else {
-                    self.incoming_edges -= num_edges_to_remove;
+                    self.incoming_edges -= num_edges_to_remove as u32;
                 }
 
                 if *num_edges > num_edges_to_remove && !remove_all_edges {
                     *num_edges -= num_edges_to_remove;
                 } else {
                     parents_map.remove(&parent_idx);
-                    self.virtual_parents.remove(parent_idx as u32);
+                    self.virtual_parents.remove(parent_idx);
                 }
             }
         }
@@ -356,8 +391,8 @@ impl Vertex {
                     return;
                 }
                 self.parents = Parents::Single(new_parent);
-                if self.virtual_parents.remove(old_parent as u32) {
-                    self.virtual_parents.insert(new_parent as u32);
+                if self.virtual_parents.remove(old_parent) {
+                    self.virtual_parents.insert(new_parent);
                 }
             }
             Parents::Multiple(ref mut parents_map) => {
@@ -365,14 +400,14 @@ impl Vertex {
                     return;
                 };
                 parents_map.insert(new_parent, v);
-                if self.virtual_parents.remove(old_parent as u32) {
-                    self.virtual_parents.insert(new_parent as u32);
+                if self.virtual_parents.remove(old_parent) {
+                    self.virtual_parents.insert(new_parent);
                 }
             }
         }
     }
 
-    fn iter_parents(&self) -> impl Iterator<Item = &usize> {
+    fn iter_parents(&self) -> impl Iterator<Item = &ObjIdx> {
         let single_opt = match &self.parents {
             Parents::Single(ref val) => Some(val),
             _ => None,
@@ -397,7 +432,7 @@ impl Vertex {
         let table_size = self.table_size();
         let mut assigned_bytes = IntSet::empty();
         for l in &self.real_links {
-            if l.obj_idx() >= num_objs {
+            if l.obj_idx() as usize >= num_objs {
                 return false;
             }
 
@@ -453,7 +488,7 @@ impl Vertex {
     }
 
     fn incoming_edges(&self) -> usize {
-        self.incoming_edges
+        self.incoming_edges as usize
     }
 
     // return if this vertex is shared by real parents
@@ -547,13 +582,13 @@ pub(crate) struct Graph {
     vertices: Vec<Vertex>,
     // an object's id will not change
     // the ordering vector stores sorted object ordering
-    ordering: Vec<usize>,
-    ordering_scratch: Vec<usize>,
+    ordering: Vec<ObjIdx>,
+    ordering_scratch: Vec<ObjIdx>,
     num_roots_for_space: Vec<usize>,
     data: Vec<u8>,
     /// The LookupList2 of a version 1.2 GSUB or GPOS table, whose lookups
     /// rather than the whole list become packing spaces.
-    wide_lookup_list: Option<usize>,
+    wide_lookup_list: Option<ObjIdx>,
 
     // graph state flags
     parents_invalid: bool,
@@ -598,17 +633,17 @@ impl Graph {
         let mut i = 0;
         this.ordering.resize_with(count, || {
             i += 1;
-            count - i
+            to_obj_idx(count - i)
         });
         Ok(this)
     }
 
     pub(crate) fn vertex(&self, obj_idx: ObjIdx) -> Option<&Vertex> {
-        self.vertices.get(obj_idx)
+        self.vertices.get(obj_idx as usize)
     }
 
     fn mut_vertex(&mut self, obj_idx: ObjIdx) -> Option<&mut Vertex> {
-        self.vertices.get_mut(obj_idx)
+        self.vertices.get_mut(obj_idx as usize)
     }
 
     /// Records the LookupList2 of a version 1.2 GSUB or GPOS table.
@@ -622,7 +657,7 @@ impl Graph {
     }
 
     fn vertex_data_mut(&mut self, obj_idx: ObjIdx) -> Option<&mut [u8]> {
-        let v = self.vertices.get(obj_idx)?;
+        let v = self.vertices.get(obj_idx as usize)?;
         self.data.get_mut(v.head..v.tail)
     }
 
@@ -652,7 +687,7 @@ impl Graph {
 
         self.update_parents()?;
         self.ordering_scratch.resize(v_count, 0);
-        queue.push((self.root().modified_distance(0), self.root_idx()));
+        queue.push((self.root().modified_distance(0), self.root_idx() as usize));
         let mut order = 1_u32;
         let mut pos = 0;
 
@@ -662,12 +697,12 @@ impl Graph {
                 // we're out of ids, meaning we've visited the same node more than once
                 return Err(RepackError::GraphErrorCycleDetected);
             }
-            new_ordering[pos] = next_id;
+            new_ordering[pos] = next_id as ObjIdx;
             pos += 1;
 
             let next_v = &self.vertices[next_id];
             for link in next_v.all_links() {
-                let child_idx = link.obj_idx();
+                let child_idx = link.obj_idx() as usize;
                 removed_edges[child_idx] += 1;
 
                 let child_v = &self.vertices[child_idx];
@@ -687,7 +722,7 @@ impl Graph {
     }
 
     fn root(&self) -> &Vertex {
-        &self.vertices[self.root_idx()]
+        &self.vertices[self.root_idx() as usize]
     }
 
     pub(crate) fn update_parents(&mut self) -> Result<(), RepackError> {
@@ -701,6 +736,7 @@ impl Graph {
 
         for idx in 0..self.vertices.len() {
             let v = &self.vertices[idx];
+            let idx = idx as ObjIdx;
 
             self.ordering_scratch.clear();
             for l in v.real_links() {
@@ -713,14 +749,14 @@ impl Graph {
             }
 
             for child_idx in &self.ordering_scratch[0..num_real_links] {
-                let Some(v) = self.vertices.get_mut(*child_idx) else {
+                let Some(v) = self.vertices.get_mut(*child_idx as usize) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
                 v.add_parent(idx, false);
             }
 
             for child_idx in &self.ordering_scratch[num_real_links..] {
-                let Some(v) = self.vertices.get_mut(*child_idx) else {
+                let Some(v) = self.vertices.get_mut(*child_idx as usize) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
                 v.add_parent(idx, true);
@@ -738,7 +774,7 @@ impl Graph {
             return Ok(());
         }
 
-        let root_idx = self.root_idx();
+        let root_idx = self.root_idx() as usize;
         self.vertices[root_idx].distance = 0;
 
         let count = self.vertices.len();
@@ -756,7 +792,7 @@ impl Graph {
             visited[next_idx] = true;
 
             for link in next_v.all_links() {
-                let child_idx = link.obj_idx();
+                let child_idx = link.obj_idx() as usize;
                 if visited[child_idx] {
                     continue;
                 }
@@ -768,8 +804,8 @@ impl Graph {
                     link.link_width() as u8
                 };
 
-                let child_weight =
-                    child_v.tail - child_v.head + (1 << (link_width * 8)) * (child_v.space + 1);
+                let child_weight = child_v.tail - child_v.head
+                    + (1 << (link_width * 8)) * (child_v.space as usize + 1);
                 let child_distance = next_distance + child_weight as u64;
                 if child_distance < distance_map[child_idx] {
                     distance_map[child_idx] = child_distance;
@@ -791,7 +827,7 @@ impl Graph {
         Ok(())
     }
 
-    pub(crate) fn root_idx(&self) -> usize {
+    pub(crate) fn root_idx(&self) -> ObjIdx {
         self.ordering[0]
     }
 
@@ -807,7 +843,7 @@ impl Graph {
         if self
             .vertices
             .iter()
-            .take(root_idx)
+            .take(root_idx as usize)
             .any(|v| v.incoming_edges() == 0)
         {
             return Err(RepackError::GraphErrorOrphanedNodes);
@@ -825,6 +861,7 @@ impl Graph {
 
     pub(crate) fn serialize(&self) -> Result<Vec<u8>, SerializeErrorFlags> {
         let mut s = Serializer::new(self.total_size_in_bytes());
+        s.reserve_objects(self.ordering.len());
         s.start_serialize()?;
 
         let vertices = &self.vertices;
@@ -832,7 +869,8 @@ impl Graph {
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/07ee609f5abe59b591e4a6cf99db890be556501b/src/graph/serialize.hh#L245>
         let mut id_map = vec![0; self.ordering.len()];
         for i in self.ordering.iter().rev() {
-            let v = &vertices[*i];
+            let i = *i as usize;
+            let v = &vertices[i];
 
             let obj_bytes = &data[v.head..v.tail];
             let obj_size = obj_bytes.len();
@@ -847,7 +885,7 @@ impl Graph {
             let new_idx = s
                 .pop_pack(false)
                 .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
-            id_map[*i] = new_idx;
+            id_map[i] = new_idx;
         }
         s.end_serialize();
 
@@ -864,13 +902,17 @@ impl Graph {
             return;
         }
 
+        // Positions are stored as u32. A table that doesn't fit in 4GB can't be stored in a
+        // font, so saturate: offset_overflows() reports any link involving a saturated position
+        // as overflowing.
+        let to_pos = |pos: usize| u32::try_from(pos).unwrap_or(u32::MAX);
         let mut cur_pos = 0;
         let vertices = &mut self.vertices;
         for i in &self.ordering {
-            let v = &mut vertices[*i];
-            v.start = cur_pos;
+            let v = &mut vertices[*i as usize];
+            v.start = to_pos(cur_pos);
             cur_pos += v.tail - v.head;
-            v.end = cur_pos;
+            v.end = to_pos(cur_pos);
         }
 
         self.positions_invalid = false;
@@ -879,12 +921,15 @@ impl Graph {
     #[inline]
     fn offset_overflows(&self, parent_v: &Vertex, link: &Link) -> bool {
         let vertices = &self.vertices;
-        let child_v = &vertices[link.obj_idx()];
+        let child_v = &vertices[link.obj_idx() as usize];
+        if [child_v.start, parent_v.start, parent_v.end].contains(&u32::MAX) {
+            return link.link_width() != LinkWidth::Zero;
+        }
         let mut offset = match link.whence() {
             OffsetWhence::Head => child_v.start - parent_v.start,
             OffsetWhence::Tail => child_v.start - parent_v.end,
             OffsetWhence::Absolute => child_v.start,
-        };
+        } as usize;
 
         let bias = link.bias() as usize;
         assert!(offset >= bias);
@@ -903,7 +948,7 @@ impl Graph {
         self.update_positions();
         let vertices = &self.vertices;
         for parent_idx in &self.ordering {
-            let parent_v = &vertices[*parent_idx];
+            let parent_v = &vertices[*parent_idx as usize];
             for link in parent_v.real_links() {
                 if self.offset_overflows(parent_v, link) {
                     return true;
@@ -919,7 +964,7 @@ impl Graph {
         let mut overflows = FastHashMap::default();
         let mut out = Vec::new();
         for parent_idx in &self.ordering {
-            let parent_v = &vertices[*parent_idx];
+            let parent_v = &vertices[*parent_idx as usize];
             for link in parent_v.real_links() {
                 if !self.offset_overflows(parent_v, link) {
                     continue;
@@ -958,12 +1003,7 @@ impl Graph {
                 break;
             };
             let mut connected_roots = IntSet::empty();
-            self.find_connected_nodes(
-                next as usize,
-                &mut roots,
-                &mut visited,
-                &mut connected_roots,
-            )?;
+            self.find_connected_nodes(next, &mut roots, &mut visited, &mut connected_roots)?;
 
             self.isolate_subgraph(&mut connected_roots, &mut visited_subgraph_nodes)?;
             let next_space = self.next_space();
@@ -978,7 +1018,7 @@ impl Graph {
 
             let vertices = &mut self.vertices;
             for obj_idx in connected_roots.iter() {
-                vertices[obj_idx as usize].space = next_space;
+                vertices[obj_idx as usize].space = next_space as u32;
             }
         }
         Ok(true)
@@ -994,15 +1034,15 @@ impl Graph {
         visited: &mut IntSet<u32>,
         connected: &mut IntSet<u32>,
     ) -> Result<(), RepackError> {
-        if start_idx >= self.vertices.len() {
+        if start_idx as usize >= self.vertices.len() {
             return Err(RepackError::GraphErrorInvalidObjIndex);
         }
-        if !visited.insert(start_idx as u32) {
+        if !visited.insert(start_idx) {
             return Ok(());
         }
 
-        if targets.remove(start_idx as u32) {
-            connected.insert(start_idx as u32);
+        if targets.remove(start_idx) {
+            connected.insert(start_idx);
         }
 
         if self.vertices.is_empty() {
@@ -1018,17 +1058,17 @@ impl Graph {
             let node_idx = stack[stack_len];
             let v = self
                 .vertices
-                .get(node_idx)
+                .get(node_idx as usize)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
             // Graph is treated as undirected so search children and parents of node_idx
             for l in v.all_links() {
                 let child_idx = l.obj_idx();
-                if !visited.insert(child_idx as u32) {
+                if !visited.insert(child_idx) {
                     continue;
                 }
-                if targets.remove(child_idx as u32) {
-                    connected.insert(child_idx as u32);
+                if targets.remove(child_idx) {
+                    connected.insert(child_idx);
                 }
 
                 let idx = stack
@@ -1040,11 +1080,11 @@ impl Graph {
 
             for p in v.iter_parents() {
                 let parent_idx = *p;
-                if !visited.insert(parent_idx as u32) {
+                if !visited.insert(parent_idx) {
                     continue;
                 }
-                if targets.remove(parent_idx as u32) {
-                    connected.insert(parent_idx as u32);
+                if targets.remove(parent_idx) {
+                    connected.insert(parent_idx);
                 }
 
                 let idx = stack
@@ -1074,12 +1114,12 @@ impl Graph {
         let mut visited = IntSet::empty();
         let mut roots = IntSet::empty();
         let vertices = &self.vertices;
-        let mut queue = vec![0_usize; vertices.len()];
+        let mut queue = vec![0; vertices.len()];
         for i in &self.ordering {
-            if visited.contains(*i as u32) {
+            if visited.contains(*i) {
                 continue;
             }
-            let Some(v) = vertices.get(*i) else {
+            let Some(v) = vertices.get(*i as usize) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
             for l in v.real_links() {
@@ -1104,18 +1144,18 @@ impl Graph {
                         let obj_idx = l.obj_idx();
                         self.find_32bit_roots(obj_idx, &mut sub_roots, &mut queue)?;
                         if sub_roots.is_empty() {
-                            roots.insert(obj_idx as u32);
+                            roots.insert(obj_idx);
                             self.find_subgraph_nodes(obj_idx, &mut visited, &mut queue)?;
                         } else {
                             for idx in sub_roots.iter() {
                                 roots.insert(idx);
-                                self.find_subgraph_nodes(idx as usize, &mut visited, &mut queue)?;
+                                self.find_subgraph_nodes(idx, &mut visited, &mut queue)?;
                             }
                         }
                     }
                     LinkWidth::Four => {
                         let obj_idx = l.obj_idx();
-                        roots.insert(obj_idx as u32);
+                        roots.insert(obj_idx);
                         self.find_subgraph_nodes(obj_idx, &mut visited, &mut queue)?;
                     }
                     _ => continue,
@@ -1130,13 +1170,13 @@ impl Graph {
         &self,
         obj_idx: ObjIdx,
         subgraph: &mut IntSet<u32>,
-        queue: &mut Vec<usize>,
+        queue: &mut Vec<ObjIdx>,
     ) -> Result<(), RepackError> {
         traverse_directed_bfs(
             queue,
             &self.vertices,
             obj_idx,
-            |_parent, _link, child, _depth| subgraph.insert(child as u32),
+            |_parent, _link, child, _depth| subgraph.insert(child),
         )
     }
 
@@ -1155,7 +1195,7 @@ impl Graph {
                 }
                 let mut is_new = false;
                 subgraph_map
-                    .entry(child as u32)
+                    .entry(child)
                     .and_modify(|c| *c += 1)
                     .or_insert_with(|| {
                         is_new = true;
@@ -1170,7 +1210,7 @@ impl Graph {
         &self,
         obj_idx: ObjIdx,
         visited: &mut IntSet<u32>,
-        queue: &mut Vec<usize>,
+        queue: &mut Vec<ObjIdx>,
         max_depth: u16,
     ) -> Result<usize, RepackError> {
         let mut size = 0;
@@ -1179,11 +1219,11 @@ impl Graph {
             &self.vertices,
             obj_idx,
             |_parent, _link, child, depth| {
-                if !visited.insert(child as u32) {
+                if !visited.insert(child) {
                     return false;
                 }
 
-                if let Some(v) = self.vertices.get(child) {
+                if let Some(v) = self.vertices.get(child as usize) {
                     size += v.table_size();
                 };
                 depth < max_depth as usize
@@ -1197,14 +1237,14 @@ impl Graph {
         &self,
         obj_idx: ObjIdx,
         roots: &mut IntSet<u32>,
-        queue: &mut Vec<usize>,
+        queue: &mut Vec<ObjIdx>,
     ) -> Result<(), RepackError> {
         // Note: this specifically requires a BFS based traversal to ensure we don't recurse through
         // a node that is accessible via both 32bit and non-32 bit links.
         let mut visited = IntSet::empty();
         traverse_directed_bfs(queue, &self.vertices, obj_idx, |parent, link, child, _| {
             if let (Some(parent), Some(_link)) = (parent, link) {
-                if roots.contains(parent as u32) {
+                if roots.contains(parent) {
                     // Don't traverse from something that's already marked as a root.
                     return false;
                 }
@@ -1212,12 +1252,12 @@ impl Graph {
 
             if let Some(link) = link {
                 if !link.is_signed() && link.link_width() == LinkWidth::Four {
-                    roots.insert(child as u32);
-                    visited.insert(child as u32);
+                    roots.insert(child);
+                    visited.insert(child);
                     return false;
                 }
             }
-            visited.insert(child as u32)
+            visited.insert(child)
         })
     }
 
@@ -1236,19 +1276,19 @@ impl Graph {
         let mut subgraph_map = FastHashMap::default();
         // Seed every root before traversal can count edges into another root.
         for root_idx in roots.iter() {
-            subgraph_map.insert(root_idx, self.wide_parents(root_idx as usize, &mut parents));
+            subgraph_map.insert(root_idx, self.wide_parents(root_idx, &mut parents));
         }
         for root_idx in roots.iter() {
-            self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map)?;
+            self.find_subgraph_nodes_incoming_edges(root_idx, &mut subgraph_map)?;
         }
 
         let len = self.vertices.len();
         let mut index_map = FastHashMap::default();
         for (idx, num_incoming_edges) in subgraph_map.iter() {
-            let obj_idx = *idx as usize;
-            assert!(obj_idx < len);
+            let obj_idx = *idx;
+            assert!((obj_idx as usize) < len);
             // duplicate objects with incoming links from outside the subgraph.
-            if *num_incoming_edges < self.vertices[obj_idx].incoming_edges() {
+            if *num_incoming_edges < self.vertices[obj_idx as usize].incoming_edges() {
                 self.duplicate_subgraph(obj_idx, &mut index_map, visited)?;
             }
         }
@@ -1259,21 +1299,15 @@ impl Graph {
 
         let new_subgraph = subgraph_map
             .keys()
-            .map(|idx| {
-                index_map
-                    .get(&(*idx as usize))
-                    .copied()
-                    .unwrap_or(*idx as usize)
-            })
-            .map(|i| i as u32)
+            .map(|idx| index_map.get(idx).copied().unwrap_or(*idx))
             .collect();
 
         self.remap_obj_indices(&index_map, new_subgraph, false)?;
         self.remap_obj_indices(&index_map, parents, true)?;
 
         for (old, new) in index_map.iter() {
-            if roots.remove(*old as u32) {
-                roots.insert(*new as u32);
+            if roots.remove(*old) {
+                roots.insert(*new);
             }
         }
         Ok(true)
@@ -1281,14 +1315,13 @@ impl Graph {
 
     fn remap_obj_indices(
         &mut self,
-        index_map: &FastHashMap<usize, usize>,
+        index_map: &FastHashMap<ObjIdx, ObjIdx>,
         it: IntSet<u32>,
         only_wide: bool,
     ) -> Result<(), RepackError> {
         let mut old_to_new_idx_parents = Vec::new();
-        for i in it.iter() {
-            let parent_idx = i as usize;
-            let Some(obj) = self.vertices.get_mut(i as usize) else {
+        for parent_idx in it.iter() {
+            let Some(obj) = self.vertices.get_mut(parent_idx as usize) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
             for l in obj.real_links.iter_mut() {
@@ -1331,16 +1364,16 @@ impl Graph {
     // Also Corrects the parents map on the previous and new child nodes.
     fn reassign_parents(
         &mut self,
-        old_to_new_idx_parents: &[(usize, usize, usize, bool)],
+        old_to_new_idx_parents: &[(ObjIdx, ObjIdx, ObjIdx, bool)],
     ) -> Result<(), RepackError> {
         let vertices = &mut self.vertices;
         for (old_idx, new_idx, parent_idx, is_virtual) in old_to_new_idx_parents {
-            let Some(old_v) = vertices.get_mut(*old_idx) else {
+            let Some(old_v) = vertices.get_mut(*old_idx as usize) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
             old_v.remove_parent(*parent_idx, 1, false);
 
-            let Some(new_v) = vertices.get_mut(*new_idx) else {
+            let Some(new_v) = vertices.get_mut(*new_idx as usize) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
             new_v.add_parent(*parent_idx, *is_virtual);
@@ -1354,7 +1387,7 @@ impl Graph {
     fn duplicate_subgraph(
         &mut self,
         start_idx: ObjIdx,
-        index_map: &mut FastHashMap<usize, usize>,
+        index_map: &mut FastHashMap<ObjIdx, ObjIdx>,
         visited: &mut IntSet<u32>,
     ) -> Result<(), RepackError> {
         if index_map.contains_key(&start_idx) {
@@ -1369,7 +1402,7 @@ impl Graph {
             &self.vertices,
             start_idx,
             |_parent, _link, child, _depth| {
-                if index_map.contains_key(&child) || !visited.insert(child as u32) {
+                if index_map.contains_key(&child) || !visited.insert(child) {
                     return false;
                 }
                 to_duplicate.push(child);
@@ -1384,19 +1417,30 @@ impl Graph {
         Ok(())
     }
 
+    // Makes room for one more vertex. Vertices are only added a few at a time (duplication and
+    // splitting), so grow by 1.5x like HarfBuzz's vectors instead of letting Vec double, which
+    // would reserve space for as many vertices again as the graph started with.
+    fn reserve_vertex(&mut self) {
+        let len = self.vertices.len();
+        if len == self.vertices.capacity() {
+            self.vertices.reserve_exact(len / 2 + 8);
+        }
+    }
+
     /// Creates a copy of the specified vertex and returns the new vertex idx.
     fn duplicate_vertex(
         &mut self,
         obj_idx: ObjIdx,
         copy_data: bool,
     ) -> Result<ObjIdx, RepackError> {
-        let clone_idx = self.vertices.len();
-        if clone_idx >= MAX_VERTICES {
+        if self.vertices.len() >= MAX_VERTICES {
             return Err(RepackError::ErrorMaxOperationsExceeded);
         }
+        let clone_idx = to_obj_idx(self.vertices.len());
         self.positions_invalid = true;
         self.distance_invalid = true;
 
+        self.reserve_vertex();
         self.ordering.push(clone_idx);
 
         let v = self
@@ -1414,14 +1458,14 @@ impl Graph {
 
         for l in new_v.real_links() {
             vertices
-                .get_mut(l.obj_idx())
+                .get_mut(l.obj_idx() as usize)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
                 .add_parent(clone_idx, false);
         }
 
         for l in &new_v.virtual_links {
             vertices
-                .get_mut(l.obj_idx())
+                .get_mut(l.obj_idx() as usize)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
                 .add_parent(clone_idx, true);
         }
@@ -1434,15 +1478,15 @@ impl Graph {
     // and parent obj_idx will be added into the parents set
     fn wide_parents(&self, obj_idx: ObjIdx, parents_set: &mut IntSet<u32>) -> usize {
         let vertices = &self.vertices;
-        let v = &vertices[obj_idx];
+        let v = &vertices[obj_idx as usize];
         let mut count = 0;
         for p in v.iter_parents() {
-            let parent_v = &vertices[*p];
+            let parent_v = &vertices[*p as usize];
             for l in parent_v.real_links() {
                 let width = l.link_width() as u8;
                 if l.obj_idx() == obj_idx && (width == 3 || width == 4) && !l.is_signed() {
                     count += 1;
-                    parents_set.insert(*p as u32);
+                    parents_set.insert(*p);
                 }
             }
         }
@@ -1470,7 +1514,7 @@ impl Graph {
             }
 
             if space == overflow_space {
-                roots_to_isolate.insert(root as u32);
+                roots_to_isolate.insert(root);
             }
         }
 
@@ -1485,7 +1529,7 @@ impl Graph {
                 if extra == 0 {
                     break;
                 }
-                if roots_to_isolate.remove(*idx as u32) {
+                if roots_to_isolate.remove(*idx) {
                     extra -= 1;
                 }
             }
@@ -1500,11 +1544,11 @@ impl Graph {
     }
 
     fn find_root_and_space(&self, obj_idx: ObjIdx) -> Result<(usize, ObjIdx), RepackError> {
-        let Some(v) = self.vertices.get(obj_idx) else {
+        let Some(v) = self.vertices.get(obj_idx as usize) else {
             return Err(RepackError::GraphErrorInvalidObjIndex);
         };
         if v.space > 0 {
-            return Ok((v.space, obj_idx));
+            return Ok((v.space as usize, obj_idx));
         }
 
         let Some(parent_idx) = v.iter_parents().nth(0) else {
@@ -1524,7 +1568,7 @@ impl Graph {
         }
         let vertices = &mut self.vertices;
         for idx in indices.iter() {
-            vertices[idx as usize].space = new_space;
+            vertices[idx as usize].space = new_space as u32;
         }
 
         let num_indices = indices.len() as usize;
@@ -1536,16 +1580,17 @@ impl Graph {
     }
 
     fn raise_childrens_priority(&mut self, parent_idx: ObjIdx) -> bool {
-        let children: Vec<usize> = self.vertices[parent_idx]
+        let parent_v = &self.vertices[parent_idx as usize];
+        let children: Vec<ObjIdx> = parent_v
             .real_links
             .iter()
-            .chain(self.vertices[parent_idx].virtual_links.iter())
+            .chain(parent_v.virtual_links.iter())
             .map(|l| l.obj_idx())
             .collect();
 
         let mut made_changes = false;
         for obj_idx in children {
-            made_changes |= self.vertices[obj_idx].raise_priority();
+            made_changes |= self.vertices[obj_idx as usize].raise_priority();
         }
         made_changes
     }
@@ -1564,14 +1609,14 @@ impl Graph {
         }
 
         self.update_parents()?;
-        let child_v = &self.vertices[child_idx];
+        let child_v = &self.vertices[child_idx as usize];
         if child_v.has_incoming_virtual_edges {
             return Ok(None);
         }
 
         let links_to_child = parents
             .iter()
-            .map(|idx| child_v.incoming_edges_from_parent(idx as usize))
+            .map(|idx| child_v.incoming_edges_from_parent(idx))
             .reduce(|acc, e| acc + e)
             .unwrap_or(0);
         if links_to_child >= child_v.incoming_edges() {
@@ -1581,8 +1626,7 @@ impl Graph {
         let clone_idx = self.duplicate_vertex(child_idx, false)?;
         let mut old_to_new_idx_parents = Vec::new();
         for parent_idx in parents.iter() {
-            let parent_idx = parent_idx as usize;
-            for l in self.vertices[parent_idx].real_links.iter_mut() {
+            for l in self.vertices[parent_idx as usize].real_links.iter_mut() {
                 if l.obj_idx() != child_idx {
                     continue;
                 }
@@ -1590,7 +1634,7 @@ impl Graph {
                 old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, false));
             }
 
-            for l in self.vertices[parent_idx].virtual_links.iter_mut() {
+            for l in self.vertices[parent_idx as usize].virtual_links.iter_mut() {
                 if l.obj_idx() != child_idx {
                     continue;
                 }
@@ -1616,7 +1660,7 @@ impl Graph {
         let mut parents = IntSet::empty();
         for o in &overflows[..=overflow_index] {
             if o.child() == child_idx {
-                parents.insert(o.parent() as u32);
+                parents.insert(o.parent());
             }
         }
 
@@ -1635,7 +1679,7 @@ impl Graph {
         };
 
         if parents.len() > 1 {
-            self.vertices[ret].give_max_priority();
+            self.vertices[ret as usize].give_max_priority();
         }
         Ok(true)
     }
@@ -1650,18 +1694,18 @@ impl Graph {
         // try resolving the furthest overflows first
         for (overflow_index, overflow) in overflows.iter().enumerate().rev() {
             let child_idx = overflow.child();
-            if self.vertices[child_idx].is_shared()
+            if self.vertices[child_idx as usize].is_shared()
                 && self.resolve_shared_overflow(overflow_index, overflows)?
             {
                 return Ok(true);
             }
 
             let parent_idx = overflow.parent();
-            if self.vertices[child_idx].is_leaf()
-                && !priority_bumped_parents.contains(parent_idx as u32)
+            if self.vertices[child_idx as usize].is_leaf()
+                && !priority_bumped_parents.contains(parent_idx)
                 && self.raise_childrens_priority(parent_idx)
             {
-                priority_bumped_parents.insert(parent_idx as u32);
+                priority_bumped_parents.insert(parent_idx);
                 resolution_attempted = true;
             }
         }
@@ -1670,10 +1714,10 @@ impl Graph {
 
     //  Adds a new vertex to the graph, not connected to anything.
     fn new_vertex(&mut self, size: usize) -> Result<ObjIdx, RepackError> {
-        let new_idx = self.vertices.len();
-        if new_idx >= MAX_VERTICES {
+        if self.vertices.len() >= MAX_VERTICES {
             return Err(RepackError::ErrorMaxOperationsExceeded);
         }
+        let new_idx = to_obj_idx(self.vertices.len());
 
         self.positions_invalid = true;
         self.distance_invalid = true;
@@ -1691,6 +1735,7 @@ impl Graph {
             ..Default::default()
         };
 
+        self.reserve_vertex();
         self.vertices.push(new_vertex);
         self.ordering.push(new_idx);
 
@@ -1702,7 +1747,7 @@ impl Graph {
     #[inline]
     pub(crate) fn index_for_position(&self, idx: ObjIdx, position: u32) -> Option<ObjIdx> {
         self.vertices
-            .get(idx)?
+            .get(idx as usize)?
             .real_links
             .link_index_at_position(position)
     }
@@ -1716,12 +1761,12 @@ impl Graph {
         is_virtual: bool,
     ) -> Result<(), RepackError> {
         self.vertices
-            .get_mut(parent_idx)
+            .get_mut(parent_idx as usize)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .add_link(width, child_idx, position, is_virtual);
 
         self.vertices
-            .get_mut(child_idx)
+            .get_mut(child_idx as usize)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .add_parent(parent_idx, is_virtual);
         Ok(())
@@ -1740,7 +1785,7 @@ impl Graph {
         self.distance_invalid = true;
         self.positions_invalid = true;
 
-        let old_parent_v = self.vertices.get_mut(old_parent_idx).unwrap();
+        let old_parent_v = self.vertices.get_mut(old_parent_idx as usize).unwrap();
 
         // remove from old parent
         let Some(link) = old_parent_v.remove_real_link(old_offset) else {
@@ -1751,13 +1796,13 @@ impl Graph {
         let width = LinkWidth::new_checked(link_width).ok_or(RepackError::ErrorSplitSubtable)?;
 
         self.vertices
-            .get_mut(new_parent_idx)
+            .get_mut(new_parent_idx as usize)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .add_link(width, child_idx, new_offset, false);
 
         let child_v = self
             .vertices
-            .get_mut(child_idx)
+            .get_mut(child_idx as usize)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         child_v.remove_parent(old_parent_idx, 1, false);
@@ -1783,7 +1828,7 @@ impl Graph {
 
         let old_parent_v = self
             .vertices
-            .get_mut(old_parent_idx)
+            .get_mut(old_parent_idx as usize)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         for i in 0..num_child {
@@ -1798,7 +1843,7 @@ impl Graph {
         for child_idx in &child_idxes {
             let child_v = self
                 .vertices
-                .get_mut(*child_idx)
+                .get_mut(*child_idx as usize)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
             child_v.remove_parent(old_parent_idx, 1, false);
@@ -1807,7 +1852,7 @@ impl Graph {
 
         let new_parent_v = self
             .vertices
-            .get_mut(new_parent_idx)
+            .get_mut(new_parent_idx as usize)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         let width = LinkWidth::new_checked(link_width).ok_or(RepackError::ErrorSplitSubtable)?;
@@ -1915,7 +1960,7 @@ impl Graph {
 // This traversal does not use a visited set internally, it is the responsibility of visit_edge
 // to track and filter visited nodes if required for the particular traversal.
 fn traverse_directed_bfs<VisitEdgeFunc>(
-    queue: &mut Vec<usize>,
+    queue: &mut Vec<ObjIdx>,
     vertices: &[Vertex],
     start_idx: ObjIdx,
     mut visit_edge: VisitEdgeFunc,
@@ -1927,7 +1972,7 @@ where
     if num_v == 0 {
         return Ok(());
     }
-    if start_idx >= num_v {
+    if start_idx as usize >= num_v {
         return Err(RepackError::GraphErrorInvalidObjIndex);
     }
 
@@ -1947,7 +1992,7 @@ where
             let node_idx = queue[head];
             head += 1;
 
-            let v = &vertices[node_idx];
+            let v = &vertices[node_idx as usize];
             for l in v.all_links() {
                 let child_idx = l.obj_idx();
                 if !visit_edge(Some(node_idx), Some(l), child_idx, depth + 1) {
@@ -1971,7 +2016,7 @@ fn serialize_link(
     link_pos: usize,
     start: usize,
     obj_size: usize,
-    id_map: &[usize],
+    id_map: &[ObjIdx],
 ) -> Result<(), SerializeErrorFlags> {
     let link_width = link.link_width() as usize;
     if link_width == 0 {
@@ -1986,7 +2031,7 @@ fn serialize_link(
 
     offset_data.fill(0);
     let new_obj_idx = id_map
-        .get(link.obj_idx())
+        .get(link.obj_idx() as usize)
         .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
 
     s.add_link(
@@ -2065,7 +2110,7 @@ pub(crate) mod test {
 
         let obj_a = link_a.obj_idx();
         let obj_b = link_b.obj_idx();
-        graph_a.vertices[obj_a].equals(&graph_b.vertices[obj_b], graph_a, graph_b)
+        graph_a.vertices[obj_a as usize].equals(&graph_b.vertices[obj_b as usize], graph_a, graph_b)
     }
 
     impl Graph {
@@ -2351,11 +2396,7 @@ pub(crate) mod test {
         let obj_5 = &graph.vertices[5];
         assert_eq!(data_bytes.get(obj_5.head..obj_5.head + 3).unwrap(), b"abc");
         assert_eq!(obj_5.real_links().len(), 3);
-        let child_idxes: IntSet<u32> = obj_5
-            .real_links
-            .iter()
-            .map(|l| l.obj_idx() as u32)
-            .collect();
+        let child_idxes: IntSet<u32> = obj_5.real_links.iter().map(|l| l.obj_idx()).collect();
         assert!(child_idxes.contains(4));
         assert!(child_idxes.contains(2));
         assert!(child_idxes.contains(1));
@@ -2415,7 +2456,7 @@ pub(crate) mod test {
         c.end_serialize();
 
         let graph = Graph::from_serializer(c).unwrap();
-        let d_1 = &graph.vertices[obj_d_1];
+        let d_1 = &graph.vertices[obj_d_1 as usize];
         assert_eq!(d_1.virtual_links.len(), 2);
         assert_eq!(d_1.virtual_links[0].obj_idx(), obj_b);
         assert_eq!(d_1.virtual_links[1].obj_idx(), obj_c);
@@ -2454,7 +2495,7 @@ pub(crate) mod test {
 
         // Test find_subgraph_nodes_incoming_edges (map)
         let mut map = FastHashMap::default();
-        map.insert(graph.root_idx() as u32, 1);
+        map.insert(graph.root_idx(), 1);
         graph
             .find_subgraph_nodes_incoming_edges(graph.root_idx(), &mut map)
             .unwrap();
@@ -2504,11 +2545,33 @@ pub(crate) mod test {
 
         // Resolving the second overflow must only reassign the first two parents.
         assert!(graph.resolve_shared_overflow(1, &overflows).unwrap());
-        let child_of = |g: &Graph, p: ObjIdx| g.vertices[p].real_links()[0].obj_idx();
+        let child_of = |g: &Graph, p: ObjIdx| g.vertices[p as usize].real_links()[0].obj_idx();
         let clone = child_of(&graph, parents[0]);
         assert_ne!(clone, child);
         assert_eq!(child_of(&graph, parents[1]), clone);
         assert_eq!(child_of(&graph, parents[2]), child);
+    }
+
+    // Positions that don't fit in a u32 are saturated, and links involving them are reported
+    // as overflowing.
+    #[test]
+    fn test_saturated_positions_overflow() {
+        let mut s = Serializer::new(100);
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"child", 5, false);
+        start_object(&mut s, b"p", 1);
+        add_offset(&mut s, child);
+        let parent = s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.sort_shortest_distance().unwrap();
+        assert!(!graph.has_overflows());
+
+        graph.update_positions();
+        graph.vertices[child as usize].start = u32::MAX;
+        let link = graph.vertices[parent as usize].real_links()[0];
+        assert!(graph.offset_overflows(&graph.vertices[parent as usize], &link));
     }
 
     // An overflowing root whose subgraph is already isolated (so no duplication is
@@ -2539,8 +2602,8 @@ pub(crate) mod test {
         let mut graph = Graph::from_serializer(s).unwrap();
         graph.update_parents().unwrap();
         // Put both disjoint 32-bit subgraphs into the same space.
-        graph.vertices[obj_b].space = 1;
-        graph.vertices[obj_c].space = 1;
+        graph.vertices[obj_b as usize].space = 1;
+        graph.vertices[obj_c as usize].space = 1;
         graph.num_roots_for_space = vec![1, 2];
         graph.sort_shortest_distance().unwrap();
 
@@ -2549,7 +2612,10 @@ pub(crate) mod test {
 
         assert!(graph.try_isolating_subgraphs(&overflows).unwrap());
         assert_eq!(graph.num_roots_for_space, vec![1, 1, 1]);
-        let mut spaces = [graph.vertices[obj_b].space, graph.vertices[obj_c].space];
+        let mut spaces = [
+            graph.vertices[obj_b as usize].space,
+            graph.vertices[obj_c as usize].space,
+        ];
         spaces.sort();
         assert_eq!(spaces, [1, 2]);
 
@@ -2584,7 +2650,7 @@ pub(crate) mod test {
             .unwrap();
         assert!(roots.contains(leaf1 as u32));
         assert!(roots.contains(leaf2 as u32));
-        assert!(!roots.contains(mid as u32));
+        assert!(!roots.contains(mid));
         assert_eq!(roots.len(), 2);
 
         // Test case where DFS fails but BFS succeeds:
@@ -2618,7 +2684,7 @@ pub(crate) mod test {
             .find_32bit_roots(graph2.root_idx(), &mut roots2, &mut queue)
             .unwrap();
         assert_eq!(roots2.len(), 1);
-        assert!(roots2.contains(a as u32));
+        assert!(roots2.contains(a));
         assert!(!roots2.contains(b as u32));
     }
 
@@ -2670,10 +2736,10 @@ pub(crate) mod test {
             let (roots, _) = graph.find_space_roots().unwrap();
             if count < MAX_SPACES {
                 assert_eq!(roots.len(), count as u64);
-                assert!(leaves.iter().all(|idx| roots.contains(*idx as u32)));
+                assert!(leaves.iter().all(|idx| roots.contains(*idx)));
             } else {
                 assert_eq!(roots.len(), 1);
-                assert!(roots.contains(list as u32));
+                assert!(roots.contains(list));
             }
             assert!(graph.assign_spaces().unwrap());
             assert!(graph.num_roots_for_space.len() < MAX_SPACES);
