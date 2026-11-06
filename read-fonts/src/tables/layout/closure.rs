@@ -982,37 +982,37 @@ impl ContextFormat3<'_> {
     }
 
     pub(crate) fn matches_glyphs(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        for index in 0..self.input_count() {
-            let coverage = match self.coverage(index) {
-                Err(ReadError::NullOffset) => return Ok(false),
-                other => other?,
-            };
-            if !coverage.intersects(glyphs) {
-                return Ok(false);
+        match self {
+            Self::Plain(table) => all_coverages_intersect(table.coverages().iter(), glyphs),
+            Self::PlainWide(table) => all_coverages_intersect(table.coverages().iter(), glyphs),
+            Self::Chain(table) => {
+                Ok(
+                    all_coverages_intersect(table.input_coverages().iter(), glyphs)?
+                        && all_coverages_intersect(table.backtrack_coverages().iter(), glyphs)?
+                        && all_coverages_intersect(table.lookahead_coverages().iter(), glyphs)?,
+                )
             }
         }
-        let (backtrack, lookahead) = match self {
-            Self::Plain(_) | Self::PlainWide(_) => (None, None),
-            Self::Chain(table) => (
-                Some(table.backtrack_coverages()),
-                Some(table.lookahead_coverages()),
-            ),
-        };
-
-        for coverage in backtrack
-            .into_iter()
-            .flat_map(|x| x.iter_as_nullable())
-            .chain(lookahead.into_iter().flat_map(|x| x.iter_as_nullable()))
-        {
-            let Some(coverage) = coverage.transpose()? else {
-                return Ok(false);
-            };
-            if !coverage.intersects(glyphs) {
-                return Ok(false);
-            }
-        }
-        Ok(true)
     }
+}
+
+/// Returns true if every coverage table intersects `glyphs`.
+///
+/// A null offset counts as a coverage that doesn't intersect.
+fn all_coverages_intersect<'a>(
+    coverages: impl Iterator<Item = Result<CoverageTable<'a>, ReadError>>,
+    glyphs: &IntSet<GlyphId>,
+) -> Result<bool, ReadError> {
+    for coverage in coverages {
+        let coverage = match coverage {
+            Err(ReadError::NullOffset) => return Ok(false),
+            other => other?,
+        };
+        if !coverage.intersects(glyphs) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 impl Intersect for ContextFormat1<'_> {
