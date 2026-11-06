@@ -649,3 +649,944 @@ pub(super) fn instance(
     .into();
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use skrifa::MetadataProvider;
+    use write_fonts::from_obj::{FromTableRef, ToOwnedTable};
+    use write_fonts::FontBuilder;
+
+    fn font(shared: bool, implicit: bool) -> Vec<u8> {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut avar: Avar = font.avar().unwrap().to_owned_table();
+        let region = |values: [(f64, f64, f64); 2]| VariationRegion {
+            region_axes: values
+                .into_iter()
+                .map(|(a, b, c)| {
+                    RegionAxisCoordinates::new(
+                        F2Dot14::from_f64(a),
+                        F2Dot14::from_f64(b),
+                        F2Dot14::from_f64(c),
+                    )
+                })
+                .collect(),
+        };
+        avar.var_store = Some(ItemVariationStore {
+            variation_region_list: VariationRegionList {
+                axis_count: 2,
+                variation_regions: vec![
+                    region([(0., 0., 0.), (0., 1., 1.)]),
+                    region([(0., 0.5, 1.), (0., 0., 0.)]),
+                    region([(-1., -1., 0.), (0., 1., 1.)]),
+                ],
+            }
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: 2,
+                word_delta_count: 0x8003,
+                region_indexes: vec![0, 1, 2],
+                delta_sets: [512i32, 256, -128, -256, 128, 64]
+                    .into_iter()
+                    .flat_map(i32::to_be_bytes)
+                    .collect(),
+            }
+            .into()],
+        })
+        .into();
+        if !implicit {
+            avar.axis_index_map = Some(
+                [0u32, if shared { 0 } else { 1 }]
+                    .into_iter()
+                    .collect::<DeltaSetIndexMap>(),
+            )
+            .into();
+        }
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&avar).unwrap();
+        builder.build()
+    }
+
+    #[test]
+    fn null_store_ranges_compensate_in_the_original_final_coordinate_space() {
+        let bytes = font(false, true);
+        let font = FontRef::new(&bytes).unwrap();
+        let mut avar: Avar = font.avar().unwrap().to_owned_table();
+        avar.var_store = None.into();
+        avar.axis_index_map = None.into();
+        let mut avar = write_fonts::dump_table(&avar).unwrap();
+        // Avar's writer chooses version 1 when both optional tables are null.
+        avar[..2].copy_from_slice(&2u16.to_be_bytes());
+        avar.extend([0; 8]);
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_raw(Tag::new(b"avar"), avar);
+        let bytes = builder.build();
+        let original = FontRef::new(&bytes).unwrap();
+        let original_outlines = original.data_for_tag(Tag::new(b"CFF2")).unwrap();
+        let limits = crate::parse_axis_limits("wght=300:500:800").unwrap();
+        let axes = AxisPlan::new(&original, &limits).unwrap();
+        assert!(axes.coupled);
+        let bytes = crate::instance_font(&original, &limits).unwrap();
+        let actual = FontRef::new(&bytes).unwrap();
+        assert_eq!(
+            actual.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            original_outlines.as_bytes()
+        );
+        assert_eq!(actual.avar().unwrap().version().major, 2);
+        assert!(actual.avar().unwrap().var_store().is_some());
+        for i in 0..=256 {
+            let weight = 300. + 500. * i as f32 / 256.;
+            let settings = [(Tag::new(b"wght"), weight)];
+            let actual = actual.axes().location(settings);
+            let expected = original.axes().location(settings);
+            for (a, e) in actual.coords().iter().zip(expected.coords()) {
+                assert!((a.to_bits() as i32 - e.to_bits() as i32).abs() <= 1);
+            }
+        }
+    }
+
+    #[test]
+    fn compensation_preserves_anchor_offsets_when_breakpoints_share_outputs() {
+        use write_fonts::tables::avar::AxisValueMap;
+        let old = SegmentMaps::new(
+            [-1., 0., 1.]
+                .into_iter()
+                .map(|v| AxisValueMap::new(F2Dot14::from_f64(v), F2Dot14::from_f64(v)))
+                .collect(),
+        );
+        let new = SegmentMaps::new(
+            [(-1., -1.), (-0.5, 0.), (0., 0.), (0.5, 1.), (1., 1.)]
+                .into_iter()
+                .map(|(from, to)| AxisValueMap::new(F2Dot14::from_f64(from), F2Dot14::from_f64(to)))
+                .collect(),
+        );
+        let old = write_fonts::dump_table(&old).unwrap();
+        let new = write_fonts::dump_table(&new).unwrap();
+        let old = ReadSegmentMaps::read(old.as_slice().into()).unwrap();
+        let new = ReadSegmentMaps::read(new.as_slice().into()).unwrap();
+        let knots = offset_knots(
+            &old,
+            &new,
+            Triple(-1., 0., 1.),
+            Triple(-0.5, 0.5, 1.),
+            Triple(-0.5, 0.5, 1.),
+        );
+        assert_eq!(knots.len(), 3);
+        assert_eq!(knots[&F2Dot14::NEG_ONE], 0.5);
+        assert_eq!(knots[&F2Dot14::ZERO], 0.5);
+        assert_eq!(knots[&F2Dot14::ONE], 0.);
+    }
+
+    #[test]
+    fn compensation_selects_harfbuzz_knots_without_extra_rounding_noise() {
+        let bytes = font(false, true);
+        let original = FontRef::new(&bytes).unwrap();
+        let cases = [
+            (
+                "wght=242.80209350585938:705.5397338867188:706.1061401367188",
+                include_bytes!(
+                    "../../test-data/expected/avar2-compensation/reject-breakpoints.fvar"
+                )
+                .as_slice(),
+                include_bytes!(
+                    "../../test-data/expected/avar2-compensation/reject-breakpoints.avar"
+                )
+                .as_slice(),
+                4,
+                1,
+            ),
+            (
+                "wght=400:800:900",
+                include_bytes!("../../test-data/expected/avar2-compensation/keep-breakpoints.fvar")
+                    .as_slice(),
+                include_bytes!("../../test-data/expected/avar2-compensation/keep-breakpoints.avar")
+                    .as_slice(),
+                5,
+                1,
+            ),
+            (
+                "wght=300:500:800",
+                include_bytes!("../../test-data/expected/avar2-compensation/moved-default.fvar")
+                    .as_slice(),
+                include_bytes!("../../test-data/expected/avar2-compensation/moved-default.avar")
+                    .as_slice(),
+                7,
+                1,
+            ),
+        ];
+        let old_map = original
+            .avar()
+            .unwrap()
+            .axis_segment_maps()
+            .get(0)
+            .unwrap()
+            .unwrap();
+        let axis = original.fvar().unwrap().axes().unwrap()[0];
+        let old_user = Triple(
+            axis.min_value().to_f32() as f64,
+            axis.default_value().to_f32() as f64,
+            axis.max_value().to_f32() as f64,
+        );
+        for (request, fvar, avar, count, residual) in cases {
+            let limits = crate::parse_axis_limits(request).unwrap();
+            let axes = AxisPlan::new(&original, &limits).unwrap();
+            let bytes = crate::instance_font(&original, &limits).unwrap();
+            let actual = FontRef::new(&bytes).unwrap();
+            let mut reference = FontBuilder::new();
+            reference.add_raw(Tag::new(b"fvar"), fvar);
+            reference.add_raw(Tag::new(b"avar"), avar);
+            let reference = reference.build();
+            let expected = FontRef::new(&reference).unwrap();
+            let new_map = actual
+                .avar()
+                .unwrap()
+                .axis_segment_maps()
+                .get(0)
+                .unwrap()
+                .unwrap();
+            let knots = offset_knots(
+                &old_map,
+                &new_map,
+                old_user,
+                axes.user[0],
+                axes.normalized[0],
+            );
+            assert_eq!(knots.len(), count, "{request}");
+            assert_eq!(
+                estimate_offset_error(&old_map, &new_map, old_user, axes.user[0], &knots),
+                residual,
+                "{request}"
+            );
+            let user = axes.user[0];
+            for i in 0..=256 {
+                let weight = (user.0 + (user.2 - user.0) * i as f64 / 256.) as f32;
+                for contrast in [0., 25., 50., 100.] {
+                    let location = [(Tag::new(b"wght"), weight), (Tag::new(b"CNTR"), contrast)];
+                    let actual = actual.axes().location(location);
+                    let expected = expected.axes().location(location);
+                    assert_eq!(
+                        actual.coords(),
+                        expected.coords(),
+                        "{request} weight={weight} contrast={contrast}"
+                    );
+                }
+            }
+        }
+    }
+
+    fn truetype_font(cancel: bool) -> Vec<u8> {
+        let bytes = std::fs::read("test-data/fonts/RobotoFlex-Variable.ABC.ttf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let count = font.axes().len();
+        let region = |axis: usize| VariationRegion {
+            region_axes: (0..count)
+                .map(|i| {
+                    RegionAxisCoordinates::new(
+                        F2Dot14::ZERO,
+                        if i == axis {
+                            F2Dot14::ONE
+                        } else {
+                            F2Dot14::ZERO
+                        },
+                        if i == axis {
+                            F2Dot14::ONE
+                        } else {
+                            F2Dot14::ZERO
+                        },
+                    )
+                })
+                .collect(),
+        };
+        let mut rows = vec![0i32; count * 3];
+        // The width contributions to the weight row cancel exactly. Checking
+        // each region independently would fail to recognize this constant pin.
+        rows[..3].copy_from_slice(&[1024, 512, if cancel { -512 } else { -256 }]);
+        rows[3] = 256; // The retained width axis receives a weight contribution.
+        rows[7] = -128; // Optical size depends on width, after the dropped axis.
+        let mut avar = Avar::new(
+            (0..count)
+                .map(|_| {
+                    SegmentMaps::new(
+                        [-1., 0., 1.]
+                            .into_iter()
+                            .map(|v| {
+                                write_fonts::tables::avar::AxisValueMap::new(
+                                    F2Dot14::from_f64(v),
+                                    F2Dot14::from_f64(v),
+                                )
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+        );
+        avar.var_store = Some(ItemVariationStore {
+            variation_region_list: VariationRegionList {
+                axis_count: count as u16,
+                variation_regions: vec![region(0), region(1), region(1)],
+            }
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: count as u16,
+                word_delta_count: 0x8003,
+                region_indexes: vec![0, 1, 2],
+                delta_sets: rows.into_iter().flat_map(i32::to_be_bytes).collect(),
+            }
+            .into()],
+        })
+        .into();
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&avar).unwrap();
+        builder.build()
+    }
+
+    #[test]
+    fn self_contained_pin_rounds_negative_half_deltas_towards_positive_infinity() {
+        let bytes = truetype_font(true);
+        let font = FontRef::new(&bytes).unwrap();
+        let mut avar: Avar = font.avar().unwrap().to_owned_table();
+        let data = avar.var_store.as_mut().unwrap().item_variation_data[0]
+            .as_mut()
+            .unwrap();
+        data.delta_sets.fill(0);
+        data.delta_sets[..4].copy_from_slice(&(-1i32).to_be_bytes());
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&avar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        // At weight 700 the tent scalar is 0.5, so the delta is -0.5.
+        // The pin must preserve the runtime's rounding of that delta to zero.
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=700").unwrap()).unwrap();
+        assert!(axes.pinned[0]);
+        assert_eq!(axes.coords[0], F2Dot14::from_bits(8192));
+    }
+
+    #[test]
+    fn dependent_pins_cull_gvar_like_harfbuzz() {
+        let bytes = truetype_font(false);
+        let original = FontRef::new(&bytes).unwrap();
+        let out = crate::instance_font(&original, &crate::parse_axis_limits("wght=700").unwrap())
+            .unwrap();
+        let actual = FontRef::new(&out).unwrap();
+        let reference = include_bytes!("../../test-data/expected/avar2-pins/dependent-pruned.ttf");
+        let expected = FontRef::new(reference).unwrap();
+        let actual = actual.gvar().unwrap();
+        let expected = expected.gvar().unwrap();
+        let coords = |t: read_fonts::tables::variations::Tuple<'_>| {
+            (0..t.len()).map(|i| t.get(i).unwrap()).collect::<Vec<_>>()
+        };
+        let tuples = |gvar: &read_fonts::tables::gvar::Gvar<'_>, gid| {
+            gvar.glyph_variation_data(gid)
+                .unwrap()
+                .map_or_else(Vec::new, |data| {
+                    data.tuples()
+                        .map(|t| {
+                            (
+                                coords(t.peak()),
+                                t.intermediate_start().map(coords),
+                                t.intermediate_end().map(coords),
+                                t.deltas().collect::<Vec<_>>(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+        };
+        let mut count = 0;
+        for gid in 0..actual.glyph_count() {
+            let gid = read_fonts::types::GlyphId::new(gid as u32);
+            let actual = tuples(&actual, gid);
+            let expected = tuples(&expected, gid);
+            count += actual.len();
+            assert_eq!(actual, expected, "{gid:?}");
+        }
+        assert_eq!(count, 149);
+    }
+
+    #[test]
+    fn reachable_ranges_cull_retained_final_space_stores() {
+        use write_fonts::tables::{
+            base::Base, colr::Colr, gdef::Gdef, hvar::Hvar, mvar::Mvar, vvar::Vvar,
+        };
+        let bytes = truetype_font(false);
+        let original = FontRef::new(&bytes).unwrap();
+        let axes = original.axes().len();
+        let region = |negative| {
+            VariationRegion::new(
+                (0..axes)
+                    .map(|i| {
+                        let (a, b, c) = if i != 0 {
+                            (0., 0., 0.)
+                        } else if negative {
+                            (-1., -1., 0.)
+                        } else {
+                            (0., 1., 1.)
+                        };
+                        RegionAxisCoordinates::new(
+                            F2Dot14::from_f64(a),
+                            F2Dot14::from_f64(b),
+                            F2Dot14::from_f64(c),
+                        )
+                    })
+                    .collect(),
+            )
+        };
+        let store = ItemVariationStore::new(
+            VariationRegionList::new(axes as u16, vec![region(true), region(false)]),
+            vec![Some(ItemVariationData {
+                item_count: 4,
+                word_delta_count: 2,
+                region_indexes: vec![0, 1],
+                delta_sets: [100i16, 200, -100, -200, 300, 400, -300, -400]
+                    .into_iter()
+                    .flat_map(i16::to_be_bytes)
+                    .collect(),
+            })],
+        );
+        let mut builder = FontBuilder::new();
+        for r in original.table_directory().table_records() {
+            if r.tag() != Tag::new(b"GPOS") {
+                builder.add_raw(r.tag(), original.data_for_tag(r.tag()).unwrap());
+            }
+        }
+        builder.add_raw(
+            Tag::new(b"vhea"),
+            original.data_for_tag(Tag::new(b"hhea")).unwrap(),
+        );
+        builder.add_raw(
+            Tag::new(b"vmtx"),
+            original.data_for_tag(Tag::new(b"hmtx")).unwrap(),
+        );
+        builder
+            .add_table(&Hvar::new(store.clone(), None, None, None))
+            .unwrap();
+        builder
+            .add_table(&Vvar::new(store.clone(), None, None, None, None))
+            .unwrap();
+        builder
+            .add_table(&Mvar {
+                version: read_fonts::types::MajorMinor::VERSION_1_0,
+                value_record_size: 8,
+                value_record_count: 1,
+                value_records: vec![write_fonts::tables::mvar::ValueRecord::new(
+                    Tag::new(b"hasc"),
+                    0,
+                    0,
+                )],
+                item_variation_store: Some(store.clone()).into(),
+            })
+            .unwrap();
+        builder
+            .add_table(&Gdef {
+                item_var_store: Some(store.clone()).into(),
+                ..Default::default()
+            })
+            .unwrap();
+        builder
+            .add_table(&Base {
+                item_var_store: Some(store.clone()).into(),
+                ..Default::default()
+            })
+            .unwrap();
+        builder
+            .add_table(&Colr {
+                item_variation_store: Some(store).into(),
+                ..Default::default()
+            })
+            .unwrap();
+        let source = builder.build();
+        let source = FontRef::new(&source).unwrap();
+        let out =
+            crate::instance_font(&source, &crate::parse_axis_limits("wght=700").unwrap()).unwrap();
+        let out = FontRef::new(&out).unwrap();
+        let stores = [
+            out.hvar().unwrap().item_variation_store().unwrap(),
+            out.vvar().unwrap().item_variation_store().unwrap(),
+            out.mvar().unwrap().item_variation_store().unwrap().unwrap(),
+        ];
+        // The subset pipeline removes stores with no retained consumers.
+        assert!(out.gdef().is_err());
+        assert!(out.base().unwrap().item_var_store().is_none());
+        assert!(out.colr().is_err());
+        for (i, store) in stores.into_iter().enumerate() {
+            assert_eq!(store.variation_region_list().unwrap().region_count(), 1);
+            let data = store.item_variation_data().get(0).unwrap().unwrap();
+            assert_eq!(data.item_count(), if i == 2 { 1 } else { 4 });
+            assert_eq!(data.delta_set(0).collect::<Vec<_>>(), vec![200]);
+            if data.item_count() > 1 {
+                assert_eq!(data.delta_set(1).collect::<Vec<_>>(), vec![-200]);
+            }
+        }
+        // The avar2 transform's regions live in intermediate space, so its
+        // width-dependent weight row is retained rather than culled here.
+        let avar = out.avar().unwrap();
+        let store = avar.var_store().unwrap().unwrap();
+        let map = avar.axis_index_map().unwrap().unwrap();
+        let index = map.get(0).unwrap();
+        let data = store
+            .item_variation_data()
+            .get(index.outer as usize)
+            .unwrap()
+            .unwrap();
+        assert!(data.delta_set(index.inner).any(|delta| delta != 0));
+    }
+
+    #[test]
+    fn oversized_grids_conservatively_retain_dependent_pins() {
+        let bytes = truetype_font(true);
+        let original = FontRef::new(&bytes).unwrap();
+        let mut fvar: write_fonts::tables::fvar::Fvar = original.fvar().unwrap().to_owned_table();
+        for axis in &mut fvar.axis_instance_arrays.axes {
+            axis.flags = 0;
+        }
+        let mut avar: Avar = original.avar().unwrap().to_owned_table();
+        let store = avar.var_store.as_mut().unwrap();
+        let region = VariationRegion {
+            region_axes: (0..original.axes().len())
+                .map(|_| {
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::from_f64(0.5), F2Dot14::ONE)
+                })
+                .collect(),
+        };
+        store
+            .variation_region_list
+            .variation_regions
+            .extend([region.clone(), region]);
+        let data = store.item_variation_data[0].as_mut().unwrap();
+        let old = data.delta_sets.clone();
+        data.delta_sets.clear();
+        for (i, row) in old.chunks_exact(12).enumerate() {
+            data.delta_sets.extend(row);
+            for delta in if i == 0 { [512i32, -512] } else { [0, 0] } {
+                data.delta_sets.extend(delta.to_be_bytes());
+            }
+        }
+        data.region_indexes.extend([3, 4]);
+        data.word_delta_count = 0x8005;
+        let mut builder = FontBuilder::new();
+        for record in original.table_directory().table_records() {
+            if ![Tag::new(b"fvar"), Tag::new(b"avar")].contains(&record.tag()) {
+                builder.add_raw(record.tag(), original.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&fvar).unwrap();
+        builder.add_table(&avar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=700").unwrap()).unwrap();
+        // Twelve free axes exceed the 16384-vertex grid limit. Interval
+        // bounds safely retain the pin even though these extra rows cancel.
+        assert!(!axes.pinned[0]);
+    }
+
+    #[test]
+    fn missing_axis_delta_rows_have_constant_zero_offsets() {
+        let bytes = truetype_font(true);
+        let original = FontRef::new(&bytes).unwrap();
+        let mut avar: Avar = original.avar().unwrap().to_owned_table();
+        avar.axis_index_map = Some(
+            (0..original.axes().len() as u32)
+                .map(|i| if i == 0 { u32::MAX } else { i })
+                .collect::<DeltaSetIndexMap>(),
+        )
+        .into();
+        let mut builder = FontBuilder::new();
+        for record in original.table_directory().table_records() {
+            if record.tag() != Tag::new(b"avar") {
+                builder.add_raw(record.tag(), original.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&avar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let axes = AxisPlan::new(&font, &crate::parse_axis_limits("wght=700").unwrap()).unwrap();
+        assert!(axes.pinned[0]);
+        assert_eq!(axes.coords[0], F2Dot14::from_f64(0.5));
+    }
+
+    #[test]
+    fn self_contained_pin_matches_harfbuzz_geometry_metrics_and_layout() {
+        use read_fonts::types::GlyphId;
+        use skrifa::{
+            instance::Size,
+            outline::{DrawSettings, OutlinePen},
+        };
+        #[derive(Default, Debug, PartialEq)]
+        struct Path(Vec<(u8, Vec<f32>)>);
+        impl OutlinePen for Path {
+            fn move_to(&mut self, x: f32, y: f32) {
+                self.0.push((0, vec![x, y]));
+            }
+            fn line_to(&mut self, x: f32, y: f32) {
+                self.0.push((1, vec![x, y]));
+            }
+            fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
+                self.0.push((2, vec![cx, cy, x, y]));
+            }
+            fn curve_to(&mut self, ax: f32, ay: f32, bx: f32, by: f32, x: f32, y: f32) {
+                self.0.push((3, vec![ax, ay, bx, by, x, y]));
+            }
+            fn close(&mut self) {
+                self.0.push((4, vec![]));
+            }
+        }
+        let bytes = truetype_font(true);
+        let original = FontRef::new(&bytes).unwrap();
+        let out = crate::instance_font(&original, &crate::parse_axis_limits("wght=700").unwrap())
+            .unwrap();
+        let actual = FontRef::new(&out).unwrap();
+        let reference =
+            std::fs::read("test-data/expected/avar2-pins/self-contained-pin.ttf").unwrap();
+        let expected = FontRef::new(&reference).unwrap();
+        assert_eq!(
+            write_fonts::tables::fvar::Fvar::from_table_ref(&actual.fvar().unwrap()),
+            write_fonts::tables::fvar::Fvar::from_table_ref(&expected.fvar().unwrap())
+        );
+        assert_eq!(
+            write_fonts::tables::gdef::Gdef::from_table_ref(&actual.gdef().unwrap()),
+            write_fonts::tables::gdef::Gdef::from_table_ref(&expected.gdef().unwrap())
+        );
+        assert_eq!(
+            write_fonts::tables::gpos::Gpos::from_table_ref(&actual.gpos().unwrap()),
+            write_fonts::tables::gpos::Gpos::from_table_ref(&expected.gpos().unwrap())
+        );
+        assert_eq!(
+            write_fonts::tables::gsub::Gsub::from_table_ref(&actual.gsub().unwrap()),
+            write_fonts::tables::gsub::Gsub::from_table_ref(&expected.gsub().unwrap())
+        );
+        let ao = actual.outline_glyphs();
+        let eo = expected.outline_glyphs();
+        // A pin outside a tuple's support must remove that tuple rather than
+        // retaining a zero-scaled residual on the other axes.
+        let tuple_count = |font: &FontRef| {
+            let gvar = font.gvar().unwrap();
+            (0..gvar.glyph_count())
+                .map(|gid| {
+                    gvar.glyph_variation_data(read_fonts::types::GlyphId::new(gid as u32))
+                        .unwrap()
+                        .map_or(0, |data| data.tuples().count())
+                })
+                .sum::<usize>()
+        };
+        assert_eq!(tuple_count(&actual), 98);
+        assert_eq!(tuple_count(&actual), tuple_count(&expected));
+        for width in [25., 62.5, 100., 125.5, 151.] {
+            for size in [8., 14., 76., 144.] {
+                let settings = [(Tag::new(b"wdth"), width), (Tag::new(b"opsz"), size)];
+                let al = actual.axes().location(settings);
+                let el = expected.axes().location(settings);
+                assert_eq!(al.coords(), el.coords());
+                let am = actual.glyph_metrics(Size::unscaled(), &al);
+                let em = expected.glyph_metrics(Size::unscaled(), &el);
+                for gid in 0..actual.maxp().unwrap().num_glyphs() {
+                    let gid = GlyphId::new(gid as u32);
+                    let mut a = Path::default();
+                    let mut e = Path::default();
+                    ao.get(gid)
+                        .unwrap()
+                        .draw(DrawSettings::unhinted(Size::unscaled(), &al), &mut a)
+                        .unwrap();
+                    eo.get(gid)
+                        .unwrap()
+                        .draw(DrawSettings::unhinted(Size::unscaled(), &el), &mut e)
+                        .unwrap();
+                    assert_eq!(a, e, "width={width} size={size} {gid:?}");
+                    assert_eq!(am.advance_width(gid), em.advance_width(gid));
+                    assert_eq!(am.left_side_bearing(gid), em.left_side_bearing(gid));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn constant_final_pins_are_dropped_but_dependent_pins_stay_hidden() {
+        for cancel in [true, false] {
+            let bytes = truetype_font(cancel);
+            let original = FontRef::new(&bytes).unwrap();
+            let limits = crate::parse_axis_limits("wght=700").unwrap();
+            let out = crate::instance_font(&original, &limits).unwrap();
+            let partial = FontRef::new(&out).unwrap();
+            assert_eq!(
+                partial.axes().len(),
+                original.axes().len() - usize::from(cancel)
+            );
+            assert_eq!(
+                partial.gvar().unwrap().axis_count() as usize,
+                partial.axes().len()
+            );
+            let pin = partial.axes().get_by_tag(Tag::new(b"wght"));
+            if cancel {
+                assert!(pin.is_none());
+            } else {
+                let fvar = partial.fvar().unwrap();
+                let axes = fvar.axes().unwrap();
+                assert_eq!(axes[0].flags() & 1, 1);
+                assert_eq!(axes[0].min_value(), axes[0].max_value());
+            }
+            for width in [25., 62.5, 100., 125.5, 151.] {
+                let old = original
+                    .axes()
+                    .location([(Tag::new(b"wght"), 700.), (Tag::new(b"wdth"), width)]);
+                let new = partial.axes().location([(Tag::new(b"wdth"), width)]);
+                let retained: Vec<_> = old
+                    .coords()
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| !cancel || *i != 0)
+                    .map(|(_, c)| *c)
+                    .collect();
+                assert_eq!(retained, new.coords(), "cancel={cancel} width={width}");
+            }
+            // Completing at the retained defaults preserves the direct full
+            // instance, including the pin's nonzero final-space offset.
+            let all: Vec<_> = original
+                .axes()
+                .iter()
+                .map(|a| crate::AxisLimits::Pin {
+                    tag: a.tag(),
+                    value: if a.tag() == Tag::new(b"wght") {
+                        700.
+                    } else {
+                        a.default_value()
+                    },
+                })
+                .collect();
+            let direct = crate::instance_font(&original, &all).unwrap();
+            let remaining: Vec<_> = partial
+                .axes()
+                .iter()
+                .map(|a| crate::AxisLimits::Pin {
+                    tag: a.tag(),
+                    value: a.default_value(),
+                })
+                .collect();
+            let composed = crate::instance_font(&partial, &remaining).unwrap();
+            let direct = FontRef::new(&direct).unwrap();
+            let composed = FontRef::new(&composed).unwrap();
+            let dg = direct.glyf().unwrap();
+            let cg = composed.glyf().unwrap();
+            let dl = direct.loca(None).unwrap();
+            let cl = composed.loca(None).unwrap();
+            for gid in 0..direct.maxp().unwrap().num_glyphs() {
+                let gid = read_fonts::types::GlyphId::new(gid as u32);
+                let d = dl.get(gid, &dg).unwrap().into_glyph();
+                let c = cl.get(gid, &cg).unwrap().into_glyph();
+                let (d, c) = match (d, c) {
+                    (None, None) => continue,
+                    (
+                        Some(read_fonts::tables::glyf::Glyph::Simple(d)),
+                        Some(read_fonts::tables::glyf::Glyph::Simple(c)),
+                    ) => (d, c),
+                    _ => panic!("different glyph types"),
+                };
+                assert_eq!(d.num_points(), c.num_points());
+                // Staging rounds the baked outline and residual tuples
+                // separately. Compare against the direct instance within
+                // one design unit; reference tests check exact HB geometry.
+                for (d, c) in d.points().zip(c.points()) {
+                    assert!((d.x as i32 - c.x as i32).abs() <= 1);
+                    assert!((d.y as i32 - c.y as i32).abs() <= 1);
+                }
+                assert!(
+                    (direct.hmtx().unwrap().advance(gid).unwrap() as i32
+                        - composed.hmtx().unwrap().advance(gid).unwrap() as i32)
+                        .abs()
+                        <= 1
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn coupled_pins_ranges_and_shared_rows_preserve_final_coordinates() {
+        for (shared, implicit) in [(false, false), (true, false), (false, true)] {
+            let bytes = font(shared, implicit);
+            let original = FontRef::new(&bytes).unwrap();
+            for request in [
+                "wght=700",
+                "CNTR=40",
+                "wght=300:550:700,CNTR=25:75",
+                "wght=200:650:900",
+                "CNTR=25:60:75",
+                "wght=900",
+            ] {
+                let limits = crate::parse_axis_limits(request).unwrap();
+                let out = crate::instance_font(&original, &limits).unwrap();
+                let partial = FontRef::new(&out).unwrap();
+                assert_eq!(partial.axes().len(), original.axes().len());
+                if limits.iter().any(|l| l.tag() == Tag::new(b"wght")) {
+                    let weight = partial
+                        .axes()
+                        .get_by_tag(Tag::new(b"wght"))
+                        .unwrap()
+                        .default_value();
+                    assert_eq!(
+                        partial.os2().unwrap().us_weight_class(),
+                        weight.round() as u16
+                    );
+                }
+                // All consumers still interpret the original final coordinates.
+                assert_eq!(
+                    original.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+                    partial.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes()
+                );
+                // The shared subset serializer may pack the same lookup graph
+                // differently. Compare decoded layout values and references.
+                let original_gpos: write_fonts::tables::gpos::Gpos =
+                    original.gpos().unwrap().to_owned_table();
+                let partial_gpos: write_fonts::tables::gpos::Gpos =
+                    partial.gpos().unwrap().to_owned_table();
+                assert_eq!(original_gpos, partial_gpos);
+                for a in 0..=12 {
+                    for b in 0..=12 {
+                        let settings: Vec<_> = partial
+                            .axes()
+                            .iter()
+                            .zip([a, b])
+                            .map(|(axis, i)| {
+                                (
+                                    axis.tag(),
+                                    axis.min_value()
+                                        + (axis.max_value() - axis.min_value()) * i as f32 / 12.,
+                                )
+                            })
+                            .collect();
+                        let old = original.axes().location(settings.iter().copied());
+                        let new = partial.axes().location(settings.iter().copied());
+                        for (x, y) in old.coords().iter().zip(new.coords()) {
+                            assert!((x.to_bits() as i32 - y.to_bits() as i32).abs() <= 8,
+                                "{request} shared={shared} implicit={implicit} {settings:?}: {:?} != {:?}", old.coords(),new.coords());
+                        }
+                        // Culling may rewrite stores, but retained final-space
+                        // locations still evaluate to the same metric deltas.
+                        let old_metrics =
+                            original.glyph_metrics(skrifa::instance::Size::unscaled(), &new);
+                        let new_metrics =
+                            partial.glyph_metrics(skrifa::instance::Size::unscaled(), &new);
+                        for gid in 0..partial.maxp().unwrap().num_glyphs() {
+                            let gid = read_fonts::types::GlyphId::new(gid as u32);
+                            assert_eq!(
+                                old_metrics.advance_width(gid),
+                                new_metrics.advance_width(gid)
+                            );
+                        }
+                    }
+                }
+                for limit in limits {
+                    if let crate::AxisLimits::Pin { tag, .. } = limit {
+                        let fvar = partial.fvar().unwrap();
+                        let arrays = fvar.axis_instance_arrays().unwrap();
+                        let axis = arrays.axes().iter().find(|a| a.axis_tag() == tag).unwrap();
+                        assert_eq!(axis.flags() & 1, 1);
+                        assert_eq!(axis.min_value(), axis.max_value());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn coupled_width_pins_update_style_metadata() {
+        let bytes = font(false, false);
+        let original = FontRef::new(&bytes).unwrap();
+        let mut fvar: write_fonts::tables::fvar::Fvar = original.fvar().unwrap().to_owned_table();
+        let width = &mut fvar.axis_instance_arrays.axes[1];
+        width.axis_tag = Tag::new(b"wdth");
+        width.min_value = read_fonts::types::Fixed::from_f64(50.);
+        width.default_value = read_fonts::types::Fixed::from_f64(100.);
+        width.max_value = read_fonts::types::Fixed::from_f64(200.);
+        fvar.axis_instance_arrays.instances.clear();
+        let mut builder = FontBuilder::new();
+        for record in original.table_directory().table_records() {
+            if record.tag() != Tag::new(b"fvar") {
+                builder.add_raw(record.tag(), original.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        builder.add_table(&fvar).unwrap();
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let bytes =
+            crate::instance_font(&font, &crate::parse_axis_limits("wdth=125").unwrap()).unwrap();
+        assert_eq!(
+            FontRef::new(&bytes)
+                .unwrap()
+                .os2()
+                .unwrap()
+                .us_width_class(),
+            7
+        );
+    }
+
+    #[test]
+    fn coupled_partial_then_full_instance_resolves_hidden_axes() {
+        use read_fonts::types::GlyphId;
+        use read_fonts::{model::glyph::outline::PathElement, ps::cff::CffFontRef};
+        let bytes = font(true, false);
+        let original = FontRef::new(&bytes).unwrap();
+        let partial =
+            crate::instance_font(&original, &crate::parse_axis_limits("wght=900").unwrap())
+                .unwrap();
+        let partial = FontRef::new(&partial).unwrap();
+        let composed =
+            crate::instance_font(&partial, &crate::parse_axis_limits("CNTR=50").unwrap()).unwrap();
+        let direct = crate::instance_font(
+            &original,
+            &crate::parse_axis_limits("wght=900,CNTR=50").unwrap(),
+        )
+        .unwrap();
+        let composed = FontRef::new(&composed).unwrap();
+        let direct = FontRef::new(&direct).unwrap();
+        assert!(composed.fvar().is_err());
+        assert!(composed.avar().is_err());
+        assert_eq!(
+            composed.os2().unwrap().us_weight_class(),
+            direct.os2().unwrap().us_weight_class()
+        );
+        let a = CffFontRef::new(
+            composed.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        let b = CffFontRef::new(
+            direct.data_for_tag(Tag::new(b"CFF2")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        for gid in 0..a.num_glyphs() {
+            let gid = GlyphId::new(gid);
+            let sa = a.subfont(a.subfont_index(gid).unwrap(), &[]).unwrap();
+            let sb = b.subfont(b.subfont_index(gid).unwrap(), &[]).unwrap();
+            let mut pa = Vec::<PathElement>::new();
+            let mut pb = Vec::<PathElement>::new();
+            a.draw(&sa, gid, &[], None, &mut pa).unwrap();
+            b.draw(&sb, gid, &[], None, &mut pb).unwrap();
+            assert_eq!(pa, pb);
+        }
+        assert_eq!(
+            composed.data_for_tag(Tag::new(b"hmtx")).unwrap().as_bytes(),
+            direct.data_for_tag(Tag::new(b"hmtx")).unwrap().as_bytes()
+        );
+    }
+}

@@ -663,3 +663,256 @@ fn apply_mvar(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::types::{F2Dot14, MajorMinor};
+    use write_fonts::tables::{
+        hvar::Hvar,
+        mvar::{Mvar, ValueRecord},
+        variations::{ItemVariationStore, *},
+    };
+    use write_fonts::FontBuilder;
+
+    #[test]
+    fn empty_cff2_glyphs_do_not_change_bound_dependent_header_extrema() {
+        use write_fonts::{
+            from_obj::ToOwnedTable,
+            tables::{
+                hmtx::{Hmtx, LongMetric},
+                vhea::Vhea,
+                vmtx::Vmtx,
+            },
+        };
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        // Two empty glyphs followed by a triangle with bounds (50,0,150,100).
+        // Top DICT: CharStrings at 16 and FDArray at 33; no local/global subrs.
+        let mut cff2 = vec![2, 0, 5, 0, 7, 155, 17, 172, 12, 36, 187, 25];
+        cff2.extend([0, 0, 0, 0]);
+        cff2.extend([0, 0, 0, 3, 1, 1, 1, 1, 9]);
+        cff2.extend([189, 139, 21, 239, 139, 39, 239, 5]);
+        cff2.extend([0, 0, 0, 1, 1, 1, 1]);
+        let mut builder = FontBuilder::new();
+        for r in font.table_directory().table_records() {
+            if ![
+                b"CFF2", b"HVAR", b"VVAR", b"MVAR", b"GPOS", b"GSUB", b"GDEF", b"cmap",
+            ]
+            .iter()
+            .any(|tag| r.tag() == Tag::new(tag))
+            {
+                builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+            }
+        }
+        builder.add_raw(Tag::new(b"CFF2"), cff2);
+        let mut maxp: write_fonts::tables::maxp::Maxp = font.maxp().unwrap().to_owned_table();
+        maxp.num_glyphs = 3;
+        builder.add_table(&maxp).unwrap();
+        let mut hhea: write_fonts::tables::hhea::Hhea = font.hhea().unwrap().to_owned_table();
+        hhea.number_of_h_metrics = 3;
+        builder.add_table(&hhea).unwrap();
+        builder
+            .add_table(&Vhea {
+                number_of_long_ver_metrics: 3,
+                ..Default::default()
+            })
+            .unwrap();
+        builder
+            .add_table(&Hmtx::new(
+                vec![
+                    LongMetric::new(1000, 900),
+                    LongMetric::new(1200, -900),
+                    LongMetric::new(500, 50),
+                ],
+                vec![],
+            ))
+            .unwrap();
+        builder
+            .add_table(&Vmtx::new(
+                vec![
+                    LongMetric::new(1400, 900),
+                    LongMetric::new(1300, -900),
+                    LongMetric::new(1000, 700),
+                ],
+                vec![],
+            ))
+            .unwrap();
+        builder.add_raw(Tag::new(b"VORG"), &[0, 1, 0, 0, 3, 32, 0, 0][..]);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let limits = crate::parse_axis_limits("wght=drop,CNTR=drop").unwrap();
+        let output = crate::instance_font(&font, &limits).unwrap();
+        let output = FontRef::new(&output).unwrap();
+        for (tag, expected) in [
+            (b"hhea", [1200, 50, 350, 150]),
+            (b"vhea", [1400, 700, 200, 800]),
+        ] {
+            let header = output.data_for_tag(Tag::new(tag)).unwrap();
+            let actual: Vec<_> = header.as_bytes()[10..18]
+                .chunks_exact(2)
+                .map(|b| i16::from_be_bytes([b[0], b[1]]))
+                .collect();
+            assert_eq!(actual, expected, "{tag:?}");
+        }
+        for tag in [b"hmtx", b"vmtx"] {
+            assert_eq!(
+                font.data_for_tag(Tag::new(tag)).unwrap().as_bytes(),
+                output.data_for_tag(Tag::new(tag)).unwrap().as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn fractional_metrics_match_harfbuzz_float_evaluation() {
+        // hb-subset FONT --gids=* --notdef-outline --variations=REQUEST
+        // These locations crossed a rounding boundary with 16.16 scalars.
+        for (file, request, gid, advance, bearing) in [
+            (
+                "32bit_var_store.otf",
+                "wght=330.096435546875,CNTR=9.759521484375",
+                1,
+                39790,
+                50,
+            ),
+            (
+                "AdobeVFPrototype.otf",
+                "wght=502.618408203125,CNTR=69.097900390625",
+                2,
+                304,
+                80,
+            ),
+            (
+                "AdobeVFPrototype.otf",
+                "wght=226.66015625,CNTR=30.206298828125",
+                62,
+                301,
+                50,
+            ),
+            (
+                "AdobeVFPrototype.otf",
+                "wght=255.755615234375,CNTR=35.07080078125",
+                12,
+                530,
+                38,
+            ),
+            ("Cantarell-VF-ABC.otf", "wght=726.043701171875", 1, 667, -2),
+        ] {
+            let bytes = std::fs::read(format!("test-data/fonts/{file}")).unwrap();
+            let font = FontRef::new(&bytes).unwrap();
+            let output =
+                crate::instance_font(&font, &crate::parse_axis_limits(request).unwrap()).unwrap();
+            let output = FontRef::new(&output).unwrap();
+            assert_eq!(
+                output.hmtx().unwrap().advance(GlyphId::new(gid)),
+                Some(advance),
+                "{file} {request}"
+            );
+            assert_eq!(
+                output.hmtx().unwrap().side_bearing(GlyphId::new(gid)),
+                Some(bearing),
+                "{file} {request}"
+            );
+        }
+    }
+
+    #[test]
+    fn cff_vertical_metrics_without_vorg_match_harfbuzz() {
+        let bytes = std::fs::read("test-data/fonts/NotoSansJP-VF.subset.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut builder = FontBuilder::new();
+        for record in font.table_directory().table_records() {
+            if record.tag() != Tag::new(b"VORG") {
+                builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
+            }
+        }
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let bytes =
+            crate::instance_font(&font, &crate::parse_axis_limits("wght=500").unwrap()).unwrap();
+        let full = FontRef::new(&bytes).unwrap();
+        // HarfBuzz --gids=* --notdef-outline --variations=wght=500 after
+        // removing only VORG from the source. Empty notdef retains its bearing.
+        for (gid, expected) in [0, 262, 262, 258, 261, 259].into_iter().enumerate() {
+            assert_eq!(
+                full.vmtx().unwrap().side_bearing(GlyphId::new(gid as u32)),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn style_metadata_uses_the_effective_clamped_pin() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        for (request, expected) in [("wght=10000", 900), ("wght=-10000", 200)] {
+            let bytes =
+                crate::instance_font(&font, &crate::parse_axis_limits(request).unwrap()).unwrap();
+            let output = FontRef::new(&bytes).unwrap();
+            assert_eq!(output.os2().unwrap().us_weight_class(), expected);
+        }
+    }
+
+    #[test]
+    fn large_metric_deltas_saturate_without_overflow() {
+        let bytes = std::fs::read("test-data/fonts/AdobeVFPrototype.otf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let count = font.maxp().unwrap().num_glyphs();
+        let store = |delta: i32| ItemVariationStore {
+            variation_region_list: VariationRegionList::new(
+                2,
+                vec![VariationRegion::new(vec![
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ONE, F2Dot14::ONE),
+                    RegionAxisCoordinates::new(F2Dot14::ZERO, F2Dot14::ZERO, F2Dot14::ZERO),
+                ])],
+            )
+            .into(),
+            item_variation_data: vec![ItemVariationData {
+                item_count: count,
+                word_delta_count: 0x8001,
+                region_indexes: vec![0],
+                delta_sets: std::iter::repeat_n(delta, count as usize)
+                    .flat_map(i32::to_be_bytes)
+                    .collect(),
+            }
+            .into()],
+        };
+        for (delta, advance, average, ascent) in [
+            (i32::MAX, u16::MAX, i16::MAX, i16::MAX),
+            (i32::MIN, 0, 0, i16::MIN),
+        ] {
+            let mut builder = FontBuilder::new();
+            for r in font.table_directory().table_records() {
+                builder.add_raw(r.tag(), font.data_for_tag(r.tag()).unwrap());
+            }
+            builder
+                .add_table(&Hvar::new(store(delta), None, None, None))
+                .unwrap();
+            builder
+                .add_table(&Mvar {
+                    version: MajorMinor::VERSION_1_0,
+                    value_record_size: 8,
+                    value_record_count: 1,
+                    item_variation_store: store(delta).into(),
+                    value_records: vec![ValueRecord::new(Tag::new(b"hasc"), 0, 0)],
+                })
+                .unwrap();
+            let bytes = builder.build();
+            let font = FontRef::new(&bytes).unwrap();
+            let bytes = crate::instance_font(
+                &font,
+                &crate::parse_axis_limits("wght=900,CNTR=drop").unwrap(),
+            )
+            .unwrap();
+            let full = FontRef::new(&bytes).unwrap();
+            for gid in 0..count {
+                assert_eq!(
+                    full.hmtx().unwrap().advance(GlyphId::new(gid as u32)),
+                    Some(advance)
+                );
+            }
+            assert_eq!(full.os2().unwrap().x_avg_char_width(), average);
+            assert_eq!(full.os2().unwrap().s_typo_ascender(), ascent);
+        }
+    }
+}

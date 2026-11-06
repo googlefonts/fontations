@@ -293,6 +293,15 @@ subset_base_record!(BaseRecord, Offset16);
 subset_base_record!(BaseRecord2, Offset24);
 
 impl<'a> SubsetTable<'a> for MarkBasePos<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("MarkBasePos", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(

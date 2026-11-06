@@ -71,11 +71,13 @@ impl Subset for Colr<'_> {
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
         {
-            Offset32::serialize_subset(
+            crate::variations::serialize_store(
                 &var_store,
                 s,
                 plan,
-                (&plan.colr_varstore_inner_maps, false),
+                &plan.colr_varstore_inner_maps,
+                false,
+                Colr::TAG,
                 30,
             )
             .is_empty()
@@ -109,6 +111,27 @@ impl Subset for Colr<'_> {
                 .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
         }
 
+        if plan.instance_only
+            && plan.instance.is_some()
+            && !plan.instance.as_ref().unwrap().consumer_axes.all_pinned()
+        {
+            if let Some(map) = self
+                .var_index_map()
+                .transpose()
+                .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
+            {
+                let empty = match map {
+                    DeltaSetIndexMap::Format0(ref m) => m.map_count() == 0,
+                    DeltaSetIndexMap::Format1(ref m) => m.map_count() == 0,
+                };
+                if empty {
+                    use crate::offset::SerializeCopy;
+                    Offset32::serialize_copy(&map, s, 26)
+                        .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
+                    return Ok(());
+                }
+            }
+        }
         //varIndexMap offset pos = 26
         if self
             .var_index_map()
@@ -540,6 +563,9 @@ impl SubsetTable<'_> for ClipBoxFormat2<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if plan.instance.is_some() {
+            return crate::instance::color::native::clip(self, plan, s);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
 
         let varidx_base = self.var_index_base();
@@ -689,6 +715,13 @@ impl SubsetTable<'_> for VarColorLine<'_> {
 }
 
 impl SubsetTable<'_> for Paint<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        Some(("COLR Paint", self.min_table_bytes().as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = ();
     type Output = ();
 
@@ -698,6 +731,9 @@ impl SubsetTable<'_> for Paint<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if crate::instance::color::native::serialize_paint(self, plan, s)? {
+            return Ok(());
+        }
         match self {
             Self::ColrLayers(item) => item.subset(plan, s, args),
             Self::Solid(item) => item.subset(plan, s, args),
