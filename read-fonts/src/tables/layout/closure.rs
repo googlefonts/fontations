@@ -1208,6 +1208,7 @@ impl LookupClosure for ContextFormat3<'_> {
 }
 
 impl Intersect for SequenceContext<'_> {
+    #[inline]
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => ContextFormat1::Plain(table.clone()).intersects(glyph_set),
@@ -1240,6 +1241,7 @@ impl LookupClosure for SequenceContext<'_> {
 }
 
 impl Intersect for ChainedSequenceContext<'_> {
+    #[inline]
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
             Self::Format1(table) => ContextFormat1::Chain(table.clone()).intersects(glyph_set),
