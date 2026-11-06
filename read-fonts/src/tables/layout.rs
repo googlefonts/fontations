@@ -802,16 +802,24 @@ impl<'a> ClassDefFormat1<'a> {
         }
 
         let class_values = self.class_value_array();
-        for g in glyphs.range(GlyphId::from(start_glyph)..=GlyphId::from(end_glyph)) {
-            let idx = g.to_u32() - start_glyph;
-            let Some(c) = class_values.get(idx as usize) else {
-                return false;
-            };
-            if c.get() == class {
-                return true;
+        // Walk whichever side is smaller: the glyphs of the set inside the
+        // table's range, or the class value array.
+        if glyph_count as u64 <= glyphs.len() {
+            class_values.iter().enumerate().any(|(i, c)| {
+                c.get() == class && glyphs.contains(GlyphId::new(start_glyph + i as u32))
+            })
+        } else {
+            for g in glyphs.range(GlyphId::from(start_glyph)..=GlyphId::from(end_glyph)) {
+                let idx = g.to_u32() - start_glyph;
+                let Some(c) = class_values.get(idx as usize) else {
+                    return false;
+                };
+                if c.get() == class {
+                    return true;
+                }
             }
+            false
         }
-        false
     }
 }
 
