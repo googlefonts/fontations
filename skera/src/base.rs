@@ -1,6 +1,7 @@
 //! impl subset() for hmtx
 
 use crate::{
+    layout::OpsWalk,
     offset::{SerializeCopy, SerializeSubset},
     offset_array::IterNullableHelper,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -18,6 +19,16 @@ use read_fonts::{
 };
 use write_fonts::FontBuilder;
 
+/// Counts a table that subsetting is about to read against the budget of the
+/// BASE table, and fails the table once the budget is spent.
+fn visit<'a>(s: &mut Serializer, table: &impl MinByteRange<'a>) -> Result<(), SerializeErrorFlags> {
+    if s.layout_walk().visit(table) {
+        Ok(())
+    } else {
+        Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
+    }
+}
+
 // reference: subset() for BASE in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/fc42cdd68df0ce710b507981184ade7bf1b164e6/src/hb-ot-layout-base-table.hh#L763>
 impl Subset for Base<'_> {
@@ -30,6 +41,14 @@ impl Subset for Base<'_> {
     ) -> Result<(), SubsetError> {
         s.embed(self.version())
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
+        // Nothing stops all script records from pointing at one BaseScript and
+        // all of its language system records at one MinMax, which is then read
+        // once for every path that leads to it. So the BaseScript, BaseValues
+        // and MinMax tables count as often as they are reached, against what
+        // HarfBuzz's sanitizer may read of the whole table. The coordinates
+        // they lead to are a few bytes each, so the offsets that lead to them
+        // are count enough.
+        s.set_layout_walk(OpsWalk::new(self.offset_data()));
 
         //hAxis offset
         let haxis_offset_pos = s
@@ -172,6 +191,7 @@ impl<'a> SubsetTable<'a> for BaseScriptRecord {
         let base_script = self
             .base_script(data)
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+        visit(s, &base_script)?;
         Offset16::serialize_subset(&base_script, s, plan, (), base_script_offset_pos)
     }
 }
@@ -192,6 +212,7 @@ impl SubsetTable<'_> for BaseScript<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
+            visit(s, &base_value)?;
             Offset16::serialize_subset(&base_value, s, plan, (), base_values_offset_pos)?;
         }
 
@@ -201,6 +222,7 @@ impl SubsetTable<'_> for BaseScript<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
+            visit(s, &default_min_max)?;
             Offset16::serialize_subset(&default_min_max, s, plan, (), default_min_max_offset_pos)
                 .is_empty()?;
         }
@@ -380,6 +402,7 @@ impl<'a> SubsetTable<'a> for BaseLangSysRecord {
         let Ok(min_max) = self.min_max(data) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
         };
+        visit(s, &min_max)?;
         Offset16::serialize_subset(&min_max, s, plan, (), min_max_offset_pos)
     }
 }
@@ -469,57 +492,65 @@ impl SubsetTable<'_> for BaseCoordFormat3<'_> {
 
 impl CollectVariationIndices for Base<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        if let Some(Ok(h_axis)) = self.horiz_axis() {
-            h_axis.collect_variation_indices(plan, varidx_set);
-        }
-
-        if let Some(Ok(v_axis)) = self.vert_axis() {
-            v_axis.collect_variation_indices(plan, varidx_set);
-        }
-    }
-}
-
-impl CollectVariationIndices for Axis<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        if let Ok(base_scriptlist) = self.base_script_list() {
-            base_scriptlist.collect_variation_indices(plan, varidx_set);
-        }
-    }
-}
-
-impl CollectVariationIndices for BaseScriptList<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        for script_record in self.base_script_records().iter() {
-            let script_tag = script_record.base_script_tag();
-            if !plan.layout_scripts.contains(script_tag)
-                || script_record.base_script_offset().is_null()
-            {
-                continue;
+        // Counts what it reads as subsetting does, which then runs out of
+        // budget wherever this walk does.
+        let mut walk = OpsWalk::new(self.offset_data());
+        for axis in [self.horiz_axis(), self.vert_axis()] {
+            if let Some(Ok(axis)) = axis {
+                if let Ok(base_scriptlist) = axis.base_script_list() {
+                    collect_script_list_var_indices(&base_scriptlist, plan, varidx_set, &mut walk);
+                }
             }
-
-            let Ok(base_script) = script_record.base_script(self.offset_data()) else {
-                return;
-            };
-            base_script.collect_variation_indices(plan, varidx_set);
         }
     }
 }
 
-impl CollectVariationIndices for BaseScript<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        if let Some(Ok(base_values)) = self.base_values() {
+fn collect_script_list_var_indices(
+    script_list: &BaseScriptList,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+    walk: &mut OpsWalk,
+) {
+    for script_record in script_list.base_script_records().iter() {
+        let script_tag = script_record.base_script_tag();
+        if !plan.layout_scripts.contains(script_tag) || script_record.base_script_offset().is_null()
+        {
+            continue;
+        }
+
+        let Ok(base_script) = script_record.base_script(script_list.offset_data()) else {
+            return;
+        };
+        if walk.visit(&base_script) {
+            collect_script_var_indices(&base_script, plan, varidx_set, walk);
+        }
+    }
+}
+
+fn collect_script_var_indices(
+    script: &BaseScript,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+    walk: &mut OpsWalk,
+) {
+    if let Some(Ok(base_values)) = script.base_values() {
+        if walk.visit(&base_values) {
             base_values.collect_variation_indices(plan, varidx_set);
         }
+    }
 
-        if let Some(Ok(default_min_max)) = self.default_min_max() {
+    if let Some(Ok(default_min_max)) = script.default_min_max() {
+        if walk.visit(&default_min_max) {
             default_min_max.collect_variation_indices(plan, varidx_set);
         }
+    }
 
-        for record in self.base_lang_sys_records().iter() {
-            if record.min_max_offset().is_null() {
-                continue;
-            }
-            if let Ok(min_max) = record.min_max(self.offset_data()) {
+    for record in script.base_lang_sys_records().iter() {
+        if record.min_max_offset().is_null() {
+            continue;
+        }
+        if let Ok(min_max) = record.min_max(script.offset_data()) {
+            if walk.visit(&min_max) {
                 min_max.collect_variation_indices(plan, varidx_set);
             }
         }
@@ -575,5 +606,116 @@ impl CollectVariationIndices for BaseCoordFormat3<'_> {
             return;
         };
         device.collect_variation_indices(plan, varidx_set);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use font_test_data::bebuffer::BeBuffer;
+    use read_fonts::{types::Tag, FontRead};
+
+    // One BaseScript and one MinMax, each the target of the given number of
+    // offsets.
+    fn base_with_shared_tables(
+        scripts: u16,
+        lang_systems: u16,
+        features: u16,
+        min_coord: &[u16],
+    ) -> Vec<u8> {
+        let mut base = BeBuffer::new()
+            .extend([1_u16, 0, 8, 0])
+            // Axis
+            .extend([0_u16, 4])
+            // BaseScriptList
+            .push(scripts);
+        for _ in 0..scripts {
+            base = base.push(Tag::new(b"DFLT")).push(2 + 6 * scripts);
+        }
+        // BaseScript
+        base = base.extend([0, 0, lang_systems]);
+        for _ in 0..lang_systems {
+            base = base.push(Tag::new(b"ENG ")).push(6 + 6 * lang_systems);
+        }
+        // MinMax
+        base = base.extend([6 + 8 * features, 0, features]);
+        for _ in 0..features {
+            base = base.push(Tag::new(b"zzzz")).extend([0_u16, 0]);
+        }
+        base.extend(min_coord.iter().copied()).to_vec()
+    }
+
+    // The subset BASE, or whether the serializer is in error.
+    fn subset(data: &[u8]) -> Result<Vec<u8>, bool> {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let base = Base::read(FontData::new(data)).unwrap();
+        let mut s = Serializer::new(1024 * 1024).unwrap();
+        s.start_serialize().unwrap();
+        let ret = base.subset(&plan(), &font, &mut s, &mut FontBuilder::new());
+        s.end_serialize();
+        match ret {
+            Ok(()) => Ok(s.copy_bytes()),
+            Err(_) => Err(s.in_error()),
+        }
+    }
+
+    fn plan() -> Plan {
+        Plan {
+            layout_scripts: IntSet::all(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn shared_tables_count_once_per_path() {
+        // BaseCoordFormat1
+        let coord = [1, 100];
+        // n scripts lead to a BaseScript of 6 + 6n bytes and n MinMax tables of
+        // 6 bytes each: 12n² + 6n bytes against 64 for each of the 30 + 12n.
+        let data = base_with_shared_tables(65, 65, 0, &coord);
+        let out = subset(&data).unwrap();
+        let base = Base::read(FontData::new(&out)).unwrap();
+        let script_list = base.horiz_axis().unwrap().unwrap().base_script_list();
+        let script_list = script_list.unwrap();
+        assert_eq!(script_list.base_script_count(), 65);
+        let script = script_list.base_script_records()[64]
+            .base_script(script_list.offset_data())
+            .unwrap();
+        assert_eq!(script.base_lang_sys_count(), 65);
+        let record = script.base_lang_sys_records().last().unwrap();
+        let min_max = record.min_max(script.offset_data()).unwrap();
+        let min_coord = min_max.min_coord().unwrap().unwrap();
+        assert_eq!(min_coord.coordinate(), 100);
+        // the serializer shares what is the same
+        assert_eq!(out, data);
+
+        // 52668 bytes, against 52608
+        let data = base_with_shared_tables(66, 66, 0, &coord);
+        assert_eq!(subset(&data), Err(true));
+    }
+
+    #[test]
+    fn shared_tables_over_budget_fail_to_subset() {
+        // a billion feature records, without a budget
+        let data = base_with_shared_tables(1000, 1000, 1000, &[1, 100]);
+        assert_eq!(subset(&data), Err(true));
+    }
+
+    #[test]
+    fn shared_tables_collect_variation_indices_within_budget() {
+        // BaseCoordFormat3 with a VariationIndex
+        let coord = [3, 100, 6, 1, 2, 0x8000];
+        let data = base_with_shared_tables(2, 3, 4, &coord);
+        let base = Base::read(FontData::new(&data)).unwrap();
+        let mut varidx_set = IntSet::empty();
+        base.collect_variation_indices(&plan(), &mut varidx_set);
+        assert_eq!(varidx_set.iter().collect::<Vec<_>>(), [0x10002]);
+
+        // a billion feature records, without a budget
+        let data = base_with_shared_tables(1000, 1000, 1000, &coord);
+        let base = Base::read(FontData::new(&data)).unwrap();
+        let mut varidx_set = IntSet::empty();
+        base.collect_variation_indices(&plan(), &mut varidx_set);
+        assert!(varidx_set.iter().all(|idx| idx == 0x10002));
     }
 }
