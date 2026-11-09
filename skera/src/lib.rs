@@ -368,8 +368,8 @@ pub struct Plan {
     name_table_overrides: FastHashMap<name::RecordKey, Vec<u8>>,
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
-    /// The layout tables with a walk that ran out of its [`layout::OpsBudget`],
-    /// which fail to subset.
+    /// The tables with a walk that ran out of its [`layout::OpsBudget`], which
+    /// fail to subset: layout tables, and cmap and DMAP for their UVS tables.
     layout_ops_exceeded: IntSet<Tag>,
 
     //active old->new feature index map after removing redundant langsys and prune_features
@@ -764,18 +764,32 @@ impl Plan {
         }
     }
 
+    /// Counts what the glyph closure and the subsetter read of the UVS tables of
+    /// `cmap`, the `table_tag` table, and records in the plan if that is more than
+    /// its budget allows: the table then fails to subset.
+    fn uvs_ops_within_budget(&mut self, cmap: &Cmap, table_tag: Tag) -> bool {
+        let mut budget = layout::OpsBudget::new(cmap.offset_data());
+        let within_budget = crate::cmap::count_uvs_ops(cmap, &self.unicodes, &mut budget.walk());
+        budget.record(table_tag, self);
+        within_budget
+    }
+
     fn populate_gids_to_retain(&mut self, font: &FontRef) {
         //not-def
         self.glyphset_gsub.insert(GlyphId::NOTDEF);
 
         //glyph closure for cmap
         if let Ok(cmap) = font.cmap() {
-            cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+            if self.uvs_ops_within_budget(&cmap, Cmap::TAG) {
+                cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+            }
         }
         if let Ok(dmap) = font.dmap() {
             // Keep cmap variants too: a zero DMAP variant falls back to cmap.
-            dmap.as_cmap()
-                .closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+            let dmap = dmap.as_cmap();
+            if self.uvs_ops_within_budget(&dmap, Dmap::TAG) {
+                dmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
+            }
         }
 
         // Preserve MATH-to-GSUB dependencies before layout closure.

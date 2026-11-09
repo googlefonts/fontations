@@ -2,12 +2,13 @@
 use std::cmp::Ordering;
 
 use crate::{
+    layout::OpsWalk,
     serialize::{ObjIdx, OffsetWhence, SerializeErrorFlags, Serializer},
     Plan, Subset,
     SubsetError::{self, SubsetTableError},
 };
 
-use crate::FastHashMap;
+use crate::{FastHashMap, FastHashSet};
 use read_fonts::{
     collections::IntSet,
     tables::cmap::{
@@ -17,7 +18,7 @@ use read_fonts::{
     },
     types::{FixedSize, GlyphId},
     types::{Offset32, Uint24},
-    FontRef, TopLevelTable,
+    FontRef, MinByteRange, TopLevelTable,
 };
 use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::FontBuilder;
@@ -35,6 +36,13 @@ impl Subset for Cmap<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        // The UVS tables of the retained variation selectors read more than the
+        // budget of the table allows; see count_uvs_ops. Without an error in the
+        // serializer the table would be dropped as empty, rather than failing.
+        if plan.layout_ops_exceeded.contains(Cmap::TAG) {
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+            return Err(SubsetTableError(Cmap::TAG));
+        }
         let retained_encoding_records: Vec<(usize, &EncodingRecord)> = self
             .encoding_records()
             .iter()
@@ -97,6 +105,11 @@ impl Subset for Dmap<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        // as for cmap
+        if plan.layout_ops_exceeded.contains(Dmap::TAG) {
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+            return Err(SubsetTableError(Dmap::TAG));
+        }
         serialize_dmap(&self.as_cmap(), s, plan).map_err(|error| {
             if error != SerializeErrorFlags::SERIALIZE_ERROR_EMPTY {
                 s.set_err(error);
@@ -1027,6 +1040,63 @@ serialize_uvs!(
     VariationSelector15,
     copy_var_selector_record_uvs_tables24
 );
+
+/// Counts what the glyph closure and the subsetter read of the UVS tables of the
+/// format 14 and 15 subtables of `cmap` against `walk`: the default and
+/// non-default UVS tables of every variation selector record whose selector is in
+/// `unicodes`. False once the walk is out of budget.
+///
+/// Both read the tables of each retained record, and any number of records may
+/// name the same table, so the size of the subtable doesn't bound that work. A
+/// table counts once for every retained record that names it, as the walks of the
+/// layout tables count a target once for every offset that leads to it. A table's
+/// size comes from its count, so this reads only the records.
+pub(crate) fn count_uvs_ops(cmap: &Cmap, unicodes: &IntSet<u32>, walk: &mut OpsWalk) -> bool {
+    // The closure and the subsetter don't read the same UVS subtable of a cmap
+    // with several, so all of them are counted, each once.
+    let mut counted = FastHashSet::default();
+    cmap.encoding_records().iter().all(|record| {
+        if !counted.insert(record.subtable_offset().to_u32()) {
+            return true;
+        }
+        record
+            .subtable(cmap.offset_data())
+            .map_or(true, |subtable| {
+                count_uvs_subtable(&subtable, unicodes, walk)
+            })
+    })
+}
+
+fn count_uvs_subtable(subtable: &CmapSubtable, unicodes: &IntSet<u32>, walk: &mut OpsWalk) -> bool {
+    match subtable {
+        CmapSubtable::Format14(table) => count_uvs_tables14(table, unicodes, walk),
+        CmapSubtable::Format15(table) => count_uvs_tables15(table, unicodes, walk),
+        _ => true,
+    }
+}
+
+macro_rules! count_uvs_tables {
+    ($name:ident, $table:ident) => {
+        fn $name(table: &$table, unicodes: &IntSet<u32>, walk: &mut OpsWalk) -> bool {
+            let data = table.offset_data();
+            table
+                .var_selector()
+                .iter()
+                .filter(|record| unicodes.contains(record.var_selector().to_u32()))
+                .all(|record| {
+                    let default_uvs = record.default_uvs(data).and_then(Result::ok);
+                    let non_default_uvs = record.non_default_uvs(data).and_then(Result::ok);
+                    walk.charge(
+                        default_uvs.map_or(0, |table| table.min_table_bytes().len())
+                            + non_default_uvs.map_or(0, |table| table.min_table_bytes().len()),
+                    )
+                })
+        }
+    };
+}
+
+count_uvs_tables!(count_uvs_tables14, Cmap14);
+count_uvs_tables!(count_uvs_tables15, Cmap15);
 
 fn copy_var_selector_record_header(
     selector: Uint24,
