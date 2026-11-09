@@ -153,6 +153,8 @@ fn clone_range(
     let end_lig_idx = end & 0xFFFF;
 
     let mut new_lig_set_count = 0;
+    // The liga sets and ligas whose virtual links already point to the new coverage table.
+    let mut fixed_lig_idxes = IntSet::empty();
     for cur_lig_set_idx in start_lig_set_idx..=end_lig_set_idx {
         let ligset_pos = LigatureSubstFormat1::MIN_SIZE as u32 + cur_lig_set_idx * 2;
         let Some(ligset_graph_index) = graph.index_for_position(this_index, ligset_pos) else {
@@ -274,9 +276,16 @@ fn clone_range(
         new_lig_set_count += 1;
 
         // The new LigastureSet and all its children need to have a virtual link to the new coverage table
+        // A liga set or liga can be shared by many offsets in this range: fix it only once, as
+        // every further fix would scan its virtual links and add yet another one.
+        if fixed_lig_idxes.contains(new_ligset_idx) {
+            continue;
+        }
         let mut all_lig_idxes = IntSet::empty();
         find_all_child_idxes(graph, new_ligset_idx, 1, &mut all_lig_idxes)?;
+        all_lig_idxes.subtract(&fixed_lig_idxes);
         fix_virtual_links(graph, &all_lig_idxes, coverage_idx, new_coverage_idx)?;
+        fixed_lig_idxes.union(&all_lig_idxes);
     }
 
     graph.vertices[new_lig_subst_idx as usize].tail -=
@@ -613,7 +622,7 @@ impl<'a> LigatureSet<'a> {
 mod tests {
     use super::*;
     use crate::{
-        graph::test::{add_24_offset, add_object, add_wide_offset},
+        graph::test::{add_24_offset, add_object, add_offset, add_virtual_offset, add_wide_offset},
         serialize::Serializer,
         Serialize,
     };
@@ -650,5 +659,55 @@ mod tests {
         let mut graph = Graph::from_serializer(s).unwrap();
         let root = graph.root_idx();
         assert!(split_ligature_subst(&mut graph, root).unwrap().is_empty());
+    }
+
+    // Every LigatureSet offset of the subtable points at one shared LigatureSet. It and its
+    // Ligature are moved to each new subtable many times over, but must only get one virtual
+    // link per new subtable.
+    #[test]
+    fn shared_ligature_set_gets_one_virtual_link_per_new_subtable() {
+        const NUM_SETS: u16 = 300;
+        const NUM_COMPONENTS: u16 = 500;
+        let mut s = Serializer::new(1 << 16).unwrap();
+        s.start_serialize().unwrap();
+        s.push().unwrap();
+        let glyphs: Vec<_> = (1..=NUM_SETS as u32).map(GlyphId::new).collect();
+        CoverageTable::serialize(&mut s, &glyphs).unwrap();
+        let coverage = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        s.embed(30000u16).unwrap();
+        s.embed(NUM_COMPONENTS).unwrap();
+        for _ in 1..NUM_COMPONENTS {
+            s.embed(1u16).unwrap();
+        }
+        add_virtual_offset(&mut s, coverage);
+        let ligature = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        s.embed(1u16).unwrap();
+        add_offset(&mut s, ligature);
+        add_virtual_offset(&mut s, coverage);
+        let set = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        s.embed(1u16).unwrap();
+        add_offset(&mut s, coverage);
+        s.embed(NUM_SETS).unwrap();
+        for _ in 0..NUM_SETS {
+            add_offset(&mut s, set);
+        }
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        assert!(!s.in_error());
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.update_parents().unwrap();
+        let root = graph.root_idx();
+        let new_subtables = split_ligature_subst(&mut graph, root).unwrap();
+        assert_eq!(new_subtables.len(), 4);
+        for idx in [set, ligature] {
+            assert_eq!(
+                graph.vertices[idx as usize].virtual_links.len(),
+                new_subtables.len()
+            );
+        }
     }
 }
