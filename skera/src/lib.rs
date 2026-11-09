@@ -1083,7 +1083,6 @@ impl Plan {
                 let mut budget = layout::OpsBudget::new(gpos.offset_data());
                 layout::collect_feature_variation_condition_indices(
                     &variations,
-                    self,
                     &self.gpos_features_w_duplicates,
                     &self.gpos_lookups,
                     &mut varidx_set,
@@ -1097,7 +1096,6 @@ impl Plan {
                 let mut budget = layout::OpsBudget::new(gsub.offset_data());
                 layout::collect_feature_variation_condition_indices(
                     &variations,
-                    self,
                     &self.gsub_features_w_duplicates,
                     &self.gsub_lookups,
                     &mut varidx_set,

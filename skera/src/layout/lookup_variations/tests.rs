@@ -56,7 +56,10 @@ fn subset(input: &[u8], plan: &Plan, gpos: bool) -> Result<Vec<u8>, SerializeErr
     let table = FeatureVariations::read(FontData::new(input)).unwrap();
     let mut s = Serializer::new(4 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
-    let mut context = SubsetLayoutContext::new(if gpos { Gpos::TAG } else { Gsub::TAG });
+    let mut context = SubsetLayoutContext::new(
+        if gpos { Gpos::TAG } else { Gsub::TAG },
+        FontData::new(input),
+    );
     table.subset(plan, &mut s, (&[], &mut context))?;
     s.end_serialize();
     if s.in_error() {
