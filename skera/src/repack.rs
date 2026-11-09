@@ -2079,6 +2079,88 @@ pub(crate) mod test {
         assert!(!out.is_empty());
     }
 
+    // Many leaves shared by two large parents whose links to them all overflow. For each leaf the
+    // overflow from the later parent is reached first, and duplicating the leaf for both of its
+    // parents is refused. The last few leaves also have a third parent, so every round of overflow
+    // resolution refuses thousands of duplications before one succeeds.
+    fn populate_serializer_with_refused_shared_overflows(s: &mut Serializer) {
+        const NUM_LEAVES: usize = 4000;
+        const NUM_RESOLVABLE: usize = 40;
+        let large_bytes = [b'a'; 66000];
+        s.start_serialize().unwrap();
+        let leaves: Vec<_> = (0..NUM_LEAVES as u32)
+            .map(|i| add_object(s, &i.to_be_bytes(), 4, false))
+            .collect();
+
+        start_object(s, b"c", 1);
+        for leaf in &leaves[NUM_LEAVES - NUM_RESOLVABLE..] {
+            add_offset(s, *leaf);
+        }
+        let obj_c = s.pop_pack(false).unwrap();
+
+        start_object(s, &large_bytes, large_bytes.len());
+        for leaf in &leaves {
+            add_offset(s, *leaf);
+        }
+        let obj_a = s.pop_pack(false).unwrap();
+
+        // the same links as obj_a in a different order, so that the two are not deduplicated
+        start_object(s, &large_bytes, large_bytes.len());
+        for leaf in leaves.iter().rev() {
+            add_offset(s, *leaf);
+        }
+        let obj_b = s.pop_pack(false).unwrap();
+
+        start_object(s, b"root", 4);
+        add_offset(s, obj_c);
+        add_offset(s, obj_a);
+        add_offset(s, obj_b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+    }
+
+    // Each refused duplication must not rescan the whole overflow list, or this takes tens of
+    // seconds instead of a fraction of a second to give up on.
+    #[test]
+    fn test_resolve_overflows_refused_shared_duplications() {
+        let mut s = Serializer::new(300000).unwrap();
+        populate_serializer_with_refused_shared_overflows(&mut s);
+        assert!(s.offset_overflow());
+        // the two large parents can't both be reached with 16 bit offsets from the root
+        assert!(matches!(
+            resolve_overflows(s, Tag::from_u32(0), 32),
+            Err(RepackError::ErrorNoResolution)
+        ));
+    }
+
+    // The parent is longer than a 16 bit offset can span, so every link to a leaf overflows and
+    // no ordering can fix it. Once the leaves have the maximum priority, giving up must not walk
+    // all of the parent's links again for every one of its overflows.
+    #[test]
+    fn test_resolve_overflows_unresolvable_leaf_overflows() {
+        let large_bytes = [b'a'; 70000];
+        let mut s = Serializer::new(400000).unwrap();
+        s.start_serialize().unwrap();
+        let leaves: Vec<_> = (0..20000_u16)
+            .map(|i| add_object(&mut s, &i.to_be_bytes(), 2, false))
+            .collect();
+        start_object(&mut s, &large_bytes, large_bytes.len());
+        for leaf in leaves {
+            add_offset(&mut s, leaf);
+        }
+        let parent = s.pop_pack(false).unwrap();
+        start_object(&mut s, b"root", 4);
+        add_wide_offset(&mut s, parent);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        assert!(s.offset_overflow());
+
+        assert!(matches!(
+            resolve_overflows(s, Tag::from_u32(0), 32),
+            Err(RepackError::ErrorNoResolution)
+        ));
+    }
+
     #[test]
     fn test_resolve_overflows_via_space_assignment() {
         let buf_size = 160000;

@@ -51,6 +51,15 @@ impl Overflow {
     }
 }
 
+/// The overflowing links to a shared child, see Graph::process_overflows().
+#[derive(Default)]
+struct SharedOverflow {
+    /// The number of overflowing links from each parent.
+    parents: FastHashMap<ObjIdx, usize>,
+    /// The number of parents a duplication of the child was last refused for.
+    refused_num_parents: Option<usize>,
+}
+
 #[derive(Default, Debug)]
 pub(crate) enum Parents {
     #[default]
@@ -1661,22 +1670,11 @@ impl Graph {
 
     fn resolve_shared_overflow(
         &mut self,
-        overflow_index: usize,
-        overflows: &[Overflow],
+        child_idx: ObjIdx,
+        mut parents: IntSet<u32>,
     ) -> Result<bool, RepackError> {
-        // Find all of the parents in overflowing links that link to this same child node.
+        // parents holds all of the parents in overflowing links that link to child_idx.
         // try duplicating the child node and re-assigning all of these parents to the duplicate.
-        // As in HarfBuzz, only overflows up to and including overflow_index are considered.
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
-        let overflow = &overflows[overflow_index];
-        let child_idx = overflow.child();
-        let mut parents = IntSet::empty();
-        for o in &overflows[..=overflow_index] {
-            if o.child() == child_idx {
-                parents.insert(o.parent());
-            }
-        }
-
         let Some(ret) = (match self.duplicate_and_reassign_parents(&parents, child_idx)? {
             None => {
                 if parents.len() > 2 {
@@ -1704,21 +1702,55 @@ impl Graph {
     ) -> Result<bool, RepackError> {
         let mut priority_bumped_parents = IntSet::empty();
         let mut resolution_attempted = false;
+        // As in HarfBuzz, a shared overflow is resolved with the parents of the overflows up to
+        // and including it that link to the same child.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
+        // Rather than rescanning the overflow list for each overflow, count the overflowing links
+        // per parent of each shared child once, and drop each overflow from the counts as the
+        // loop below passes it. Children with incoming virtual edges are never duplicated.
+        let mut shared_overflows: FastHashMap<ObjIdx, SharedOverflow> = FastHashMap::default();
+        for overflow in overflows {
+            let child_v = &self.vertices[overflow.child() as usize];
+            if child_v.is_shared() && !child_v.has_incoming_virtual_edges {
+                *shared_overflows
+                    .entry(overflow.child())
+                    .or_default()
+                    .parents
+                    .entry(overflow.parent())
+                    .or_default() += 1;
+            }
+        }
+
         // try resolving the furthest overflows first
-        for (overflow_index, overflow) in overflows.iter().enumerate().rev() {
+        for overflow in overflows.iter().rev() {
             let child_idx = overflow.child();
-            if self.vertices[child_idx as usize].is_shared()
-                && self.resolve_shared_overflow(overflow_index, overflows)?
-            {
-                return Ok(true);
+            let parent_idx = overflow.parent();
+            if let Some(shared) = shared_overflows.get_mut(&child_idx) {
+                // A refused duplication leaves the graph's links unchanged, so it would be
+                // refused again for the same parents. The parent sets only shrink as the loop
+                // goes on, so they are the same exactly when they have the same size.
+                let num_parents = shared.parents.len();
+                if shared.refused_num_parents != Some(num_parents) {
+                    let parents = shared.parents.keys().copied().collect();
+                    if self.resolve_shared_overflow(child_idx, parents)? {
+                        return Ok(true);
+                    }
+                    shared.refused_num_parents = Some(num_parents);
+                }
+                if let Some(count) = shared.parents.get_mut(&parent_idx) {
+                    *count -= 1;
+                    if *count == 0 {
+                        shared.parents.remove(&parent_idx);
+                    }
+                }
             }
 
-            let parent_idx = overflow.parent();
+            // Priorities only go up, so once raising the priority of a parent's children has
+            // been tried, trying it again for another of its overflows cannot change anything.
             if self.vertices[child_idx as usize].is_leaf()
-                && !priority_bumped_parents.contains(parent_idx)
+                && priority_bumped_parents.insert(parent_idx)
                 && self.raise_childrens_priority(parent_idx)
             {
-                priority_bumped_parents.insert(parent_idx);
                 resolution_attempted = true;
             }
         }
@@ -2557,12 +2589,60 @@ pub(crate) mod test {
             .collect();
 
         // Resolving the second overflow must only reassign the first two parents.
-        assert!(graph.resolve_shared_overflow(1, &overflows).unwrap());
+        assert!(graph.process_overflows(&overflows[..2]).unwrap());
         let child_of = |g: &Graph, p: ObjIdx| g.vertices[p as usize].real_links()[0].obj_idx();
         let clone = child_of(&graph, parents[0]);
         assert_ne!(clone, child);
         assert_eq!(child_of(&graph, parents[1]), clone);
         assert_eq!(child_of(&graph, parents[2]), child);
+    }
+
+    // Duplicating a child for all of its parents is refused, but a later overflow that only
+    // has some of them before it can still be resolved.
+    #[test]
+    fn test_process_overflows_retries_with_fewer_parents() {
+        let mut s = Serializer::new(100).unwrap();
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"c", 1, false);
+
+        let mut parents = [0; 2];
+        for (i, p) in parents.iter_mut().enumerate() {
+            start_object(&mut s, &[b'p', b'0' + i as u8], 2);
+            add_offset(&mut s, child);
+            add_offset(&mut s, child);
+            *p = s.pop_pack(false).unwrap();
+        }
+
+        start_object(&mut s, b"r", 1);
+        for p in parents {
+            add_offset(&mut s, p);
+        }
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.update_parents().unwrap();
+        let overflow = |p: ObjIdx| Overflow(((p as u64) << 32) | child as u64);
+        let overflows = [
+            overflow(parents[0]),
+            overflow(parents[0]),
+            overflow(parents[1]),
+            overflow(parents[1]),
+        ];
+
+        // Both links of p0 move to one clone, p1 keeps the original child.
+        assert!(graph.process_overflows(&overflows).unwrap());
+        let links = |g: &Graph, p: ObjIdx| -> Vec<ObjIdx> {
+            g.vertices[p as usize]
+                .real_links()
+                .iter()
+                .map(|l| l.obj_idx())
+                .collect()
+        };
+        let clone = links(&graph, parents[0])[0];
+        assert_ne!(clone, child);
+        assert_eq!(links(&graph, parents[0]), [clone, clone]);
+        assert_eq!(links(&graph, parents[1]), [child, child]);
     }
 
     // Positions that don't fit in a u32 are saturated, and links involving them are reported
