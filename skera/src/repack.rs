@@ -52,12 +52,11 @@ pub(crate) fn resolve_graph_overflows(
     }
 
     if tag == Gsub::TAG || tag == Gpos::TAG {
-        graph.set_wide_lookup_list(
-            find_lookup_indices(graph)
-                .ok()
-                .filter(|(_, _, wide)| *wide)
-                .map(|(index, _, _)| index),
-        );
+        let wide_lookup_list = find_lookup_indices(graph)
+            .ok()
+            .filter(|(_, _, wide)| *wide)
+            .map(|(index, _, _)| index);
+        graph.set_wide_lookup_list(wide_lookup_list);
         if always_recalculate_extensions {
             let (lookup_list_idx, lookup_indices, wide) = find_lookup_indices(graph)?;
             let mut visited = FastHashMap::default();
@@ -352,7 +351,7 @@ fn extension_type(table_tag: Tag) -> Option<u16> {
 }
 
 fn find_lookup_indices(
-    graph: &Graph,
+    graph: &mut Graph,
 ) -> Result<(ObjIdx, FastHashMap<ObjIdx, u32>, bool), RepackError> {
     let root = graph.root_idx();
     let bytes = graph
@@ -425,8 +424,8 @@ pub(crate) mod test {
             let old = add_object(&mut s, &[0, 0], 2, false);
             let new = add_object(&mut s, &[0, 0], 2, false);
             extended_header(&mut s, legacy.then_some(old), wide.then_some(new));
-            let graph = Graph::from_serializer(s).unwrap();
-            let (list, _, is_wide) = find_lookup_indices(&graph).unwrap();
+            let mut graph = Graph::from_serializer(s).unwrap();
+            let (list, _, is_wide) = find_lookup_indices(&mut graph).unwrap();
             assert_eq!(is_wide, wide);
             assert_eq!(
                 list,
@@ -486,7 +485,7 @@ pub(crate) mod test {
         let list = s.pop_pack(false).unwrap();
         extended_header(&mut s, None, Some(list));
         let mut graph = Graph::from_serializer(s).unwrap();
-        let (list, lookups, wide) = find_lookup_indices(&graph).unwrap();
+        let (list, lookups, wide) = find_lookup_indices(&mut graph).unwrap();
         assert!(wide);
         promote_extensions_if_needed(&mut graph, list, &lookups, Gsub::TAG, wide).unwrap();
         for lookup in lookups.keys() {

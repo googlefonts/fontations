@@ -6,6 +6,7 @@ use crate::{
         Graph, RepackError,
     },
     serialize::{LinkWidth, ObjIdx},
+    FastHashMap,
 };
 use read_fonts::{
     collections::IntSet,
@@ -305,17 +306,22 @@ fn add_new_mark_array(
     }
 
     let start_pos = MarkArray::MIN_SIZE as u32 + 2;
-    for (new_idx, &(old_mark_idx, _)) in org_mark_idx_classes.iter().enumerate() {
-        let old_pos = start_pos + old_mark_idx as u32 * 4;
-        let new_pos = start_pos + new_idx as u32 * 4;
-        let _ = graph.move_child(
-            org_mark_array_idx,
-            old_pos,
-            new_mark_array_idx,
-            new_pos,
-            Offset16::RAW_BYTE_LEN,
-        )?;
-    }
+    let new_positions: FastHashMap<u32, u32> = org_mark_idx_classes
+        .iter()
+        .enumerate()
+        .map(|(new_idx, &(old_mark_idx, _))| {
+            (
+                start_pos + old_mark_idx as u32 * 4,
+                start_pos + new_idx as u32 * 4,
+            )
+        })
+        .collect();
+    graph.move_children_mapped(
+        org_mark_array_idx,
+        new_mark_array_idx,
+        Offset16::RAW_BYTE_LEN,
+        |pos| new_positions.get(&pos).copied(),
+    )?;
 
     graph.add_parent_child_link(
         parent_idx,
@@ -345,18 +351,25 @@ fn add_base_array(
     let start_pos = BaseArray::MIN_SIZE as u32;
     let org_base_array_idx = table_info.base_array_idx;
     let org_class_count = table_info.mark_class_count;
-    for base_idx in 0..base_count {
-        let old_pos_start = start_pos + 2 * (base_idx * org_class_count + start_class) as u32;
-        let new_pos_start = start_pos + 2 * (base_idx * new_class_count) as u32;
-        graph.move_children(
-            org_base_array_idx,
-            old_pos_start,
-            new_base_array_idx,
-            new_pos_start,
-            new_class_count as u32,
-            Offset16::RAW_BYTE_LEN,
-        )?;
-    }
+    // Moves the anchors of classes [start_class, end_class) of every base record at once.
+    graph.move_children_mapped(
+        org_base_array_idx,
+        new_base_array_idx,
+        Offset16::RAW_BYTE_LEN,
+        |pos| {
+            let offset = pos.checked_sub(start_pos)? as usize;
+            let (anchor_idx, rem) = (offset / 2, offset % 2);
+            if rem != 0 || org_class_count == 0 {
+                return None;
+            }
+            let (base_idx, class) = (anchor_idx / org_class_count, anchor_idx % org_class_count);
+            if base_idx >= base_count || !(start_class..end_class).contains(&class) {
+                return None;
+            }
+            let new_anchor_idx = base_idx * new_class_count + class - start_class;
+            Some(start_pos + 2 * new_anchor_idx as u32)
+        },
+    )?;
 
     graph.add_parent_child_link(
         parent_idx,
@@ -425,21 +438,19 @@ fn shrink_mark_array(
     mark_array_v.tail -= 4 * (org_mark_count - new_mark_count) as usize;
 
     let links = &mut mark_array_v.real_links;
-    let mut new_links = Vec::with_capacity(links.len());
-    for (new_idx, old_idx) in retained_mark_classes
+    let new_positions: FastHashMap<u32, u32> = retained_mark_classes
         .iter()
-        .map(|(old_idx, _)| *old_idx as u32)
         .enumerate()
-    {
-        let old_pos = old_idx * 4 + 4;
-        let Some(mut l) = links.remove_real_link(old_pos) else {
-            continue;
-        };
-
-        let new_pos = new_idx as u32 * 4 + 4;
-        l.update_position(new_pos);
-        new_links.push(l);
-    }
+        .map(|(new_idx, &(old_idx, _))| (old_idx as u32 * 4 + 4, new_idx as u32 * 4 + 4))
+        .collect();
+    let new_links: Vec<_> = links
+        .take_mapped(|pos| new_positions.get(&pos).copied())
+        .into_iter()
+        .map(|(new_pos, mut l)| {
+            l.update_position(new_pos);
+            l
+        })
+        .collect();
 
     links.extend_unsorted(&new_links);
     Ok(())

@@ -7,6 +7,7 @@ use crate::{
         Graph, RepackError,
     },
     serialize::{LinkWidth, ObjIdx},
+    FastHashMap,
 };
 use read_fonts::{
     collections::IntSet,
@@ -153,6 +154,10 @@ fn clone_range(
     let end_lig_idx = end & 0xFFFF;
 
     let mut new_lig_set_count = 0;
+    // The liga sets moved as a whole to the new LigatureSubst, from their position in this
+    // table to the one in the new table. They're moved together after the loop rather than one
+    // by one, which would look up each in this table's links.
+    let mut moved_lig_sets = FastHashMap::default();
     // The liga sets and ligas whose virtual links already point to the new coverage table.
     let mut fixed_lig_idxes = IntSet::empty();
     for cur_lig_set_idx in start_lig_set_idx..=end_lig_set_idx {
@@ -211,17 +216,12 @@ fn clone_range(
             } else {
                 // move the entire ligature set to the new ligature table
                 // no need to duplicate shared liga_set here since its data is not changed, only links are changed
-                let lig_set_idx = graph
-                    .move_child(
-                        this_index,
-                        ligset_pos,
-                        new_lig_subst_idx,
-                        LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
-                        Offset16::RAW_BYTE_LEN,
-                    )?
-                    .ok_or(RepackError::GraphErrorInvalidLinkPosition)?;
-                compact_lig_set(graph, lig_set_idx)?;
-                lig_set_idx
+                moved_lig_sets.insert(
+                    ligset_pos,
+                    LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
+                );
+                compact_lig_set(graph, ligset_graph_index)?;
+                ligset_graph_index
             }
         } else if cur_lig_set_idx == end_lig_set_idx {
             if end_lig_idx == 0 {
@@ -263,15 +263,11 @@ fn clone_range(
         } else {
             // This liga set is fully contained within [start, end)
             // We can move the entire ligaset to the new liga subset object.
-            graph
-                .move_child(
-                    this_index,
-                    ligset_pos,
-                    new_lig_subst_idx,
-                    LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
-                    Offset16::RAW_BYTE_LEN,
-                )?
-                .ok_or(RepackError::GraphErrorInvalidLinkPosition)?
+            moved_lig_sets.insert(
+                ligset_pos,
+                LigatureSubstFormat1::MIN_SIZE as u32 + new_lig_set_count * 2,
+            );
+            ligset_graph_index
         };
         new_lig_set_count += 1;
 
@@ -287,6 +283,13 @@ fn clone_range(
         fix_virtual_links(graph, &all_lig_idxes, coverage_idx, new_coverage_idx)?;
         fixed_lig_idxes.union(&all_lig_idxes);
     }
+
+    graph.move_children_mapped(
+        this_index,
+        new_lig_subst_idx,
+        Offset16::RAW_BYTE_LEN,
+        |pos| moved_lig_sets.get(&pos).copied(),
+    )?;
 
     graph.vertices[new_lig_subst_idx as usize].tail -=
         (lig_set_count - new_lig_set_count as usize) * Offset16::RAW_BYTE_LEN;
