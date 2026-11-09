@@ -552,8 +552,8 @@ impl Engine<'_> {
                 let d = cvt_distance.to_bits();
                 let p2 = gs.zp0().original(gs.rp0)?;
                 let p1 = gs.zp1_mut().original_mut(p)?;
-                p1.x = p2.x + F26Dot6::from_bits(math::mul(d, fv.x));
-                p1.y = p2.y + F26Dot6::from_bits(math::mul(d, fv.y));
+                p1.x = p2.x + F26Dot6::from_bits(math::mul14(d, fv.x));
+                p1.y = p2.y + F26Dot6::from_bits(math::mul14(d, fv.y));
                 *p1
             };
             *gs.zp1_mut().point_mut(p)? = point;
@@ -1345,6 +1345,28 @@ mod tests {
         engine.op_mirp(Opcode::MIRP00100 as _).unwrap();
         let point = engine.graphics.zones[1].point(2).unwrap();
         assert_eq!(point.map(F26Dot6::to_bits), Point::new(147, -223));
+    }
+
+    /// MIRP into the twilight zone places the point's original position
+    /// at the CVT distance along the (2.14) freedom vector.
+    #[test]
+    fn mirp_twilight() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp0 = ZonePointer::Twilight;
+        engine.graphics.zp1 = ZonePointer::Twilight;
+        engine.op_svtca(0).unwrap();
+        engine.cvt.set(1, F26Dot6::from_bits(128)).unwrap();
+        engine.op_rtg().unwrap();
+        engine.value_stack.push(1).unwrap();
+        engine.value_stack.push(1).unwrap();
+        engine.op_mirp(Opcode::MIRP00100 as _).unwrap();
+        let zone = &engine.graphics.zones[0];
+        let original = zone.original(1).unwrap();
+        assert_eq!(original.map(F26Dot6::to_bits), Point::new(0, 128));
+        let point = zone.point(1).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(0, 128));
     }
 
     #[test]
