@@ -625,7 +625,7 @@ mod tests {
 
     #[test]
     fn extended_ligatures_are_not_read_as_legacy_graph_tables() {
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         s.push().unwrap();
         CoverageTable::serialize(&mut s, &[GlyphId::new(65536)]).unwrap();

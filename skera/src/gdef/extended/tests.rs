@@ -112,7 +112,7 @@ fn plan() -> Plan {
 }
 
 fn subset(input: &[u8], plan: &Plan) -> Result<(Vec<u8>, bool), SerializeErrorFlags> {
-    let mut s = Serializer::new(1024 * 1024);
+    let mut s = Serializer::new(1024 * 1024).unwrap();
     let mut state = SubsetState::default();
     s.start_serialize().unwrap();
     let table = Gdef::read(FontData::new(input)).unwrap();

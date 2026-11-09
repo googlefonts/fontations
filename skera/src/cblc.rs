@@ -620,7 +620,7 @@ mod test {
         // Verify that the existing subsetter really does reproduce both tables byte-for-byte
         // under the conditions accepted by the fast path.
         let mut output_builder = FontBuilder::new();
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         cblc.subset(&plan, &font, &mut s, &mut output_builder)
             .unwrap();
@@ -675,7 +675,7 @@ mod test {
         plan.new_to_old_gid_list
             .push((GlyphId::from(5_u32), GlyphId::from(5_u32)));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = cblc.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -720,7 +720,7 @@ mod test {
         plan.new_to_old_gid_list
             .push((GlyphId::from(1_u32), GlyphId::from(2_u32)));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = cblc.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -762,7 +762,7 @@ mod test {
         plan.new_to_old_gid_list
             .push((GlyphId::from(1_u32), GlyphId::from(4_u32)));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = cblc.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -814,7 +814,7 @@ mod test {
         plan.new_to_old_gid_list
             .push((GlyphId::from(3_u32), GlyphId::from(4_u32)));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = cblc.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -875,7 +875,7 @@ mod test {
         plan.new_to_old_gid_list
             .push((GlyphId::from(3_u32), GlyphId::from(4_u32)));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = cblc.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());

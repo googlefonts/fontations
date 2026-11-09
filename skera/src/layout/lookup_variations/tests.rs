@@ -54,7 +54,7 @@ fn lookup_variations(records: &[(u16, Vec<u8>)]) -> Vec<u8> {
 
 fn subset(input: &[u8], plan: &Plan, gpos: bool) -> Result<Vec<u8>, SerializeErrorFlags> {
     let table = FeatureVariations::read(FontData::new(input)).unwrap();
-    let mut s = Serializer::new(4 * 1024 * 1024);
+    let mut s = Serializer::new(4 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     let mut context = SubsetLayoutContext::new(if gpos { Gpos::TAG } else { Gsub::TAG });
     table.subset(plan, &mut s, (&[], &mut context))?;
@@ -371,7 +371,7 @@ fn lookup_variation_conditions_retain_and_remap_gdef_store_rows() {
         };
         assert_eq!(condition.var_index(), 0);
         let mut state = SubsetState::default();
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         font.gdef()
             .unwrap()

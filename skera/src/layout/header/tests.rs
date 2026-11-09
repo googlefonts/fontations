@@ -115,7 +115,7 @@ fn subset(bytes: &[u8], gpos: bool) -> Result<Vec<u8>, SubsetError> {
     let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
     let plan = plan();
     let mut state = SubsetState::default();
-    let mut s = Serializer::new(1024 * 1024);
+    let mut s = Serializer::new(1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     let mut builder = FontBuilder::new();
     if gpos {

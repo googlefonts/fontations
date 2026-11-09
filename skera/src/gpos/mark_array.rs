@@ -207,7 +207,7 @@ mod test {
         let mark_record_idxes = [0_u32, 1];
         let mark_class_map: FastHashMap<u16, u16> = [(0, 0), (1, 1)].into_iter().collect();
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = mark_array.subset(&plan, &mut s, (&mark_record_idxes[..], &mark_class_map));
         (ret, s)

@@ -269,7 +269,7 @@ mod tests {
     }
 
     fn subset(chain: bool, input: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
-        let mut s = Serializer::new(2 * 1024 * 1024);
+        let mut s = Serializer::new(2 * 1024 * 1024).unwrap();
         s.start_serialize().unwrap();
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
         let args = (&SubsetState::default(), &font, &plan.gsub_lookups);
@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn legacy_context_glyph_sequence_rejects_wide_remapping() {
         let sequence = [BigEndian::from(GlyphId16::new(1))];
-        let mut s = Serializer::new(32);
+        let mut s = Serializer::new(32).unwrap();
         s.start_serialize().unwrap();
         assert_eq!(
             serialize_glyph_sequence(&sequence, &[GlyphId::new(0), GlyphId::new(65536)], &mut s),

@@ -151,7 +151,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(512_u32));
         plan.glyphset_gsub.insert(GlyphId::from(966_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();

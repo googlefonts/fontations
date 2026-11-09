@@ -217,7 +217,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(1803_u32));
         plan.glyphset_gsub.insert(GlyphId::from(3098_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         cursivepos_table
@@ -263,7 +263,7 @@ mod test {
                 plan.glyphset_gsub.insert(GlyphId::new(gid));
                 plan.glyph_map_gsub[gid as usize] = GlyphId::new(gid / 10);
             }
-            let mut s = Serializer::new(1024);
+            let mut s = Serializer::new(1024).unwrap();
             s.start_serialize().unwrap();
             let result = table.subset(
                 &plan,

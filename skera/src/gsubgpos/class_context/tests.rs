@@ -85,7 +85,7 @@ fn plan(mapped: [u32; 4]) -> Plan {
 }
 
 fn subset(chain: bool, bytes: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
-    let mut s = Serializer::new(2 * 1024 * 1024);
+    let mut s = Serializer::new(2 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
     let state = SubsetState::default();

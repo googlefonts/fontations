@@ -260,7 +260,7 @@ mod tests {
     use font_test_data::bebuffer::BeBuffer;
 
     fn serialize(pairs: &[(u32, u32)]) -> Result<Vec<u8>, SerializeErrorFlags> {
-        let mut s = Serializer::new(pairs.len() * 8 + 32);
+        let mut s = Serializer::new(pairs.len() * 8 + 32).unwrap();
         s.start_serialize().unwrap();
         ClassDef::serialize(&mut s, pairs)?;
         s.end_serialize();
@@ -291,7 +291,7 @@ mod tests {
         args: &ClassDefSubsetStruct,
     ) -> Result<(Vec<u8>, Option<ClassMap>), SerializeErrorFlags> {
         let table = ClassDef::read(FontData::new(input)).unwrap();
-        let mut s = Serializer::new(plan.glyphset_gsub.len() as usize * 8 + 32);
+        let mut s = Serializer::new(plan.glyphset_gsub.len() as usize * 8 + 32).unwrap();
         s.start_serialize().unwrap();
         let class_map = table.subset(plan, &mut s, args)?;
         s.end_serialize();

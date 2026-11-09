@@ -49,7 +49,7 @@ fn subset(bytes: &[u8], wide: bool, count: usize, retain: bool) -> Result<Vec<u8
         ],
         ..Default::default()
     };
-    let mut s = Serializer::new(2 * 1024 * 1024);
+    let mut s = Serializer::new(2 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     subset_gvar(&read(bytes, wide), &plan, &mut s)?;
     s.end_serialize();

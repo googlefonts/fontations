@@ -34,7 +34,8 @@ pub(crate) fn make_coverage(
         .get(glyph_range)
         .ok_or(RepackError::ErrorSplitSubtable)?;
 
-    let mut s = Serializer::new(glyphs.len() * 6 + 4);
+    let mut s =
+        Serializer::new(glyphs.len() * 6 + 4).map_err(|_| RepackError::ErrorRepackSerialize)?;
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -54,7 +55,8 @@ pub(crate) fn add_new_coverage(
     position: u32,
 ) -> Result<(), RepackError> {
     let new_coverage_idx = graph.new_vertex(0)?;
-    let mut s = Serializer::new(glyphs.len() * 6 + 4);
+    let mut s =
+        Serializer::new(glyphs.len() * 6 + 4).map_err(|_| RepackError::ErrorRepackSerialize)?;
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 

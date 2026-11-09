@@ -60,7 +60,7 @@ fn subset(bytes: &[u8], wide: bool, plan: &Plan) -> Result<Vec<u8>, SerializeErr
             LookupList::<PositionLookup>::read(FontData::new(bytes)).unwrap(),
         )
     };
-    let mut s = Serializer::new(4 * 1024 * 1024);
+    let mut s = Serializer::new(4 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     table.subset(
         plan,

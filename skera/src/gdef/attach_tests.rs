@@ -34,7 +34,7 @@ fn subset(bytes: &[u8]) -> Result<Vec<u8>, SerializeErrorFlags> {
         glyph_map_gsub: vec![crate::INVALID_GID, GlyphId::new(1)],
         ..Default::default()
     };
-    let mut s = Serializer::new(1024);
+    let mut s = Serializer::new(1024).unwrap();
     s.start_serialize().unwrap();
     subset_gdef(
         &Gdef::read(FontData::new(bytes)).unwrap(),

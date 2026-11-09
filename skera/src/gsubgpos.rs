@@ -932,7 +932,7 @@ mod test {
         let mut lookup_map = FastHashMap::default();
         lookup_map.insert(58_u16, 0_u16);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -985,7 +985,7 @@ mod test {
         let mut lookup_map = FastHashMap::default();
         lookup_map.insert(1_u16, 0_u16);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -1044,7 +1044,7 @@ mod test {
         lookup_map.insert(6_u16, 1_u16);
         lookup_map.insert(8_u16, 2_u16);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -1109,7 +1109,7 @@ mod test {
         lookup_map.insert(4_u16, 0_u16);
         lookup_map.insert(6_u16, 1_u16);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -1168,7 +1168,7 @@ mod test {
         let mut lookup_map = FastHashMap::default();
         lookup_map.insert(152_u16, 0_u16);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -1224,7 +1224,7 @@ mod test {
         let mut lookup_map = FastHashMap::default();
         lookup_map.insert(1_u16, 1_u16);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -1290,7 +1290,7 @@ mod test {
         let table = SequenceContextFormat2::read(FontData::new(&raw_table)).unwrap();
         let (plan, lookup_map) = class_past_rule_set_count_plan();
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         assert_eq!(table.subset(&plan, &mut s, &lookup_map), Ok(()));
         assert!(!s.in_error());
@@ -1329,7 +1329,7 @@ mod test {
         let table = ChainedSequenceContextFormat2::read(FontData::new(&raw_table)).unwrap();
         let (plan, lookup_map) = class_past_rule_set_count_plan();
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         assert_eq!(table.subset(&plan, &mut s, &lookup_map), Ok(()));
         assert!(!s.in_error());

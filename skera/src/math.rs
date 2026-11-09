@@ -726,7 +726,7 @@ mod tests {
         let value = source_data.read_array::<MathValueRecord>(0..4).unwrap()[0];
         let mut plan = Plan::default();
         plan.layout_varidx_delta_map.insert(0x10002, (0x30004, 5));
-        let mut serializer = Serializer::new(64);
+        let mut serializer = Serializer::new(64).unwrap();
         serializer.start_serialize().unwrap();
         value.subset(&plan, &mut serializer, source_data).unwrap();
         serializer.end_serialize();
@@ -761,7 +761,7 @@ mod tests {
             if let Some(mapped) = mapped {
                 plan.layout_varidx_delta_map.insert(0x10002, mapped);
             }
-            let mut serializer = Serializer::new(64);
+            let mut serializer = Serializer::new(64).unwrap();
             serializer.start_serialize().unwrap();
             value.subset(&plan, &mut serializer, source_data).unwrap();
             serializer.end_serialize();

@@ -954,7 +954,7 @@ fn make_class_def(
     glyph_classes: &[(u32, u32)],
 ) -> Result<(), RepackError> {
     let dest_idx = graph.unshared_child(parent_idx, dest_idx, pos)?;
-    let mut s = Serializer::new(glyph_classes.len() * 8 + 8);
+    let mut s = Serializer::new(glyph_classes.len() * 8 + 8).unwrap();
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -973,7 +973,7 @@ fn add_new_class_def(
     width: LinkWidth,
 ) -> Result<ObjIdx, RepackError> {
     let new_class_def_idx = graph.new_vertex(0)?;
-    let mut s = Serializer::new(glyph_classes.len() * 8 + 8);
+    let mut s = Serializer::new(glyph_classes.len() * 8 + 8).unwrap();
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
@@ -992,7 +992,7 @@ pub(crate) mod test {
     use super::*;
 
     fn actual_class_def_size(glyph_and_classes: &[(u32, u32)]) -> usize {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         s.start_serialize().unwrap();
         ClassDef::serialize(&mut s, glyph_and_classes).unwrap();
         s.end_serialize();
@@ -1001,7 +1001,7 @@ pub(crate) mod test {
     }
 
     fn actual_coverage_size(glyphs: &[GlyphId]) -> usize {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         s.start_serialize().unwrap();
 
         CoverageTable::serialize(&mut s, glyphs).unwrap();

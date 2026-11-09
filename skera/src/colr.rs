@@ -1709,7 +1709,7 @@ mod test {
             plan.glyph_map
                 .insert(GlyphId::new(0x123456), GlyphId::new(new_gid));
             plan.colr_palettes.insert(7, 3);
-            let mut serializer = Serializer::new(128);
+            let mut serializer = Serializer::new(128).unwrap();
             serializer.start_serialize().unwrap();
             paint.subset(&plan, &mut serializer, ()).unwrap();
             serializer.end_serialize();
@@ -1745,7 +1745,7 @@ mod test {
                 plan.glyph_map
                     .insert(GlyphId::new(0x123456), GlyphId::new(new_gid));
             }
-            let mut serializer = Serializer::new(128);
+            let mut serializer = Serializer::new(128).unwrap();
             serializer.start_serialize().unwrap();
             assert!(paint.subset(&plan, &mut serializer, ()).is_err());
             assert!(serializer.in_error());
@@ -1782,7 +1782,7 @@ mod test {
         plan.colr_palettes.insert(2, 0);
         plan.colr_palettes.insert(11, 1);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = colr.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -1824,7 +1824,7 @@ mod test {
         plan.colr_palettes.insert(2, 0);
         plan.colr_palettes.insert(11, 1);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = colr.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -1868,7 +1868,7 @@ mod test {
         plan.colr_palettes.insert(2, 0);
         plan.colr_palettes.insert(11, 1);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = colr.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -1900,7 +1900,7 @@ mod test {
         plan.glyph_map
             .insert(GlyphId::from(1_u32), GlyphId::from(1_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = colr.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_err());

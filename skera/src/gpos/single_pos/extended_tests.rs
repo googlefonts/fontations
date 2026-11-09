@@ -57,7 +57,7 @@ fn plan(mapped: [u32; 2]) -> Plan {
 
 fn subset(bytes: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
     let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-    let mut s = Serializer::new(2 * 1024 * 1024);
+    let mut s = Serializer::new(2 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     SinglePos::read(FontData::new(bytes)).unwrap().subset(
         plan,
