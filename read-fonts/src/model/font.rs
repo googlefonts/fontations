@@ -96,7 +96,7 @@ impl Font {
     ///   of one font.
     ///
     /// Returns `None` if the source holds no font in a supported format, or
-    /// none at `index`.
+    /// none at `index`. Type 1 fonts require the `type1` feature.
     pub fn new(source: impl Into<Source>, index: u32) -> Option<Self> {
         Some(Font(Repr::Default(SharedFont::new(source, index)?)))
     }
@@ -1931,8 +1931,23 @@ mod tests {
     use core::sync::atomic::Ordering;
     use types::Tag;
 
+    #[test]
+    fn type1_loading_requires_feature() {
+        for data in [
+            font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
+            font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB,
+        ] {
+            assert_eq!(Font::new(data, 0).is_some(), cfg!(feature = "type1"));
+            assert_eq!(
+                crate::ps::type1::Type1Font::new(data).is_ok(),
+                cfg!(feature = "type1")
+            );
+        }
+    }
+
     /// Returns where glyph 1 of the synthetic multiple master font starts
     /// drawing, which moves with the weight of its second master.
+    #[cfg(feature = "type1")]
     fn type1_mm_start(font: &Font) -> f32 {
         use crate::model::glyph::outline::{DrawMemory, DrawOptions, PathElement};
         let mut path = alloc::vec::Vec::<PathElement>::new();
@@ -1950,6 +1965,7 @@ mod tests {
     // A Type 1 multiple master font has an axis per blend axis, and draws
     // and measures at the location an instance is built for.
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_multiple_master_instances() {
         use crate::ps::type1::multiple_master_tests::{pfa_with_blend, ONE_AXIS};
         let font = Font::new(pfa_with_blend(ONE_AXIS), 0).unwrap();
@@ -1999,6 +2015,7 @@ mod tests {
     // where the default design coordinate doesn't map back to the default
     // blend.
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_multiple_master_ignores_unknown_axes() {
         use crate::ps::type1::multiple_master_tests::pfa_with_blend;
         let font = Font::new(
@@ -2016,6 +2033,7 @@ mod tests {
     // Design maps spanning every design coordinate give axes whose values
     // saturate.
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_multiple_master_widest_axes() {
         use crate::ps::type1::multiple_master_tests::pfa_with_blend;
         let font = Font::new(
@@ -2035,6 +2053,7 @@ mod tests {
     // A Type 1 font's metrics don't vary, so an instance reports the
     // font's own.
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_multiple_master_instances_keep_metrics() {
         use crate::ps::type1::multiple_master_tests::{pfa_with_blend, ONE_AXIS};
         let font = Font::new(
@@ -2059,6 +2078,7 @@ mod tests {
 
     // Type 1 has no named instances, but the overrides still apply.
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_multiple_master_named_instance_overrides() {
         use crate::ps::type1::multiple_master_tests::{pfa_with_blend, ONE_AXIS};
         let font = Font::new(pfa_with_blend(ONE_AXIS), 0).unwrap();
@@ -2085,8 +2105,8 @@ mod tests {
         assert!(count > 1);
         assert!(Font::new(font_test_data::ttc::TTC, count - 1).is_some());
         assert!(Font::new(font_test_data::ttc::TTC, count).is_none());
-        let type1 = font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA;
-        assert!(Font::new(type1, 7).is_some());
+        #[cfg(feature = "type1")]
+        assert!(Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 7).is_some());
         let sfnt = crate::FontRef::new(font_test_data::NOTO_SANS_JP_CFF).unwrap();
         let cff = sfnt.cff().unwrap().offset_data().as_bytes().to_vec();
         assert!(Font::new(cff.clone(), 0).is_some());
@@ -2131,6 +2151,7 @@ mod tests {
             Font::new(font_test_data::NOTO_SANS_JP_CFF, 0).unwrap(),
             Font::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED, 0).unwrap(),
             Font::new(font_test_data::VAZIRMATN_VAR, 0).unwrap(),
+            #[cfg(feature = "type1")]
             Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap(),
         ] {
             assert!(!font.is_cid_keyed());

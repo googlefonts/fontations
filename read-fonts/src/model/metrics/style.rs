@@ -306,6 +306,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_exposes_its_font_info() {
         let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB).unwrap();
         let metrics = StyleMetrics::from_type1(&font);

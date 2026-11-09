@@ -1906,6 +1906,7 @@ pub(crate) mod test_helpers {
     }
 
     impl CaptureCommandSink {
+        #[cfg(feature = "type1")]
         pub fn to_svg(&self) -> String {
             use core::fmt::Write;
             let mut buf = String::default();

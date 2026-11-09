@@ -434,6 +434,7 @@ mod tests {
     }
 
     /// Returns the Type 1 test font with its dictionary edited by `edit`.
+    #[cfg(feature = "type1")]
     fn type1_font(edit: impl Fn(&str) -> alloc::string::String) -> Font {
         let source =
             core::str::from_utf8(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
@@ -442,6 +443,7 @@ mod tests {
 
     // A PostScript font's own dictionary provides its style and pitch.
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_font_reports_its_italic_style_and_fixed_pitch() {
         let font = type1_font(|source| {
             source

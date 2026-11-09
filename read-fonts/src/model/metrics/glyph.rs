@@ -1233,12 +1233,11 @@ fn glyf_v_origin_from_context<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "type1")]
+    use crate::model::glyph::outline::NullSink;
     use crate::{
         model::{
-            glyph::{
-                color::ColorVersion,
-                outline::{ControlBoundsSink, NullSink},
-            },
+            glyph::{color::ColorVersion, outline::ControlBoundsSink},
             Blob, NormalizedCoord,
         },
         tables::glyf::outline::{Outline, OutlineTables, PathContourStart, Unscaled},
@@ -1528,6 +1527,7 @@ mod tests {
     const VERT: &[u8] = font_test_data::MPLUS1CODE_VERTICAL_SUBSET;
 
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_glyph_stacks_by_the_line() {
         // Type 1 has no `vmtx`, so its glyphs take the line, which such a
         // font derives from its bounding box. Every glyph gets the same
@@ -1722,6 +1722,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_glyph_is_measured_by_its_charstring() {
         // Type 1 states no metrics table, so a width that is neither zero
         // nor half an em can only have come from running the charstring.
@@ -1742,6 +1743,7 @@ mod tests {
 
     /// The fixture with its font matrix replaced, same length so the rest of
     /// the header is untouched. `xx` becomes 2, so every advance doubles.
+    #[cfg(feature = "type1")]
     fn type1_with_a_stretched_matrix() -> Vec<u8> {
         const FROM: &[u8] = b"/FontMatrix [0.001 0 0 0.001 0 0 ]";
         const TO: &[u8] = b"/FontMatrix [0.002 0 0 0.001 0 0 ]";
@@ -1756,6 +1758,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_width_is_mapped_by_the_font_matrix() {
         // The charstring states a width in its own space, which the matrix
         // maps to design units. The fixture states the usual matrix, where
@@ -1780,6 +1783,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_advance_is_what_drawing_the_glyph_reports() {
         // `draw` is the reference: it maps the charstring's own space to
         // design units through the font matrix. Note that this font states
@@ -2056,6 +2060,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_box_is_the_box_it_draws_within() {
         let data = font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA;
         let font = Font::new(data, 0).unwrap();
@@ -2404,6 +2409,7 @@ mod tests {
             Font::new(font_test_data::CBDT, 0).unwrap(),
             Font::new(font_test_data::COLRV0V1_VARIABLE, 0).unwrap(),
             Font::new(font_test_data::varc::CJK_6868, 0).unwrap(),
+            #[cfg(feature = "type1")]
             Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap(),
         ];
         let cantarell = Font::new(font_test_data::CANTARELL_VF_TRIMMED, 0).unwrap();
@@ -2481,6 +2487,7 @@ mod tests {
             VAR,
             CFF,
             CFF2,
+            #[cfg(feature = "type1")]
             font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
         ] {
             let font = Font::new(data, 0).unwrap();

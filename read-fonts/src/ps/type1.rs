@@ -18,6 +18,10 @@ use core::ops::Range;
 
 /// A Type1 font.
 pub struct Type1Font {
+    // Keep the type and its users available, but make instances impossible
+    // when Type 1 support is disabled.
+    #[cfg(not(feature = "type1"))]
+    _disabled: core::convert::Infallible,
     name: Option<String>,
     full_name: Option<String>,
     family_name: Option<String>,
@@ -44,7 +48,12 @@ pub struct Type1Font {
 
 impl Type1Font {
     /// Creates a new Type1 font from the given data.
+    ///
+    /// Returns an error when the `type1` feature is disabled.
     pub fn new(data: &[u8]) -> Result<Self, Error> {
+        if !cfg!(feature = "type1") {
+            return Err(Error::Malformed);
+        }
         // any failure to parse is simply malformed data
         Self::new_impl(data).ok_or(Error::Malformed)
     }
@@ -54,8 +63,13 @@ impl Type1Font {
         Self::from_dicts(raw_dicts.base, &raw_dicts.private)
     }
 
-    fn empty() -> Self {
-        Self {
+    fn empty() -> Option<Self> {
+        #[cfg(not(feature = "type1"))]
+        {
+            None
+        }
+        #[cfg(feature = "type1")]
+        Some(Self {
             name: None,
             full_name: None,
             family_name: None,
@@ -78,11 +92,11 @@ impl Type1Font {
             multiple_master: None,
             build_char_len: 0,
             unicode_charmap: UnicodeCharmap::default(),
-        }
+        })
     }
 
     fn from_dicts(base: &[u8], private: &[u8]) -> Option<Self> {
-        let mut font = Self::empty();
+        let mut font = Self::empty()?;
         // Read base dict entries
         let mut encoding_offset = None;
         let mut blend = RawBlend::default();
@@ -2244,7 +2258,7 @@ fn decode_fixed(bytes: &[u8], mut power_ten: i32) -> Option<Fixed> {
     Some(Fixed::from_bits(integral * sign))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "type1"))]
 mod tests {
     use super::*;
     use charstring::test_helpers::*;
@@ -2817,7 +2831,7 @@ mod tests {
         let expected_glyphs: &[(&str, &[u8])] =
             &[(".notdef", NOTDEF_GLYPH), ("B", b"xy"), ("H", b"ab")];
         check_charstrings(&charstrings, expected_glyphs);
-        let mut font = Type1Font::empty();
+        let mut font = Type1Font::empty().unwrap();
         font.charstrings = charstrings;
         assert_eq!(font.remapped_gid(GlyphId::new(0)), GlyphId::new(2));
         assert_eq!(font.remapped_gid(GlyphId::new(1)), GlyphId::new(1));
@@ -2832,7 +2846,7 @@ mod tests {
         assert_eq!(charstrings.orig_notdef_index, Some(1));
         let expected_glyphs: &[(&str, &[u8])] = &[(".notdef", b"nd"), ("H", b"ab"), ("B", b"xy")];
         check_charstrings(&charstrings, expected_glyphs);
-        let mut font = Type1Font::empty();
+        let mut font = Type1Font::empty().unwrap();
         font.charstrings = charstrings;
         assert_eq!(font.remapped_gid(GlyphId::new(0)), GlyphId::new(1));
         assert_eq!(font.remapped_gid(GlyphId::new(1)), GlyphId::new(0));
@@ -3105,7 +3119,7 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "type1"))]
 mod width_only_tests {
     use super::*;
     use crate::model::glyph::outline::NullSink;
@@ -3165,7 +3179,7 @@ mod width_only_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "type1"))]
 mod extents_tests {
     use super::*;
     use crate::model::glyph::outline::PathSink;
@@ -3295,7 +3309,7 @@ mod extents_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "type1"))]
 pub(crate) mod multiple_master_tests {
     use super::*;
     use crate::model::glyph::outline::PathElement;

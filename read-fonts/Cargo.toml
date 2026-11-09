@@ -12,8 +12,8 @@ repository.workspace = true
 
 [package.metadata.docs.rs]
 # To build locally:
-# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --features agl,libm,serde,std
-features = ["agl", "libm", "serde", "std"]
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --features agl,libm,serde,std,type1
+features = ["agl", "libm", "serde", "std", "type1"]
 
 [features]
 std = ["font-types/std", "dep:foldhash"]
@@ -37,6 +37,8 @@ serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
 # Support for mapping glyph names <-> unicode via the Adobe glyph list
 agl = []
+# Support for Adobe Type 1 fonts, including glyph-name Unicode mapping.
+type1 = ["agl"]
 
 [dependencies]
 foldhash = { workspace = true, optional = true }
@@ -74,6 +76,7 @@ harness = false
 [[bench]]
 name = "type1"
 harness = false
+required-features = ["type1"]
 
 [[bench]]
 name = "charmap"

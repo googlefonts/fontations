@@ -30,6 +30,8 @@ libm = ["dep:core_maths", "read-fonts/libm"]
 # size. Without it those fonts map no characters, so the automatic hinter
 # finds no blue zones in them.
 agl = ["read-fonts/agl"]
+# Support for Adobe Type 1 fonts, including glyph-name Unicode mapping.
+type1 = ["agl", "read-fonts/type1"]
 
 [dependencies]
 smallvec = { workspace = true }

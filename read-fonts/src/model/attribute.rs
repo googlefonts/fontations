@@ -489,6 +489,7 @@ mod tests {
     // A Type 1 font states its weight by name and its style by angle, as
     // FreeType reads them; it states no width.
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_font_states_its_weight_name_and_angle() {
         let regular = Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap();
         assert_eq!(regular.default_attributes(), Attributes::default());

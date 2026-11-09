@@ -546,6 +546,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn exposes_type1_names_by_sfnt_id() {
         let data = font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB;
         let font = Font::new(data, 0).unwrap();
