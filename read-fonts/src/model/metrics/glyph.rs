@@ -1235,7 +1235,10 @@ mod tests {
     use super::*;
     use crate::{
         model::{
-            glyph::outline::{ControlBoundsSink, NullSink},
+            glyph::{
+                color::ColorVersion,
+                outline::{ControlBoundsSink, NullSink},
+            },
             Blob, NormalizedCoord,
         },
         tables::glyf::outline::{Outline, OutlineTables, PathContourStart, Unscaled},
@@ -2274,7 +2277,7 @@ mod tests {
         data[colr..colr + 2].copy_from_slice(&0u16.to_be_bytes());
         let font = Font::new(data, 0).unwrap();
         let colors = font.color_glyphs();
-        assert_eq!(colors.version(), Some(0));
+        assert_eq!(colors.version(), Some(ColorVersion::V0));
         let metrics = font.glyph_metrics();
         let outlines_only = metrics.with_extents_source_order(GlyphSourceOrder::OUTLINES);
         let glyph = font.charmap().map_unicode(COLORED_CIRCLES_V0[0]).unwrap();

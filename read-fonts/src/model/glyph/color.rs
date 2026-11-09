@@ -118,9 +118,9 @@ pub enum Brush<'a> {
 
 /// Whether a sink painted a nested color glyph from its own cache.
 ///
-/// Returned from [`PaintSink::paint_cached_color_glyph`] when one color
+/// Returned from [`PaintSink::paint_cached`] when one color
 /// glyph paints another.
-pub enum PaintCachedColorGlyph {
+pub enum PaintCached {
     /// The sink painted the glyph itself.
     Ok,
     /// The sink has no cached copy, so the paint graph of the glyph is
@@ -184,11 +184,9 @@ pub trait PaintSink {
     /// The glyph is painted unscaled under the current transformation
     /// matrix. The default implementation has no cache, so the paint graph
     /// of the glyph is traversed.
-    fn paint_cached_color_glyph(
-        &mut self,
-        _glyph: GlyphId,
-    ) -> Result<PaintCachedColorGlyph, Error> {
-        Ok(PaintCachedColorGlyph::Unimplemented)
+    fn paint_cached(&mut self, glyph: GlyphId) -> Result<PaintCached, Error> {
+        let _ = glyph;
+        Ok(PaintCached::Unimplemented)
     }
 
     /// Pushes a new layer that [`pop_layer`](Self::pop_layer) composites
@@ -205,18 +203,19 @@ pub trait PaintSink {
     /// Use this for a graphics library that needs the mode when the layer is
     /// popped. Only one of the two methods needs an implementation. The
     /// default calls [`pop_layer`](Self::pop_layer).
-    fn pop_layer_with_mode(&mut self, _composite_mode: CompositeMode) {
+    fn pop_layer_with_mode(&mut self, composite_mode: CompositeMode) {
+        let _ = composite_mode;
         self.pop_layer();
     }
 }
 
-/// The version of `COLR` that defines a glyph.
+/// The version of the `COLR` table.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ColorGlyphVersion {
+pub enum ColorVersion {
     /// Layered outlines, each filled with a solid color.
-    ColrV0,
+    V0,
     /// A paint graph.
-    ColrV1,
+    V1,
 }
 
 /// Provides access to the color glyphs in a font.
@@ -250,8 +249,12 @@ impl<'a> ColorGlyphs<'a> {
 
     /// Returns the version of the `COLR` table, or `None` if the font has no
     /// `COLR` table.
-    pub fn version(&self) -> Option<u16> {
-        Some(self.tables?.colr.version())
+    pub fn version(&self) -> Option<ColorVersion> {
+        Some(match self.tables?.colr.version() {
+            0 => ColorVersion::V0,
+            1 => ColorVersion::V1,
+            _ => return None,
+        })
     }
 
     /// Returns the color glyph for `glyph` painted with the given `version`
@@ -259,12 +262,12 @@ impl<'a> ColorGlyphs<'a> {
     pub fn get_with_version(
         &self,
         glyph: GlyphId,
-        version: ColorGlyphVersion,
+        version: ColorVersion,
     ) -> Option<ColorGlyph<'a>> {
         let colr = &self.tables?.colr;
         let root = match version {
-            ColorGlyphVersion::ColrV0 => Root::V0(colr.v0_base_glyph(glyph)?),
-            ColorGlyphVersion::ColrV1 => {
+            ColorVersion::V0 => Root::V0(colr.v0_base_glyph(glyph)?),
+            ColorVersion::V1 => {
                 let (paint, paint_id) = colr.v1_base_glyph(glyph)?;
                 Root::V1(paint, paint_id)
             }
@@ -281,8 +284,8 @@ impl<'a> ColorGlyphs<'a> {
     /// Uses version 1 of the table if it has the glyph, and version 0
     /// otherwise.
     pub fn get(&self, glyph: GlyphId) -> Option<ColorGlyph<'a>> {
-        self.get_with_version(glyph, ColorGlyphVersion::ColrV1)
-            .or_else(|| self.get_with_version(glyph, ColorGlyphVersion::ColrV0))
+        self.get_with_version(glyph, ColorVersion::V1)
+            .or_else(|| self.get_with_version(glyph, ColorVersion::V0))
     }
 
     /// Returns the ink bounds of `glyph` in font units, measured as HarfBuzz
@@ -331,10 +334,10 @@ impl<'a> ColorGlyph<'a> {
     }
 
     /// Returns the `COLR` version used to paint this glyph.
-    pub fn version(&self) -> ColorGlyphVersion {
+    pub fn version(&self) -> ColorVersion {
         match &self.root {
-            Root::V0(_) => ColorGlyphVersion::ColrV0,
-            Root::V1(..) => ColorGlyphVersion::ColrV1,
+            Root::V0(_) => ColorVersion::V0,
+            Root::V1(..) => ColorVersion::V1,
         }
     }
 
@@ -546,8 +549,8 @@ mod tests {
     fn has_colrv1_glyph() {
         let font = font(font_test_data::COLRV0V1_VARIABLE);
         let glyphs = font.color_glyphs();
-        assert_eq!(glyphs.version(), Some(1));
-        let v1 = |ch| glyphs.get_with_version(map(&font, ch), ColorGlyphVersion::ColrV1);
+        assert_eq!(glyphs.version(), Some(ColorVersion::V1));
+        let v1 = |ch| glyphs.get_with_version(map(&font, ch), ColorVersion::V1);
         assert!(v1(COLORED_CIRCLES_V0[0]).is_none());
         assert!(v1(COLORED_CIRCLES_V1[0]).is_some());
         assert_eq!(
@@ -555,7 +558,7 @@ mod tests {
                 .get(map(&font, COLORED_CIRCLES_V0[0]))
                 .unwrap()
                 .version(),
-            ColorGlyphVersion::ColrV0
+            ColorVersion::V0
         );
     }
 
@@ -574,10 +577,7 @@ mod tests {
         let font = font(font_test_data::COLRV0V1_VARIABLE);
         let glyph = font
             .color_glyphs()
-            .get_with_version(
-                map(&font, PAINTCOLRGLYPH_CYCLE[0]),
-                ColorGlyphVersion::ColrV1,
-            )
+            .get_with_version(map(&font, PAINTCOLRGLYPH_CYCLE[0]), ColorVersion::V1)
             .unwrap();
         assert_eq!(glyph.paint(&mut DummySink), Err(Error::LimitExceeded));
     }
@@ -645,10 +645,10 @@ mod tests {
             let font = font(&bytes);
             let colors = font.color_glyphs();
             let glyph = colors
-                .get_with_version(GlyphId::new(42), ColorGlyphVersion::ColrV1)
+                .get_with_version(GlyphId::new(42), ColorVersion::V1)
                 .unwrap();
             assert!(colors
-                .get_with_version(GlyphId::new(43), ColorGlyphVersion::ColrV1)
+                .get_with_version(GlyphId::new(43), ColorVersion::V1)
                 .is_none());
             let mut sink = Sink::default();
             for _ in 0..2 {
@@ -665,7 +665,7 @@ mod tests {
         let font = font(font_test_data::COLRV1_NO_CLIPLIST);
         let glyph = font
             .color_glyphs()
-            .get_with_version(GlyphId::new(1), ColorGlyphVersion::ColrV1)
+            .get_with_version(GlyphId::new(1), ColorVersion::V1)
             .unwrap();
         assert!(glyph.clip_box().is_none());
         assert!(glyph.paint(&mut DummySink).is_ok());
@@ -676,7 +676,7 @@ mod tests {
         let font = font(font_test_data::COLRV0V1);
         let glyph = font
             .color_glyphs()
-            .get_with_version(GlyphId::new(168), ColorGlyphVersion::ColrV0)
+            .get_with_version(GlyphId::new(168), ColorVersion::V0)
             .unwrap();
         assert!(glyph.clip_box().is_none());
     }
@@ -701,7 +701,7 @@ mod tests {
         let font = font(font_test_data::COLRV0V1_VARIABLE);
         let gid = map(&font, COLORED_CIRCLES_V0[0]);
         let glyph = font.color_glyphs().get(gid).unwrap();
-        assert_eq!(glyph.version(), ColorGlyphVersion::ColrV0);
+        assert_eq!(glyph.version(), ColorVersion::V0);
         // The same union, taken by hand from the layers' outlines.
         let colr = FontRef::new(font_test_data::COLRV0V1_VARIABLE)
             .unwrap()
@@ -846,7 +846,7 @@ mod tests {
         assert!(!glyph_ids.is_empty());
         for gid in glyph_ids {
             font.color_glyphs()
-                .get_with_version(gid, ColorGlyphVersion::ColrV1)
+                .get_with_version(gid, ColorVersion::V1)
                 .unwrap_or_else(|| panic!("no COLRv1 glyph for {gid}"))
                 .paint(&mut DummySink)
                 .unwrap_or_else(|e| panic!("failed to paint {gid}: {e}"));

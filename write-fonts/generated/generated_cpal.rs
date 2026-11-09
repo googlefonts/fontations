@@ -148,19 +148,26 @@ impl FontWrite for PaletteType {
     }
 }
 
-/// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+/// A palette color stored as four 8-bit components.
 ///
-/// Contains a color in non-premultiplied BGRA form, in the sRGB color space.
+/// The RGB components use the non-linear sRGB encoding and are not premultiplied
+/// by alpha. Alpha represents opacity on a linear scale: 0 is fully transparent
+/// and 255 is fully opaque.
+///
+/// See the [CPAL color record specification](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records).
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ColorRecord {
-    /// Blue value (B0).
+    /// Blue component in non-linear sRGB, from 0 to 255.
     pub blue: u8,
-    /// Green value (B1).
+    /// Green component in non-linear sRGB, from 0 to 255.
     pub green: u8,
-    /// Red value (B2).
+    /// Red component in non-linear sRGB, from 0 to 255.
     pub red: u8,
-    /// Alpha value (B3).
+    /// Opacity, from 0 (fully transparent) to 255 (fully opaque).
+    ///
+    /// This may be combined with additional opacity specified by the paint
+    /// using this color, such as the alpha value in a COLR paint table.
     pub alpha: u8,
 }
 

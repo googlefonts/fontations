@@ -3,7 +3,7 @@
 use super::{
     decycler::{Decycler, DecyclerError},
     instance::{resolve_clip_box, ColrInstance, MaybeBrush, ResolvedColorStop, ResolvedPaint},
-    Brush, ColorStop, Error, PaintCachedColorGlyph, PaintSink,
+    Brush, ColorStop, Error, PaintCached, PaintSink,
 };
 use crate::{
     limits::MAX_RECURSION_DEPTH,
@@ -175,10 +175,10 @@ pub(super) fn traverse_with_callbacks<'a>(
             match state.instance.v1_base_glyph(glyph) {
                 Some((base_glyph, base_glyph_paint_id)) => {
                     let mut cycle_guard = decycler.enter(base_glyph_paint_id)?;
-                    let draw_result = state.sink.paint_cached_color_glyph(glyph)?;
+                    let draw_result = state.sink.paint_cached(glyph)?;
                     match draw_result {
-                        PaintCachedColorGlyph::Ok => Ok(()),
-                        PaintCachedColorGlyph::Unimplemented => {
+                        PaintCached::Ok => Ok(()),
+                        PaintCached::Unimplemented => {
                             let clipbox = get_clipbox_font_units(&state.instance, glyph);
 
                             if let Some(rect) = clipbox {
@@ -280,7 +280,7 @@ mod tests {
         model::{
             font::ColrTables,
             glyph::color::{
-                test_glyph_defs::CLIPBOX, Brush, ColorGlyphVersion, CompositeMode, Font, PaintSink,
+                test_glyph_defs::CLIPBOX, Brush, ColorVersion, CompositeMode, Font, PaintSink,
             },
         },
         types::{GlyphId16, Matrix},
@@ -524,7 +524,7 @@ mod tests {
         let model = Font::new(test_case.to_vec(), 0).unwrap();
         let color_glyph = model
             .color_glyphs()
-            .get_with_version(GlyphId::new(8447), ColorGlyphVersion::ColrV1)
+            .get_with_version(GlyphId::new(8447), ColorVersion::V1)
             .unwrap();
         let _ = color_glyph.paint(&mut NopSink);
     }
