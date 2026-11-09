@@ -191,23 +191,13 @@ impl CompositeGlyph {
     pub fn try_from_iter(
         source: impl IntoIterator<Item = (Component, Bbox)>,
     ) -> Result<Self, NoComponents> {
-        let mut components = Vec::new();
-        let mut union_box: Option<Bbox> = None;
-
+        let mut source = source.into_iter();
+        let (component, bbox) = source.next().ok_or(NoComponents)?;
+        let mut glyph = Self::new(component, bbox);
         for (component, bbox) in source {
-            components.push(component);
-            union_box.get_or_insert(bbox).union(bbox);
+            glyph.add_component(component, bbox);
         }
-
-        if components.is_empty() {
-            Err(NoComponents)
-        } else {
-            Ok(CompositeGlyph {
-                bbox: union_box.unwrap(),
-                components,
-                instructions: Default::default(),
-            })
-        }
+        Ok(glyph)
     }
 
     pub fn components(&self) -> &[Component] {
@@ -347,6 +337,35 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn try_from_iter_unions_bboxes() {
+        let component = |gid: u32| {
+            Component::new(
+                GlyphId::new(gid),
+                Anchor::Offset { x: 0, y: 0 },
+                Transform::default(),
+                ComponentFlags::default(),
+            )
+        };
+        let bbox = |x_min, y_min, x_max, y_max| Bbox {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        };
+
+        let glyph = CompositeGlyph::try_from_iter([
+            (component(1), bbox(0, 0, 10, 10)),
+            (component(2), bbox(20, -5, 30, 5)),
+            (component(3), bbox(-10, 15, -5, 20)),
+        ])
+        .unwrap();
+
+        assert_eq!(glyph.bbox, bbox(-10, -5, 30, 20));
+        assert_eq!(glyph.components().len(), 3);
+        assert!(CompositeGlyph::try_from_iter([]).is_err());
+    }
 
     #[test]
     fn roundtrip_extended_composite_components() {

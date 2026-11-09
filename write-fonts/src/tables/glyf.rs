@@ -68,6 +68,7 @@ impl Glyph {
 
 impl Bbox {
     /// Return the smallest bounding box covering `self` and `other`
+    #[must_use]
     pub fn union(self, other: Bbox) -> Bbox {
         Bbox {
             x_min: self.x_min.min(other.x_min),
