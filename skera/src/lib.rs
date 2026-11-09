@@ -1875,7 +1875,7 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     // underestimate badly when the dropped glyphs are small, which forces a second,
     // larger subset pass.
     if table_tag == Glyf::TAG {
-        if let Some(len) = retained_glyf_len(font, plan) {
+        if let Some(len) = retained_glyf_len(font, plan, table_len) {
             return bulk + len;
         }
     }
@@ -1884,24 +1884,37 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
 }
 
 /// Sum of the source glyf lengths of all retained glyphs according to loca, each
-/// rounded up to even.
-fn retained_glyf_len(font: &FontRef, plan: &Plan) -> Option<usize> {
+/// rounded up to even, bounded by the length of glyf.
+///
+/// loca is untrusted, and the output buffer is allocated from this estimate before
+/// any glyph is read, so loca must not be able to choose the allocation size:
+/// - a glyph whose range is reversed or ends past `glyf_len` counts as empty; the
+///   glyf subsetter rejects it later with an error;
+/// - the total is capped at `glyf_len` plus one padding byte per retained glyph,
+///   so in-bounds but overlapping ranges cannot inflate it either.
+///
+/// A font with overlapping glyphs can legitimately need more room than the cap;
+/// `try_subset` then grows the buffer, as it does for any underestimate, up to
+/// its limit of 256 times the table size.
+fn retained_glyf_len(font: &FontRef, plan: &Plan, glyf_len: usize) -> Option<usize> {
     let loca = font.loca(None).ok()?;
-    Some(
-        plan.new_to_old_gid_list
-            .iter()
-            .map(|(_, old_gid)| {
-                let gid = old_gid.to_u32() as usize;
-                match (loca.get_raw(gid), loca.get_raw(gid + 1)) {
-                    (Some(start), Some(end)) => {
-                        let len = end.saturating_sub(start) as usize;
-                        len + len % 2
-                    }
-                    _ => 0,
+    let total: usize = plan
+        .new_to_old_gid_list
+        .iter()
+        .map(|(_, old_gid)| {
+            let gid = old_gid.to_u32() as usize;
+            match (loca.get_raw(gid), loca.get_raw(gid + 1)) {
+                (Some(start), Some(end)) if start <= end && end as usize <= glyf_len => {
+                    let len = (end - start) as usize;
+                    len + len % 2
                 }
-            })
-            .sum(),
-    )
+                _ => 0,
+            }
+        })
+        // each term is at most glyf_len + 1, so this cannot overflow in practice;
+        // saturate anyway rather than rely on that
+        .fold(0usize, usize::saturating_add);
+    Some(total.min(glyf_len.saturating_add(plan.new_to_old_gid_list.len())))
 }
 
 #[cfg(test)]
@@ -1943,6 +1956,68 @@ mod test {
             assert!(
                 estimate - 8192 >= glyf_len,
                 "{path} {unicodes}: estimate {estimate}, glyf {glyf_len}"
+            );
+        }
+    }
+
+    /// A tiny glyf font whose long loca is `0, odd, 0, odd, ...`: every even glyph
+    /// claims `odd` bytes of a 4-byte glyf, every odd glyph ends before it starts.
+    fn font_with_hostile_loca(num_glyphs: u16, odd: u32) -> Vec<u8> {
+        let mut head = vec![0u8; 54];
+        // indexToLocFormat: long offsets
+        head[50..52].copy_from_slice(&1i16.to_be_bytes());
+        // maxp version 0.5
+        let mut maxp = 0x0000_5000u32.to_be_bytes().to_vec();
+        maxp.extend(num_glyphs.to_be_bytes());
+        let loca: Vec<u8> = (0..=num_glyphs as u32)
+            .flat_map(|i| (if i % 2 == 1 { odd } else { 0 }).to_be_bytes())
+            .collect();
+        FontBuilder::new()
+            .add_raw(Head::TAG, head)
+            .add_raw(Maxp::TAG, maxp)
+            .add_raw(Loca::TAG, loca)
+            .add_raw(Glyf::TAG, vec![0u8; 4])
+            .build()
+    }
+
+    /// loca must not choose the size of the glyf buffer, which is allocated before
+    /// any glyph is read: a few hundred bytes of loca could otherwise request
+    /// ~120 GiB and abort the process in `Serializer::new` (ANT-2026-7O19I20P).
+    ///
+    /// The estimate is asserted before subsetting, so a regression fails this test
+    /// instead of attempting the huge allocation.
+    #[test]
+    fn glyf_size_estimate_ignores_hostile_loca() {
+        const NUM_GLYPHS: u16 = 60;
+        const GLYF_LEN: usize = 4;
+        // 0xFFFFFFFE: even glyphs reach far past the end of glyf.
+        // GLYF_LEN: even glyphs stay inside glyf but all overlap.
+        for odd in [0xFFFF_FFFE, GLYF_LEN as u32] {
+            let bytes = font_with_hostile_loca(NUM_GLYPHS, odd);
+            let font = FontRef::new(&bytes).unwrap();
+            let gids: IntSet<GlyphId> = (0..NUM_GLYPHS as u32).map(GlyphId::new).collect();
+            let plan = Plan::new(
+                &gids,
+                &IntSet::empty(),
+                &font,
+                SubsetFlags::default(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+            );
+            let estimate = estimate_subset_table_size(&font, Glyf::TAG, &plan);
+            // 8192 bytes of fixed slack, then at most glyf plus one pad byte per glyph
+            let bound = 8192 + GLYF_LEN + NUM_GLYPHS as usize;
+            assert!(
+                estimate <= bound,
+                "loca {odd:#x}: estimate {estimate} exceeds {bound}"
+            );
+            // the odd glyphs are malformed, so subsetting reports an error
+            assert!(
+                subset_font(&font, &plan).is_err(),
+                "loca {odd:#x}: malformed glyphs were accepted"
             );
         }
     }
