@@ -108,9 +108,9 @@ pub(crate) struct OpsWalk<'a> {
 }
 
 impl OpsWalk<'static> {
-    /// The walk that subsets a GSUB, GPOS or BASE table, given the data of the
-    /// whole table. It may read as much as the walks of an [`OpsBudget`], and
-    /// makes the table fail to subset by itself.
+    /// The walk that subsets a GSUB, GPOS, BASE or CBLC table, given the data
+    /// of the whole table. It may read as much as the walks of an
+    /// [`OpsBudget`], and makes the table fail to subset by itself.
     pub(crate) fn new(table_data: FontData) -> Self {
         Self {
             ops_left: max_ops(table_data.len()),
