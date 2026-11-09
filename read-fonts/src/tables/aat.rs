@@ -287,7 +287,11 @@ impl FixedSize for NoPayload {
 #[derive(Clone, Debug)]
 pub struct StateEntry<T = NoPayload> {
     /// Index of the next state.
-    pub new_state: u16,
+    ///
+    /// Signed because legacy ('kern'/'mort') state tables number the rows
+    /// before the initial state negatively (Apple's pre-initial-state
+    /// layout); extended tables only ever resolve to non-negative indices.
+    pub new_state: i32,
     /// Flag values are table specific.
     pub flags: u16,
     /// Payload is table specific.
@@ -301,7 +305,10 @@ impl<T: bytemuck::AnyBitPattern + FixedSize> ReadArgs for StateEntry<T> {
 impl<'a, T: bytemuck::AnyBitPattern + FixedSize> FontRead<'a> for StateEntry<T> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let new_state = cursor.read()?;
+        // The on-disk field is an unsigned 16-bit value (a byte offset for
+        // legacy tables, a state index for extended ones); entry() resolves
+        // it to the signed state index that consumers read.
+        let new_state = cursor.read::<u16>()? as i32;
         let flags = cursor.read()?;
         let remaining = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
         let payload = *remaining.read_ref_at(0)?;
@@ -371,27 +378,40 @@ where
 
     /// Returns the entry for the given state and class.
     #[inline(always)]
-    pub fn entry(&self, state: u16, class: u8) -> Result<StateEntry<T>, ReadError> {
+    pub fn entry(&self, state: i32, class: u8) -> Result<StateEntry<T>, ReadError> {
         let mut class = class as usize;
         if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        let entry_ix = self
-            .state_array
-            .get(state as usize * self.n_classes + class)
-            .copied()
-            .ok_or(ReadError::OutOfBounds)? as usize;
+        // `state` may be negative: legacy state arrays number the rows before
+        // state_array_offset negatively (Apple's pre-initial-state layout).
+        // The non-negative rows live in the forward state_array slice (the hot
+        // path); negative rows are read from the table base so the bytes
+        // before the slice are reachable, still bounds-checked.
+        let entry_ix = if state >= 0 {
+            self.state_array
+                .get(state as usize * self.n_classes + class)
+                .copied()
+        } else {
+            let cell = self.header.state_array_offset().to_u32() as i64
+                + state as i64 * self.n_classes as i64
+                + class as i64;
+            usize::try_from(cell)
+                .ok()
+                .and_then(|i| self.header.offset_data().as_bytes().get(i).copied())
+        }
+        .ok_or(ReadError::OutOfBounds)? as usize;
         let entry_offset = entry_ix.wrapping_mul(StateEntry::<T>::RAW_BYTE_LEN);
         let entry_data = self
             .entry_table
             .get(entry_offset..)
             .ok_or(ReadError::OutOfBounds)?;
         let mut entry = StateEntry::read(FontData::new(entry_data))?;
-        // For legacy state tables, the newState is a byte offset into
-        // the state array. Convert this to an index for consistency.
+        // For legacy state tables, the newState is a byte offset into the
+        // state array. Convert it to a (possibly negative) state index.
         let offset = self.header.state_array_offset().to_u32() as i32;
-        let diff = entry.new_state as i32 - offset;
-        let new_state = if diff >= 0 {
+        let diff = entry.new_state - offset;
+        entry.new_state = if diff >= 0 {
             // Multiply by the precomputed reciprocal instead of dividing;
             // exact for all dividends below 2^16, and this is the per-
             // transition hot path of legacy state machines.
@@ -399,7 +419,6 @@ where
         } else {
             diff / self.n_classes as i32
         };
-        entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
         Ok(entry)
     }
 
@@ -558,14 +577,15 @@ where
 
     /// Returns the entry for the given state and class.
     #[inline]
-    pub fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
+    pub fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError> {
         let mut class = class as usize;
         if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        let state_ix = (state as usize)
-            .wrapping_mul(self.n_classes)
-            .wrapping_add(class);
+        // Extended tables never resolve to a negative state; a negative here
+        // is out of range rather than a pre-initial row.
+        let state = usize::try_from(state).map_err(|_| ReadError::OutOfBounds)?;
+        let state_ix = state.wrapping_mul(self.n_classes).wrapping_add(class);
         let entry_ix = self
             .state_array
             .get(state_ix)
@@ -972,5 +992,54 @@ mod tests {
                 entry.flags
             );
         }
+    }
+
+    // A legacy ('kern'/'mort') entry whose newState byte offset points before
+    // the state array resolves to a negative state index (Apple's
+    // pre-initial-state rows) and must be returned, not rejected.
+    #[test]
+    fn legacy_negative_new_state() {
+        #[rustfmt::skip]
+        let header = [
+            7_u16, // number of classes
+            10, // byte offset to class table
+            18, // byte offset to state array
+            40, // byte offset to entry array
+            64, // byte offset to value array (unused here)
+        ];
+        #[rustfmt::skip]
+        let class_table = [
+            3_u16, // first glyph
+            4, // number of glyphs
+        ];
+        let classes = [1u8, 2, 3, 4];
+        #[rustfmt::skip]
+        let state_array: [u8; 22] = [
+            2, 0, 0, 2, 1, 0, 0,
+            2, 0, 0, 2, 1, 0, 0,
+            2, 3, 3, 2, 3, 4, 5,
+            5, // state 3, class 0 -> entry index 5 (the negative entry below)
+        ];
+        #[rustfmt::skip]
+        let entry_table: [u16; 12] = [
+            18, 0x8112,
+            32, 0x8112,
+            18, 0x0000,
+            32, 0x8114,
+            18, 0x8116,
+            11, 0x0000, // newStateOffset 11 < stateArrayOffset 18: (11-18)/7 = -1
+        ];
+        let buf = BeBuffer::new()
+            .extend(header)
+            .extend(class_table)
+            .extend(classes)
+            .extend(state_array)
+            .extend(entry_table);
+        let table = StateTable::<NoPayload>::read(buf.data().into()).unwrap();
+        let entry = table.entry(3, 0).unwrap();
+        assert_eq!(
+            entry.new_state, -1,
+            "a newState offset before the state array must resolve to a negative state"
+        );
     }
 }
