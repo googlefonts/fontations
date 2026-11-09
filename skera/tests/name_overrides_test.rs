@@ -171,8 +171,8 @@ fn large_override_fits_tiny_name_table() {
     for record in font.table_directory().table_records() {
         builder.add_raw(record.tag(), font.data_for_tag(record.tag()).unwrap());
     }
-    // An empty format 0 name table is only six bytes, so the normal serializer
-    // retry limit of table_len * 256 cannot accommodate a large override.
+    // An empty format 0 name table is only six bytes, so the override is far
+    // larger than the source table and the font file.
     builder.add_raw(Name::TAG, &[0, 0, 0, 0, 0, 6]);
     let bytes = builder.build();
     let font = FontRef::new(&bytes).unwrap();
