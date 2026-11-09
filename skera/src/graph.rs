@@ -18,6 +18,11 @@ pub(crate) mod pairpos_graph;
 
 const MAX_SPACES: usize = 8000;
 const MAX_VERTICES: usize = 800000;
+// Total number of vertices sort_shortest_distance() may visit over the lifetime of a graph.
+// Overflow resolution re-sorts the whole graph after every step and a step can grow the graph
+// by a copy of a shared subgraph, so the limits on iterations and vertices alone still allow
+// about a thousand sorts of a graph near MAX_VERTICES.
+const MAX_SORTED_VERTICES: usize = 32 * MAX_VERTICES;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
@@ -589,6 +594,9 @@ pub(crate) struct Graph {
     /// The LookupList2 of a version 1.2 GSUB or GPOS table, whose lookups
     /// rather than the whole list become packing spaces.
     wide_lookup_list: Option<ObjIdx>,
+    /// Vertices visited by sort_shortest_distance() so far, checked against
+    /// MAX_SORTED_VERTICES.
+    sorted_vertices: usize,
 
     // graph state flags
     parents_invalid: bool,
@@ -676,6 +684,11 @@ impl Graph {
         if self.vertices.len() < 2 {
             // no need to do sorting when num of nodes < 2
             return Ok(());
+        }
+
+        self.sorted_vertices = self.sorted_vertices.saturating_add(self.vertices.len());
+        if self.sorted_vertices > MAX_SORTED_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
         }
 
         self.positions_invalid = true;
@@ -2746,5 +2759,32 @@ pub(crate) mod test {
             graph.sort_shortest_distance().unwrap();
             graph.is_fully_connected().unwrap();
         }
+    }
+
+    #[test]
+    fn sorting_work_is_limited_over_the_life_of_a_graph() {
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        let a = add_object(&mut s, b"aa", 2, false);
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_offset(&mut s, a);
+        add_offset(&mut s, b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(s).unwrap();
+        let count = graph.vertices.len();
+        graph.sort_shortest_distance().unwrap();
+        assert_eq!(graph.sorted_vertices, count);
+
+        // Every sort is charged in full, and the budget runs out exactly at the limit.
+        graph.sorted_vertices = MAX_SORTED_VERTICES - 2 * count;
+        graph.sort_shortest_distance().unwrap();
+        graph.sort_shortest_distance_if_needed().unwrap();
+        assert_eq!(graph.sorted_vertices, MAX_SORTED_VERTICES);
+        assert!(matches!(
+            graph.sort_shortest_distance(),
+            Err(RepackError::ErrorMaxOperationsExceeded)
+        ));
     }
 }
