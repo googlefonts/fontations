@@ -50,6 +50,10 @@ fn subset_gdef(
     s: &mut Serializer,
     state: &mut SubsetState,
 ) -> Result<(), SerializeErrorFlags> {
+    // HarfBuzz fails to subset a table that its sanitizer rejects.
+    if plan.layout_ops_exceeded.contains(Gdef::TAG) {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+    }
     let version = gdef.version();
     if version >= read_fonts::types::MajorMinor::new(1, 4) {
         return extended::subset_extended_gdef(gdef, plan, s, state);

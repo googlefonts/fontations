@@ -76,6 +76,30 @@ pub const MAX_FEATURE_INDICES: u16 = 8000;
 #[cfg(feature = "std")]
 pub const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 
+/// Maximum number of subtables in the lookups visited by one layout closure
+/// operation, counting a subtable once for every offset that leads to it.
+///
+/// Matches HarfBuzz's `HB_SANITIZE_MAX_SUBTABLES` in [`hb-sanitize.hh`], which
+/// the subtables of all the lookups of a table have to stay below.
+///
+/// [`hb-sanitize.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-sanitize.hh
+#[cfg(feature = "std")]
+pub const MAX_LOOKUP_SUBTABLES: usize = 0x4000;
+
+/// Number of records (glyphs, offsets, ranges, rules) that one GSUB glyph
+/// closure may walk.
+///
+/// [`MAX_LOOKUP_VISIT_COUNT`] bounds how many times lookups are entered in one
+/// round of the closure, not what one visit walks: through shared offsets a
+/// subtable can walk many times the size of its table, and every glyph the
+/// closure gains makes all lookups visitable again.
+///
+/// Matches HarfBuzz's `HB_BUDGET_LAYOUT_CLOSURE` in [`hb-limits.hh`].
+///
+/// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
+#[cfg(feature = "std")]
+pub const MAX_LAYOUT_CLOSURE_OPS: i64 = 1 << 28;
+
 /// Number of bytes one walk of a layout table's offset graph may read for
 /// each byte of the table.
 ///

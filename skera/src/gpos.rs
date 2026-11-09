@@ -14,7 +14,7 @@ use crate::FastHashMap;
 use crate::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
     collect_variable_feature_indices, find_duplicate_features,
-    layout::OpsBudget,
+    layout::{CountOps, OpsBudget, OpsWalk},
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -145,12 +145,12 @@ impl LayoutClosure for Gpos<'_> {
                 return;
             }
         };
-        if self
-            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
-            .is_err()
-        {
+        if let Err(err) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) {
+            if err == MAX_OPS_EXCEEDED {
+                plan.layout_ops_exceeded.insert(Gpos::TAG);
+            }
             return;
-        };
+        }
 
         let mut budget = OpsBudget::new(self.offset_data());
         let feature_indices = self.prune_features(&lookup_indices, feature_indices, &mut budget);
@@ -194,6 +194,7 @@ fn subset_gpos(
     if plan.layout_ops_exceeded.contains(Gpos::TAG) {
         return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
     }
+    s.set_layout_walk(OpsWalk::new(gpos.offset_data()));
     if gpos.version() >= MajorMinor::new(1, 2) {
         return subset_extended_layout(gpos, plan, font, state, s);
     }
@@ -366,78 +367,89 @@ where
     }
 }
 
-impl CollectVariationIndices for Gpos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        let Ok(lookups) = self.lookup_list() else {
+/// Collects the variation indices of the lookups that are retained.
+///
+/// Like the walk that subsets them, this counts the subtables it visits, and
+/// what a subtable reaches before it reads that, against `walk`.
+pub(crate) fn collect_lookup_variation_indices(
+    gpos: &Gpos,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+    walk: &mut OpsWalk,
+) {
+    let Ok(lookups) = gpos.lookup_list() else {
+        return;
+    };
+
+    let lookups = lookups.lookups();
+    for i in plan.gpos_lookups.keys() {
+        let Ok(lookup) = lookups.get(*i as usize) else {
             return;
         };
 
-        let lookups = lookups.lookups();
-        for i in plan.gpos_lookups.keys() {
-            let Ok(lookup) = lookups.get(*i as usize) else {
-                return;
-            };
-
-            match lookup.subtables() {
-                Ok(subs) => subs.collect_variation_indices(plan, varidx_set),
-                Err(ReadError::NullOffset) => continue,
-                Err(_) => return,
+        //TODO: support all lookup types
+        let within_budget = match lookup.subtables() {
+            Ok(PositionSubtables::Single(subs)) => {
+                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
             }
+            Ok(PositionSubtables::Pair(subs)) => {
+                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+            }
+            Ok(PositionSubtables::Cursive(subs)) => {
+                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+            }
+            Ok(PositionSubtables::MarkToBase(subs)) => {
+                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+            }
+            Ok(PositionSubtables::MarkToLig(subs)) => {
+                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+            }
+            Ok(PositionSubtables::MarkToMark(subs)) => {
+                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+            }
+            Ok(_) | Err(ReadError::NullOffset) => continue,
+            Err(_) => return,
+        };
+        if !within_budget {
+            return;
         }
     }
 }
 
-//TODO: support all lookup types
-impl CollectVariationIndices for PositionSubtables<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        match self {
-            PositionSubtables::Single(subtables) => {
-                subtables.collect_variation_indices(plan, varidx_set)
-            }
-            PositionSubtables::Pair(subtables) => {
-                subtables.collect_variation_indices(plan, varidx_set)
-            }
-            PositionSubtables::Cursive(subtables) => {
-                subtables.collect_variation_indices(plan, varidx_set)
-            }
-            PositionSubtables::MarkToBase(subtables) => {
-                subtables.collect_variation_indices(plan, varidx_set)
-            }
-            PositionSubtables::MarkToLig(subtables) => {
-                subtables.collect_variation_indices(plan, varidx_set)
-            }
-            PositionSubtables::MarkToMark(subtables) => {
-                subtables.collect_variation_indices(plan, varidx_set)
-            }
-            _ => (),
-        }
-    }
-}
-
-impl<'a, T, Ext> CollectVariationIndices for Subtables<'a, T, Ext>
+/// Collects the variation indices of the subtables of a lookup that intersect
+/// the glyphs of the subset. False once `walk` is out of budget.
+fn collect_subtable_variation_indices<'a, T, Ext>(
+    subtables: &Subtables<'a, T, Ext>,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+    walk: &mut OpsWalk,
+) -> bool
 where
-    T: CollectVariationIndices + Intersect + FontRead<'a, Args = ()> + 'a,
+    T: CollectVariationIndices + CountOps + Intersect + FontRead<'a, Args = ()> + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        for t in self.iter().filter_map(|table| match table {
-            Err(ReadError::NullOffset) => None,
-            other => Some(other),
-        }) {
-            let Ok(t) = t else {
-                return;
-            };
-
-            let Ok(intersect) = t.intersects(&plan.glyphset_gsub) else {
-                return;
-            };
-
-            if !intersect {
-                continue;
-            }
-            t.collect_variation_indices(plan, varidx_set);
-        }
+    if !walk.visit_subtables(subtables.len()) {
+        return false;
     }
+    for t in subtables.iter().filter_map(|table| match table {
+        Err(ReadError::NullOffset) => None,
+        other => Some(other),
+    }) {
+        let Ok(t) = t else {
+            return true;
+        };
+
+        match walk.intersects(&t, &plan.glyphset_gsub) {
+            Ok(true) => (),
+            Ok(false) => continue,
+            Err(err) => return err != MAX_OPS_EXCEEDED,
+        }
+        if !t.count_ops(walk, &plan.glyphset_gsub) {
+            return false;
+        }
+        t.collect_variation_indices(plan, varidx_set);
+    }
+    true
 }
 
 #[cfg(test)]
@@ -523,5 +535,65 @@ mod test {
         assert_eq!(feature_index_map.get(&2), Some(&2));
         assert_eq!(feature_index_map.get(&3), Some(&3));
         assert_eq!(feature_index_map.get(&4), Some(&4));
+    }
+
+    // Any number of offsets can lead to one PairSet. Like HarfBuzz's sanitizer, the walk that
+    // subsets the lookups reads at most 64 times the table's size.
+    #[test]
+    fn test_gpos_lookups_over_ops_budget_fail_to_subset() {
+        use crate::subset_font;
+        use font_test_data::bebuffer::BeBuffer;
+        use read_fonts::types::GlyphId;
+
+        // The `count` PairSet offsets of a PairPos lead to one PairSet of 50 pairs, in a
+        // font with 1294 glyphs. The subset keeps the `count` glyphs with a PairSet.
+        let subsets = |count: u16| {
+            let mut buf = BeBuffer::new()
+                .extend([1u16, 0, 10, 30, 44])
+                .push(1u16)
+                .push(Tag::new(b"DFLT"))
+                .extend([8u16, 4, 0])
+                .extend([0u16, 0xFFFF, 1, 0])
+                .push(1u16)
+                .push(Tag::new(b"kern"))
+                .extend([8u16, 0, 1, 0])
+                .extend([1u16, 4])
+                .extend([2u16, 0, 1, 8])
+                .extend([1u16, 10 + 2 * count, 4, 0, count])
+                .extend(std::iter::repeat_n(20 + 2 * count, usize::from(count)))
+                .extend([2u16, 1, 1, count, 0])
+                .push(50u16);
+            for glyph in 1..=50u16 {
+                buf = buf.extend([glyph, 10]);
+            }
+
+            let roboto = include_bytes!("../test-data/fonts/Roboto-Regular.ttf");
+            let mut builder = FontBuilder::new();
+            builder.add_raw(Gpos::TAG, buf.to_vec());
+            builder.copy_missing_tables(FontRef::new(roboto).unwrap());
+            let data = builder.build();
+            let font = FontRef::new(&data).unwrap();
+            let plan = Plan::new(
+                &(1..=u32::from(count)).map(GlyphId::new).collect(),
+                &IntSet::empty(),
+                &font,
+                crate::SubsetFlags::default(),
+                &IntSet::empty(),
+                &IntSet::all(),
+                &IntSet::all(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+            );
+            subset_font(&font, &plan)
+        };
+
+        // 200 reads of the 202 byte PairSet are within 64 times the 678 bytes of the table
+        assert!(subsets(200).is_ok());
+
+        // but 400 reads are not within 64 times 1078 bytes
+        assert!(matches!(
+            subsets(400),
+            Err(SubsetError::SubsetTableError(tag)) if tag == Gpos::TAG
+        ));
     }
 }

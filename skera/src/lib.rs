@@ -1052,6 +1052,13 @@ impl Plan {
         let Ok(gdef) = font.gdef() else {
             return;
         };
+        // HarfBuzz doesn't subset a table that its sanitizer rejects for what its
+        // offsets share.
+        let mut budget = layout::OpsBudget::new(gdef.offset_data());
+        if !layout::count_gdef_ops(&gdef, &mut budget) {
+            budget.record(Gdef::TAG, self);
+            return;
+        }
 
         let mut used_mark_sets = IntSet::empty();
         gdef.collect_used_mark_sets(self, &mut used_mark_sets);
@@ -1064,7 +1071,14 @@ impl Plan {
         gdef.collect_variation_indices(self, &mut varidx_set);
 
         if let Ok(gpos) = font.gpos() {
-            gpos.collect_variation_indices(self, &mut varidx_set);
+            let mut budget = layout::OpsBudget::new(gpos.offset_data());
+            gpos::collect_lookup_variation_indices(
+                &gpos,
+                self,
+                &mut varidx_set,
+                &mut budget.walk(),
+            );
+            budget.record(Gpos::TAG, self);
             if let Some(Ok(variations)) = gpos.feature_variations() {
                 let mut budget = layout::OpsBudget::new(gpos.offset_data());
                 layout::collect_feature_variation_condition_indices(

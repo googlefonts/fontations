@@ -3,8 +3,10 @@
 mod classdef;
 mod condition;
 pub(crate) use condition::collect_feature_variation_condition_indices;
+mod count_ops;
 mod extended;
 pub(crate) mod header;
+pub(crate) use count_ops::{count_gdef_ops, CountOps};
 #[cfg(test)]
 mod lookup_list_tests;
 mod lookup_variations;
@@ -46,8 +48,8 @@ use read_fonts::{
 };
 
 use read_fonts::limits::{
-    max_ops, MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LANGSYS_FEATURE_COUNT, MAX_LOOKUP_VISIT_COUNT,
-    MAX_SCRIPTS,
+    max_ops, MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LANGSYS_FEATURE_COUNT, MAX_LOOKUP_SUBTABLES,
+    MAX_LOOKUP_VISIT_COUNT, MAX_OPS_EXCEEDED, MAX_SCRIPTS,
 };
 
 /// Limits the bytes each walk may read from the tables below a GSUB or GPOS
@@ -79,7 +81,8 @@ impl OpsBudget {
     pub(crate) fn walk(&mut self) -> OpsWalk<'_> {
         OpsWalk {
             ops_left: self.max_ops,
-            exceeded: &mut self.exceeded,
+            subtables_left: MAX_LOOKUP_SUBTABLES - 1,
+            exceeded: Some(&mut self.exceeded),
         }
     }
 
@@ -96,7 +99,32 @@ impl OpsBudget {
 /// What one walk may still read of its [`OpsBudget`].
 pub(crate) struct OpsWalk<'a> {
     ops_left: usize,
-    exceeded: &'a mut bool,
+    subtables_left: usize,
+    exceeded: Option<&'a mut bool>,
+}
+
+impl OpsWalk<'static> {
+    /// The walk that subsets a GSUB or GPOS table, given the data of the whole
+    /// table. It may read as much as the walks of an [`OpsBudget`], and makes
+    /// the table fail to subset by itself.
+    pub(crate) fn new(table_data: FontData) -> Self {
+        Self {
+            ops_left: max_ops(table_data.len()),
+            subtables_left: MAX_LOOKUP_SUBTABLES - 1,
+            exceeded: None,
+        }
+    }
+}
+
+/// A walk that may read anything, for tables that aren't counted.
+impl Default for OpsWalk<'_> {
+    fn default() -> Self {
+        Self {
+            ops_left: usize::MAX,
+            subtables_left: usize::MAX,
+            exceeded: None,
+        }
+    }
 }
 
 impl OpsWalk<'_> {
@@ -104,13 +132,40 @@ impl OpsWalk<'_> {
     pub(crate) fn charge(&mut self, len: usize) -> bool {
         let within_budget = len <= self.ops_left;
         self.ops_left = self.ops_left.saturating_sub(len);
-        *self.exceeded |= !within_budget;
-        within_budget
+        self.record(within_budget)
     }
 
     /// Counts a table that is about to be read; false once the budget is spent.
     pub(crate) fn visit<'a>(&mut self, table: &impl MinByteRange<'a>) -> bool {
         self.charge(table.min_table_bytes().len())
+    }
+
+    /// Counts the subtables of a lookup that is about to be read; false once
+    /// the lookups have as many subtables as HarfBuzz's sanitizer rejects.
+    /// ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/hb-ot-layout-common.hh#L1425-L1426>
+    pub(crate) fn visit_subtables(&mut self, count: usize) -> bool {
+        let within_limit = count <= self.subtables_left;
+        self.subtables_left = self.subtables_left.saturating_sub(count);
+        self.record(within_limit)
+    }
+
+    /// Whether `table` intersects `glyphs`, counting what that reads. Running
+    /// out of budget is an error, as any other reason for not knowing.
+    pub(crate) fn intersects(
+        &mut self,
+        table: &impl Intersect,
+        glyphs: &IntSet<GlyphId>,
+    ) -> Result<bool, ReadError> {
+        let intersects = table.intersects(glyphs, &mut self.ops_left);
+        self.record(intersects != Err(MAX_OPS_EXCEEDED));
+        intersects
+    }
+
+    fn record(&mut self, within_budget: bool) -> bool {
+        if let Some(exceeded) = self.exceeded.as_deref_mut() {
+            *exceeded |= !within_budget;
+        }
+        within_budget
     }
 }
 
@@ -255,7 +310,11 @@ impl SubsetTable<'_> for Device<'_> {
         s: &mut Serializer,
         _args: (),
     ) -> Result<(), SerializeErrorFlags> {
-        s.embed_bytes(self.min_table_bytes()).map(|_| ())
+        // Device tables are not counted along with the offsets that lead to them, so
+        // any number of offsets can share one that is many times their size.
+        let bytes = self.min_table_bytes();
+        s.check_ops(bytes.len())?;
+        s.embed_bytes(bytes).map(|_| ())
     }
 }
 
@@ -343,6 +402,10 @@ impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         let glyph_count = (self.glyph_count() as usize).min(plan.font_num_glyphs);
+        // The glyphs are walked once for every offset that leads to this table,
+        // and a range of them takes a few bytes.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/OT/Layout/Common/Coverage.hh#L208-L210>
+        s.check_ops(glyph_count)?;
         let Some(glyph_array) = self.glyph_array().get(0..glyph_count) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
         };
@@ -384,6 +447,11 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        let population = self.population();
+        // The glyphs are walked once for every offset that leads to this table,
+        // and a range of them takes a few bytes.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/OT/Layout/Common/Coverage.hh#L208-L210>
+        s.check_ops(population.min(plan.font_num_glyphs))?;
         let range_count = self.range_count();
         if range_count as usize > plan.font_num_glyphs {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -392,7 +460,7 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
         // if/else branches return the same result, it's just an optimization that
         // we pick the faster approach depending on the number of glyphs
         let retained_glyphs: Vec<GlyphId> =
-            if self.population() > (plan.glyphset_gsub.len() as usize) * num_bits {
+            if population > (plan.glyphset_gsub.len() as usize) * num_bits {
                 let range_records = self.range_records();
                 plan.glyphset_gsub
                     .iter()
@@ -1814,6 +1882,7 @@ where
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>),
         > + Intersect
+        + CountOps
         + FontRead<'a, Args = ()>
         + 'a,
 {
@@ -1825,6 +1894,14 @@ where
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        // Any number of offsets can lead to one subtable, and to each of the tables
+        // below it, so the subtables are counted as they are visited, and what will
+        // be read of a subtable is counted before it is subset. HarfBuzz's sanitizer
+        // counts both for all the lookups of the table before it subsets any.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/hb-ot-layout-common.hh#L1418-L1452>
+        if !s.layout_walk().visit_subtables(self.len()) {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
         let mut count = 0_u16;
         for sub in self.iter().filter_map(|table| match table {
             Err(ReadError::NullOffset) => None,
@@ -1832,11 +1909,15 @@ where
         }) {
             let sub =
                 sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-            if !sub
-                .intersects(&plan.glyphset_gsub)
+            if !s
+                .layout_walk()
+                .intersects(&sub, &plan.glyphset_gsub)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
                 continue;
+            }
+            if !sub.count_ops(s.layout_walk(), &plan.glyphset_gsub) {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             }
             let snap = s.snapshot();
             let offset_pos = s.embed(0_u16)?;
@@ -2291,6 +2372,7 @@ mod test {
         ))
         .unwrap();
         let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let max_ops = max_ops(gpos_lookup_list.offset_data().len());
         let mut lookup_indices = IntSet::empty();
         lookup_indices.insert(1_u16);
 
@@ -2298,7 +2380,7 @@ mod test {
         // glyphs set doesn't intersect with any subtable in lookup index=1, lookup_indices set will be emptied
         glyphs.insert(GlyphId::from(3_u32));
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert!(lookup_indices.is_empty());
 
@@ -2311,7 +2393,7 @@ mod test {
 
         // no new lookup indices are added, lookup_indices set remains the same
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert_eq!(lookup_indices.len(), 1);
         assert!(lookup_indices.contains(1_u16));
@@ -2324,6 +2406,7 @@ mod test {
         ))
         .unwrap();
         let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let max_ops = max_ops(gpos_lookup_list.offset_data().len());
         let mut lookup_indices = IntSet::empty();
         lookup_indices.insert(4_u16);
 
@@ -2331,7 +2414,7 @@ mod test {
         // glyphs set doesn't intersect with any subtable in lookup index=4, lookup_indices set will be emptied
         glyphs.insert(GlyphId::from(3_u32));
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert!(lookup_indices.is_empty());
 
@@ -2350,7 +2433,7 @@ mod test {
         glyphs.insert(GlyphId::from(51_u32));
 
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert_eq!(lookup_indices.len(), 2);
         assert!(lookup_indices.contains(4_u16));
@@ -2364,6 +2447,7 @@ mod test {
         ))
         .unwrap();
         let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let max_ops = max_ops(gpos_lookup_list.offset_data().len());
         let mut lookup_indices = IntSet::empty();
         lookup_indices.insert(4_u16);
 
@@ -2371,7 +2455,7 @@ mod test {
         // glyphs set doesn't intersect with any subtable in lookup index=4, lookup_indices set will be emptied
         glyphs.insert(GlyphId::from(47_u32));
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert!(lookup_indices.is_empty());
 
@@ -2390,7 +2474,7 @@ mod test {
         glyphs.insert(GlyphId::from(52_u32));
 
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert_eq!(lookup_indices.len(), 2);
         assert!(lookup_indices.contains(4_u16));
@@ -2401,6 +2485,7 @@ mod test {
     fn test_context_format3_closure_lookups() {
         let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookup_list = font.gpos().unwrap().lookup_list().unwrap();
+        let max_ops = max_ops(gpos_lookup_list.offset_data().len());
         let mut lookup_indices = IntSet::empty();
         lookup_indices.insert(2_u16);
 
@@ -2408,7 +2493,7 @@ mod test {
         // glyphs set doesn't intersect with any subtable in lookup index=2, lookup_indices set will be emptied
         glyphs.insert(GlyphId::from(3_u32));
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert!(lookup_indices.is_empty());
 
@@ -2429,7 +2514,7 @@ mod test {
         glyphs.insert(GlyphId::from(435_u32));
 
         assert!(gpos_lookup_list
-            .closure_lookups(&glyphs, &mut lookup_indices)
+            .closure_lookups(&glyphs, &mut lookup_indices, max_ops)
             .is_ok());
         assert_eq!(lookup_indices.len(), 3);
         assert!(lookup_indices.contains(3_u16));
@@ -2493,6 +2578,50 @@ mod test {
         let expected_data: [u8; 26] = [
             0x00, 0x02, 0x63, 0x75, 0x72, 0x73, 0x00, 0x14, 0x6b, 0x65, 0x72, 0x6e, 0x00, 0x0e,
             0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+        ];
+
+        assert_eq!(subsetted_data, expected_data);
+    }
+
+    #[test]
+    fn test_subset_lookup_list_with_shared_offsets() {
+        use read_fonts::tables::gsub::SubstitutionLookup;
+        let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
+        // The first two lookup offsets name one lookup. Its first and last subtable
+        // offsets name a subtable for glyph 1, the other two a subtable for glyph 5.
+        // The third lookup has the subtable for glyph 1 only.
+        let data: [u8; 54] = [
+            0x00, 0x03, 0x00, 0x08, 0x00, 0x08, 0x00, 0x16, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04,
+            0x00, 0x16, 0x00, 0x22, 0x00, 0x22, 0x00, 0x16, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x00, 0x08, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+            0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x05,
+        ];
+        let lookup_list = LookupList::<SubstitutionLookup>::read(FontData::new(&data)).unwrap();
+
+        let mut plan = Plan {
+            glyph_map_gsub: (0..3_u32).map(GlyphId::new).collect(),
+            ..Default::default()
+        };
+        plan.glyphset_gsub.extend((0..3_u32).map(GlyphId::new));
+        plan.gsub_lookups.extend((0..3).map(|i| (i, i)));
+
+        let mut s = Serializer::new(1024).unwrap();
+        assert_eq!(s.start_serialize(), Ok(()));
+
+        let subset_state = SubsetState::default();
+        lookup_list
+            .subset(&plan, &mut s, (&subset_state, &font, &plan.gsub_lookups))
+            .unwrap();
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let subsetted_data = s.copy_bytes();
+        // Glyph 5 is not retained, so the three lookups keep 2, 2 and 1 subtables,
+        // all of which are the same object.
+        let expected_data: [u8; 38] = [
+            0x00, 0x03, 0x00, 0x10, 0x00, 0x10, 0x00, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x00, 0x12, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x01,
+            0x00, 0x06, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
         ];
 
         assert_eq!(subsetted_data, expected_data);
@@ -2665,5 +2794,28 @@ mod test {
         );
         assert!((0..count).all(|i| map[&i] == i));
         assert_eq!(map[&count], count - 1);
+    }
+
+    #[test]
+    fn test_subset_coverage_ops_budget() {
+        // One range of all the 65535 glyphs of the font, which the 2^28 units of a table's
+        // budget pay for 4096 times.
+        let data = BeBuffer::new().extend([2u16, 1, 0, 0xFFFE, 0]);
+        let coverage = CoverageTable::read(FontData::new(&data)).unwrap();
+        let plan = Plan {
+            font_num_glyphs: 0xFFFF,
+            ..Default::default()
+        };
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        for _ in 0..4096 {
+            assert_eq!(
+                coverage.subset(&plan, &mut s, ()),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+            );
+        }
+        assert!(!s.in_error());
+        assert!(coverage.subset(&plan, &mut s, ()).is_err());
+        assert!(s.in_error());
     }
 }

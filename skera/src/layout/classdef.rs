@@ -21,8 +21,9 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         }
         let glyph_set = &plan.glyphset_gsub;
+        let population = self.population();
         let mut retained_classes = IntSet::empty();
-        let mut pairs = Vec::with_capacity((glyph_set.len() as usize).min(self.population()));
+        let mut pairs = Vec::with_capacity((glyph_set.len() as usize).min(population));
         let mut retain = |gid, class| {
             if class == 0
                 || args
@@ -36,7 +37,14 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
                 pairs.push((mapped.to_u32(), class));
             }
         };
-        if self.population() as u64 > glyph_set.len() * self.cost() as u64 {
+        // Either walk is repeated for every offset that leads to this table, and a
+        // range of glyphs takes a few bytes.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/hb-ot-layout-common.hh#L1880-L1884>
+        let glyph_set_cost = glyph_set.len().saturating_mul(self.cost().into());
+        if matches!(self, Self::Format2(_) | Self::Format4(_)) {
+            s.check_ops((population as u64).min(glyph_set_cost) as usize)?;
+        }
+        if population as u64 > glyph_set_cost {
             for gid in glyph_set.iter() {
                 retain(gid, self.get(gid));
             }
@@ -54,6 +62,7 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
             return ClassDef::serialize(s, &pairs).map(|()| None);
         }
         let glyph_count = if let Some(filter) = args.glyph_filter {
+            s.check_ops(glyph_set.len() as usize)?;
             glyph_set
                 .iter()
                 .filter(|&gid| filter.get(gid).is_some())

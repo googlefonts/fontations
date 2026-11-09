@@ -12,7 +12,11 @@ mod tests;
 macro_rules! intersect_coverage {
     ($table:ident) => {
         impl Intersect for $table<'_> {
-            fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+            fn intersects(
+                &self,
+                glyphs: &IntSet<GlyphId>,
+                _ops_left: &mut usize,
+            ) -> Result<bool, ReadError> {
                 if self.coverage_offset().is_null() {
                     return Ok(false);
                 }
@@ -28,7 +32,11 @@ intersect_coverage!(CursivePosFormat2);
 macro_rules! intersect_mark_coverages {
     ($table:ident, $first_offset:ident, $second_offset:ident, $first:ident, $second:ident) => {
         impl Intersect for $table<'_> {
-            fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+            fn intersects(
+                &self,
+                glyphs: &IntSet<GlyphId>,
+                _ops_left: &mut usize,
+            ) -> Result<bool, ReadError> {
                 if self.$first_offset().is_null() || self.$second_offset().is_null() {
                     return Ok(false);
                 }
@@ -60,7 +68,11 @@ intersect_mark_coverages!(
 );
 
 impl Intersect for PairPosFormat3<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -69,12 +81,18 @@ impl Intersect for PairPosFormat3<'_> {
             self.pair_sets(),
             self.pair_set_count().to_u32(),
             glyphs,
+            ops_left,
         )
     }
 }
 
 impl Intersect for PairSet2<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
+        charge_records(ops_left, 1 + self.pair_value_records().len())?;
         for record in self.pair_value_records().iter() {
             if glyphs.contains(GlyphId::from(record?.second_glyph())) {
                 return Ok(true);
@@ -85,13 +103,18 @@ impl Intersect for PairSet2<'_> {
 }
 
 impl Intersect for PairPosFormat4<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null()
             || self.class_def1_offset().is_null()
             || self.class_def2_offset().is_null()
         {
             return Ok(false);
         }
-        Ok(self.coverage()?.intersects(glyphs) && self.class_def2()?.intersects(glyphs)?)
+        Ok(self.coverage()?.intersects(glyphs)
+            && self.class_def2()?.intersects(glyphs, ops_left)?)
     }
 }

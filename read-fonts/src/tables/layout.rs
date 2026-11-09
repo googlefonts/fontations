@@ -24,8 +24,8 @@ use crate::TableProvider;
 
 #[cfg(feature = "std")]
 pub(crate) use closure::{
-    ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList, LookupClosure,
-    LookupClosureCtx, SeqCache,
+    charge_records, ContextFormat1, ContextFormat2, ContextFormat3, LayoutLookupList,
+    LookupClosure, LookupClosureCtx, SeqCache,
 };
 
 #[cfg(feature = "std")]
@@ -390,6 +390,17 @@ impl<'a> CoverageTable<'a> {
             Self::Format4(t) => t.range_records().iter().fold(0, |acc: usize, record| {
                 acc.saturating_add(record.population())
             }),
+        }
+    }
+
+    /// Return the number of glyph or range records in this table, which is
+    /// what walking it costs.
+    pub fn record_count(&self) -> usize {
+        match self {
+            Self::Format1(t) => t.glyph_array().len(),
+            Self::Format2(t) => t.range_records().len(),
+            Self::Format3(t) => t.glyph_array().len(),
+            Self::Format4(t) => t.range_records().len(),
         }
     }
 
@@ -1150,6 +1161,17 @@ impl ClassDef<'_> {
                 .fold(0, |acc: usize, record| {
                     acc.saturating_add(record.population())
                 }),
+        }
+    }
+
+    /// Return the number of class or range records in this table, which is
+    /// what walking it costs.
+    pub fn record_count(&self) -> usize {
+        match self {
+            Self::Format1(t) => t.class_value_array().len(),
+            Self::Format2(t) => t.class_range_records().len(),
+            Self::Format3(t) => t.class_value_array().len(),
+            Self::Format4(t) => t.class_range_records().len(),
         }
     }
 

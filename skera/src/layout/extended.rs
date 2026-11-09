@@ -7,20 +7,23 @@ pub(super) fn subset_coverage(
     plan: &Plan,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    let population = coverage.population();
+    // The glyphs are walked once for every offset that leads to this table,
+    // and a range of them takes a few bytes.
+    s.check_ops(population.min(plan.font_num_glyphs))?;
     let glyph_set = &plan.glyphset_gsub;
-    let retained_glyphs: Vec<_> =
-        if coverage.population() as u64 > glyph_set.len() * coverage.cost() as u64 {
-            glyph_set
-                .iter()
-                .filter(|&gid| coverage.get(gid).is_some())
-                .filter_map(|gid| map_gsub_glyph(&plan.glyph_map_gsub, gid))
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .filter_map(|gid| map_gsub_glyph(&plan.glyph_map_gsub, gid))
-                .collect()
-        };
+    let retained_glyphs: Vec<_> = if population as u64 > glyph_set.len() * coverage.cost() as u64 {
+        glyph_set
+            .iter()
+            .filter(|&gid| coverage.get(gid).is_some())
+            .filter_map(|gid| map_gsub_glyph(&plan.glyph_map_gsub, gid))
+            .collect()
+    } else {
+        coverage
+            .iter()
+            .filter_map(|gid| map_gsub_glyph(&plan.glyph_map_gsub, gid))
+            .collect()
+    };
     if retained_glyphs.is_empty() {
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }

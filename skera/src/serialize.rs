@@ -1,5 +1,6 @@
 //! serializer
 //! ported from Harfbuzz Serializer: <https://github.com/harfbuzz/harfbuzz/blob/5e32b5ca8fe430132b87c0eee6a1c056d37c35eb/src/hb-serialize.hh>
+use crate::layout::OpsWalk;
 use core::ops::Range;
 use std::{
     hash::{BuildHasher, Hash, Hasher},
@@ -285,7 +286,26 @@ pub struct Serializer {
 
     packed: Vec<PoolIdx>,
     packed_map: PoolIdxHashTable,
+
+    /// What is left of [`MAX_SUBSET_TABLE_OPS`].
+    ops_left: usize,
+
+    /// What subsetting the lookups of a layout table may still read.
+    layout_walk: OpsWalk<'static>,
 }
+
+/// The work that subsetting one table may do beyond what the size of the
+/// table bounds: the glyphs visited while walking Coverage and ClassDef
+/// tables, and the bytes of the device tables copied.
+///
+/// A range of glyphs takes a few bytes and any number of offsets can share
+/// it, so the budget for [walking the offsets](crate::layout::OpsBudget)
+/// doesn't bound that work.
+///
+/// Matches HarfBuzz's `HB_BUDGET_SUBSET_GLYF`, which is its budget for
+/// subsetting any one table.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/hb-limits.hh#L276-L290>
+const MAX_SUBSET_TABLE_OPS: usize = 1 << 28;
 
 impl Serializer {
     /// Creates a serializer with a buffer of `size` bytes.
@@ -302,8 +322,36 @@ impl Serializer {
             end: size,
             tail: size,
             packed: Vec::new(),
+            ops_left: MAX_SUBSET_TABLE_OPS,
             ..Default::default()
         })
+    }
+
+    /// Limits what subsetting the lookups of a layout table may read.
+    pub(crate) fn set_layout_walk(&mut self, walk: OpsWalk<'static>) {
+        self.layout_walk = walk;
+    }
+
+    /// What subsetting the lookups of a layout table may still read: anything,
+    /// unless [`Self::set_layout_walk`] said otherwise.
+    pub(crate) fn layout_walk(&mut self) -> &mut OpsWalk<'static> {
+        &mut self.layout_walk
+    }
+
+    /// Charges `count` units of work to the budget of the table, and fails
+    /// once it is spent.
+    /// ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/hb-subset.hh#L58-L61>
+    pub(crate) fn check_ops(&mut self, count: usize) -> Result<(), SerializeErrorFlags> {
+        match self.ops_left.checked_sub(count) {
+            Some(ops_left) => {
+                self.ops_left = ops_left;
+                Ok(())
+            }
+            None => {
+                self.ops_left = 0;
+                Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
+        }
     }
 
     /// Makes room for `size` bytes in the buffer, so that resizing it to `size`
