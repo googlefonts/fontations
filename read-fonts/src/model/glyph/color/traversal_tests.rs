@@ -9,9 +9,7 @@
 //! REBASELINE_COLRV1_TESTS=1 cargo test -p read-fonts --all-features color::traversal_tests
 //! ```
 
-use super::{
-    test_glyph_defs::*, Brush, ColorGlyphVersion, ColorStop, CompositeMode, Extend, PaintSink,
-};
+use super::{test_glyph_defs::*, Brush, ColorStop, ColorVersion, CompositeMode, Extend, PaintSink};
 use crate::{
     model::Font,
     types::{BoundingBox, GlyphId, Matrix, Point},
@@ -247,7 +245,7 @@ fn colrv1_traversal_test(
     set_name: &str,
     test_chars: &[char],
     settings: &[(&str, f32)],
-    required_format: ColorGlyphVersion,
+    required_format: ColorVersion,
 ) {
     let font = Font::new(font_test_data::COLRV0V1_VARIABLE.to_vec(), 0).unwrap();
     let font = font
@@ -311,7 +309,7 @@ macro_rules! colrv1_traversal_tests {
         $(
             #[test]
             fn $test_name() {
-                colrv1_traversal_test(stringify!($glyph_set), $glyph_set, $settings, ColorGlyphVersion::ColrV1);
+                colrv1_traversal_test(stringify!($glyph_set), $glyph_set, $settings, ColorVersion::V1);
             }
         )*
     }
@@ -373,7 +371,7 @@ macro_rules! colrv0_traversal_tests {
     $(
         #[test]
         fn $test_name() {
-            colrv1_traversal_test(stringify!($glyph_set), $glyph_set, &[], ColorGlyphVersion::ColrV0);
+            colrv1_traversal_test(stringify!($glyph_set), $glyph_set, &[], ColorVersion::V0);
         }
     )*
 }

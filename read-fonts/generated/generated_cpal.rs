@@ -257,7 +257,14 @@ impl Default for Cpal<'_> {
     }
 }
 
-/// The [PaletteType](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) flags.
+/// Flags describing the backgrounds for which a palette is suitable.
+///
+/// These flags help applications select a palette for the intended background.
+/// Both flags may be set when a palette is suitable for both light and dark
+/// backgrounds. All other bits are reserved and must be zero.
+///
+/// Palette type information is optional and is available in CPAL version 1.
+/// See the [CPAL palette type specification](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array).
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
@@ -266,10 +273,10 @@ pub struct PaletteType {
 }
 
 impl PaletteType {
-    /// Bit 0: palette is appropriate to use when displaying the font on a light background such as white.
+    /// The palette is suitable for displaying text on a light background, such as white.
     pub const USABLE_WITH_LIGHT_BACKGROUND: Self = Self { bits: 0x0001 };
 
-    /// Bit 1: palette is appropriate to use when displaying the font on a dark background such as black.
+    /// The palette is suitable for displaying text on a dark background, such as black.
     pub const USABLE_WITH_DARK_BACKGROUND: Self = Self { bits: 0x0002 };
 }
 
@@ -564,40 +571,50 @@ impl font_types::Scalar for PaletteType {
     }
 }
 
-/// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+/// A palette color stored as four 8-bit components.
 ///
-/// Contains a color in non-premultiplied BGRA form, in the sRGB color space.
+/// The RGB components use the non-linear sRGB encoding and are not premultiplied
+/// by alpha. Alpha represents opacity on a linear scale: 0 is fully transparent
+/// and 255 is fully opaque.
+///
+/// See the [CPAL color record specification](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorRecord {
-    /// Blue value (B0).
+    /// Blue component in non-linear sRGB, from 0 to 255.
     pub blue: u8,
-    /// Green value (B1).
+    /// Green component in non-linear sRGB, from 0 to 255.
     pub green: u8,
-    /// Red value (B2).
+    /// Red component in non-linear sRGB, from 0 to 255.
     pub red: u8,
-    /// Alpha value (B3).
+    /// Opacity, from 0 (fully transparent) to 255 (fully opaque).
+    ///
+    /// This may be combined with additional opacity specified by the paint
+    /// using this color, such as the alpha value in a COLR paint table.
     pub alpha: u8,
 }
 
 impl ColorRecord {
-    /// Blue value (B0).
+    /// Blue component in non-linear sRGB, from 0 to 255.
     pub fn blue(&self) -> u8 {
         self.blue
     }
 
-    /// Green value (B1).
+    /// Green component in non-linear sRGB, from 0 to 255.
     pub fn green(&self) -> u8 {
         self.green
     }
 
-    /// Red value (B2).
+    /// Red component in non-linear sRGB, from 0 to 255.
     pub fn red(&self) -> u8 {
         self.red
     }
 
-    /// Alpha value (B3).
+    /// Opacity, from 0 (fully transparent) to 255 (fully opaque).
+    ///
+    /// This may be combined with additional opacity specified by the paint
+    /// using this color, such as the alpha value in a COLR paint table.
     pub fn alpha(&self) -> u8 {
         self.alpha
     }

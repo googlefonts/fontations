@@ -1387,15 +1387,23 @@ impl Default for VarColorLine<'_> {
     }
 }
 
-/// [Extend](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) enumeration
+/// How a gradient's color line extends beyond its minimum and maximum stop offsets.
+///
+/// The interval is determined by the color stops, and is not necessarily [0, 1].
+/// Extension applies in both directions along the color line.
+///
+/// See the [OpenType specification](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
 #[allow(clippy::manual_non_exhaustive)]
 pub enum Extend {
+    /// Use the nearest endpoint's color outside the interval.
     #[default]
     Pad = 0,
+    /// Repeat the color line at intervals equal to the distance between its endpoints.
     Repeat = 1,
+    /// Repeat the color line, reversing its direction in each successive interval.
     Reflect = 2,
     #[doc(hidden)]
     /// If font data is malformed we will map unknown values to this variant
@@ -6086,40 +6094,78 @@ impl<'a> PaintComposite<'a> {
     }
 }
 
-/// [CompositeMode](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) enumeration
+/// How a composite paint combines its source and backdrop paint graphs.
+///
+/// `Src` refers to the source; `Dest` refers to the backdrop (destination).
+/// Porter-Duff modes control their contributions using alpha coverage. Blend
+/// modes combine their colors, then use source-over compositing. Separable blend
+/// modes operate on each RGB component; the HSL modes combine hue, saturation,
+/// and luminosity from the two colors.
+///
+/// See the [OpenType specification](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite)
+/// and [Compositing and Blending Level 1](https://www.w3.org/TR/compositing-1/)
+/// for the compositing and blending formulas.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
 #[allow(clippy::manual_non_exhaustive)]
 pub enum CompositeMode {
+    /// Produce transparent black, discarding both inputs.
     Clear = 0,
+    /// Keep only the source.
     Src = 1,
+    /// Keep only the backdrop.
     Dest = 2,
+    /// Draw the source over the backdrop using ordinary alpha compositing.
     #[default]
     SrcOver = 3,
+    /// Draw the backdrop over the source using ordinary alpha compositing.
     DestOver = 4,
+    /// Keep the source, masked by the backdrop's alpha.
     SrcIn = 5,
+    /// Keep the backdrop, masked by the source's alpha.
     DestIn = 6,
+    /// Keep the source, masked by the inverse of the backdrop's alpha.
     SrcOut = 7,
+    /// Keep the backdrop, masked by the inverse of the source's alpha.
     DestOut = 8,
+    /// Draw the source over the backdrop, retaining the backdrop's alpha coverage.
     SrcAtop = 9,
+    /// Draw the backdrop over the source, retaining the source's alpha coverage.
     DestAtop = 10,
+    /// Combine each input masked by the inverse of the other input's alpha.
     Xor = 11,
+    /// Add the premultiplied colors and alpha values of both inputs.
     Plus = 12,
+    /// Multiply the inverted color components, then invert the result.
     Screen = 13,
+    /// Multiply or screen depending on the backdrop component's brightness.
     Overlay = 14,
+    /// Select the smaller of each pair of color components.
     Darken = 15,
+    /// Select the larger of each pair of color components.
     Lighten = 16,
+    /// Brighten the backdrop according to the source, with black leaving it unchanged.
     ColorDodge = 17,
+    /// Darken the backdrop according to the source, with white leaving it unchanged.
     ColorBurn = 18,
+    /// Multiply or screen depending on the source component's brightness.
     HardLight = 19,
+    /// Gently darken or brighten the backdrop according to the source.
     SoftLight = 20,
+    /// Take the absolute difference between corresponding color components.
     Difference = 21,
+    /// Produce an effect similar to difference, with lower contrast.
     Exclusion = 22,
+    /// Multiply corresponding color components.
     Multiply = 23,
+    /// Use the source hue with the backdrop saturation and luminosity.
     HslHue = 24,
+    /// Use the source saturation with the backdrop hue and luminosity.
     HslSaturation = 25,
+    /// Use the source hue and saturation with the backdrop luminosity.
     HslColor = 26,
+    /// Use the source luminosity with the backdrop hue and saturation.
     HslLuminosity = 27,
     #[doc(hidden)]
     /// If font data is malformed we will map unknown values to this variant
