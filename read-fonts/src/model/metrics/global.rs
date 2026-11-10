@@ -597,6 +597,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn a_type1_font_states_what_little_it_can() {
         let font =
             crate::ps::type1::Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA)

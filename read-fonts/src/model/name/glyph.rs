@@ -436,6 +436,7 @@ mod tests {
         let fonts = [
             Font::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP, 0).unwrap(),
             Font::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED, 0).unwrap(),
+            #[cfg(feature = "type1")]
             Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap(),
             Font::new(cid_cff, 0).unwrap(),
         ];
@@ -452,7 +453,7 @@ mod tests {
             assert_eq!(font.glyph_by_name(""), None);
         }
         assert_eq!(fonts[0].glyph_by_name("A"), Some(GlyphId::new(2)));
-        assert_eq!(fonts[3].glyph_by_name("gid1"), None);
+        assert_eq!(fonts.last().unwrap().glyph_by_name("gid1"), None);
     }
 
     #[test]
@@ -499,6 +500,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn type1_names_agree_between_lookup_and_iteration() {
         let font = Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, 0).unwrap();
         let Kind::Type1(type1) = font.kind() else {

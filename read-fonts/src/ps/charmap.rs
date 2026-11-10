@@ -242,6 +242,7 @@ const EXTRA_GLYPH_LIST: [(u32, &str); 10] = [
 #[cfg(test)]
 #[cfg(feature = "agl")]
 mod tests {
+    #[cfg(feature = "type1")]
     use super::super::type1::Type1Font;
     use super::*;
 
@@ -275,6 +276,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "type1")]
     fn cmap_from_type1() {
         let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB).unwrap();
         let cmap = UnicodeCharmap::from_glyph_names(font.glyph_names());

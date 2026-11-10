@@ -768,6 +768,7 @@ fn hdmx_is_ignored_for_a_fixed_pitch_font() {
 }
 
 #[test]
+#[cfg(feature = "type1")]
 fn a_type1_font_draws_unhinted() {
     let scaler = ScalerFont::hinted(
         font(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA),

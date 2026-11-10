@@ -10,7 +10,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-skrifa = { workspace = true }
+skrifa = { workspace = true, features = ["type1"] }
 freetype-rs = { version = "0.38.0", features = ["bundled"] }
 memmap2 = "0.5.10"
 rayon = { workspace = true }

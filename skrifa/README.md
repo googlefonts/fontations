@@ -99,6 +99,7 @@ instructions to draw correct contours always runs them.
 - `agl`: map characters to the glyphs of Type 1 and standalone CFF fonts
   through their glyph names, with the Adobe Glyph List. Without it those
   fonts map no characters.
+- `type1`: enable Adobe Type 1 font support. Also enables `agl`.
 
 ## Panicking
 

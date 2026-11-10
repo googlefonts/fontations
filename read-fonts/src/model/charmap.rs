@@ -976,6 +976,7 @@ mod tests {
         ] {
             check_unicode_batch(data, &codepoints);
         }
+        #[cfg(feature = "type1")]
         check_unicode_batch(
             font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB,
             &codepoints,
@@ -1272,7 +1273,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "agl")]
+    #[cfg(feature = "type1")]
     fn type1_exposes_unicode_and_native_mappings() {
         let font = Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB, 0).unwrap();
         let encodings: Vec<_> = font.charmap().encodings().collect();
@@ -1505,7 +1506,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "agl")]
+    #[cfg(feature = "type1")]
     fn type1_uses_its_unicode_charmap() {
         let font = Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB, 0).unwrap();
         assert!(font.charmap().has_unicode());
