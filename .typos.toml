@@ -6,6 +6,7 @@
 ignore-hidden = false
 extend-exclude = [
     '*.ttx',
+    '*.cid',
     # /.git isn't in .gitignore, because git never tracks it.
     # Typos doesn't know that, though.
     '/.git',

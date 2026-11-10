@@ -301,7 +301,8 @@ mod tests {
 
     #[test]
     fn hex_data_length_and_termination() {
-        let cases: &[(&[u8], usize, Option<&[u8]>)] = &[
+        type Case<'a> = (&'a [u8], usize, Option<&'a [u8]>);
+        let cases: &[Case<'_>] = &[
             (b"", 0, Some(b"")),
             (b"!", 0, Some(b"")),
             (b"aB 0c", 2, Some(&[0xab, 0x0c])),
