@@ -197,10 +197,10 @@ impl FontKind {
 }
 
 fn check_type1(data: &[u8]) -> bool {
-    fn check(data: &[u8]) -> bool {
-        data.starts_with(b"%!PS-AdobeFont") || data.starts_with(b"%!FontType")
-    }
-    check(data) || data.get(6..).map(check).unwrap_or(false)
+    matches!(
+        ::skrifa::font::Format::new(data),
+        Some(::skrifa::font::Format::Type1)
+    )
 }
 
 fn check_cff(data: &[u8]) -> bool {

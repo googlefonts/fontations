@@ -13,7 +13,7 @@ pub enum Format {
     /// The field contains the number of available fonts. This is always 1 for
     /// .ttf and .otf files and usually greater than 1 for .ttc and .otc files.
     Sfnt(u32),
-    /// A Type 1 font.
+    /// An ordinary or CID-keyed Type 1 font.
     Type1,
     /// A standalone CFF font.
     ///
@@ -55,7 +55,9 @@ impl Format {
 
 fn check_type1(data: &[u8]) -> bool {
     fn check(data: &[u8]) -> bool {
-        data.starts_with(b"%!PS-AdobeFont") || data.starts_with(b"%!FontType")
+        data.starts_with(b"%!PS-AdobeFont")
+            || data.starts_with(b"%!FontType")
+            || data.starts_with(b"%!PS-Adobe-3.0 Resource-CIDFont")
     }
     check(data) || data.get(6..).map(check).unwrap_or(false)
 }

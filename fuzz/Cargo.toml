@@ -20,9 +20,15 @@ libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 font-types = { workspace = true }
 read-fonts = { workspace = true, default-features = true, features = ["ift"] }
 write-fonts = { workspace = true, default-features = true, features = ["ift"] }
-skrifa = { workspace = true }
+skrifa = { workspace = true, features = ["type1"] }
 incremental-font-transfer = { workspace = true }
 shared-brotli-patch-decoder = { workspace = true }
+
+[[bin]]
+name = "fuzz_type1"
+path = "fuzz_targets/fuzz_type1.rs"
+test = false
+doc = false
 
 [[bin]]
 name = "fuzz_skrifa_charmap"
