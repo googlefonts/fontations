@@ -171,8 +171,9 @@ pub(super) fn load(data: &[u8]) -> Option<Type1Font> {
     let map = binary.get(cid_map_offset..cid_map_offset.checked_add(map_len)?)?;
 
     // Overlapping source ranges must not amplify a small file into unbounded
-    // decoded storage. Allow shared subroutine maps, as FreeType does.
-    let mut budget = binary.len().checked_mul(4)?;
+    // decoded storage. Base the budget on the complete input, including font
+    // dictionaries, to allow shared subroutine maps as FreeType does.
+    let mut budget = data.len().checked_mul(4)?;
     for dict in &mut dicts {
         if dict.sd_bytes > 4 || (dict.subr_count != 0 && dict.sd_bytes == 0) {
             return None;
@@ -257,7 +258,8 @@ fn append_charstring(
 ) -> Option<Range<usize>> {
     *budget = budget.checked_sub(bytes.len())?;
     let start = out.len();
-    if len_iv >= 0 {
+    // Empty subroutine slots have no encryption padding, even when lenIV > 0.
+    if len_iv >= 0 && !bytes.is_empty() {
         let padding = usize::try_from(len_iv).ok()?;
         if padding > bytes.len() {
             return None;
@@ -412,6 +414,64 @@ mod tests {
             [10.0, 70.0, 105.0, 50.0]
         );
         assert_eq!(font.charmap().encodings().count(), 0);
+    }
+
+    #[test]
+    fn empty_encrypted_subroutines_do_not_reject_live_glyphs() {
+        let data = font_test_data::type1::cid_font(false);
+        // The next offset is also 52, adding an unused empty subroutine.
+        let data = replace(&data, b"/SubrCount 1", b"/SubrCount 2");
+        let font = Type1Font::new(&data).unwrap();
+        assert_eq!(font.subfonts[0].subrs.get(1), Some(&[][..]));
+        for (cid, advance) in [(0, 600.0), (1, 1210.0)] {
+            let gid = GlyphId::new(cid);
+            assert_eq!(font.advance(gid, None).unwrap(), Some(advance));
+            assert_eq!(
+                font.draw(gid, None, &mut crate::model::glyph::outline::NullSink)
+                    .unwrap(),
+                Some(advance)
+            );
+        }
+    }
+
+    #[test]
+    fn shared_subroutine_maps_fit_the_resource_budget() {
+        // Five FDs share 100 one-byte return subroutines. The binary block
+        // is 390 bytes, but loading charges 1580 bytes for maps and bodies.
+        let mut binary = Vec::new();
+        for cid in 0..=5u16 {
+            binary.push(cid as u8);
+            binary.extend_from_slice(&(320 + cid * 14).to_be_bytes());
+        }
+        for index in 0..=100u16 {
+            binary.extend_from_slice(&(220 + index).to_be_bytes());
+        }
+        binary.extend_from_slice(&[11; 100]);
+        for _ in 0..5 {
+            // 0 600 hsbw 0 0 rmoveto 99 callsubr 20 30 rlineto closepath endchar
+            binary
+                .extend_from_slice(&[139, 248, 236, 13, 139, 139, 21, 238, 10, 159, 169, 5, 9, 14]);
+        }
+        assert_eq!(binary.len(), 390);
+        let mut data = b"%!PS-Adobe-3.0 Resource-CIDFont\n/CIDFontType 0 def\n/CIDCount 5 def\n/CIDMapOffset 0 def /FDBytes 1 def /GDBytes 2 def\n/FDArray 5 array\n".to_vec();
+        for _ in 0..5 {
+            data.extend_from_slice(b"%ADOBeginFontDict\n/FontType 1 def /lenIV -1 def /SubrMapOffset 18 def /SDBytes 2 def /SubrCount 100 def\n%ADOEndFontDict\n");
+        }
+        data.extend_from_slice(b"(Binary) 390 StartData ");
+        data.extend_from_slice(&binary);
+        let font = Type1Font::new(&data).unwrap();
+        for cid in 0..5 {
+            let gid = GlyphId::new(cid);
+            assert_eq!(font.advance(gid, None).unwrap(), Some(600.0));
+            assert_eq!(
+                font.draw(gid, None, &mut crate::model::glyph::outline::NullSink)
+                    .unwrap(),
+                Some(600.0)
+            );
+            let mut sink = CaptureCommandSink::default();
+            font.evaluate_charstring(gid, &mut sink).unwrap();
+            assert!(!sink.0.is_empty());
+        }
     }
 
     #[test]
