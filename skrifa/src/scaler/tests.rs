@@ -789,6 +789,24 @@ fn a_type1_font_draws_unhinted() {
 }
 
 #[test]
+#[cfg(feature = "type1")]
+fn cid_type1_selects_the_dictionary_for_outlines_and_metrics() {
+    let data = font_test_data::type1::cid_font(false);
+    let model = font(&data);
+    let scaler = ScalerFont::unhinted(model.clone(), None);
+    for (cid, width) in [(0, 600.0), (1, 1210.0)] {
+        let gid = model.glyph_by_cid(cid).unwrap();
+        let metrics = draw(&scaler, gid, &mut NullPen).unwrap();
+        assert_eq!(metrics.h_advance, Some(width));
+    }
+    assert!(model.glyph_by_cid(2).is_none());
+    assert!(draw(&scaler, GlyphId::new(2), &mut NullPen).is_err());
+    let hinted = ScalerFont::hinted(model, 16.0, HintOptions::interpreter());
+    assert!(!hinted.is_hinted());
+    assert!(draw(&hinted, GlyphId::new(1), &mut NullPen).is_ok());
+}
+
+#[test]
 fn glyph_styles_can_be_shared_between_scalers() {
     let model = font(font_test_data::NOTOSERIF_AUTOHINT_SHAPING);
     let shared = ScalerFont::hinted(model.clone(), 14.0, HintOptions::auto());

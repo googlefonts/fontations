@@ -244,23 +244,30 @@ impl Font {
             .get(name)
     }
 
-    /// Returns `true` if the font is a standalone CID-keyed CFF font, whose
+    /// Returns `true` if the font is a CID-keyed Type 1 or standalone CFF font, whose
     /// glyphs are identified by CID.
     ///
     /// A `CFF` table in an SFNT font may be CID-keyed too, but its glyphs
     /// are identified by glyph index, as in any SFNT font.
     pub fn is_cid_keyed(&self) -> bool {
+        if let Kind::Type1(font) = self.kind() {
+            return font.is_cid_keyed();
+        }
         self.shared()
             .standalone_cff()
             .is_some_and(|cff| cff.is_cid())
     }
 
-    /// Returns the largest CID that a CID-keyed font maps to a glyph.
+    /// Returns the largest addressable CID in a CID-keyed font.
     ///
     /// Glyphs in a CID-keyed font can be addressed by CID, so one more than
     /// this value is the number of addressable glyph IDs. Returns `None` if the
     /// font is not CID-keyed.
+    /// For CID-keyed Type 1, this includes missing slots through `CIDCount - 1`.
     pub fn max_cid(&self) -> Option<u32> {
+        if let Kind::Type1(font) = self.kind() {
+            return font.max_cid();
+        }
         Some(self.shared().cid_glyphs()?.len() as u32 - 1)
     }
 
@@ -269,8 +276,12 @@ impl Font {
     /// Where several glyphs have the same CID, the first is returned. Returns
     /// `None` if the font is not CID-keyed or no glyph has `cid`.
     ///
-    /// The first call builds a table from each CID to its glyph.
+    /// For CFF, the first call builds a table from each CID to its glyph.
+    /// CID-keyed Type 1 fonts use CIDs directly as glyph IDs.
     pub fn glyph_by_cid(&self, cid: u32) -> Option<GlyphId> {
+        if let Kind::Type1(font) = self.kind() {
+            return font.glyph_by_cid(cid);
+        }
         let glyph = *self.shared().cid_glyphs()?.get(cid as usize)?;
         (cid == 0 || glyph != 0).then(|| GlyphId::new(glyph as u32))
     }
@@ -1933,11 +1944,16 @@ mod tests {
 
     #[test]
     fn type1_loading_requires_feature() {
+        let cid = font_test_data::type1::cid_font(false);
         for data in [
             font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA,
             font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB,
+            &cid,
         ] {
-            assert_eq!(Font::new(data, 0).is_some(), cfg!(feature = "type1"));
+            assert_eq!(
+                Font::new(data.to_vec(), 0).is_some(),
+                cfg!(feature = "type1")
+            );
             assert_eq!(
                 crate::ps::type1::Type1Font::new(data).is_ok(),
                 cfg!(feature = "type1")

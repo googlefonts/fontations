@@ -199,6 +199,27 @@ Describes the provenance, usage and generation procedures for font data used for
   * license: [Open Font License][OFL]
   * usage: testing PFB (Type1 binary font) parsing
 
+* type1/HangingS.cid
+  * font: HangingS
+  * source: https://github.com/freetype/freetype2-testing/blob/master/fuzzing/corpora/cidtype1/bungeman/HangingS.cid
+  * license: [SIL Open Font License 1.1][OFL]; [author's license statement](https://savannah.nongnu.org/bugs/?46486)
+  * copyright: Copyright (c) 2015, Google
+  * usage: testing binary CID-keyed Type1 fonts, subroutines, and a non-default font matrix
+
+* type1/HangingS_hex.cid
+  * font: HangingS (hex variant)
+  * source: https://github.com/freetype/freetype2-testing/blob/master/fuzzing/corpora/cidtype1/bungeman/HangingS_hex.cid
+  * license: [SIL Open Font License 1.1][OFL]; [author's license statement](https://savannah.nongnu.org/bugs/?46486)
+  * copyright: Copyright (c) 2015, Google
+  * usage: testing hex-encoded CID-keyed Type1 font data
+
+* type1/cidfont.ps
+  * font: SourceSans-Test (Source Han Sans AJ16 Regular)
+  * source: https://github.com/adobe-type-tools/afdko/blob/develop/tests/makeotf_data/input/cidfont.ps
+  * license: [Open Font License](https://github.com/adobe-fonts/source-han-sans/blob/release/LICENSE.txt) (Source Han Sans upstream license; the AFDKO fixture has no separate license notice)
+  * copyright: Copyright 2014-2018 Adobe Systems Incorporated, with Reserved Font Name 'Source'
+  * usage: testing multiple font dictionaries, sparse CID maps, shared subroutines, and negative advances
+
 ## rebuilding
 To update the binaries and extracted data, run script located at `resources/test_fonts/rebuild.sh`
 This script will install the correct version of fonttools and FreeType, and then regenerate

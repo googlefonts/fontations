@@ -19,7 +19,7 @@ use crate::{
         metrics::{LineExtents, Metrics, Scale, Scale26Dot6, ScaleF32, ScaledGlyphMetrics},
         Font, Kind,
     },
-    ps::{cff::CffFontRef, charstring::CommandSink, type1::Type1Instance},
+    ps::{cff::CffFontRef, type1::Type1Instance},
     tables::{glyf::Glyf, hmtx::GlyphMetricRecords, loca::Loca},
 };
 use types::{BoundingBox, F2Dot14, F48Dot16, Fixed, GlyphId, Point};
@@ -163,6 +163,8 @@ impl<'a> GlyphMetrics<'a> {
     /// `hmtx` contains whole units and variations can add a fraction, so the
     /// result may not be a whole number. A varied advance below zero is
     /// clamped to zero before scaling. The caller decides how to round it.
+    /// Type 1 charstring advances retain their sign, including after applying
+    /// the font dictionary's matrix.
     #[inline]
     pub fn h_advance_exact(&self, glyph: GlyphId) -> F48Dot16 {
         let mut width = F48Dot16::ZERO;
@@ -888,39 +890,16 @@ impl<'a> GlyphMetrics<'a> {
         convert: impl Fn(F48Dot16) -> V,
         glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
     ) {
-        /// The width is all that is wanted, so the outline is discarded.
-        struct WidthOnly;
-
-        impl CommandSink for WidthOnly {
-            fn move_to(&mut self, _x: Fixed, _y: Fixed) {}
-            fn line_to(&mut self, _x: Fixed, _y: Fixed) {}
-            fn curve_to(
-                &mut self,
-                _cx0: Fixed,
-                _cy0: Fixed,
-                _cx1: Fixed,
-                _cy1: Fixed,
-                _x: Fixed,
-                _y: Fixed,
-            ) {
-            }
-            fn close(&mut self) {}
-        }
-
-        // A charstring states its width in its own space, which the font
-        // matrix maps to design units. No size is applied: that is the
-        // caller's to do.
-        let transform = font.font().transform(None);
+        // Width evaluation applies the glyph's own font dictionary matrix.
         for (gid, out) in glyphs {
             // A charstring states its width before it draws anything, so one
             // that states none is malformed and measures as nothing.
             let width = font
-                .evaluate_charstring(gid, &mut WidthOnly)
+                .evaluate_width(gid)
                 .ok()
                 .flatten()
-                .map(|width| transform.transform_h_metric(width).to_f48dot16())
-                .unwrap_or(F48Dot16::ZERO)
-                .max(F48Dot16::ZERO);
+                .map(|width| width.to_f48dot16())
+                .unwrap_or(F48Dot16::ZERO);
             *out = convert(width);
         }
     }
@@ -1780,6 +1759,34 @@ mod tests {
             stretched_any |= width > F48Dot16::ZERO;
         }
         assert!(stretched_any, "no glyph had a width to stretch");
+    }
+
+    #[test]
+    #[cfg(feature = "type1")]
+    fn a_type1_matrix_can_make_advances_negative() {
+        const FROM: &[u8] = b"/FontMatrix [0.001 0 0 0.001 0 0 ]";
+        const TO: &[u8] = b"/FontMatrix [-0.001 0 0 0.001 0 0 ]";
+        let original = font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA;
+        let at = original
+            .windows(FROM.len())
+            .position(|bytes| bytes == FROM)
+            .unwrap();
+        let data = [&original[..at], TO, &original[at + FROM.len()..]].concat();
+        let direct = crate::ps::type1::Type1Font::new(&data).unwrap();
+        let model = Font::new(data, 0).unwrap();
+        let plain = Font::new(original, 0).unwrap();
+        let mut negative = false;
+        for gid in (0..model.num_glyphs()).map(GlyphId::new) {
+            let expected = -plain.glyph_metrics().h_advance(gid);
+            assert_eq!(model.glyph_metrics().h_advance(gid), expected);
+            assert_eq!(direct.advance(gid, None).unwrap(), Some(expected));
+            assert_eq!(
+                direct.draw(gid, None, &mut NullSink).unwrap(),
+                Some(expected)
+            );
+            negative |= expected < 0.0;
+        }
+        assert!(negative);
     }
 
     #[test]

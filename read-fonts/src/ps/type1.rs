@@ -1,5 +1,7 @@
 //! Type1 fonts.
 
+mod cid;
+
 use super::{
     charmap::UnicodeCharmap,
     charstring::{
@@ -15,8 +17,9 @@ use crate::{
 };
 use alloc::{borrow::Cow, string::String, vec::Vec};
 use core::ops::Range;
+use smallvec::SmallVec;
 
-/// A Type1 font.
+/// An ordinary or CID-keyed Type 1 font.
 pub struct Type1Font {
     // Keep the type and its users available, but make instances impossible
     // when Type 1 support is disabled.
@@ -33,9 +36,10 @@ pub struct Type1Font {
     is_fixed_pitch: bool,
     underline_position: i32,
     underline_thickness: i32,
-    matrix: ScaledFontMatrix,
+    upem: i32,
     charstrings: Charstrings,
-    subrs: Subrs,
+    subfonts: SmallVec<[Subfont; 1]>,
+    cid: Option<cid::CidData>,
     encoding: Option<RawEncoding>,
     /// The default blend of a multiple master font, empty for any other.
     weight_vector: Vec<Fixed>,
@@ -59,6 +63,9 @@ impl Type1Font {
     }
 
     fn new_impl(data: &[u8]) -> Option<Self> {
+        if cid::is_cid(data) {
+            return cid::load(data);
+        }
         let raw_dicts = RawDicts::new(data)?;
         Self::from_dicts(raw_dicts.base, &raw_dicts.private)
     }
@@ -80,13 +87,11 @@ impl Type1Font {
             is_fixed_pitch: false,
             underline_position: 0,
             underline_thickness: 0,
-            matrix: ScaledFontMatrix {
-                matrix: FontMatrix::IDENTITY,
-                scale: 1000,
-            },
+            upem: 1000,
             bbox: BoundingBox::default(),
             charstrings: Charstrings::default(),
-            subrs: Subrs::default(),
+            subfonts: smallvec::smallvec![Subfont::default()],
+            cid: None,
             encoding: None,
             weight_vector: Vec::new(),
             multiple_master: None,
@@ -147,7 +152,11 @@ impl Type1Font {
                         };
                     }
                 }
-                Token::Name(b"FontMatrix") => font.matrix = parser.read_font_matrix()?,
+                Token::Name(b"FontMatrix") => {
+                    let matrix = parser.read_font_matrix()?;
+                    font.subfonts[0].matrix = matrix.matrix;
+                    font.upem = matrix.scale;
+                }
                 // Simply save the encoding offset. We'll parse it after
                 // we have read charstrings so we have an accurate mapping
                 // if we've synthesized or remapped a notdef glyph
@@ -201,8 +210,8 @@ impl Type1Font {
                     // With synthetic fonts, it's possible to read subroutines
                     // twice. FreeType ignores the second copy.
                     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1855>
-                    if font.subrs.index.is_empty() {
-                        font.subrs = parser.read_subrs(len_iv)?;
+                    if font.subfonts[0].subrs.index.is_empty() {
+                        font.subfonts[0].subrs = parser.read_subrs(len_iv)?;
                     }
                 }
                 Token::Name(b"CharStrings") => {
@@ -233,6 +242,11 @@ impl Type1Font {
             font.unicode_charmap = UnicodeCharmap::from_glyph_names(font.glyph_names());
         }
         Some(font)
+    }
+
+    /// Returns the units per em.
+    pub fn upem(&self) -> i32 {
+        self.upem
     }
 
     /// Returns the PostScript name.
@@ -292,26 +306,44 @@ impl Type1Font {
 
     /// Returns the number of glyphs in the Type1 font.
     pub fn num_glyphs(&self) -> u32 {
-        self.charstrings.num_glyphs()
+        self.cid.as_ref().map_or_else(
+            || self.charstrings.num_glyphs(),
+            |cid| cid.glyphs.len() as u32,
+        )
     }
 
-    /// Returns the units per em.
-    pub fn upem(&self) -> i32 {
-        self.matrix.scale
+    /// Returns true for a CID-keyed Type 1 font.
+    pub fn is_cid_keyed(&self) -> bool {
+        self.cid.is_some()
     }
 
-    /// Returns the top level font matrix.
-    pub fn matrix(&self) -> FontMatrix {
-        self.matrix.matrix
+    /// Returns the largest addressable CID, including missing glyph slots.
+    pub fn max_cid(&self) -> Option<u32> {
+        u32::try_from(self.cid.as_ref()?.glyphs.len())
+            .ok()?
+            .checked_sub(1)
     }
 
-    /// Returns the appropriate transform for adjusting points and metrics.
-    pub fn transform(&self, ppem: Option<f32>) -> Transform {
-        let scale = ppem.map(|ppem| Transform::compute_scale(ppem, self.upem()));
-        Transform {
-            matrix: self.matrix(),
-            scale,
+    /// Returns the glyph for a CID, or `None` for a missing or invalid entry.
+    ///
+    /// Glyph IDs in a CID-keyed Type 1 font are CIDs.
+    pub fn glyph_by_cid(&self, cid: u32) -> Option<GlyphId> {
+        self.cid.as_ref()?.glyphs.get(cid as usize)?.as_ref()?;
+        Some(GlyphId::new(cid))
+    }
+
+    /// Returns the subfont selected by a glyph.
+    pub fn subfont_index(&self, glyph: GlyphId) -> Option<u32> {
+        if let Some(cid) = &self.cid {
+            Some(cid.glyphs.get(glyph.to_u32() as usize)?.as_ref()?.subfont)
+        } else {
+            (glyph.to_u32() < self.num_glyphs()).then_some(0)
         }
+    }
+
+    /// Returns the font dictionary at `index`.
+    pub fn subfont(&self, index: u32) -> Option<&Subfont> {
+        self.subfonts.get(index as usize)
     }
 
     /// Returns the character encoding.
@@ -423,6 +455,7 @@ impl Type1Font {
     ///
     /// This is the width [`draw`](Self::draw) reports, arrived at without
     /// the drawing.
+    /// Advances can be negative.
     pub fn advance(&self, gid: GlyphId, ppem: Option<f32>) -> Result<Option<f32>, Error> {
         self.default_instance().advance(gid, ppem)
     }
@@ -485,6 +518,23 @@ impl Type1Font {
     ) -> Result<Option<f32>, Error> {
         self.default_instance().draw(gid, ppem, sink)
     }
+
+    fn charstring(&self, glyph: GlyphId) -> Option<&[u8]> {
+        if let Some(cid) = &self.cid {
+            let glyph = cid.glyphs.get(glyph.to_u32() as usize)?.as_ref()?;
+            cid.data.get(glyph.data.clone())
+        } else {
+            self.charstrings.get(glyph.to_u32())
+        }
+    }
+
+    fn glyph_transform(&self, glyph: GlyphId, ppem: Option<f32>) -> Result<Transform, Error> {
+        let subfont = self
+            .subfont_index(glyph)
+            .and_then(|index| self.subfont(index))
+            .ok_or(Error::Malformed)?;
+        Ok(subfont.transform(ppem, self.upem()))
+    }
 }
 
 impl<'a> Type1Instance<'a> {
@@ -500,14 +550,12 @@ impl<'a> Type1Instance<'a> {
 
     /// As [`Type1Font::evaluate_width`], with this instance's blend.
     pub fn evaluate_width(&self, gid: GlyphId) -> Result<Option<Fixed>, Error> {
-        let charstring_data = self
-            .font
-            .charstrings
-            .get(gid.to_u32())
-            .ok_or(Error::Malformed)?;
-        let transform = self.font.transform(None);
-        Ok(charstring::evaluate_width(self, None, charstring_data)?
-            .map(|width| transform.transform_h_metric(width)))
+        let charstring_data = self.font.charstring(gid).ok_or(Error::Malformed)?;
+        let transform = self.font.glyph_transform(gid, None)?;
+        Ok(
+            charstring::evaluate_width(&self.context(gid)?, None, charstring_data)?
+                .map(|width| transform.transform_h_metric(width)),
+        )
     }
 
     /// As [`Type1Font::evaluate_charstring`], with this instance's blend.
@@ -516,31 +564,25 @@ impl<'a> Type1Instance<'a> {
         gid: GlyphId,
         sink: &mut impl CommandSink,
     ) -> Result<Option<Fixed>, Error> {
-        let charstring_data = self
-            .font
-            .charstrings
-            .get(gid.to_u32())
-            .ok_or(Error::Malformed)?;
-        charstring::evaluate(self, None, charstring_data, sink)
+        let charstring_data = self.font.charstring(gid).ok_or(Error::Malformed)?;
+        charstring::evaluate(&self.context(gid)?, None, charstring_data, sink)
     }
 
     /// As [`Type1Font::advance`], with this instance's blend.
     pub fn advance(&self, gid: GlyphId, ppem: Option<f32>) -> Result<Option<f32>, Error> {
-        let charstring_data = self
-            .font
-            .charstrings
-            .get(gid.to_u32())
-            .ok_or(Error::Malformed)?;
-        let transform = self.font.transform(ppem);
-        Ok(charstring::evaluate_width(self, None, charstring_data)?
-            .map(|width| transform.transform_h_metric(width).to_f32().max(0.0)))
+        let charstring_data = self.font.charstring(gid).ok_or(Error::Malformed)?;
+        let transform = self.font.glyph_transform(gid, ppem)?;
+        Ok(
+            charstring::evaluate_width(&self.context(gid)?, None, charstring_data)?
+                .map(|width| transform.transform_h_metric(width).to_f32()),
+        )
     }
 
     /// As [`Type1Font::evaluate_extents`], with this instance's blend.
     pub fn evaluate_extents(&self, gid: GlyphId) -> Result<Option<BoundingBox<Fixed>>, Error> {
         let mut bounds = charstring::ControlBoundsSink::new();
         let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
-        let transform = self.font.transform(None);
+        let transform = self.font.glyph_transform(gid, None)?;
         let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
         self.evaluate_charstring(gid, &mut transformer)?;
         Ok(bounds.bounding_box())
@@ -554,7 +596,7 @@ impl<'a> Type1Instance<'a> {
     ) -> Result<Option<BoundingBox<f32>>, Error> {
         let mut bounds = charstring::ControlBoundsSink::new();
         let mut nop_filter = charstring::NopFilterSink::new(&mut bounds);
-        let transform = self.font.transform(ppem);
+        let transform = self.font.glyph_transform(gid, ppem)?;
         let mut transformer = charstring::TransformSink::new(&mut nop_filter, transform);
         self.evaluate_charstring(gid, &mut transformer)?;
         Ok(bounds.bounding_box().map(|b| BoundingBox {
@@ -573,10 +615,87 @@ impl<'a> Type1Instance<'a> {
         sink: &mut impl PathSink,
     ) -> Result<Option<f32>, Error> {
         let mut nop_filter = NopFilterSink::new(sink);
-        let transform = self.font.transform(ppem);
+        let transform = self.font.glyph_transform(gid, ppem)?;
         let mut transformer = TransformSink::new(&mut nop_filter, transform);
         let width = self.evaluate_charstring(gid, &mut transformer)?;
-        Ok(width.map(|w| transform.transform_h_metric(w).to_f32().max(0.0)))
+        Ok(width.map(|w| transform.transform_h_metric(w).to_f32()))
+    }
+
+    fn context(&self, glyph: GlyphId) -> Result<GlyphContext<'_>, Error> {
+        let subfont = self
+            .font
+            .subfont_index(glyph)
+            .and_then(|index| self.font.subfont(index))
+            .ok_or(Error::Malformed)?;
+        Ok(GlyphContext {
+            instance: *self,
+            subfont,
+        })
+    }
+}
+
+/// A Type 1 font dictionary and its local subroutines.
+///
+/// Ordinary Type 1 fonts have one subfont. In CID-keyed fonts, the CID map
+/// selects a subfont for each glyph.
+pub struct Subfont {
+    matrix: FontMatrix,
+    subrs: Subrs,
+}
+
+impl Default for Subfont {
+    fn default() -> Self {
+        Self {
+            matrix: FontMatrix::IDENTITY,
+            subrs: Subrs::default(),
+        }
+    }
+}
+
+impl Subfont {
+    /// Returns the normalized font matrix, with offsets in integer font units
+    /// stored in the raw bits of the fixed-point fields.
+    pub fn matrix(&self) -> FontMatrix {
+        self.matrix
+    }
+
+    /// Returns the transform for this subfont at `ppem`, using the face's UPEM.
+    pub fn transform(&self, ppem: Option<f32>, upem: i32) -> Transform {
+        Transform {
+            matrix: self.matrix,
+            scale: ppem.map(|ppem| Transform::compute_scale(ppem, upem)),
+        }
+    }
+}
+
+struct GlyphContext<'a> {
+    instance: Type1Instance<'a>,
+    subfont: &'a Subfont,
+}
+
+impl CharstringContext for GlyphContext<'_> {
+    fn kind(&self) -> CharstringKind {
+        CharstringKind::Type1
+    }
+
+    fn seac_components(&self, base: i32, accent: i32) -> Result<[&[u8]; 2], Error> {
+        self.instance.font.seac_components(base, accent)
+    }
+
+    fn subr(&self, index: i32) -> Result<&[u8], Error> {
+        self.subfont.subrs.get(index as u32).ok_or(Error::Malformed)
+    }
+
+    fn global_subr(&self, _: i32) -> Result<&[u8], Error> {
+        Err(Error::MissingResource)
+    }
+
+    fn weight_vector(&self) -> &[Fixed] {
+        self.instance.weights
+    }
+
+    fn build_char_len(&self) -> usize {
+        self.instance.font.build_char_len
     }
 }
 
@@ -586,6 +705,9 @@ impl CharstringContext for Type1Font {
     }
 
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
+        if self.is_cid_keyed() {
+            return Err(Error::InvalidOperation);
+        }
         let decode = |code: i32| {
             let name = PredefinedEncoding::Standard
                 .name(code.try_into().map_err(|_| Error::InvalidOperation)?);
@@ -600,7 +722,13 @@ impl CharstringContext for Type1Font {
     }
 
     fn subr(&self, index: i32) -> Result<&[u8], Error> {
-        self.subrs.get(index as u32).ok_or(Error::Malformed)
+        if self.is_cid_keyed() {
+            return Err(Error::InvalidOperation);
+        }
+        self.subfonts[0]
+            .subrs
+            .get(index as u32)
+            .ok_or(Error::Malformed)
     }
 
     fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
@@ -1292,6 +1420,8 @@ fn decode_name(bytes: &[u8]) -> Cow<'_, str> {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum Token<'a> {
+    /// A line comment, when explicitly requested by the CID parser.
+    Comment(&'a [u8]),
     /// Integers
     Int(i64),
     /// Literal strings, delimited by ()
@@ -1425,6 +1555,10 @@ impl<'a> Parser<'a> {
     }
 
     fn next(&mut self) -> Option<Token<'a>> {
+        self.next_token(false)
+    }
+
+    fn next_token(&mut self, comments: bool) -> Option<Token<'a>> {
         // Roughly follows the logic of ps_parser_skip_PS_token
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L482>
         loop {
@@ -1433,7 +1567,12 @@ impl<'a> Parser<'a> {
             let c = self.next_byte()?;
             match c {
                 // Line comment
-                b'%' => self.skip_line(),
+                b'%' => {
+                    self.skip_line();
+                    if comments {
+                        return Some(Token::Comment(&self.data[start..self.pos]));
+                    }
+                }
                 // Procedures
                 b'{' => return self.read_proc(start),
                 // Literal strings
@@ -1688,21 +1827,35 @@ impl Parser<'_> {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1403>
     fn read_font_matrix(&mut self) -> Option<ScaledFontMatrix> {
+        self.read_font_matrix_with_scale().map(|(matrix, _)| matrix)
+    }
+
+    // CID fonts update their face UPEM only for non-default yy values,
+    // including values whose normalized UPEM rounds back to 1000.
+    fn read_font_matrix_with_scale(&mut self) -> Option<(ScaledFontMatrix, bool)> {
         let mut components = [Fixed::ZERO; 6];
         // accept [ or { to match FreeType
-        if !self.accept(Token::Raw(b"[")) {
-            self.expect(Token::Raw(b"{"))?;
-        }
+        let mut inner;
+        let (parser, bracketed) = if self.accept(Token::Raw(b"[")) {
+            (self, true)
+        } else if let Token::Proc(proc) = self.next()? {
+            inner = Parser::new(proc);
+            (&mut inner, false)
+        } else {
+            return None;
+        };
         // read all components
         for component in &mut components {
-            *component = match self.next()? {
+            *component = match parser.next()? {
                 Token::Int(int) => Fixed::from_i32((int as i32).checked_mul(1000)?),
                 Token::Raw(bytes) => decode_fixed(bytes, 3)?,
                 _ => return None,
             }
         }
         // FreeType doesn't validate the closing delimiter, so just skip
-        self.next()?;
+        if bracketed {
+            parser.next()?;
+        }
         let temp_scale = components[3].abs();
         if temp_scale == Fixed::ZERO {
             return None;
@@ -1730,10 +1883,13 @@ impl Parser<'_> {
         if transform::is_degenerate(&matrix) {
             return None;
         }
-        Some(ScaledFontMatrix {
-            matrix,
-            scale: upem,
-        })
+        Some((
+            ScaledFontMatrix {
+                matrix,
+                scale: upem,
+            },
+            temp_scale != Fixed::ONE,
+        ))
     }
 
     /// Parse the set of subroutines.
@@ -2758,9 +2914,9 @@ mod tests {
         // one which has two entries at 5 and 42
         let private = b"/Subrs 2 array dup 5 2 RD nd NP dup 42 2 RD ab NP ND\n/Subrs 1 array dup 0 2 RD xy NP ND /CharStrings 0";
         let font = Type1Font::from_dicts(b"", private).unwrap();
-        assert_eq!(font.subrs.index.len(), 2);
-        assert_eq!(font.subrs.index[0].0, 5);
-        assert_eq!(font.subrs.index[1].0, 42);
+        assert_eq!(font.subfonts[0].subrs.index.len(), 2);
+        assert_eq!(font.subfonts[0].subrs.index[0].0, 5);
+        assert_eq!(font.subfonts[0].subrs.index[1].0, 42);
     }
 
     #[test]
@@ -2919,14 +3075,10 @@ mod tests {
             }
         );
         assert_eq!(font.num_glyphs(), 9);
-        assert_eq!(font.subrs.index.len(), 5);
-        assert_eq!(
-            font.matrix,
-            ScaledFontMatrix {
-                matrix: FontMatrix::IDENTITY,
-                scale: 1000
-            }
-        );
+        assert_eq!(font.subfonts[0].subrs.index.len(), 5);
+        assert_eq!(font.upem(), 1000);
+        assert_eq!(font.subfont(0).unwrap().matrix(), FontMatrix::IDENTITY);
+        assert!(!font.subfonts.spilled());
         assert!(font
             .glyph_names()
             .map(|(_, name)| name)
@@ -3091,10 +3243,10 @@ mod tests {
     #[test]
     fn csctx_subrs() {
         let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
-        assert!(!font.subrs.index.is_empty());
-        for subr_idx in 0..font.subrs.index.len() {
+        assert!(!font.subfonts[0].subrs.index.is_empty());
+        for subr_idx in 0..font.subfonts[0].subrs.index.len() {
             assert_eq!(
-                font.subrs.get(subr_idx as u32).unwrap(),
+                font.subfonts[0].subrs.get(subr_idx as u32).unwrap(),
                 font.subr(subr_idx as _).unwrap()
             )
         }
@@ -3130,6 +3282,30 @@ mod width_only_tests {
     ];
 
     #[test]
+    fn ordinary_type1_preserves_signed_advances() {
+        // 0 -600 hsbw endchar, with an unencrypted charstring.
+        let private = [
+            b"/lenIV -1 def /CharStrings 1 dict dup begin /.notdef 5 RD ".as_slice(),
+            &[139, 252, 236, 13, 14],
+            b" ND end",
+        ]
+        .concat();
+        let font = Type1Font::from_dicts(b"", &private).unwrap();
+        assert_eq!(
+            font.evaluate_width(GlyphId::NOTDEF).unwrap(),
+            Some(Fixed::from_i32(-600))
+        );
+        for ppem in [None, Some(16.0), Some(72.0)] {
+            let advance = font.advance(GlyphId::NOTDEF, ppem).unwrap().unwrap();
+            assert!(advance < 0.0);
+            assert_eq!(
+                font.draw(GlyphId::NOTDEF, ppem, &mut NullSink).unwrap(),
+                Some(advance)
+            );
+        }
+    }
+
+    #[test]
     fn the_quick_width_is_what_a_full_run_reports() {
         for data in FONTS {
             let font = Type1Font::new(data).unwrap();
@@ -3140,7 +3316,7 @@ mod width_only_tests {
             // other unchanged in these fonts, so what this pins is the width
             // rather than the mapping; the CFF side has a font where the two
             // spaces differ.
-            let transform = font.transform(None);
+            let transform = font.subfont(0).unwrap().transform(None, font.upem());
             for gid in (0..font.num_glyphs()).map(GlyphId::new) {
                 let full = font
                     .evaluate_charstring(gid, &mut charstring::NullSink)
