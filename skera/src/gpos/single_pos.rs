@@ -440,7 +440,7 @@ mod test {
         plan.glyph_map_gsub[5987] = GlyphId::from(3_u32);
         plan.glyphset_gsub.insert(GlyphId::from(5987_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         singlepos_table
@@ -483,7 +483,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(2270_u32));
         plan.glyphset_gsub.insert(GlyphId::from(2349_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         singlepos_table
@@ -509,7 +509,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(2270_u32));
         plan.glyphset_gsub.insert(GlyphId::from(6179_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         singlepos_table
@@ -587,7 +587,7 @@ mod test {
         plan.layout_varidx_delta_map
             .insert(0x00050006, (0x0009000a, 0));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         singlepos
             .subset(&plan, &mut s, (&subset_state, &font))
@@ -623,7 +623,7 @@ mod test {
         plan.layout_varidx_delta_map
             .insert(0x00030004, (0x00070008, 0));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         singlepos
             .subset(&plan, &mut s, (&subset_state, &font))
@@ -698,7 +698,7 @@ mod test {
         let subset_state = SubsetState::default();
         let singlepos = SinglePosFormat2::read(FontData::new(raw_table)).unwrap();
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         singlepos.subset(plan, &mut s, (&subset_state, &font))?;
         assert!(!s.in_error());

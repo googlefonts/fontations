@@ -100,7 +100,7 @@ fn extended_composites_remap_mixed_width_ids_and_keep_instructions() {
         };
         let subset = SubsetGlyph::new(&glyph, &plan);
         assert!(subset.len() > 0);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         subset.serialize(&mut s, &plan).unwrap();
         s.end_serialize();
@@ -234,7 +234,7 @@ fn extended_composites_reject_unrepresentable_remapped_ids() {
             ..Default::default()
         };
         let subset = SubsetGlyph::new(&glyph, &plan);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         assert!(subset.serialize(&mut s, &plan).is_err());
     }

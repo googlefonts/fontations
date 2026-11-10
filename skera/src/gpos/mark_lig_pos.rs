@@ -421,7 +421,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(67_u32));
         plan.glyphset_gsub.insert(GlyphId::from(68_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         markligpos_table
@@ -471,7 +471,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(216_u32));
         plan.glyphset_gsub.insert(GlyphId::from(987_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         markligpos_table

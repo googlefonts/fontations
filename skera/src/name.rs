@@ -162,7 +162,7 @@ mod test {
         plan.name_ids.insert(NameId::new(1));
         plan.name_languages.insert(0x0409);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = name.subset(&plan, &font, &mut s, &mut builder);
         assert!(matches!(

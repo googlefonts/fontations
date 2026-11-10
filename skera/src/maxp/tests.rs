@@ -35,7 +35,7 @@ fn subset(
         },
         ..Default::default()
     };
-    let mut s = Serializer::new(1024);
+    let mut s = Serializer::new(1024).unwrap();
     s.start_serialize().unwrap();
     if wide {
         font.maxp_extended()

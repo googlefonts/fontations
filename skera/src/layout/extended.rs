@@ -97,7 +97,7 @@ mod tests {
     use font_test_data::bebuffer::BeBuffer;
 
     fn serialize_coverage(glyphs: &[GlyphId]) -> Vec<u8> {
-        let mut s = Serializer::new(glyphs.len() * 9 + 32);
+        let mut s = Serializer::new(glyphs.len() * 9 + 32).unwrap();
         s.start_serialize().unwrap();
         CoverageTable::serialize(&mut s, glyphs).unwrap();
         assert!(!s.in_error());
@@ -153,7 +153,7 @@ mod tests {
                     plan.glyphset_gsub.insert(GlyphId::new(old));
                     plan.glyph_map_gsub[old as usize] = GlyphId::new(new);
                 }
-                let mut s = Serializer::new(1024);
+                let mut s = Serializer::new(1024).unwrap();
                 s.start_serialize().unwrap();
                 coverage.subset(&plan, &mut s, ()).unwrap();
                 s.end_serialize();
@@ -168,7 +168,7 @@ mod tests {
                     if new_glyphs[1] <= 65535 { 1 } else { 3 }
                 );
             }
-            let mut s = Serializer::new(1024);
+            let mut s = Serializer::new(1024).unwrap();
             s.start_serialize().unwrap();
             assert_eq!(
                 coverage.subset(&Plan::default(), &mut s, ()),
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn coverage_serialization_rejects_24bit_overflow() {
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         assert_eq!(
             CoverageTable::serialize(&mut s, &[GlyphId::new(0x1000000)]),

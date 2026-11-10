@@ -180,7 +180,7 @@ mod tests {
 
     fn subset(kind: u16, input: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let mut s = Serializer::new(1024 * 1024);
+        let mut s = Serializer::new(1024 * 1024).unwrap();
         s.start_serialize().unwrap();
         let state = SubsetState::default();
         let lookups = FastHashMap::default();

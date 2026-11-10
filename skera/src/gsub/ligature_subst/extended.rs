@@ -199,7 +199,7 @@ mod tests {
     fn subset(input: &[u8], plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
         let table = LigatureSubst::read(FontData::new(input)).unwrap();
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let mut s = Serializer::new(1024 * 1024);
+        let mut s = Serializer::new(1024 * 1024).unwrap();
         s.start_serialize().unwrap();
         table.subset(
             plan,

@@ -72,7 +72,7 @@ fn read(bytes: &[u8], wide: bool) -> SelectedLigCaretList<'_> {
 }
 
 fn subset(bytes: &[u8], wide: bool, plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
-    let mut s = Serializer::new(4 * 1024 * 1024);
+    let mut s = Serializer::new(4 * 1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     read(bytes, wide).subset(plan, &mut s, ())?;
     s.end_serialize();

@@ -274,7 +274,7 @@ fn dmap_subset_rejects_truncated_records_and_wide_format4_glyphs() {
     let mut plan = Plan::default();
     plan.unicode_to_new_gid_list.push((65, GlyphId::new(70000)));
     plan.glyph_map.insert(GlyphId::new(1), GlyphId::new(70000));
-    let mut s = Serializer::new(4096);
+    let mut s = Serializer::new(4096).unwrap();
     s.start_serialize().unwrap();
     assert_eq!(
         serialize_dmap(&source.as_cmap(), &mut s, &plan),
@@ -333,7 +333,7 @@ fn dmap_subset_keeps_wide_nominal_and_variant_glyph_ids() {
             (GlyphId::new(65536), GlyphId::new(nominal_gid)),
             (GlyphId::new(70000), GlyphId::new(variant_gid)),
         ]);
-        let mut s = Serializer::new(4096);
+        let mut s = Serializer::new(4096).unwrap();
         s.start_serialize().unwrap();
         serialize_dmap(&source.as_cmap(), &mut s, &plan).unwrap();
         s.end_serialize();

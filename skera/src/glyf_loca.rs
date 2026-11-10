@@ -690,7 +690,7 @@ mod test {
 
         let subset_glyph = SubsetGlyph::new(&glyph, &plan);
         assert_eq!(subset_glyph.len(), 23);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         subset_glyph.serialize(&mut s, &plan).unwrap();
         assert_eq!(
             s.copy_bytes(),
@@ -717,7 +717,7 @@ mod test {
 
         let subset_glyph = SubsetGlyph::new(&glyph, &plan);
         assert_eq!(subset_glyph.len(), 20);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         subset_glyph.serialize(&mut s, &plan).unwrap();
         assert_eq!(
             s.copy_bytes(),
@@ -747,7 +747,7 @@ mod test {
 
         let subset_glyph = SubsetGlyph::new(&glyph, &plan);
         assert_eq!(subset_glyph.len(), 20);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         subset_glyph.serialize(&mut s, &plan).unwrap();
         // Flag at offset 10..12 is changed from 0x0046 to 0x0446 (OVERLAP_COMPOUND = 0x0400)
         assert_eq!(
@@ -785,7 +785,7 @@ mod test {
         // When hinting is retained, instructions are kept and padding is trimmed:
         let subset_retained = SubsetGlyph::new(&glyph, &plan);
         assert_eq!(subset_retained.len(), 22);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         subset_retained.serialize(&mut s, &plan).unwrap();
         assert_eq!(
             s.copy_bytes(),
@@ -801,7 +801,7 @@ mod test {
         plan.subset_flags = SubsetFlags::SUBSET_FLAGS_NO_HINTING;
         let subset_dropped = SubsetGlyph::new(&glyph, &plan);
         assert_eq!(subset_dropped.len(), 18);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         subset_dropped.serialize(&mut s, &plan).unwrap();
         assert_eq!(
             s.copy_bytes(),

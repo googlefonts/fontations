@@ -237,7 +237,7 @@ mod test {
         plan.colr_palettes.insert(2, 0);
         plan.colr_palettes.insert(11, 1);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = cpal.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());

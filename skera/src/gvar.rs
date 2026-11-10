@@ -298,7 +298,7 @@ mod test {
         // Dummy font: subsetting gvar does not look at it.
         let font = FontRef::new(raw_bytes).unwrap();
 
-        let mut s = Serializer::new(1024 * 1024);
+        let mut s = Serializer::new(1024 * 1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = gvar.subset(plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());

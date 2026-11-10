@@ -181,7 +181,7 @@ mod test {
             .insert(GlyphId::new(2), GlyphId::new(2));
 
         let mut builder = FontBuilder::default();
-        let mut s = Serializer::new(200000);
+        let mut s = Serializer::new(200000).unwrap();
 
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = sbix.subset(&plan, &font, &mut s, &mut builder);

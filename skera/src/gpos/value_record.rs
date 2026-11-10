@@ -280,7 +280,7 @@ mod test {
                 // All mapped cases use source (1, 2): (outer << 16) | inner.
                 plan.layout_varidx_delta_map.insert(0x10002, (mapped, 0));
             }
-            let mut s = Serializer::new(64);
+            let mut s = Serializer::new(64).unwrap();
             s.start_serialize().unwrap();
             value.subset(&plan, &mut s, format).unwrap();
             s.end_serialize();

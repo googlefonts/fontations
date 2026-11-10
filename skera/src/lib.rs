@@ -1479,13 +1479,13 @@ pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, Subse
 
         // TODO: add more tags with dependencies for instancing
         match tag {
-            Gpos::TAG => tags_with_dependencies.push((tag, record.length())),
-            _ => subset(tag, font, plan, &mut builder, record.length(), &mut state)?,
+            Gpos::TAG => tags_with_dependencies.push(tag),
+            _ => subset(tag, font, plan, &mut builder, &mut state)?,
         }
     }
 
-    for (tag, table_len) in tags_with_dependencies {
-        subset(tag, font, plan, &mut builder, table_len, &mut state)?;
+    for tag in tags_with_dependencies {
+        subset(tag, font, plan, &mut builder, &mut state)?;
     }
     Ok(builder.build())
 }
@@ -1512,7 +1512,6 @@ fn subset<'a>(
     font: &FontRef<'a>,
     plan: &Plan,
     builder: &mut FontBuilder<'a>,
-    table_len: u32,
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     // The CFF subsetter assembles a finished contiguous table, so adding it to
@@ -1528,9 +1527,10 @@ fn subset<'a>(
         return Ok(());
     }
 
-    let buf_size = estimate_subset_table_size(font, table_tag, plan);
-    let mut s = Serializer::new(buf_size);
-    let needed = try_subset(table_tag, font, plan, builder, &mut s, table_len, state);
+    let max_buf_size = max_subset_table_size(font, table_tag, plan);
+    let buf_size = estimate_subset_table_size(font, table_tag, plan).min(max_buf_size);
+    let mut s = Serializer::new(buf_size).map_err(|_| SubsetError::SubsetTableError(table_tag))?;
+    let needed = try_subset(table_tag, font, plan, builder, &mut s, max_buf_size, state);
     if s.in_error() && !s.only_offset_overflow() {
         return Err(SubsetError::SubsetTableError(table_tag));
     }
@@ -1559,7 +1559,7 @@ fn try_subset<'a>(
     plan: &Plan,
     builder: &mut FontBuilder<'a>,
     s: &mut Serializer,
-    table_len: u32,
+    max_buf_size: usize,
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     s.start_serialize()
@@ -1572,12 +1572,19 @@ fn try_subset<'a>(
     }
 
     // ran out of room, reallocate more bytes
-    let buf_size = s.allocated() * 2 + 16;
-    if buf_size > (table_len as usize) * 256 {
+    let Some(buf_size) = s
+        .allocated()
+        .checked_mul(2)
+        .and_then(|size| size.checked_add(16))
+    else {
+        return ret;
+    };
+    if buf_size > max_buf_size {
         return ret;
     }
-    s.reset_size(buf_size);
-    try_subset(table_tag, font, plan, builder, s, table_len, state)
+    s.reset_size(buf_size)
+        .map_err(|_| SubsetError::SubsetTableError(table_tag))?;
+    try_subset(table_tag, font, plan, builder, s, max_buf_size, state)
 }
 
 fn subset_table<'a>(
@@ -1836,13 +1843,9 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     let table_len = table_data.len();
     let mut bulk: usize = 8192;
     if table_tag == Name::TAG {
-        // Required for correctness: try_subset stops growing the buffer at
-        // table_len * 256, which a large override on a tiny name table can exceed.
-        bulk += plan
-            .name_table_overrides
-            .values()
-            .map(|bytes| bytes.len() + name::NAME_RECORD_SIZE)
-            .sum::<usize>();
+        // Overrides can be much larger than the source name table, so make room for
+        // them up front instead of growing the buffer in another subset pass.
+        bulk += name_overrides_len(plan);
     }
     let src_glyphs = plan.font_num_glyphs;
     let dst_glyphs = plan.num_output_glyphs;
@@ -1875,7 +1878,7 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     // underestimate badly when the dropped glyphs are small, which forces a second,
     // larger subset pass.
     if table_tag == Glyf::TAG {
-        if let Some(len) = retained_glyf_len(font, plan) {
+        if let Some(len) = retained_glyf_len(font, plan, table_len) {
             return bulk + len;
         }
     }
@@ -1883,30 +1886,104 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
     bulk + (table_len as f32 * (dst_glyphs as f32 / src_glyphs as f32).sqrt()) as usize
 }
 
+/// The largest serializer buffer, in bytes, that subsetting one table may allocate.
+///
+/// The buffer starts at the size estimate and grows whenever the table runs out of
+/// room, so without a bound a malformed font could make it grow until allocation
+/// fails. A table's subset shouldn't need more than twice the size of the whole
+/// font file, plus, for name, the records the caller added with overrides, which
+/// don't come from the font.
+///
+/// If the bound doesn't fit in `usize`, there is no bound beyond what can be
+/// allocated.
+fn max_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -> usize {
+    let max = font.data().len().checked_mul(2);
+    let max = if table_tag == Name::TAG {
+        max.and_then(|max| max.checked_add(name_overrides_len(plan)))
+    } else {
+        max
+    };
+    max.unwrap_or(usize::MAX)
+}
+
+/// Bytes needed for the name records the caller added with overrides.
+fn name_overrides_len(plan: &Plan) -> usize {
+    plan.name_table_overrides
+        .values()
+        .map(|bytes| bytes.len() + name::NAME_RECORD_SIZE)
+        .sum()
+}
+
 /// Sum of the source glyf lengths of all retained glyphs according to loca, each
-/// rounded up to even.
-fn retained_glyf_len(font: &FontRef, plan: &Plan) -> Option<usize> {
+/// rounded up to even, bounded by the length of glyf.
+///
+/// loca is untrusted, and the output buffer is allocated from this estimate before
+/// any glyph is read, so loca must not be able to choose the allocation size:
+/// - a glyph whose range is reversed or ends past `glyf_len` counts as empty; the
+///   glyf subsetter rejects it later with an error;
+/// - the total is capped at `glyf_len` plus one padding byte per retained glyph,
+///   so in-bounds but overlapping ranges cannot inflate it either.
+///
+/// A font with overlapping glyphs can legitimately need more room than the cap;
+/// `try_subset` then grows the buffer, as it does for any underestimate, up to
+/// [`max_subset_table_size`].
+fn retained_glyf_len(font: &FontRef, plan: &Plan, glyf_len: usize) -> Option<usize> {
     let loca = font.loca(None).ok()?;
-    Some(
-        plan.new_to_old_gid_list
-            .iter()
-            .map(|(_, old_gid)| {
-                let gid = old_gid.to_u32() as usize;
-                match (loca.get_raw(gid), loca.get_raw(gid + 1)) {
-                    (Some(start), Some(end)) => {
-                        let len = end.saturating_sub(start) as usize;
-                        len + len % 2
-                    }
-                    _ => 0,
+    let total: usize = plan
+        .new_to_old_gid_list
+        .iter()
+        .map(|(_, old_gid)| {
+            let gid = old_gid.to_u32() as usize;
+            match (loca.get_raw(gid), loca.get_raw(gid + 1)) {
+                (Some(start), Some(end)) if start <= end && end as usize <= glyf_len => {
+                    let len = (end - start) as usize;
+                    len + len % 2
                 }
-            })
-            .sum(),
-    )
+                _ => 0,
+            }
+        })
+        // each term is at most glyf_len + 1, so this cannot overflow in practice;
+        // saturate anyway rather than rely on that
+        .fold(0usize, usize::saturating_add);
+    Some(total.min(glyf_len.saturating_add(plan.new_to_old_gid_list.len())))
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    /// A table's serializer buffer is bounded by twice the font file size, plus
+    /// the caller's overrides for name.
+    #[test]
+    fn max_subset_table_size_is_twice_the_font() {
+        let bytes = std::fs::read("test-data/fonts/Roboto-Regular.ttf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let mut plan = Plan::new(
+            &IntSet::empty(),
+            &parse_unicodes("*").unwrap(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        let twice_font = bytes.len() * 2;
+        assert_eq!(max_subset_table_size(&font, Glyf::TAG, &plan), twice_font);
+        assert_eq!(max_subset_table_size(&font, Name::TAG, &plan), twice_font);
+
+        plan.override_name_table(NameId::new(1), 3, 1, 0x409, Some(&"x".repeat(1000)))
+            .unwrap();
+        let overrides = name_overrides_len(&plan);
+        assert!(overrides > 1000);
+        assert_eq!(
+            max_subset_table_size(&font, Name::TAG, &plan),
+            twice_font + overrides
+        );
+        // overrides only add room to name
+        assert_eq!(max_subset_table_size(&font, Glyf::TAG, &plan), twice_font);
+    }
 
     /// The glyf buffer estimate must cover the subset glyf table, so glyf is
     /// subset in a single pass even when the dropped glyphs are small.
@@ -1943,6 +2020,68 @@ mod test {
             assert!(
                 estimate - 8192 >= glyf_len,
                 "{path} {unicodes}: estimate {estimate}, glyf {glyf_len}"
+            );
+        }
+    }
+
+    /// A tiny glyf font whose long loca is `0, odd, 0, odd, ...`: every even glyph
+    /// claims `odd` bytes of a 4-byte glyf, every odd glyph ends before it starts.
+    fn font_with_hostile_loca(num_glyphs: u16, odd: u32) -> Vec<u8> {
+        let mut head = vec![0u8; 54];
+        // indexToLocFormat: long offsets
+        head[50..52].copy_from_slice(&1i16.to_be_bytes());
+        // maxp version 0.5
+        let mut maxp = 0x0000_5000u32.to_be_bytes().to_vec();
+        maxp.extend(num_glyphs.to_be_bytes());
+        let loca: Vec<u8> = (0..=num_glyphs as u32)
+            .flat_map(|i| (if i % 2 == 1 { odd } else { 0 }).to_be_bytes())
+            .collect();
+        FontBuilder::new()
+            .add_raw(Head::TAG, head)
+            .add_raw(Maxp::TAG, maxp)
+            .add_raw(Loca::TAG, loca)
+            .add_raw(Glyf::TAG, vec![0u8; 4])
+            .build()
+    }
+
+    /// loca must not choose the size of the glyf buffer, which is allocated before
+    /// any glyph is read: a few hundred bytes of loca could otherwise request
+    /// ~120 GiB and abort the process in `Serializer::new` (ANT-2026-7O19I20P).
+    ///
+    /// The estimate is asserted before subsetting, so a regression fails this test
+    /// instead of attempting the huge allocation.
+    #[test]
+    fn glyf_size_estimate_ignores_hostile_loca() {
+        const NUM_GLYPHS: u16 = 60;
+        const GLYF_LEN: usize = 4;
+        // 0xFFFFFFFE: even glyphs reach far past the end of glyf.
+        // GLYF_LEN: even glyphs stay inside glyf but all overlap.
+        for odd in [0xFFFF_FFFE, GLYF_LEN as u32] {
+            let bytes = font_with_hostile_loca(NUM_GLYPHS, odd);
+            let font = FontRef::new(&bytes).unwrap();
+            let gids: IntSet<GlyphId> = (0..NUM_GLYPHS as u32).map(GlyphId::new).collect();
+            let plan = Plan::new(
+                &gids,
+                &IntSet::empty(),
+                &font,
+                SubsetFlags::default(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+                &IntSet::empty(),
+            );
+            let estimate = estimate_subset_table_size(&font, Glyf::TAG, &plan);
+            // 8192 bytes of fixed slack, then at most glyf plus one pad byte per glyph
+            let bound = 8192 + GLYF_LEN + NUM_GLYPHS as usize;
+            assert!(
+                estimate <= bound,
+                "loca {odd:#x}: estimate {estimate} exceeds {bound}"
+            );
+            // the odd glyphs are malformed, so subsetting reports an error
+            assert!(
+                subset_font(&font, &plan).is_err(),
+                "loca {odd:#x}: malformed glyphs were accepted"
             );
         }
     }

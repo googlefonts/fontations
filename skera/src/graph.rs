@@ -860,7 +860,7 @@ impl Graph {
     }
 
     pub(crate) fn serialize(&self) -> Result<Vec<u8>, SerializeErrorFlags> {
-        let mut s = Serializer::new(self.total_size_in_bytes());
+        let mut s = Serializer::new(self.total_size_in_bytes())?;
         s.reserve_objects(self.ordering.len());
         s.start_serialize()?;
 
@@ -2264,11 +2264,11 @@ pub(crate) mod test {
     #[test]
     fn test_graph_serialize() {
         let buf_size = 100;
-        let mut s1 = Serializer::new(buf_size);
+        let mut s1 = Serializer::new(buf_size).unwrap();
         populate_serializer_simple(&mut s1);
         let graph = Graph::from_serializer(s1).unwrap();
 
-        let mut s2 = Serializer::new(buf_size);
+        let mut s2 = Serializer::new(buf_size).unwrap();
         populate_serializer_simple(&mut s2);
         let expected_bytes = s2.copy_bytes();
         let out = graph.serialize().unwrap();
@@ -2278,8 +2278,8 @@ pub(crate) mod test {
     #[test]
     fn test_sort_shortest() {
         let buf_size = 100;
-        let mut a = Serializer::new(buf_size);
-        let mut e = Serializer::new(buf_size);
+        let mut a = Serializer::new(buf_size).unwrap();
+        let mut e = Serializer::new(buf_size).unwrap();
         populate_serializer_complex_2(&mut a);
 
         let mut graph = Graph::from_serializer(a).unwrap();
@@ -2316,7 +2316,7 @@ pub(crate) mod test {
     #[test]
     fn test_has_overflows_1() {
         let buf_size = 100;
-        let mut s = Serializer::new(buf_size);
+        let mut s = Serializer::new(buf_size).unwrap();
         populate_serializer_complex_2(&mut s);
         let mut graph = Graph::from_serializer(s).unwrap();
 
@@ -2326,7 +2326,7 @@ pub(crate) mod test {
     #[test]
     fn test_has_overflows_2() {
         let buf_size = 160000;
-        let mut s = Serializer::new(buf_size);
+        let mut s = Serializer::new(buf_size).unwrap();
         populate_serializer_with_overflow(&mut s);
         let mut graph = Graph::from_serializer(s).unwrap();
 
@@ -2336,7 +2336,7 @@ pub(crate) mod test {
     #[test]
     fn test_has_overflows_3() {
         let buf_size = 160000;
-        let mut s = Serializer::new(buf_size);
+        let mut s = Serializer::new(buf_size).unwrap();
         populate_serializer_with_dedup_overflow(&mut s);
         let mut graph = Graph::from_serializer(s).unwrap();
 
@@ -2346,12 +2346,12 @@ pub(crate) mod test {
     #[test]
     fn test_duplicate_leaf() {
         let buf_size = 100;
-        let mut a = Serializer::new(buf_size);
+        let mut a = Serializer::new(buf_size).unwrap();
         populate_serializer_complex_2(&mut a);
         let mut graph = Graph::from_serializer(a).unwrap();
         graph.normalize();
 
-        let mut e = Serializer::new(buf_size);
+        let mut e = Serializer::new(buf_size).unwrap();
         e.start_serialize().unwrap();
 
         let mn = add_object(&mut e, b"mn", 2, false);
@@ -2382,7 +2382,7 @@ pub(crate) mod test {
     #[test]
     fn test_duplicate_interior() {
         let buf_size = 100;
-        let mut c = Serializer::new(buf_size);
+        let mut c = Serializer::new(buf_size).unwrap();
         populate_serializer_complex_3(&mut c);
         let mut graph = Graph::from_serializer(c).unwrap();
         graph.remap_child(3, 2, 3).unwrap();
@@ -2431,7 +2431,7 @@ pub(crate) mod test {
     #[test]
     fn test_shared_node_with_virtual_links() {
         let buf_size = 100;
-        let mut c = Serializer::new(buf_size);
+        let mut c = Serializer::new(buf_size).unwrap();
 
         c.start_serialize().unwrap();
         let obj_b = add_object(&mut c, b"b", 1, false);
@@ -2465,7 +2465,7 @@ pub(crate) mod test {
     #[test]
     fn test_deep_graph_traversal() {
         let buf_size = 1_000_000;
-        let mut s = Serializer::new(buf_size);
+        let mut s = Serializer::new(buf_size).unwrap();
         s.start_serialize().unwrap();
         let mut prev = add_object(&mut s, b"leaf", 4, false);
         for _ in 0..2000 {
@@ -2518,7 +2518,7 @@ pub(crate) mod test {
     // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
     #[test]
     fn test_resolve_shared_overflow_uses_preceding_parents() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         s.start_serialize().unwrap();
         let child = add_object(&mut s, b"c", 1, false);
 
@@ -2556,7 +2556,7 @@ pub(crate) mod test {
     // as overflowing.
     #[test]
     fn test_saturated_positions_overflow() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         s.start_serialize().unwrap();
         let child = add_object(&mut s, b"child", 5, false);
         start_object(&mut s, b"p", 1);
@@ -2580,7 +2580,7 @@ pub(crate) mod test {
     #[test]
     fn test_try_isolating_already_isolated_roots() {
         let large_bytes = [b'a'; 60000];
-        let mut s = Serializer::new(160000);
+        let mut s = Serializer::new(160000).unwrap();
         s.start_serialize().unwrap();
         let obj_d = add_object(&mut s, b"d", 1, false);
         let obj_e = add_object(&mut s, b"e", 1, false);
@@ -2626,7 +2626,7 @@ pub(crate) mod test {
     #[test]
     fn test_32bit_roots_traversal() {
         let buf_size = 1000;
-        let mut s = Serializer::new(buf_size);
+        let mut s = Serializer::new(buf_size).unwrap();
         s.start_serialize().unwrap();
         let leaf1 = add_object(&mut s, b"l1  ", 4, false);
         let leaf2 = add_object(&mut s, b"l2  ", 4, false);
@@ -2662,7 +2662,7 @@ pub(crate) mod test {
         // and consider b a root. However, b should not be a root since it's not a top level 32 bit link.
         // BFS will handle this correctly by discovering a as a top level root and then avoiding further
         // exploring it.
-        let mut s2 = Serializer::new(buf_size);
+        let mut s2 = Serializer::new(buf_size).unwrap();
         s2.start_serialize().unwrap();
         let b = add_object(&mut s2, b"b", 1, false);
 
@@ -2690,7 +2690,7 @@ pub(crate) mod test {
 
     #[test]
     fn connected_space_roots_preserve_all_incoming_edges() {
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         let a = add_object(&mut s, &[0u8; 2], 2, false);
         let b = add_object(&mut s, b"bb", 2, false);
@@ -2716,7 +2716,7 @@ pub(crate) mod test {
     #[test]
     fn nested_wide_offsets_form_spaces_within_the_budget() {
         for count in [2, MAX_SPACES] {
-            let mut s = Serializer::new(count * 16 + 1024);
+            let mut s = Serializer::new(count * 16 + 1024).unwrap();
             s.start_serialize().unwrap();
             let leaves: Vec<_> = (0..count)
                 .map(|i| add_object(&mut s, &(i as u32).to_be_bytes(), 4, false))

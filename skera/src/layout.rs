@@ -1915,7 +1915,7 @@ mod test {
         plan.glyph_map_gsub[34] = GlyphId::from(1_u32);
         plan.glyph_map_gsub[35] = GlyphId::from(2_u32);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         //test ClassDef1: remap_class: true, keep_empty_table: true, use_class_zero: true, use glyph_filter:Some(&Coverage)
         let ret = class_def1.subset(
@@ -1943,7 +1943,7 @@ mod test {
 
         // test subset ClassDef2:
         // remap_class: true, keep_empty_table: true, use_class_zero: false, no glyph_filter: None
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = class_def2.subset(
             &plan,
@@ -1990,7 +1990,7 @@ mod test {
             let bytes: [u8; 6] = [0, 1, 0, start_glyph, 0, 0];
             let class_def = ClassDefFormat1::read(FontData::new(&bytes)).unwrap();
 
-            let mut s = Serializer::new(1024);
+            let mut s = Serializer::new(1024).unwrap();
             assert_eq!(s.start_serialize(), Ok(()));
             let ret = class_def.subset(
                 &plan,
@@ -2012,7 +2012,7 @@ mod test {
             assert_eq!(subsetted_data, expected_bytes, "start_glyph {start_glyph}");
 
             // and it is reported as empty when the caller doesn't want empties
-            let mut s = Serializer::new(1024);
+            let mut s = Serializer::new(1024).unwrap();
             assert_eq!(s.start_serialize(), Ok(()));
             let ret = class_def.subset(
                 &plan,
@@ -2049,7 +2049,7 @@ mod test {
         plan.glyph_map_gsub[0] = GlyphId::NOTDEF;
         plan.glyph_map_gsub[68] = GlyphId::from(1_u32);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         //remap_class: false, keep_empty_table: false, use_class_zero: true, no glyph_filter:None
         let ret = glyph_class_def.subset(
@@ -2094,7 +2094,7 @@ mod test {
         plan.glyph_map_gsub[0] = GlyphId::NOTDEF;
         plan.glyph_map_gsub[68] = GlyphId::from(3_u32);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = coverage.subset(&plan, &mut s, ());
         assert!(ret.is_ok());
@@ -2139,7 +2139,7 @@ mod test {
         plan.glyph_map_gsub[36] = GlyphId::from(3_u32);
         plan.glyph_map_gsub[56] = GlyphId::from(4_u32);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = coverage.subset(&plan, &mut s, ());
         assert!(ret.is_ok());
@@ -2315,7 +2315,7 @@ mod test {
 
         plan.layout_scripts.invert();
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let mut c = SubsetLayoutContext::new(Gpos::TAG);
@@ -2348,7 +2348,7 @@ mod test {
         plan.gpos_lookups.insert(82, 1);
         plan.gpos_lookups.insert(57, 0);
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let mut c = SubsetLayoutContext::new(Gpos::TAG);

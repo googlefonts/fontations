@@ -417,7 +417,7 @@ mod test {
         plan.glyphset
             .insert_range(GlyphId::NOTDEF..=GlyphId::from(3_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -458,7 +458,7 @@ mod test {
         plan.glyphset.insert(GlyphId::from(1_u32));
         plan.glyphset.insert(GlyphId::from(3_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -510,7 +510,7 @@ mod test {
 
         plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -561,7 +561,7 @@ mod test {
         plan.glyphset
             .insert_range(GlyphId::NOTDEF..=GlyphId::from(3_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -602,7 +602,7 @@ mod test {
         plan.glyphset.insert(GlyphId::from(1_u32));
         plan.glyphset.insert(GlyphId::from(3_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());
@@ -654,7 +654,7 @@ mod test {
 
         plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
         assert!(ret.is_ok());

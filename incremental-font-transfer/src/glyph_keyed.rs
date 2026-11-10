@@ -324,11 +324,11 @@ impl<T: GlyphDataOffsetArray> OffsetArrayBuilder<'_, T> {
             )));
         }
 
-        let mut new_data = Serializer::new(self.new_data_len);
+        let mut new_data = Serializer::new(self.new_data_len)?;
         new_data
             .start_serialize()
             .map_err(PatchingError::SerializationError)?;
-        let mut new_offsets = Serializer::new(self.new_offsets_len);
+        let mut new_offsets = Serializer::new(self.new_offsets_len)?;
         new_offsets
             .start_serialize()
             .map_err(PatchingError::SerializationError)?;
@@ -916,7 +916,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         let max_new_size = orig_size + offsets.offset_array.len() / 2 + offsets.data.len();
 
         // part 1 and 2 - write gvar header and offsets
-        let mut serializer = Serializer::new(max_new_size);
+        let mut serializer = Serializer::new(max_new_size)?;
         serializer
             .start_serialize()
             .and(serializer.embed_bytes(part1_header_pre_flag))
@@ -1055,7 +1055,7 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
             offset_data.len() +
             1 + count_width; // header size for INDEX
 
-        let mut serializer = Serializer::new(max_new_size);
+        let mut serializer = Serializer::new(max_new_size)?;
 
         // Part 1 - Non charstrings data.
         let r = serializer.start_serialize().and(

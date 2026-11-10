@@ -288,14 +288,35 @@ pub struct Serializer {
 }
 
 impl Serializer {
-    pub fn new(size: usize) -> Self {
-        Serializer {
-            data: vec![0; size],
+    /// Creates a serializer with a buffer of `size` bytes.
+    ///
+    /// Returns `SERIALIZE_ERROR_OTHER` if the buffer can't be allocated, instead of
+    /// aborting the process. Buffer sizes can come from untrusted font data.
+    pub fn new(size: usize) -> Result<Self, SerializeErrorFlags> {
+        let mut data = Vec::new();
+        data.try_reserve_exact(size)
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+        data.resize(size, 0);
+        Ok(Serializer {
+            data,
             end: size,
             tail: size,
             packed: Vec::new(),
             ..Default::default()
+        })
+    }
+
+    /// Makes room for `size` bytes in the buffer, so that resizing it to `size`
+    /// doesn't allocate.
+    ///
+    /// On allocation failure, sets `SERIALIZE_ERROR_OTHER` and leaves the buffer as
+    /// it was.
+    fn reserve_buffer(&mut self, size: usize) -> Result<(), SerializeErrorFlags> {
+        let additional = size.saturating_sub(self.data.len());
+        if self.data.try_reserve_exact(additional).is_err() {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         }
+        Ok(())
     }
 
     /// Reserves room for `num_objects` objects, so that serializing a known number of objects
@@ -442,12 +463,19 @@ impl Serializer {
         self.errors
     }
 
-    pub(crate) fn reset_size(&mut self, size: usize) {
+    /// Clears the serializer and resizes its buffer to `size` bytes.
+    ///
+    /// If the buffer can't be allocated, the serializer is left as it was with
+    /// `SERIALIZE_ERROR_OTHER` set.
+    pub(crate) fn reset_size(&mut self, size: usize) -> Result<(), SerializeErrorFlags> {
+        self.reserve_buffer(size)?;
         self.start = 0;
         self.end = size;
         self.reset();
         self.current = None;
+        // reset() empties the buffer but keeps the room reserved above
         self.data.resize(size, 0);
+        Ok(())
     }
 
     fn reset(&mut self) {
@@ -1156,10 +1184,25 @@ mod test {
 
     use super::*;
 
+    // A buffer that can't be allocated is an error, not an abort. usize::MAX bytes
+    // can never be allocated, so this fails without trying.
+    #[test]
+    fn buffer_allocation_failure_is_an_error() {
+        assert_eq!(
+            Serializer::new(usize::MAX).err(),
+            Some(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
+        );
+
+        let mut s = Serializer::new(16).unwrap();
+        assert!(s.reset_size(usize::MAX).is_err());
+        assert_eq!(s.error(), SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+        assert_eq!(s.allocated(), 16);
+    }
+
     // test Serializer::embed() works for different Scalar types
     #[test]
     fn test_serializer_embed() {
-        let mut s = Serializer::new(2);
+        let mut s = Serializer::new(2).unwrap();
         let gid = 1_u32;
         //fail when out of room
         assert_eq!(
@@ -1167,7 +1210,7 @@ mod test {
             Err(SerializeErrorFlags::SERIALIZE_ERROR_OUT_OF_ROOM)
         );
 
-        let mut s = Serializer::new(16384);
+        let mut s = Serializer::new(16384).unwrap();
         assert_eq!(s.embed(gid), Ok(0));
 
         //check that head is advancing accordingly
@@ -1190,7 +1233,7 @@ mod test {
 
     #[test]
     fn test_serializer_embed_bytes() {
-        let mut s = Serializer::new(2);
+        let mut s = Serializer::new(2).unwrap();
         let bytes = vec![1_u8, 2, 3, 4, 5];
         //fail when out of room
         assert_eq!(
@@ -1198,7 +1241,7 @@ mod test {
             Err(SerializeErrorFlags::SERIALIZE_ERROR_OUT_OF_ROOM)
         );
 
-        let mut s = Serializer::new(10);
+        let mut s = Serializer::new(10).unwrap();
         assert_eq!(s.embed_bytes(&bytes), Ok(0));
 
         //check that head is advancing accordingly
@@ -1213,7 +1256,7 @@ mod test {
 
     #[test]
     fn test_push() {
-        let mut s = Serializer::new(2);
+        let mut s = Serializer::new(2).unwrap();
         assert_eq!(s.push(), Ok(()));
         assert_eq!(
             s.embed(1_u32),
@@ -1393,7 +1436,7 @@ mod test {
 
     #[test]
     fn test_push_and_pop_pack() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         let n = Uint24::new(80);
         assert_eq!(s.embed(n), Ok(0));
         assert_eq!(s.head, 3);
@@ -1578,7 +1621,7 @@ mod test {
 
     #[test]
     fn test_push_and_pop_discard() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         let n = Uint24::new(80);
         assert_eq!(s.embed(n), Ok(0));
         assert_eq!(s.head, 3);
@@ -1615,7 +1658,7 @@ mod test {
 
     #[test]
     fn test_add_link_resolve_links() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         let header: u32 = 1;
         //parent header
         assert_eq!(s.push(), Ok(()));
@@ -1673,7 +1716,7 @@ mod test {
 
     #[test]
     fn test_length() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         let n = Uint24::new(80);
         assert_eq!(s.embed(n), Ok(0));
         assert_eq!(s.head, 3);
@@ -1692,7 +1735,7 @@ mod test {
 
     #[test]
     fn test_snapshot_and_revert() {
-        let mut s = Serializer::new(100);
+        let mut s = Serializer::new(100).unwrap();
         //test when current is None
         let snapshot = s.snapshot();
         let n = Uint24::new(80);

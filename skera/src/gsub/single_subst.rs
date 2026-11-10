@@ -259,7 +259,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(777_u32));
         plan.glyphset_gsub.insert(GlyphId::from(779_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -307,7 +307,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(885_u32));
         plan.glyphset_gsub.insert(GlyphId::from(1282_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -337,7 +337,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(485_u32));
         plan.glyphset_gsub.insert(GlyphId::from(552_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         let subset_state = SubsetState::default();
@@ -378,7 +378,7 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(504_u32));
         plan.glyphset_gsub.insert(GlyphId::from(58536_u32));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         assert_eq!(table.subset(&plan, &mut s, ()), Ok(()));
         assert!(!s.in_error());
@@ -396,7 +396,7 @@ mod test {
         let glyphs = [GlyphId::from(1_u32), GlyphId::from(3_u32)];
         let sub_glyphs = [GlyphId::from(0xFFFF_u32), GlyphId::from(1_u32)];
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
         assert_eq!(
             SingleSubst::serialize(&mut s, (&glyphs, &sub_glyphs)),

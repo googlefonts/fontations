@@ -124,7 +124,7 @@ mod tests {
     fn serialize(glyphs: &[u32], substitutes: &[u32]) -> Vec<u8> {
         let glyphs: Vec<_> = glyphs.iter().copied().map(GlyphId::new).collect();
         let substitutes: Vec<_> = substitutes.iter().copied().map(GlyphId::new).collect();
-        let mut s = Serializer::new(glyphs.len() * 12 + 64);
+        let mut s = Serializer::new(glyphs.len() * 12 + 64).unwrap();
         s.start_serialize().unwrap();
         SingleSubst::serialize(&mut s, (&glyphs, &substitutes)).unwrap();
         s.end_serialize();
@@ -217,7 +217,7 @@ mod tests {
                     plan.glyphset_gsub.insert(GlyphId::new(old));
                     plan.glyph_map_gsub[old as usize] = GlyphId::new(new);
                 }
-                let mut s = Serializer::new(1024);
+                let mut s = Serializer::new(1024).unwrap();
                 s.start_serialize().unwrap();
                 table
                     .subset(
@@ -254,7 +254,7 @@ mod tests {
         plan.glyphset_gsub.insert(GlyphId::new(65536));
         plan.glyph_map_gsub[65536] = GlyphId::new(1);
         plan.glyph_map_gsub[70000] = GlyphId::new(2);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         table.subset(&plan, &mut s, ()).unwrap();
         s.end_serialize();
@@ -282,7 +282,7 @@ mod tests {
         plan.glyphset_gsub.insert(GlyphId::new(0));
         plan.glyph_map_gsub[0] = GlyphId::new(0);
         plan.glyph_map_gsub[65535] = GlyphId::new(1);
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         s.start_serialize().unwrap();
         table.subset(&plan, &mut s, ()).unwrap();
         s.end_serialize();
@@ -302,7 +302,7 @@ mod tests {
                 SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
             ),
         ] {
-            let mut s = Serializer::new(1024);
+            let mut s = Serializer::new(1024).unwrap();
             s.start_serialize().unwrap();
             assert_eq!(
                 SingleSubst::serialize(&mut s, (&glyphs, &glyphs)),

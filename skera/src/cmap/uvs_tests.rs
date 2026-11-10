@@ -8,7 +8,7 @@ use read_fonts::{
 };
 
 fn serialize_variant(source: &CmapSubtable, plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags> {
-    let mut s = Serializer::new(4096);
+    let mut s = Serializer::new(4096).unwrap();
     s.start_serialize().unwrap();
     source.serialize(&mut s, plan, &[])?;
     s.end_serialize();

@@ -86,7 +86,7 @@ mod test {
         plan.glyph_map.insert(GlyphId::new(6974), GlyphId::new(3));
         plan.glyph_map.insert(GlyphId::new(6980), GlyphId::new(4));
 
-        let mut s = Serializer::new(1024);
+        let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
         // unrelated font, font is actually unused in subset() method

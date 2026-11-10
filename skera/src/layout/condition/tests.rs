@@ -35,7 +35,7 @@ fn subset<T>(table: &T, plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags>
 where
     for<'a> T: SubsetTable<'a, ArgsForSubset = (), Output = ()>,
 {
-    let mut s = Serializer::new(1024 * 1024);
+    let mut s = Serializer::new(1024 * 1024).unwrap();
     s.start_serialize().unwrap();
     table.subset(plan, &mut s, ())?;
     s.end_serialize();
