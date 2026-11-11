@@ -18,6 +18,11 @@ pub(crate) mod pairpos_graph;
 
 const MAX_SPACES: usize = 8000;
 const MAX_VERTICES: usize = 800000;
+// Total number of vertices sort_shortest_distance() may visit over the lifetime of a graph.
+// Overflow resolution re-sorts the whole graph after every step and a step can grow the graph
+// by a copy of a shared subgraph, so the limits on iterations and vertices alone still allow
+// about a thousand sorts of a graph near MAX_VERTICES.
+const MAX_SORTED_VERTICES: usize = 32 * MAX_VERTICES;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
@@ -34,6 +39,15 @@ pub(crate) enum RepackError {
     ErrorMaxOperationsExceeded,
 }
 
+/// The 24 or 32 bit wide links of some vertices, keyed by the vertex they link to:
+/// (parent, index of the link in the parent's real links).
+type WideLinks = FastHashMap<ObjIdx, Vec<(ObjIdx, usize)>>;
+
+/// Returns true for an unsigned 24 or 32 bit link, which can reach a vertex in another space.
+fn is_wide_link(l: &Link) -> bool {
+    matches!(l.link_width(), LinkWidth::Three | LinkWidth::Four) && !l.is_signed()
+}
+
 pub(crate) struct Overflow(u64);
 
 impl Overflow {
@@ -44,6 +58,15 @@ impl Overflow {
     fn parent(&self) -> ObjIdx {
         (self.0 >> 32) as ObjIdx
     }
+}
+
+/// The overflowing links to a shared child, see Graph::process_overflows().
+#[derive(Default)]
+struct SharedOverflow {
+    /// The number of overflowing links from each parent.
+    parents: FastHashMap<ObjIdx, usize>,
+    /// The number of parents a duplication of the child was last refused for.
+    refused_num_parents: Option<usize>,
 }
 
 #[derive(Default, Debug)]
@@ -175,6 +198,14 @@ impl RealLinks {
                 *self = RealLinks::Unsorted(v);
                 out
             }
+        }
+    }
+
+    /// Returns the link at index idx. Only the link's object may be changed through it, which
+    /// leaves the order of the links as it is.
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Link> {
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.get_mut(idx),
         }
     }
 
@@ -589,6 +620,9 @@ pub(crate) struct Graph {
     /// The LookupList2 of a version 1.2 GSUB or GPOS table, whose lookups
     /// rather than the whole list become packing spaces.
     wide_lookup_list: Option<ObjIdx>,
+    /// Vertices visited by sort_shortest_distance() so far, checked against
+    /// MAX_SORTED_VERTICES.
+    sorted_vertices: usize,
 
     // graph state flags
     parents_invalid: bool,
@@ -676,6 +710,11 @@ impl Graph {
         if self.vertices.len() < 2 {
             // no need to do sorting when num of nodes < 2
             return Ok(());
+        }
+
+        self.sorted_vertices = self.sorted_vertices.saturating_add(self.vertices.len());
+        if self.sorted_vertices > MAX_SORTED_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
         }
 
         self.positions_invalid = true;
@@ -998,6 +1037,10 @@ impl Graph {
 
         visited.invert();
         let mut visited_subgraph_nodes = IntSet::empty();
+        // Collect the wide links into the roots once rather than walking all links of their
+        // parents again for every space. Spaces don't share nodes, so isolating one doesn't
+        // change the links into the roots of the others.
+        let wide_links = self.wide_links(&roots);
         loop {
             let Some(next) = roots.first() else {
                 break;
@@ -1005,7 +1048,11 @@ impl Graph {
             let mut connected_roots = IntSet::empty();
             self.find_connected_nodes(next, &mut roots, &mut visited, &mut connected_roots)?;
 
-            self.isolate_subgraph(&mut connected_roots, &mut visited_subgraph_nodes)?;
+            self.isolate_subgraph(
+                &mut connected_roots,
+                &mut visited_subgraph_nodes,
+                &wide_links,
+            )?;
             let next_space = self.next_space();
             if next_space >= MAX_SPACES {
                 return Err(RepackError::ErrorMaxOperationsExceeded);
@@ -1265,18 +1312,24 @@ impl Graph {
     // that originate from outside of the subgraph will be removed by duplicating the linked to
     // object
     // Indices stored in roots will be updated if any of the roots are duplicated to new indices.
+    // wide_links holds the result of wide_links() for a set of vertices that includes roots.
     fn isolate_subgraph(
         &mut self,
         roots: &mut IntSet<u32>,
         visited: &mut IntSet<u32>,
+        wide_links: &WideLinks,
     ) -> Result<bool, RepackError> {
         self.update_parents()?;
 
+        // The parents with 24 or 32 bit wide links into roots.
         let mut parents = IntSet::empty();
         let mut subgraph_map = FastHashMap::default();
-        // Seed every root before traversal can count edges into another root.
+        // Seed every root, with the number of its wide incoming links, before traversal can
+        // count edges into another root.
         for root_idx in roots.iter() {
-            subgraph_map.insert(root_idx, self.wide_parents(root_idx, &mut parents));
+            let links = wide_links.get(&root_idx).map_or(&[][..], Vec::as_slice);
+            parents.extend_unsorted(links.iter().map(|(parent_idx, _)| *parent_idx));
+            subgraph_map.insert(root_idx, links.len());
         }
         for root_idx in roots.iter() {
             self.find_subgraph_nodes_incoming_edges(root_idx, &mut subgraph_map)?;
@@ -1302,8 +1355,8 @@ impl Graph {
             .map(|idx| index_map.get(idx).copied().unwrap_or(*idx))
             .collect();
 
-        self.remap_obj_indices(&index_map, new_subgraph, false)?;
-        self.remap_obj_indices(&index_map, parents, true)?;
+        self.remap_obj_indices(&index_map, new_subgraph)?;
+        self.remap_wide_links(&index_map, &parents, wide_links)?;
 
         for (old, new) in index_map.iter() {
             if roots.remove(*old) {
@@ -1317,7 +1370,6 @@ impl Graph {
         &mut self,
         index_map: &FastHashMap<ObjIdx, ObjIdx>,
         it: IntSet<u32>,
-        only_wide: bool,
     ) -> Result<(), RepackError> {
         let mut old_to_new_idx_parents = Vec::new();
         for parent_idx in it.iter() {
@@ -1329,14 +1381,6 @@ impl Graph {
                 let Some(new_idx) = index_map.get(&old_idx) else {
                     continue;
                 };
-
-                if only_wide
-                    && (l.is_signed()
-                        || (l.link_width() != LinkWidth::Four
-                            && l.link_width() != LinkWidth::Three))
-                {
-                    continue;
-                }
                 l.update_obj_idx(*new_idx);
                 old_to_new_idx_parents.push((old_idx, *new_idx, parent_idx, false));
             }
@@ -1346,17 +1390,62 @@ impl Graph {
                 let Some(new_idx) = index_map.get(&old_idx) else {
                     continue;
                 };
-
-                if only_wide
-                    && (l.is_signed()
-                        || (l.link_width() != LinkWidth::Four
-                            && l.link_width() != LinkWidth::Three))
-                {
-                    continue;
-                }
                 l.update_obj_idx(*new_idx);
                 old_to_new_idx_parents.push((old_idx, *new_idx, parent_idx, true));
             }
+        }
+        self.reassign_parents(&old_to_new_idx_parents)
+    }
+
+    // Like remap_obj_indices() for the 24 or 32 bit wide links of parents, but only visits the
+    // links in wide_links that lead to a remapped vertex instead of all links of the parents.
+    fn remap_wide_links(
+        &mut self,
+        index_map: &FastHashMap<ObjIdx, ObjIdx>,
+        parents: &IntSet<u32>,
+        wide_links: &WideLinks,
+    ) -> Result<(), RepackError> {
+        // At most this many vertices are both remapped and linked to. Most have one wide link
+        // from the parents, so this is usually the number of links to remap.
+        let mut to_remap = Vec::with_capacity(wide_links.len().min(index_map.len()));
+        for (old_idx, new_idx) in index_map.iter() {
+            let Some(links) = wide_links.get(old_idx) else {
+                continue;
+            };
+            for (parent_idx, link_idx) in links {
+                if parents.contains(*parent_idx) {
+                    to_remap.push((*parent_idx, *link_idx, *old_idx, *new_idx));
+                }
+            }
+        }
+        // in the order a scan of the parents' links would remap them
+        to_remap.sort_unstable();
+
+        let mut old_to_new_idx_parents = Vec::with_capacity(to_remap.len());
+        for (parent_idx, link_idx, old_idx, new_idx) in to_remap {
+            let Some(l) = self
+                .vertices
+                .get_mut(parent_idx as usize)
+                .and_then(|v| v.real_links.get_mut(link_idx))
+            else {
+                return Err(RepackError::GraphErrorInvalidObjIndex);
+            };
+            // A parent that is also in the subgraph has been remapped already.
+            if l.obj_idx() != old_idx {
+                continue;
+            }
+            // wide_links() recorded a wide link at this index, and links are only retargeted in
+            // place. Should that ever stop holding, don't move a narrow link into another space.
+            let is_wide = is_wide_link(l);
+            debug_assert!(
+                is_wide,
+                "link {link_idx} of vertex {parent_idx} is no longer wide"
+            );
+            if !is_wide {
+                continue;
+            }
+            l.update_obj_idx(new_idx);
+            old_to_new_idx_parents.push((old_idx, new_idx, parent_idx, false));
         }
         self.reassign_parents(&old_to_new_idx_parents)
     }
@@ -1474,23 +1563,37 @@ impl Graph {
         Ok(clone_idx)
     }
 
-    // returns the number of incoming edges that are 24 or 32 bits wide
-    // and parent obj_idx will be added into the parents set
-    fn wide_parents(&self, obj_idx: ObjIdx, parents_set: &mut IntSet<u32>) -> usize {
+    // Returns the 24 or 32 bit wide links of all parents of the vertices in objs, keyed by the
+    // vertex they link to. The links of each parent are visited once, however many of the
+    // vertices it links to.
+    fn wide_links(&self, objs: &IntSet<u32>) -> WideLinks {
         let vertices = &self.vertices;
-        let v = &vertices[obj_idx as usize];
-        let mut count = 0;
-        for p in v.iter_parents() {
-            let parent_v = &vertices[*p as usize];
-            for l in parent_v.real_links() {
-                let width = l.link_width() as u8;
-                if l.obj_idx() == obj_idx && (width == 3 || width == 4) && !l.is_signed() {
-                    count += 1;
-                    parents_set.insert(*p);
+        let mut parents = IntSet::empty();
+        for obj_idx in objs.iter() {
+            parents.extend_unsorted(vertices[obj_idx as usize].iter_parents().copied());
+        }
+
+        // The vertices in objs are space roots, which are reached through wide links, so expect
+        // at least one key for each of them.
+        let mut wide_links = WideLinks::with_capacity_and_hasher(
+            objs.len() as usize,
+            foldhash::fast::FixedState::default(),
+        );
+        for parent_idx in parents.iter() {
+            for (link_idx, l) in vertices[parent_idx as usize]
+                .real_links()
+                .iter()
+                .enumerate()
+            {
+                if is_wide_link(l) {
+                    wide_links
+                        .entry(l.obj_idx())
+                        .or_default()
+                        .push((parent_idx, link_idx));
                 }
             }
         }
-        count
+        wide_links
     }
 
     fn next_space(&self) -> usize {
@@ -1538,7 +1641,8 @@ impl Graph {
         // An overflow root still needs a new packing space when no duplication is
         // needed, so move already-isolated roots as well.
         // ref: <https://github.com/harfbuzz/harfbuzz/commit/22248564c1eb107ba51dced50cc4d8b904e02808>
-        self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty())?;
+        let wide_links = self.wide_links(&roots_to_isolate);
+        self.isolate_subgraph(&mut roots_to_isolate, &mut IntSet::empty(), &wide_links)?;
         self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
@@ -1648,22 +1752,11 @@ impl Graph {
 
     fn resolve_shared_overflow(
         &mut self,
-        overflow_index: usize,
-        overflows: &[Overflow],
+        child_idx: ObjIdx,
+        mut parents: IntSet<u32>,
     ) -> Result<bool, RepackError> {
-        // Find all of the parents in overflowing links that link to this same child node.
+        // parents holds all of the parents in overflowing links that link to child_idx.
         // try duplicating the child node and re-assigning all of these parents to the duplicate.
-        // As in HarfBuzz, only overflows up to and including overflow_index are considered.
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
-        let overflow = &overflows[overflow_index];
-        let child_idx = overflow.child();
-        let mut parents = IntSet::empty();
-        for o in &overflows[..=overflow_index] {
-            if o.child() == child_idx {
-                parents.insert(o.parent());
-            }
-        }
-
         let Some(ret) = (match self.duplicate_and_reassign_parents(&parents, child_idx)? {
             None => {
                 if parents.len() > 2 {
@@ -1691,21 +1784,55 @@ impl Graph {
     ) -> Result<bool, RepackError> {
         let mut priority_bumped_parents = IntSet::empty();
         let mut resolution_attempted = false;
+        // As in HarfBuzz, a shared overflow is resolved with the parents of the overflows up to
+        // and including it that link to the same child.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/879be16fd/src/hb-repacker.hh#L246>
+        // Rather than rescanning the overflow list for each overflow, count the overflowing links
+        // per parent of each shared child once, and drop each overflow from the counts as the
+        // loop below passes it. Children with incoming virtual edges are never duplicated.
+        let mut shared_overflows: FastHashMap<ObjIdx, SharedOverflow> = FastHashMap::default();
+        for overflow in overflows {
+            let child_v = &self.vertices[overflow.child() as usize];
+            if child_v.is_shared() && !child_v.has_incoming_virtual_edges {
+                *shared_overflows
+                    .entry(overflow.child())
+                    .or_default()
+                    .parents
+                    .entry(overflow.parent())
+                    .or_default() += 1;
+            }
+        }
+
         // try resolving the furthest overflows first
-        for (overflow_index, overflow) in overflows.iter().enumerate().rev() {
+        for overflow in overflows.iter().rev() {
             let child_idx = overflow.child();
-            if self.vertices[child_idx as usize].is_shared()
-                && self.resolve_shared_overflow(overflow_index, overflows)?
-            {
-                return Ok(true);
+            let parent_idx = overflow.parent();
+            if let Some(shared) = shared_overflows.get_mut(&child_idx) {
+                // A refused duplication leaves the graph's links unchanged, so it would be
+                // refused again for the same parents. The parent sets only shrink as the loop
+                // goes on, so they are the same exactly when they have the same size.
+                let num_parents = shared.parents.len();
+                if shared.refused_num_parents != Some(num_parents) {
+                    let parents = shared.parents.keys().copied().collect();
+                    if self.resolve_shared_overflow(child_idx, parents)? {
+                        return Ok(true);
+                    }
+                    shared.refused_num_parents = Some(num_parents);
+                }
+                if let Some(count) = shared.parents.get_mut(&parent_idx) {
+                    *count -= 1;
+                    if *count == 0 {
+                        shared.parents.remove(&parent_idx);
+                    }
+                }
             }
 
-            let parent_idx = overflow.parent();
+            // Priorities only go up, so once raising the priority of a parent's children has
+            // been tried, trying it again for another of its overflows cannot change anything.
             if self.vertices[child_idx as usize].is_leaf()
-                && !priority_bumped_parents.contains(parent_idx)
+                && priority_bumped_parents.insert(parent_idx)
                 && self.raise_childrens_priority(parent_idx)
             {
-                priority_bumped_parents.insert(parent_idx);
                 resolution_attempted = true;
             }
         }
@@ -2544,12 +2671,60 @@ pub(crate) mod test {
             .collect();
 
         // Resolving the second overflow must only reassign the first two parents.
-        assert!(graph.resolve_shared_overflow(1, &overflows).unwrap());
+        assert!(graph.process_overflows(&overflows[..2]).unwrap());
         let child_of = |g: &Graph, p: ObjIdx| g.vertices[p as usize].real_links()[0].obj_idx();
         let clone = child_of(&graph, parents[0]);
         assert_ne!(clone, child);
         assert_eq!(child_of(&graph, parents[1]), clone);
         assert_eq!(child_of(&graph, parents[2]), child);
+    }
+
+    // Duplicating a child for all of its parents is refused, but a later overflow that only
+    // has some of them before it can still be resolved.
+    #[test]
+    fn test_process_overflows_retries_with_fewer_parents() {
+        let mut s = Serializer::new(100).unwrap();
+        s.start_serialize().unwrap();
+        let child = add_object(&mut s, b"c", 1, false);
+
+        let mut parents = [0; 2];
+        for (i, p) in parents.iter_mut().enumerate() {
+            start_object(&mut s, &[b'p', b'0' + i as u8], 2);
+            add_offset(&mut s, child);
+            add_offset(&mut s, child);
+            *p = s.pop_pack(false).unwrap();
+        }
+
+        start_object(&mut s, b"r", 1);
+        for p in parents {
+            add_offset(&mut s, p);
+        }
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.update_parents().unwrap();
+        let overflow = |p: ObjIdx| Overflow(((p as u64) << 32) | child as u64);
+        let overflows = [
+            overflow(parents[0]),
+            overflow(parents[0]),
+            overflow(parents[1]),
+            overflow(parents[1]),
+        ];
+
+        // Both links of p0 move to one clone, p1 keeps the original child.
+        assert!(graph.process_overflows(&overflows).unwrap());
+        let links = |g: &Graph, p: ObjIdx| -> Vec<ObjIdx> {
+            g.vertices[p as usize]
+                .real_links()
+                .iter()
+                .map(|l| l.obj_idx())
+                .collect()
+        };
+        let clone = links(&graph, parents[0])[0];
+        assert_ne!(clone, child);
+        assert_eq!(links(&graph, parents[0]), [clone, clone]);
+        assert_eq!(links(&graph, parents[1]), [child, child]);
     }
 
     // Positions that don't fit in a u32 are saturated, and links involving them are reported
@@ -2746,5 +2921,119 @@ pub(crate) mod test {
             graph.sort_shortest_distance().unwrap();
             graph.is_fully_connected().unwrap();
         }
+    }
+
+    #[test]
+    fn sorting_work_is_limited_over_the_life_of_a_graph() {
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        let a = add_object(&mut s, b"aa", 2, false);
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_offset(&mut s, a);
+        add_offset(&mut s, b);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(s).unwrap();
+        let count = graph.vertices.len();
+        graph.sort_shortest_distance().unwrap();
+        assert_eq!(graph.sorted_vertices, count);
+
+        // Every sort is charged in full, and the budget runs out exactly at the limit.
+        graph.sorted_vertices = MAX_SORTED_VERTICES - 2 * count;
+        graph.sort_shortest_distance().unwrap();
+        graph.sort_shortest_distance_if_needed().unwrap();
+        assert_eq!(graph.sorted_vertices, MAX_SORTED_VERTICES);
+        assert!(matches!(
+            graph.sort_shortest_distance(),
+            Err(RepackError::ErrorMaxOperationsExceeded)
+        ));
+    }
+
+    // A parent with 16, 24 and 32 bit links into two space roots, one of which also has a 16
+    // bit link and needs duplicating.
+    #[test]
+    fn wide_links_to_shared_space_roots_are_remapped() {
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        let a = add_object(&mut s, b"aa", 2, false);
+        let b = add_object(&mut s, b"bb", 2, false);
+        s.push().unwrap();
+        add_24_offset(&mut s, a);
+        add_offset(&mut s, a);
+        add_wide_offset(&mut s, b);
+        add_24_offset(&mut s, a);
+        let parent = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        add_offset(&mut s, parent);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.sort_shortest_distance().unwrap();
+
+        let wide_links = graph.wide_links(&[a, b].into_iter().collect());
+        assert_eq!(wide_links.len(), 2);
+        assert_eq!(wide_links[&a], [(parent, 0), (parent, 3)]);
+        assert_eq!(wide_links[&b], [(parent, 2)]);
+
+        // The 16 bit link keeps a out of a space of its own, which gets a copy instead.
+        let a_copy = graph.vertices.len() as ObjIdx;
+        assert!(graph.assign_spaces().unwrap());
+        assert_eq!(graph.vertices.len(), a_copy as usize + 1);
+        let children: Vec<_> = graph.vertices[parent as usize]
+            .real_links()
+            .iter()
+            .map(|l| l.obj_idx())
+            .collect();
+        assert_eq!(children, [a_copy, a, b, a_copy]);
+        assert_eq!(graph.vertices[a as usize].incoming_edges(), 1);
+        assert_eq!(graph.vertices[a_copy as usize].incoming_edges(), 2);
+        assert_eq!(graph.vertices[a as usize].space, 0);
+        assert_ne!(graph.vertices[a_copy as usize].space, 0);
+        assert_ne!(
+            graph.vertices[a_copy as usize].space,
+            graph.vertices[b as usize].space
+        );
+    }
+
+    // One parent links to thousands of space roots with 32 bit links, and to one of them many
+    // more times. Walking all of the parent's links again for every root takes billions of
+    // steps in a debug build.
+    #[test]
+    fn assign_spaces_visits_the_links_of_wide_parents_once() {
+        const NUM_ROOTS: usize = 6000;
+        const NUM_EXTRA_LINKS: usize = 100000;
+        let mut s = Serializer::new(NUM_ROOTS * 8 + NUM_EXTRA_LINKS * 4 + 1024).unwrap();
+        s.start_serialize().unwrap();
+        let roots: Vec<_> = (0..NUM_ROOTS)
+            .map(|i| add_object(&mut s, &(i as u32).to_be_bytes(), 4, false))
+            .collect();
+        s.push().unwrap();
+        for root in &roots {
+            add_wide_offset(&mut s, *root);
+        }
+        for _ in 0..NUM_EXTRA_LINKS {
+            add_wide_offset(&mut s, roots[0]);
+        }
+        let parent = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        add_offset(&mut s, parent);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+        assert!(!s.in_error());
+
+        let mut graph = Graph::from_serializer(s).unwrap();
+        graph.sort_shortest_distance().unwrap();
+        let count = graph.vertices.len();
+        assert!(graph.assign_spaces().unwrap());
+        // every root gets a space of its own, and nothing needs duplicating
+        assert_eq!(graph.num_roots_for_space.len(), NUM_ROOTS + 1);
+        assert_eq!(graph.vertices.len(), count);
+        let spaces: IntSet<u32> = roots
+            .iter()
+            .map(|idx| graph.vertices[*idx as usize].space)
+            .collect();
+        assert_eq!(spaces.len(), NUM_ROOTS as u64);
+        assert!(!spaces.contains(0));
     }
 }
