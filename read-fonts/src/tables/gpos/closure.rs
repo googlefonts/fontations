@@ -40,11 +40,14 @@ impl Gpos<'_> {
         if self.selected_feature_list_offset()?.is_null() {
             return Ok(IntSet::empty());
         }
+        // One budget for the whole table, as when HarfBuzz sanitizes it.
+        let mut ops_left = crate::limits::max_ops(self.offset_data().len());
         let feature_list = self.feature_list()?;
-        let mut lookup_indices = feature_list.collect_lookups(feature_indices)?;
+        let mut lookup_indices = feature_list.collect_lookups(feature_indices, &mut ops_left)?;
 
         if let Some(feature_variations) = self.feature_variations().transpose()? {
-            let subs_lookup_indices = feature_variations.collect_lookups(feature_indices)?;
+            let subs_lookup_indices =
+                feature_variations.collect_lookups(feature_indices, &mut ops_left)?;
             lookup_indices.union(&subs_lookup_indices);
         }
         Ok(lookup_indices)

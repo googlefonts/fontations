@@ -369,6 +369,9 @@ pub struct Plan {
     name_table_overrides: FastHashMap<name::RecordKey, Vec<u8>>,
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
+    /// The layout tables with a walk that ran out of its [`layout::OpsBudget`],
+    /// which fail to subset.
+    layout_ops_exceeded: IntSet<Tag>,
 
     //active old->new feature index map after removing redundant langsys and prune_features
     gsub_features: FastHashMap<u16, u16>,
@@ -1040,24 +1043,30 @@ impl Plan {
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
             if let Some(Ok(variations)) = gpos.feature_variations() {
+                let mut budget = layout::OpsBudget::new(gpos.offset_data());
                 layout::collect_feature_variation_condition_indices(
                     &variations,
                     self,
                     &self.gpos_features_w_duplicates,
                     &self.gpos_lookups,
                     &mut varidx_set,
+                    &mut budget,
                 );
+                budget.record(Gpos::TAG, self);
             }
         }
         if let Ok(gsub) = font.gsub() {
             if let Some(Ok(variations)) = gsub.feature_variations() {
+                let mut budget = layout::OpsBudget::new(gsub.offset_data());
                 layout::collect_feature_variation_condition_indices(
                     &variations,
                     self,
                     &self.gsub_features_w_duplicates,
                     &self.gsub_lookups,
                     &mut varidx_set,
+                    &mut budget,
                 );
+                budget.record(Gsub::TAG, self);
             }
         }
         if !self.drop_tables.contains(Math::TAG) {
@@ -1345,6 +1354,7 @@ pub(crate) trait LayoutClosure {
         &self,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
+        budget: &mut layout::OpsBudget,
     ) -> IntSet<u16>;
 
     /// Return a duplicate feature(after subsetting) index map
