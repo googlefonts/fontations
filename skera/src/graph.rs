@@ -9,6 +9,7 @@ use crate::{
     },
 };
 use read_fonts::{collections::IntSet, types::Uint24};
+use std::ops::Range;
 
 mod coverage_graph;
 pub(crate) mod layout;
@@ -179,28 +180,6 @@ impl RealLinks {
         false
     }
 
-    // removes an real link at specified position and returns it
-    fn remove_real_link(&mut self, pos: u32) -> Option<Link> {
-        let tmp_state = std::mem::take(self);
-        match tmp_state {
-            RealLinks::Sorted(mut v) => {
-                let out = v
-                    .binary_search_by_key(&pos, |a| a.position())
-                    .ok()
-                    .map(|idx| v.swap_remove(idx));
-                *self = RealLinks::Unsorted(v);
-                out
-            }
-            RealLinks::Unsorted(mut v) => {
-                let out = (0..v.len())
-                    .find(|&i| v[i].position() == pos)
-                    .map(|i| v.swap_remove(i));
-                *self = RealLinks::Unsorted(v);
-                out
-            }
-        }
-    }
-
     /// Returns the link at index idx. Only the link's object may be changed through it, which
     /// leaves the order of the links as it is.
     fn get_mut(&mut self, idx: usize) -> Option<&mut Link> {
@@ -227,6 +206,26 @@ impl RealLinks {
         match self {
             RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.extend_from_slice(other),
         }
+    }
+
+    /// Removes the links whose position new_position maps to a new position and returns them
+    /// with their new positions, sorted by new position. The remaining links keep their order.
+    fn take_mapped(
+        &mut self,
+        mut new_position: impl FnMut(u32) -> Option<u32>,
+    ) -> Vec<(u32, Link)> {
+        let mut taken = Vec::new();
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.retain(|l| {
+                let Some(new_pos) = new_position(l.position()) else {
+                    return true;
+                };
+                taken.push((new_pos, *l));
+                false
+            }),
+        }
+        taken.sort_unstable_by_key(|(new_pos, _)| *new_pos);
+        taken
     }
 }
 
@@ -600,11 +599,6 @@ impl Vertex {
 
     fn real_links(&self) -> &RealLinks {
         &self.real_links
-    }
-
-    // removes an real link at specified position and returns it
-    fn remove_real_link(&mut self, pos: u32) -> Option<Link> {
-        self.real_links.remove_real_link(pos)
     }
 }
 
@@ -1870,13 +1864,13 @@ impl Graph {
     }
 
     // Finds the object idx of the object pointed to by the offset at specified 'position'
-    // within vertices[idx].
+    // within vertices[idx]. Sorts the links first, so that this and later lookups are binary
+    // searches rather than scans of the whole list.
     #[inline]
-    pub(crate) fn index_for_position(&self, idx: ObjIdx, position: u32) -> Option<ObjIdx> {
-        self.vertices
-            .get(idx as usize)?
-            .real_links
-            .link_index_at_position(position)
+    pub(crate) fn index_for_position(&mut self, idx: ObjIdx, position: u32) -> Option<ObjIdx> {
+        let links = &mut self.vertices.get_mut(idx as usize)?.real_links;
+        links.sort_if_needed();
+        links.link_index_at_position(position)
     }
 
     fn add_parent_child_link(
@@ -1899,46 +1893,8 @@ impl Graph {
         Ok(())
     }
 
-    // Moves the child of old_parent_idx pointed to by old_offset to a new vertex at the new_offset.
-    // Returns the idx of the child that was moved
-    fn move_child(
-        &mut self,
-        old_parent_idx: ObjIdx,
-        old_offset: u32,
-        new_parent_idx: ObjIdx,
-        new_offset: u32,
-        link_width: usize,
-    ) -> Result<Option<ObjIdx>, RepackError> {
-        self.distance_invalid = true;
-        self.positions_invalid = true;
-
-        let old_parent_v = self.vertices.get_mut(old_parent_idx as usize).unwrap();
-
-        // remove from old parent
-        let Some(link) = old_parent_v.remove_real_link(old_offset) else {
-            return Ok(None);
-        };
-
-        let child_idx = link.obj_idx();
-        let width = LinkWidth::new_checked(link_width).ok_or(RepackError::ErrorSplitSubtable)?;
-
-        self.vertices
-            .get_mut(new_parent_idx as usize)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_link(width, child_idx, new_offset, false);
-
-        let child_v = self
-            .vertices
-            .get_mut(child_idx as usize)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-
-        child_v.remove_parent(old_parent_idx, 1, false);
-        child_v.add_parent(new_parent_idx, false);
-        Ok(Some(child_idx))
-    }
-
-    // Move all outgoing links in old parent that have a link position between [old_offset_start, old_offset_start + num_child * link_width)
-    // to the new parent. Links are placed serially in the new parent starting at new_offset_start.
+    // Moves the outgoing links of old parent at positions old_offset_start + i * link_width,
+    // for i in 0..num_child, to new_offset_start + i * link_width in the new parent.
     fn move_children(
         &mut self,
         old_parent_idx: ObjIdx,
@@ -1948,48 +1904,67 @@ impl Graph {
         num_child: u32,
         link_width: usize,
     ) -> Result<(), RepackError> {
+        let width = link_width as u32;
+        self.move_children_mapped(old_parent_idx, new_parent_idx, link_width, |pos| {
+            let offset = pos.checked_sub(old_offset_start)?;
+            let (i, rem) = (offset / width, offset % width);
+            (rem == 0 && i < num_child).then(|| new_offset_start + offset)
+        })
+    }
+
+    // Moves the outgoing links of old parent with a position in old_positions to the new parent,
+    // keeping their distance from the start of the range: a link at old_positions.start moves to
+    // new_offset_start.
+    fn move_children_in_range(
+        &mut self,
+        old_parent_idx: ObjIdx,
+        old_positions: Range<u32>,
+        new_parent_idx: ObjIdx,
+        new_offset_start: u32,
+        link_width: usize,
+    ) -> Result<(), RepackError> {
+        self.move_children_mapped(old_parent_idx, new_parent_idx, link_width, |pos| {
+            old_positions
+                .contains(&pos)
+                .then(|| pos - old_positions.start + new_offset_start)
+        })
+    }
+
+    // Moves each outgoing link of old parent whose position new_position maps to a new position
+    // to that position in the new parent, as a link_width bytes wide link. The moved links are
+    // added in order of their new positions. This takes a single pass over the old parent's links
+    // rather than looking each one up.
+    fn move_children_mapped(
+        &mut self,
+        old_parent_idx: ObjIdx,
+        new_parent_idx: ObjIdx,
+        link_width: usize,
+        new_position: impl FnMut(u32) -> Option<u32>,
+    ) -> Result<(), RepackError> {
         self.distance_invalid = true;
         self.positions_invalid = true;
 
-        let mut child_idxes = Vec::with_capacity(num_child as usize);
-
-        let old_parent_v = self
+        let width = LinkWidth::new_checked(link_width).ok_or(RepackError::ErrorSplitSubtable)?;
+        let moved = self
             .vertices
             .get_mut(old_parent_idx as usize)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .real_links
+            .take_mapped(new_position);
 
-        for i in 0..num_child {
-            let pos = old_offset_start + i * link_width as u32;
-            let Some(l) = old_parent_v.remove_real_link(pos) else {
-                continue;
-            };
+        for (new_pos, link) in moved {
+            let child_idx = link.obj_idx();
+            self.vertices
+                .get_mut(new_parent_idx as usize)
+                .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+                .add_link(width, child_idx, new_pos, false);
 
-            child_idxes.push(l.obj_idx());
-        }
-
-        for child_idx in &child_idxes {
             let child_v = self
                 .vertices
-                .get_mut(*child_idx as usize)
+                .get_mut(child_idx as usize)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-
             child_v.remove_parent(old_parent_idx, 1, false);
             child_v.add_parent(new_parent_idx, false);
-        }
-
-        let new_parent_v = self
-            .vertices
-            .get_mut(new_parent_idx as usize)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-
-        let width = LinkWidth::new_checked(link_width).ok_or(RepackError::ErrorSplitSubtable)?;
-        for (i, child_idx) in child_idxes.iter().enumerate() {
-            new_parent_v.add_link(
-                width,
-                *child_idx,
-                new_offset_start + (i * link_width) as u32,
-                false,
-            );
         }
         Ok(())
     }
@@ -3035,5 +3010,62 @@ pub(crate) mod test {
             .collect();
         assert_eq!(spaces.len(), NUM_ROOTS as u64);
         assert!(!spaces.contains(0));
+    }
+
+    // The subtable splitters look up and move many links by position. A vertex built from the
+    // serializer has unsorted links, here in reverse order of position.
+    #[test]
+    fn many_unsorted_links_are_found_and_moved_by_position() {
+        let count = 20_000_u32;
+        let new_link = |i: u32| Link::new(LinkWidth::Two, i, i * 2);
+        let (parent, new_parent) = (count, count + 1);
+        let mut graph = Graph::default();
+        graph
+            .vertices
+            .resize_with(count as usize + 2, Vertex::default);
+        graph.vertices[parent as usize].real_links =
+            RealLinks::Unsorted((0..count).rev().map(new_link).collect());
+        for i in 0..count {
+            graph.vertices[i as usize].add_parent(parent, false);
+        }
+
+        // The first lookup sorts the links, so that it and the others are binary searches.
+        for i in 0..count {
+            assert_eq!(graph.index_for_position(parent, i * 2), Some(i));
+        }
+        assert!(matches!(
+            graph.vertices[parent as usize].real_links,
+            RealLinks::Sorted(_)
+        ));
+        assert_eq!(graph.index_for_position(parent, 1), None);
+        assert_eq!(graph.index_for_position(parent, count * 2), None);
+
+        // Moving the second half of the links in one pass keeps the remaining ones sorted, and
+        // adds the moved ones to the new parent in order, at the same distance from its start.
+        graph
+            .move_children_in_range(parent, count..count * 2, new_parent, 0, 2)
+            .unwrap();
+        for v in [parent, new_parent] {
+            let links = &graph.vertices[v as usize].real_links;
+            assert!(matches!(links, RealLinks::Sorted(_)));
+            assert_eq!(links.len(), count as usize / 2);
+        }
+        for i in 0..count {
+            let pos = i * 2;
+            let (old_parent_links, new_parent_links) = if pos < count {
+                assert_eq!(graph.index_for_position(parent, pos), Some(i));
+                (1, 0)
+            } else {
+                assert_eq!(graph.index_for_position(parent, pos), None);
+                assert_eq!(graph.index_for_position(new_parent, pos - count), Some(i));
+                (0, 1)
+            };
+            let child = &graph.vertices[i as usize];
+            assert_eq!(child.incoming_edges_from_parent(parent), old_parent_links);
+            assert_eq!(
+                child.incoming_edges_from_parent(new_parent),
+                new_parent_links
+            );
+        }
     }
 }

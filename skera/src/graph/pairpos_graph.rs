@@ -3,7 +3,7 @@ use crate::{
     graph::{
         coverage_graph::{add_new_coverage, coverage_glyphs, make_coverage},
         layout::DataBytes,
-        Graph, RealLinks, RepackError,
+        Graph, RepackError,
     },
     serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
@@ -103,11 +103,15 @@ fn clone_range_format1(
     new_table.set_pair_set_count(new_pair_set_count as u16);
 
     // Move pair sets
-    for i in 0..new_pair_set_count {
-        let old_pos = PairPosFormat1::PAIR_SET_OFFSETS_START + (start + i) as u32 * 2;
-        let new_pos = PairPosFormat1::PAIR_SET_OFFSETS_START + i as u32 * 2;
-        graph.move_child(table_idx, old_pos, new_table_idx, new_pos, 2)?;
-    }
+    let old_start = PairPosFormat1::PAIR_SET_OFFSETS_START + start as u32 * 2;
+    let old_end = PairPosFormat1::PAIR_SET_OFFSETS_START + end as u32 * 2;
+    graph.move_children_in_range(
+        table_idx,
+        old_start..old_end,
+        new_table_idx,
+        PairPosFormat1::PAIR_SET_OFFSETS_START,
+        2,
+    )?;
 
     Ok(new_table_idx)
 }
@@ -345,10 +349,6 @@ fn compute_format2_split_points(
     let class_def2_table_v = graph
         .vertex(table_info.class_def2_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    let table_real_links = graph
-        .vertex(table_info.table_idx)
-        .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-        .real_links();
 
     let class_def_2_size = class_def2_table_v.table_size();
 
@@ -382,7 +382,7 @@ fn compute_format2_split_points(
 
                 accumulated_delta += size_of_value_record_children(
                     graph,
-                    table_real_links,
+                    table_info.table_idx,
                     format1_device_indices,
                     table_info.layout.header_size,
                     value1_index,
@@ -391,7 +391,7 @@ fn compute_format2_split_points(
                 )?;
                 accumulated_delta += size_of_value_record_children(
                     graph,
-                    table_real_links,
+                    table_info.table_idx,
                     format2_device_indices,
                     table_info.layout.header_size,
                     value2_index,
@@ -685,8 +685,8 @@ fn get_device_table_indices(val: u16) -> Vec<u8> {
 }
 
 fn size_of_value_record_children(
-    graph: &Graph,
-    links: &RealLinks,
+    graph: &mut Graph,
+    table_idx: ObjIdx,
     device_table_indices: &[u8],
     header_size: usize,
     value_record_index: u32,
@@ -697,7 +697,7 @@ fn size_of_value_record_children(
     let record_start_pos = header_size as u32 + value_record_index * 2;
     for &i in device_table_indices {
         let pos = record_start_pos + i as u32 * 2;
-        if let Some(obj_idx) = links.link_index_at_position(pos) {
+        if let Some(obj_idx) = graph.index_for_position(table_idx, pos) {
             size += graph.find_subgraph_size(obj_idx, visited, queue, u16::MAX)?;
         }
     }
@@ -711,18 +711,8 @@ fn clone_class_records(
     table_info: &Format2TableInfo,
     new_table_idx: ObjIdx,
 ) -> Result<(), RepackError> {
-    let (
-        table_idx,
-        class2_count,
-        total_value_len,
-        v1_len,
-        format1_device_indices,
-        format2_device_indices,
-    ) = (
+    let (table_idx, format1_device_indices, format2_device_indices) = (
         table_info.table_idx,
-        table_info.class2_count,
-        table_info.total_value_len,
-        table_info.v1_len,
         &table_info.format1_device_indices,
         &table_info.format2_device_indices,
     );
@@ -748,57 +738,19 @@ fn clone_class_records(
     if format1_device_indices.is_empty() && format2_device_indices.is_empty() {
         return Ok(());
     }
-    // Handle device tables
-    for i in start..end {
-        for j in 0..class2_count {
-            let old_value_record_index =
-                total_value_len * (u32::from(class2_count) * u32::from(i) + u32::from(j));
-            let new_value_record_index = old_value_record_index
-                - total_value_len * (u32::from(class2_count) * u32::from(start));
-            transfer_device_tables(
-                graph,
-                table_idx,
-                new_table_idx,
-                format1_device_indices,
-                table_info.layout.header_size,
-                old_value_record_index,
-                new_value_record_index,
-            )?;
-            transfer_device_tables(
-                graph,
-                table_idx,
-                new_table_idx,
-                format2_device_indices,
-                table_info.layout.header_size,
-                old_value_record_index + v1_len,
-                new_value_record_index + v1_len,
-            )?;
-        }
-    }
-    Ok(())
-}
-
-fn transfer_device_tables(
-    graph: &mut Graph,
-    old_table_idx: ObjIdx,
-    new_table_idx: ObjIdx,
-    device_table_indices: &[u8],
-    header_size: usize,
-    old_value_record_index: u32,
-    new_value_record_index: u32,
-) -> Result<(), RepackError> {
-    for &i in device_table_indices {
-        let old_pos = header_size as u32 + (old_value_record_index + i as u32) * 2;
-        let new_pos = header_size as u32 + (new_value_record_index + i as u32) * 2;
-        graph.move_child(
-            old_table_idx,
-            old_pos,
-            new_table_idx,
-            new_pos,
-            Offset16::RAW_BYTE_LEN,
-        )?;
-    }
-    Ok(())
+    // Handle device tables: the only links in the copied records are their Device offsets.
+    let header_size = table_info.layout.header_size;
+    let record_pos = |class1: u16| {
+        u32::try_from(header_size + class1 as usize * table_info.class1_record_size)
+            .map_err(|_| RepackError::ErrorSplitSubtable)
+    };
+    graph.move_children_in_range(
+        table_idx,
+        record_pos(start)?..record_pos(end)?,
+        new_table_idx,
+        record_pos(0)?,
+        Offset16::RAW_BYTE_LEN,
+    )
 }
 
 fn get_glyph_classes(
