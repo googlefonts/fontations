@@ -1255,10 +1255,12 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
         .selected_glyf_loca(None)
         .map(|(_, loca)| loca.len())
         .unwrap_or_default();
-    let maxp = font
+    // A font without a readable maxp table has no glyphs, as it has for HarfBuzz.
+    let maxp_num_glyphs = font
         .selected_maxp()
-        .expect("Error reading maximum profile table");
-    ret.max(maxp.num_glyphs() as usize)
+        .map(|maxp| maxp.num_glyphs() as usize)
+        .unwrap_or_default();
+    ret.max(maxp_num_glyphs)
 }
 
 pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + TryFrom<usize>>(
@@ -2315,5 +2317,25 @@ mod test {
         assert!(plan.glyphset.contains(GlyphId::new(2)));
         assert!(plan.glyphset.contains(GlyphId::new(4)));
         assert!(plan.glyphset.contains(GlyphId::new(7)));
+    }
+
+    /// A font without a maxp table used to panic when its plan was created.
+    #[test]
+    fn font_without_maxp_has_no_glyphs() {
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
+        assert!(font.maxp().is_err());
+        let plan = Plan::new(
+            &IntSet::empty(),
+            &parse_unicodes("*").unwrap(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        assert_eq!(plan.font_num_glyphs, 0);
+        assert!(plan.glyphset.is_empty());
     }
 }
