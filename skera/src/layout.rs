@@ -9,7 +9,13 @@ pub(crate) mod header;
 mod lookup_list_tests;
 mod lookup_variations;
 
-use std::{cmp::Ordering, mem};
+use std::{
+    cmp::Ordering,
+    hash::{BuildHasher, Hash, Hasher},
+    mem,
+};
+
+use foldhash::fast::FixedState;
 
 use crate::FastHashMap;
 use crate::{
@@ -40,9 +46,73 @@ use read_fonts::{
 };
 
 use read_fonts::limits::{
-    MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LANGSYS_FEATURE_COUNT, MAX_LOOKUP_VISIT_COUNT,
+    max_ops, MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LANGSYS_FEATURE_COUNT, MAX_LOOKUP_VISIT_COUNT,
     MAX_SCRIPTS,
 };
+
+/// Limits the bytes each walk may read from the tables below a GSUB or GPOS
+/// table.
+///
+/// Offsets may share or overlap their targets, so what a table reaches is not
+/// bounded by its size. A target counts once for every offset that leads to
+/// it, as it does when HarfBuzz sanitizes a layout table, and every walk may
+/// read as much as HarfBuzz's sanitizer may read of the whole table. The
+/// walks read no more of the table than the sanitizer does, so they run out
+/// of budget only on a table that HarfBuzz rejects as well.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/75d8ac5d2313842550174eaab0cbaf653c8f2f77/src/hb-sanitize.hh#L110>
+pub(crate) struct OpsBudget {
+    max_ops: usize,
+    exceeded: bool,
+}
+
+impl OpsBudget {
+    /// A budget for walks below a GSUB or GPOS table, given the data of the
+    /// whole table.
+    pub(crate) fn new(table_data: FontData) -> Self {
+        Self {
+            max_ops: max_ops(table_data.len()),
+            exceeded: false,
+        }
+    }
+
+    /// Starts a walk, which may read up to the whole budget.
+    pub(crate) fn walk(&mut self) -> OpsWalk<'_> {
+        OpsWalk {
+            ops_left: self.max_ops,
+            exceeded: &mut self.exceeded,
+        }
+    }
+
+    /// Records in `plan` if a walk of the `table_tag` table ran out of budget,
+    /// which makes subsetting that table fail: HarfBuzz doesn't subset a table
+    /// that its sanitizer rejects either.
+    pub(crate) fn record(&self, table_tag: Tag, plan: &mut Plan) {
+        if self.exceeded {
+            plan.layout_ops_exceeded.insert(table_tag);
+        }
+    }
+}
+
+/// What one walk may still read of its [`OpsBudget`].
+pub(crate) struct OpsWalk<'a> {
+    ops_left: usize,
+    exceeded: &'a mut bool,
+}
+
+impl OpsWalk<'_> {
+    /// Counts `len` bytes that are about to be read; false once the budget is spent.
+    pub(crate) fn charge(&mut self, len: usize) -> bool {
+        let within_budget = len <= self.ops_left;
+        self.ops_left = self.ops_left.saturating_sub(len);
+        *self.exceeded |= !within_budget;
+        within_budget
+    }
+
+    /// Counts a table that is about to be read; false once the budget is spent.
+    pub(crate) fn visit<'a>(&mut self, table: &impl MinByteRange<'a>) -> bool {
+        self.charge(table.min_table_bytes().len())
+    }
+}
 
 impl NameIdClosure for StylisticSetParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
@@ -123,13 +193,18 @@ pub(crate) fn collect_feature_variations_name_ids(
     feature_records: &[FeatureRecord],
     table_tag: Tag,
     plan: &mut Plan,
+    budget: &mut OpsBudget,
 ) {
     let font_data = feature_variations.offset_data();
+    let mut ops = budget.walk();
     for subs in feature_variations
         .feature_variation_records()
         .iter()
         .filter_map(|rec| rec.feature_table_substitution(font_data)?.ok())
     {
+        if !ops.visit(&subs) {
+            return;
+        }
         for rec in subs.substitutions() {
             let feature_index = rec.feature_index();
             if rec.alternate_feature_offset().is_null()
@@ -145,6 +220,9 @@ pub(crate) fn collect_feature_variations_name_ids(
             if let Ok(alternate) =
                 rec.alternate_feature_with_tag(subs.offset_data(), record.feature_tag())
             {
+                if !ops.visit(&alternate) {
+                    return;
+                }
                 alternate.collect_name_ids(plan);
             }
         }
@@ -598,8 +676,10 @@ pub(crate) fn intersected_glyphs_and_indices(
 pub(crate) fn collect_features_with_retained_subs(
     feature_variations: &FeatureVariations,
     lookup_indices: &IntSet<u16>,
+    budget: &mut OpsBudget,
 ) -> IntSet<u16> {
     let font_data = feature_variations.offset_data();
+    let mut ops = budget.walk();
     let mut out = IntSet::empty();
     for subs in feature_variations
         .feature_variation_records()
@@ -609,6 +689,9 @@ pub(crate) fn collect_features_with_retained_subs(
         let Ok(subs) = subs else {
             return IntSet::empty();
         };
+        if !ops.visit(&subs) {
+            return IntSet::empty();
+        }
 
         for rec in subs.substitutions() {
             if rec.alternate_feature_offset().is_null() {
@@ -617,6 +700,9 @@ pub(crate) fn collect_features_with_retained_subs(
             let Ok(sub_f) = rec.alternate_feature(subs.offset_data()) else {
                 return IntSet::empty();
             };
+            if !ops.visit(&sub_f) {
+                return IntSet::empty();
+            }
             if !feature_intersects_lookups(&sub_f, lookup_indices) {
                 continue;
             }
@@ -626,6 +712,7 @@ pub(crate) fn collect_features_with_retained_subs(
     out.union(&lookup_variations::features_with_retained_lookups(
         feature_variations,
         lookup_indices,
+        budget,
     ));
     out
 }
@@ -641,9 +728,11 @@ pub(crate) fn prune_features(
     alternate_features: &IntSet<u16>,
     lookup_indices: &IntSet<u16>,
     feature_indices: IntSet<u16>,
+    budget: &mut OpsBudget,
 ) -> IntSet<u16> {
     let mut out = IntSet::empty();
     let feature_records = feature_list.feature_records();
+    let mut ops = budget.walk();
     for i in feature_indices.iter() {
         let Some(feature_rec) = feature_records.get(i as usize) else {
             continue;
@@ -662,6 +751,9 @@ pub(crate) fn prune_features(
         let Ok(feature) = feature_rec.feature(feature_list.offset_data()) else {
             return out;
         };
+        if !ops.visit(&feature) {
+            return out;
+        }
         // always keep "size" feature even if it's empty
         // ref: https://github.com/fonttools/fonttools/blob/e857fe5ef7b25e92fd829a445357e45cde16eb04/Lib/fontTools/subset/__init__.py#L1627
         if !feature.feature_params_offset().is_null() && feature_tag == Tag::new(b"size") {
@@ -687,19 +779,22 @@ pub(crate) fn prune_features(
 /// ref: <https://github.com/harfbuzz/harfbuzz/blob/d89fa94461c7ed9c53d8cbe888fd02c527aa546c/src/hb-subset-plan-layout.cc#L297-L330>
 pub(crate) fn collect_variable_feature_indices(
     feature_variations: &FeatureVariations,
+    budget: &mut OpsBudget,
 ) -> IntSet<u16> {
     let font_data = feature_variations.offset_data();
-    let mut out: IntSet<u16> = feature_variations
+    let mut ops = budget.walk();
+    let mut out = IntSet::empty();
+    for subs in feature_variations
         .feature_variation_records()
         .iter()
         .filter_map(|rec| rec.feature_table_substitution(font_data)?.ok())
-        .flat_map(|subs| {
-            subs.substitutions()
-                .iter()
-                .map(|rec| rec.feature_index())
-                .collect::<Vec<_>>()
-        })
-        .collect();
+    {
+        if !ops.visit(&subs) {
+            // Any feature may vary, so none may be deduplicated.
+            return IntSet::all();
+        }
+        out.extend(subs.substitutions().iter().map(|rec| rec.feature_index()));
+    }
     out.extend(
         feature_variations
             .lookup_variation_records()
@@ -710,19 +805,28 @@ pub(crate) fn collect_variable_feature_indices(
     out
 }
 
-/// Whether two same-tag features carry identical FeatureParams data.
+/// The lookup indices of `f` that are in `lookup_indices`, in order.
+fn retained_lookups<'a>(
+    f: &Feature<'a>,
+    lookup_indices: &'a IntSet<u16>,
+) -> impl Iterator<Item = u16> + 'a {
+    f.lookup_list_indices()
+        .iter()
+        .map(|i| i.get())
+        .filter(|i| lookup_indices.contains(*i))
+}
+
+/// The FeatureParams data compared when deduplicating same-tag features:
+/// `Some(None)` for a feature without FeatureParams, `None` if truncated.
+///
+/// Two features carry identical FeatureParams data when this is `Some` and
+/// equal for both.
 /// ref: <https://github.com/harfbuzz/harfbuzz/blob/d89fa94461c7ed9c53d8cbe888fd02c527aa546c/src/hb-subset-plan-layout.cc#L260-L286>
-fn features_have_equal_params(a: &Feature, b: &Feature, tag: Tag) -> bool {
-    match (
-        a.feature_params_offset().is_null(),
-        b.feature_params_offset().is_null(),
-    ) {
-        (true, true) => true,
-        (false, false) => {
-            let a_bytes = feature_params_bytes(a, tag);
-            a_bytes.is_some() && a_bytes == feature_params_bytes(b, tag)
-        }
-        _ => false,
+fn comparable_feature_params<'a>(f: &Feature<'a>, tag: Tag) -> Option<Option<&'a [u8]>> {
+    if f.feature_params_offset().is_null() {
+        Some(None)
+    } else {
+        feature_params_bytes(f, tag).map(Some)
     }
 }
 
@@ -755,11 +859,23 @@ fn has_feature_params(tag: Tag) -> bool {
     tag == Tag::new(b"size") || raw_tag.starts_with(b"ss") || raw_tag.starts_with(b"cv")
 }
 
+/// Map each feature index to the first same-tag feature it duplicates, or to
+/// itself.
+///
+/// Features are duplicates when their FeatureParams data and their retained
+/// lookups are equal. Rather than compare every pair of same-tag features, each
+/// feature is hashed and compared only with the earlier distinct features of
+/// the same tag and hash, which gives the same result.
+///
+/// Each feature is counted against the budget once, as when HarfBuzz sanitizes
+/// it, and again only when its hash collides with a different feature's. Once
+/// the budget is spent the remaining features are kept distinct.
 pub(crate) fn find_duplicate_features(
     feature_list: &FeatureList,
     lookup_indices: &IntSet<u16>,
     feature_indices: IntSet<u16>,
     variable_features: &IntSet<u16>,
+    budget: &mut OpsBudget,
 ) -> FastHashMap<u16, u16> {
     let mut out = FastHashMap::default();
     if feature_indices.is_empty() {
@@ -767,7 +883,9 @@ pub(crate) fn find_duplicate_features(
     }
 
     let feature_recs = feature_list.feature_records();
-    let mut unique_features = FastHashMap::default();
+    let mut ops = budget.walk();
+    // distinct features that a later feature may duplicate, by tag and hash
+    let mut unique_features: FastHashMap<(Tag, u64), Vec<(u16, Feature)>> = FastHashMap::default();
     for i in feature_indices.iter() {
         let Some(rec) = feature_recs.get(i as usize) else {
             continue;
@@ -776,53 +894,55 @@ pub(crate) fn find_duplicate_features(
         let Ok(f) = rec.feature(feature_list.offset_data()) else {
             return out;
         };
+        out.insert(i, i);
 
-        let t = u32::from_be_bytes(rec.feature_tag().to_be_bytes());
-
-        let same_tag_features = unique_features.entry(t).or_insert(IntSet::empty());
-        if same_tag_features.is_empty() {
-            same_tag_features.insert(i);
-            out.insert(i, i);
+        // Matching base lookups do not imply matching alternate behavior.
+        if variable_features.contains(i) {
             continue;
         }
+        let tag = rec.feature_tag();
+        // Truncated FeatureParams never compare equal.
+        let Some(params) = comparable_feature_params(&f, tag) else {
+            continue;
+        };
+        // Once the budget is spent the remaining features are kept distinct.
+        if !ops.visit(&f) || !ops.charge(params.map_or(0, <[u8]>::len)) {
+            continue;
+        }
+        let mut hasher = FixedState::default().build_hasher();
+        params.hash(&mut hasher);
+        retained_lookups(&f, lookup_indices).for_each(|i| hasher.write_u16(i));
 
-        for other_f_idx in same_tag_features.iter() {
-            // Matching base lookups do not imply matching alternate behavior.
-            if variable_features.contains(i) || variable_features.contains(other_f_idx) {
-                continue;
+        let candidates = unique_features.entry((tag, hasher.finish())).or_default();
+        let mut duplicate_of = None;
+        let mut within_budget = true;
+        for (other_idx, other_f) in candidates.iter_mut() {
+            if comparable_feature_params(other_f, tag) == Some(params)
+                && retained_lookups(&f, lookup_indices)
+                    .eq(retained_lookups(other_f, lookup_indices))
+            {
+                duplicate_of = Some(*other_idx);
+                // Equal features are interchangeable here. Comparing the later ones with
+                // the smaller table keeps what the comparisons of duplicates read within
+                // what those features are counted for, so they need not be counted again.
+                if f.min_table_bytes().len() < other_f.min_table_bytes().len() {
+                    *other_f = f.clone();
+                }
+                break;
             }
-            let Some(other_rec) = feature_recs.get(other_f_idx as usize) else {
-                continue;
-            };
-
-            let Ok(other_f) = other_rec.feature(feature_list.offset_data()) else {
-                return out;
-            };
-
-            if !features_have_equal_params(&f, &other_f, rec.feature_tag()) {
-                continue;
-            }
-
-            let f_iter = f
-                .lookup_list_indices()
-                .iter()
-                .filter_map(|i| lookup_indices.contains(i.get()).then_some(i.get()));
-            let other_f_iter = other_f
-                .lookup_list_indices()
-                .iter()
-                .filter_map(|i| lookup_indices.contains(i.get()).then_some(i.get()));
-            if !f_iter.eq(other_f_iter) {
-                continue;
-            } else {
-                out.insert(i, other_f_idx);
+            // Only a feature whose hash collides with a different one gets here. HarfBuzz's
+            // sanitizer doesn't read the two this often, so they are counted on top.
+            if !(ops.visit(&f) && ops.visit(other_f)) {
+                within_budget = false;
                 break;
             }
         }
-
-        let o = out.entry(i).or_insert(i);
-        // no duplicate for this index
-        if *o == i {
-            same_tag_features.insert(i);
+        match duplicate_of {
+            Some(other_idx) => {
+                out.insert(i, other_idx);
+            }
+            None if within_budget => candidates.push((i, f)),
+            None => (),
         }
     }
     out
@@ -1761,6 +1881,7 @@ impl<
 #[cfg(test)]
 mod test {
     use super::*;
+    use font_test_data::bebuffer::BeBuffer;
     use read_fonts::{
         tables::gpos::{PairPos, PositionSubtables},
         types::GlyphId,
@@ -1794,7 +1915,13 @@ mod test {
         let list = FeatureList::read(FontData::new(&bytes)).unwrap();
         let lookups = [0u16].into_iter().collect();
         let features = (0..params.len() as u16).collect();
-        let map = find_duplicate_features(&list, &lookups, features, &IntSet::empty());
+        let map = find_duplicate_features(
+            &list,
+            &lookups,
+            features,
+            &IntSet::empty(),
+            &mut OpsBudget::new(list.offset_data()),
+        );
         (0..params.len() as u16).map(|i| map[&i]).collect()
     }
 
@@ -1840,7 +1967,13 @@ mod test {
         let list = FeatureList::read(FontData::new(&bytes)).unwrap();
         let lookups = [0u16].into_iter().collect();
         let variable = [1u16].into_iter().collect();
-        let map = find_duplicate_features(&list, &lookups, (0..3).collect(), &variable);
+        let map = find_duplicate_features(
+            &list,
+            &lookups,
+            (0..3).collect(),
+            &variable,
+            &mut OpsBudget::new(list.offset_data()),
+        );
         assert_eq!(map[&0], 0);
         assert_eq!(map[&1], 1);
         assert_eq!(map[&2], 0);
@@ -2363,5 +2496,174 @@ mod test {
         ];
 
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    // A FeatureVariations table whose `count` records all point at one
+    // FeatureTableSubstitution, whose `count` records all point at one
+    // alternate Feature for feature 3 listing lookups `0..count`.
+    fn feature_variations_with_shared_tables(count: u16) -> Vec<u8> {
+        let n = u32::from(count);
+        let mut buf = BeBuffer::new().extend([1_u16, 0]).push(n);
+        for _ in 0..n {
+            buf = buf.extend([0, 8 + 8 * n]);
+        }
+        buf = buf.extend([1_u16, 0, count]);
+        for _ in 0..n {
+            buf = buf.push(3_u16).push(6 + 6 * n);
+        }
+        buf.extend([0, count]).extend(0..count).to_vec()
+    }
+
+    #[test]
+    fn feature_variations_walks_are_bounded_by_table_size() {
+        let bytes = feature_variations_with_shared_tables(4);
+        let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
+        let retained = [3_u16].into_iter().collect();
+        assert!(collect_features_with_retained_subs(
+            &table,
+            &retained,
+            &mut OpsBudget::new(table.offset_data())
+        )
+        .iter()
+        .eq([3]));
+        assert!(
+            collect_variable_feature_indices(&table, &mut OpsBudget::new(table.offset_data()))
+                .iter()
+                .eq([3])
+        );
+
+        // 200 * 200 reads of a 404 byte Feature: far more than the table's
+        // budget, so the walks give up instead of reading every path.
+        let bytes = feature_variations_with_shared_tables(200);
+        let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
+        let retained = [199_u16].into_iter().collect();
+        let mut budget = OpsBudget::new(table.offset_data());
+        assert!(collect_features_with_retained_subs(&table, &retained, &mut budget).is_empty());
+        assert!(budget.exceeded);
+        // The budget is that of the whole GSUB or GPOS table, as in HarfBuzz:
+        // below a table of 300,000 bytes the same walk finishes.
+        let mut budget = OpsBudget::new(FontData::new(&[0; 300_000]));
+        assert!(
+            collect_features_with_retained_subs(&table, &retained, &mut budget)
+                .iter()
+                .eq([3])
+        );
+        assert!(!budget.exceeded);
+        // and every feature is treated as variable, so none is deduplicated
+        let variable =
+            collect_variable_feature_indices(&table, &mut OpsBudget::new(table.offset_data()));
+        assert!(variable.contains(0) && variable.contains(u16::MAX));
+    }
+
+    // A FeatureList whose `count` liga records all point at one Feature that
+    // lists lookups `0..lookup_count`.
+    fn feature_list_with_shared_feature(count: u16, lookup_count: u16) -> Vec<u8> {
+        let mut buf = BeBuffer::new().push(count);
+        for _ in 0..count {
+            buf = buf.push(Tag::new(b"liga")).push(2 + 6 * count);
+        }
+        buf.extend([0, lookup_count])
+            .extend(0..lookup_count)
+            .to_vec()
+    }
+
+    #[test]
+    fn prune_features_is_bounded_by_table_size() {
+        let lookups: IntSet<u16> = [399_u16].into_iter().collect();
+        let bytes = feature_list_with_shared_feature(4, 400);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let features = prune_features(
+            &list,
+            &IntSet::empty(),
+            &lookups,
+            (0..4).collect(),
+            &mut OpsBudget::new(list.offset_data()),
+        );
+        assert!(features.iter().eq(0..4));
+
+        // 400 reads of an 804 byte Feature exceed the budget of a 3206 byte
+        // list, so the remaining features are dropped.
+        let bytes = feature_list_with_shared_feature(400, 400);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let features = prune_features(
+            &list,
+            &IntSet::empty(),
+            &lookups,
+            (0..400).collect(),
+            &mut OpsBudget::new(list.offset_data()),
+        );
+        assert!(!features.is_empty() && features.len() < 400);
+        assert!(features.iter().eq(0..features.len() as u16));
+    }
+
+    #[test]
+    fn find_duplicate_features_is_bounded_by_table_size() {
+        let lookups: IntSet<u16> = (0..400).collect();
+        let bytes = feature_list_with_shared_feature(4, 400);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let map = find_duplicate_features(
+            &list,
+            &lookups,
+            (0..4).collect(),
+            &IntSet::empty(),
+            &mut OpsBudget::new(list.offset_data()),
+        );
+        assert!((0..4).all(|i| map[&i] == 0));
+
+        // 400 reads of the shared 804 byte Feature exceed the budget of a 3206
+        // byte table; once it is spent the remaining features are kept distinct.
+        let bytes = feature_list_with_shared_feature(400, 400);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let map = find_duplicate_features(
+            &list,
+            &lookups,
+            (0..400).collect(),
+            &IntSet::empty(),
+            &mut OpsBudget::new(list.offset_data()),
+        );
+        assert_eq!(map.len(), 400);
+        assert_eq!(map[&1], 0);
+        assert_eq!(map[&399], 399);
+
+        // They are within the budget of a 6000 byte table, which HarfBuzz's
+        // sanitizer accepts: every feature is counted once and deduplicated.
+        let map = find_duplicate_features(
+            &list,
+            &lookups,
+            (0..400).collect(),
+            &IntSet::empty(),
+            &mut OpsBudget::new(FontData::new(&[0; 6000])),
+        );
+        assert!((0..400).all(|i| map[&i] == 0));
+    }
+
+    #[test]
+    fn find_duplicate_features_does_not_compare_every_pair() {
+        // 2000 distinct liga features, each with its own lookup. Comparing
+        // every pair would read far more than the list's budget allows and
+        // stop deduplicating, so the later duplicates would be missed.
+        let count = 2000_u16;
+        let mut buf = BeBuffer::new().push(count + 1);
+        for i in 0..=count {
+            let feature = i.min(count - 1);
+            buf = buf
+                .push(Tag::new(b"liga"))
+                .push(2 + 6 * (count + 1) + 6 * feature);
+        }
+        for i in 0..count {
+            buf = buf.extend([0, 1, i]);
+        }
+        let bytes = buf.to_vec();
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        let lookups: IntSet<u16> = (0..count).collect();
+        let map = find_duplicate_features(
+            &list,
+            &lookups,
+            (0..=count).collect(),
+            &IntSet::empty(),
+            &mut OpsBudget::new(list.offset_data()),
+        );
+        assert!((0..count).all(|i| map[&i] == i));
+        assert_eq!(map[&count], count - 1);
     }
 }

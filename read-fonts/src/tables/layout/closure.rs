@@ -21,8 +21,22 @@ use crate::{
 };
 
 use crate::limits::{
-    MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH, MAX_SCRIPTS,
+    MAX_FEATURE_INDICES, MAX_LANGSYS, MAX_LOOKUP_VISIT_COUNT, MAX_OPS_EXCEEDED,
+    MAX_RECURSION_DEPTH, MAX_SCRIPTS,
 };
+
+/// Charges `table_bytes` against the bytes a walk of a table's offset graph
+/// may still read.
+///
+/// Offsets may share or overlap their targets, so what a table reaches is not
+/// bounded by its size. A target counts once for every offset that leads to
+/// it, as it does when HarfBuzz sanitizes a layout table.
+fn charge_ops(ops_left: &mut usize, table_bytes: &[u8]) -> Result<(), ReadError> {
+    *ops_left = ops_left
+        .checked_sub(table_bytes.len())
+        .ok_or(MAX_OPS_EXCEEDED)?;
+    Ok(())
+}
 
 struct CollectFeaturesContext<'a> {
     script_count: u16,
@@ -220,9 +234,12 @@ impl Feature<'_> {
 }
 
 impl FeatureList<'_> {
+    /// `ops_left` is what is left of the [`max_ops`](crate::limits::max_ops)
+    /// of the GSUB or GPOS table this list belongs to.
     pub(crate) fn collect_lookups(
         &self,
         feature_indices: &IntSet<u16>,
+        ops_left: &mut usize,
     ) -> Result<IntSet<u16>, ReadError> {
         let features_records = self.feature_records();
         let num_features = self.feature_count();
@@ -239,7 +256,9 @@ impl FeatureList<'_> {
                 if feature_rec.feature_offset().is_null() {
                     continue;
                 }
-                lookup_idxes.extend_unsorted(feature_rec.feature(font_data)?.collect_lookups());
+                let feature = feature_rec.feature(font_data)?;
+                charge_ops(ops_left, feature.min_table_bytes())?;
+                lookup_idxes.extend_unsorted(feature.collect_lookups());
             }
         } else {
             for feature_rec in feature_indices
@@ -249,7 +268,9 @@ impl FeatureList<'_> {
                 if feature_rec.feature_offset().is_null() {
                     continue;
                 }
-                lookup_idxes.extend_unsorted(feature_rec.feature(font_data)?.collect_lookups());
+                let feature = feature_rec.feature(font_data)?;
+                charge_ops(ops_left, feature.min_table_bytes())?;
+                lookup_idxes.extend_unsorted(feature.collect_lookups());
             }
         }
         Ok(lookup_idxes)
@@ -257,9 +278,12 @@ impl FeatureList<'_> {
 }
 
 impl FeatureVariations<'_> {
+    /// `ops_left` is what is left of the [`max_ops`](crate::limits::max_ops)
+    /// of the GSUB or GPOS table this table belongs to.
     pub(crate) fn collect_lookups(
         &self,
         feature_indices: &IntSet<u16>,
+        ops_left: &mut usize,
     ) -> Result<IntSet<u16>, ReadError> {
         let mut out = IntSet::empty();
         if u64::from(self.feature_variation_record_count()) * 8
@@ -275,6 +299,7 @@ impl FeatureVariations<'_> {
             else {
                 continue;
             };
+            charge_ops(ops_left, subs.min_table_bytes())?;
 
             for sub_record in subs
                 .substitutions()
@@ -285,6 +310,7 @@ impl FeatureVariations<'_> {
                     continue;
                 }
                 let sub_f = sub_record.alternate_feature(subs.offset_data())?;
+                charge_ops(ops_left, sub_f.min_table_bytes())?;
                 out.extend_unsorted(sub_f.lookup_list_indices().iter().map(|i| i.get()));
             }
         }
@@ -305,6 +331,7 @@ impl FeatureVariations<'_> {
                 {
                     return Err(ReadError::OutOfBounds);
                 }
+                charge_ops(ops_left, lookups.min_table_bytes())?;
                 for record in lookups.lookup_condition_records() {
                     if record.lookup_index_list_offset().is_null() {
                         continue;
@@ -313,6 +340,7 @@ impl FeatureVariations<'_> {
                     if indices.min_table_bytes().is_empty() {
                         return Err(ReadError::OutOfBounds);
                     }
+                    charge_ops(ops_left, indices.min_table_bytes())?;
                     // Closure includes every design-space branch; do not evaluate conditions.
                     out.extend_unsorted(indices.lookup_indices().iter().map(|i| i.get()));
                 }
@@ -1275,7 +1303,8 @@ mod lookup_variations_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::FontData;
+    use crate::{limits::max_ops, tables::gsub::Gsub, FontData};
+    use font_test_data::bebuffer::BeBuffer;
 
     #[test]
     fn classdef_format1_short_read_no_panic() {
@@ -1295,5 +1324,111 @@ mod tests {
         let glyphs: IntSet<GlyphId> = [GlyphId::new(65537)].into_iter().collect();
         assert!(!classdef.intersects(&glyphs).unwrap());
         assert!(!ClassDef::Format2(classdef).intersects(&glyphs).unwrap());
+    }
+
+    // Two tables, each the target of `count` offsets: a FeatureTableSubstitution and its
+    // alternate Feature, or else a FeatureLookups and its LookupIndexList.
+    fn feature_variations_with_shared_tables(count: u16, lookup_variations: bool) -> Vec<u8> {
+        let n = u32::from(count);
+        let mut buf = BeBuffer::new();
+        if lookup_variations {
+            buf = buf.extend([1u16, 1]).extend([0, n]);
+            for _ in 0..n {
+                buf = buf.push(0u16).push(12 + 6 * n);
+            }
+            buf = buf.extend([1u16, 0, 0]).push(n);
+            for _ in 0..n {
+                buf = buf.extend([0, 10 + 8 * n]);
+            }
+        } else {
+            buf = buf.extend([1u16, 0]).push(n);
+            for _ in 0..n {
+                buf = buf.extend([0, 8 + 8 * n]);
+            }
+            buf = buf.extend([1u16, 0, count]);
+            for _ in 0..n {
+                buf = buf.push(0u16).push(6 + 6 * n);
+            }
+            buf = buf.push(0u16);
+        }
+        buf.push(count).extend(0..count).to_vec()
+    }
+
+    #[test]
+    fn feature_variations_collect_lookups_is_bounded_by_table_size() {
+        for lookup_variations in [false, true] {
+            let bytes = feature_variations_with_shared_tables(4, lookup_variations);
+            let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
+            let mut ops_left = max_ops(bytes.len());
+            let lookups = table
+                .collect_lookups(&IntSet::all(), &mut ops_left)
+                .unwrap();
+            assert!(lookups.iter().eq(0..4));
+
+            // 200 * 200 reads of a ~400 byte table: far more than the table's budget
+            let bytes = feature_variations_with_shared_tables(200, lookup_variations);
+            let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
+            let mut ops_left = max_ops(bytes.len());
+            assert_eq!(
+                table.collect_lookups(&IntSet::all(), &mut ops_left),
+                Err(MAX_OPS_EXCEEDED)
+            );
+        }
+    }
+
+    // A FeatureList whose `count` records all point at one Feature listing lookups `0..400`
+    fn feature_list_with_shared_feature(count: u16) -> Vec<u8> {
+        let mut buf = BeBuffer::new().push(count);
+        for _ in 0..count {
+            buf = buf.push(Tag::new(b"liga")).push(2 + 6 * count);
+        }
+        buf.extend([0u16, 400]).extend(0..400u16).to_vec()
+    }
+
+    #[test]
+    fn feature_list_collect_lookups_is_bounded_by_table_size() {
+        let bytes = feature_list_with_shared_feature(4);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        for features in [IntSet::all(), (0..4).collect()] {
+            let mut ops_left = max_ops(bytes.len());
+            let lookups = list.collect_lookups(&features, &mut ops_left).unwrap();
+            assert!(lookups.iter().eq(0..400));
+        }
+
+        // 400 reads of an 804 byte Feature exceed the budget of a 3206 byte list
+        let bytes = feature_list_with_shared_feature(400);
+        let list = FeatureList::read(FontData::new(&bytes)).unwrap();
+        for features in [IntSet::all(), (0..400).collect()] {
+            let mut ops_left = max_ops(bytes.len());
+            assert_eq!(
+                list.collect_lookups(&features, &mut ops_left),
+                Err(MAX_OPS_EXCEEDED)
+            );
+        }
+    }
+
+    // The budget comes from the whole GSUB table, as in HarfBuzz's sanitizer, not from the
+    // bytes between the FeatureList and the end of the table.
+    #[test]
+    fn gsub_collect_lookups_is_bounded_by_the_whole_table() {
+        // a GSUB header and `padding` bytes, then the 3206 byte FeatureList
+        let gsub = |padding: u16| {
+            let mut bytes = BeBuffer::new()
+                .extend([1u16, 0, 0, 10 + padding, 0])
+                .to_vec();
+            bytes.resize(10 + usize::from(padding), 0);
+            bytes.extend(feature_list_with_shared_feature(400));
+            bytes
+        };
+        // 400 reads of the 804 byte Feature are within 64 times 5216 bytes
+        let bytes = gsub(2000);
+        let table = Gsub::read(FontData::new(&bytes)).unwrap();
+        let lookups = table.collect_lookups(&IntSet::all()).unwrap();
+        assert!(lookups.iter().eq(0..400));
+
+        // but not within 64 times 3216 bytes
+        let bytes = gsub(0);
+        let table = Gsub::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(table.collect_lookups(&IntSet::all()), Err(MAX_OPS_EXCEEDED));
     }
 }

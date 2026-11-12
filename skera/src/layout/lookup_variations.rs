@@ -145,8 +145,10 @@ impl<'a> SubsetTable<'a> for LookupIndexList<'_> {
 pub(super) fn features_with_retained_lookups(
     variations: &FeatureVariations<'_>,
     retained: &IntSet<u16>,
+    budget: &mut OpsBudget,
 ) -> IntSet<u16> {
     let mut features = IntSet::empty();
+    let mut ops = budget.walk();
     for record in variations.lookup_variation_records().unwrap_or_default() {
         if record.feature_lookups_offset().is_null() {
             continue;
@@ -159,6 +161,9 @@ pub(super) fn features_with_retained_lookups(
         {
             return IntSet::empty();
         }
+        if !ops.visit(&table) {
+            return IntSet::empty();
+        }
         for condition in table.lookup_condition_records() {
             if condition.lookup_index_list_offset().is_null() {
                 continue;
@@ -166,7 +171,7 @@ pub(super) fn features_with_retained_lookups(
             let Ok(indices) = condition.lookup_index_list(table.offset_data()) else {
                 return IntSet::empty();
             };
-            if indices.min_table_bytes().is_empty() {
+            if indices.min_table_bytes().is_empty() || !ops.visit(&indices) {
                 return IntSet::empty();
             }
             if indices
