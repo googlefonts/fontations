@@ -240,6 +240,26 @@ mod tests {
         assert_eq!(data.chars().collect::<String>(), "cé");
     }
 
+    // these would previously panic on write, because the records were never validated
+    #[test]
+    fn unknown_encoding_fails_validation() {
+        // Mac platform, Korean encoding
+        let table = Name::new(vec![make_name_record(1, 3, 23, 1, "가석체")]);
+        assert!(matches!(
+            crate::dump_table(&table),
+            Err(crate::error::Error::ValidationFailed(_))
+        ));
+    }
+
+    #[test]
+    fn non_mac_roman_char_fails_validation() {
+        let table = Name::new(vec![make_name_record(1, 0, 0, 1, "Duck 가석체")]);
+        assert!(matches!(
+            crate::dump_table(&table),
+            Err(crate::error::Error::ValidationFailed(_))
+        ));
+    }
+
     #[test]
     fn roundtrip() {
         init();
