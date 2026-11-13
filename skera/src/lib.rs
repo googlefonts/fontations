@@ -288,6 +288,15 @@ impl SubsetFlags {
     /// at the end of the font to keep the number of glyphs unchanged.
     pub const SUBSET_FLAGS_RETAIN_NUM_GLYPHS: Self = Self(0x2000);
 
+    /// If set full CFF2 instances are converted to CID-keyed CFF1 outlines.
+    /// Applies when instancing with `instance_font_with_flags`; retained
+    /// variation axes and TrueType outlines are unaffected.
+    pub const SUBSET_FLAGS_DOWNGRADE_CFF2: Self = Self(0x4000);
+
+    /// If set CID-keyed CFF charsets use sequential CIDs equal to the output
+    /// glyph IDs. Name-keyed CFF and CFF2 fonts are unaffected.
+    pub const SUBSET_FLAGS_CFF_IDENTITY_CHARSET: Self = Self(0x8000);
+
     /// The combined flag preset used by [`Plan::keep_everything`].
     pub const KEEP_EVERYTHING: Self = Self(
         Self::SUBSET_FLAGS_NOTDEF_OUTLINE.0
@@ -422,6 +431,24 @@ struct Os2Info {
 }
 
 impl Plan {
+    pub(crate) fn identity_glyphs(count: usize, flags: SubsetFlags) -> Self {
+        let mut plan = Self {
+            font_num_glyphs: count,
+            num_output_glyphs: count,
+            subset_flags: flags,
+            ..Default::default()
+        };
+        plan.new_to_old_gid_list = (0..count)
+            .map(|i| {
+                let g = GlyphId::new(i as u32);
+                (g, g)
+            })
+            .collect();
+        plan.glyph_map = plan.new_to_old_gid_list.iter().copied().collect();
+        plan.reverse_glyph_map = plan.glyph_map.clone();
+        plan
+    }
+
     /// Select all glyphs, Unicode mappings, names, scripts, and features.
     ///
     /// Preserve glyph names, legacy naming records, the `.notdef` outline,
