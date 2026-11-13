@@ -305,12 +305,12 @@ mod tests {
         const CLIPBOX_SHIFT: f32 = 200.0122;
 
         macro_rules! test_entry {
-            ($axis:literal, $shift:expr, $field:ident) => {
+            ($axis:literal, $shift:expr, $field:ident, $round:ident) => {
                 (
                     $axis,
                     $shift,
                     BoundingBox {
-                        $field: base_bounding_box.$field + ($shift),
+                        $field: (base_bounding_box.$field + ($shift)).$round(),
                         ..base_bounding_box
                     },
                 )
@@ -319,10 +319,10 @@ mod tests {
 
         let test_data_expectations = [
             ("", 0.0, base_bounding_box),
-            test_entry!("CLXI", CLIPBOX_SHIFT, x_min),
-            test_entry!("CLXA", -CLIPBOX_SHIFT, x_max),
-            test_entry!("CLYI", CLIPBOX_SHIFT, y_min),
-            test_entry!("CLYA", -CLIPBOX_SHIFT, y_max),
+            test_entry!("CLXI", CLIPBOX_SHIFT, x_min, floor),
+            test_entry!("CLXA", -CLIPBOX_SHIFT, x_max, ceil),
+            test_entry!("CLYI", CLIPBOX_SHIFT, y_min, floor),
+            test_entry!("CLYA", -CLIPBOX_SHIFT, y_max, ceil),
         ];
 
         let tables = ColrTables::new(font.colr().unwrap());
