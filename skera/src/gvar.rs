@@ -190,10 +190,24 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
             .data_for_gid(*old_gid)
             .map_err(|_| SubsetError::SubsetTableError(tag))?
         {
-            s.embed_bytes(glyph_var_data.as_bytes())
+            let pruned = if let Some(ranges) = plan.instance.as_ref().and_then(|i| i.cull_ranges())
+            {
+                let start = gvar.shared_tuples_offset().to_u32() as usize;
+                let end = start
+                    + usize::from(gvar.shared_tuple_count()) * usize::from(gvar.axis_count()) * 2;
+                let shared = gvar
+                    .offset_data()
+                    .as_bytes()
+                    .get(start..end)
+                    .ok_or(SubsetError::SubsetTableError(tag))?;
+                crate::instance::cull::prune_tuples(glyph_var_data.as_bytes(), ranges, shared)
+            } else {
+                None
+            };
+            let bytes = pruned.as_deref().unwrap_or(glyph_var_data.as_bytes());
+            s.embed_bytes(bytes)
                 .map_err(|_| SubsetError::SubsetTableError(tag))?;
-
-            let len = glyph_var_data.len();
+            let len = bytes.len();
             glyph_offset = glyph_offset
                 .checked_add(u32::try_from(len).map_err(|_| SubsetError::SubsetTableError(tag))?)
                 .ok_or(SubsetError::SubsetTableError(tag))?;

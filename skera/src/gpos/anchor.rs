@@ -13,6 +13,15 @@ use read_fonts::{
 };
 
 impl SubsetTable<'_> for AnchorTable<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        use read_fonts::MinByteRange;
+        let bytes = self.min_table_bytes();
+        (!bytes.is_empty()).then_some(("AnchorTable", bytes.as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = ();
     type Output = ();
     fn subset(
@@ -77,8 +86,22 @@ impl SubsetTable<'_> for AnchorFormat3<'_> {
     ) -> Result<(), SerializeErrorFlags> {
         let format_pos = s.embed(self.anchor_format())?;
         // TODO: update x/y coordinate when instancing
-        s.embed(self.x_coordinate())?;
-        s.embed(self.y_coordinate())?;
+        s.embed(crate::layout::add_device_delta(
+            self.x_coordinate(),
+            self.x_device()
+                .transpose()
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .as_ref(),
+            &plan.layout_varidx_delta_map,
+        ))?;
+        s.embed(crate::layout::add_device_delta(
+            self.y_coordinate(),
+            self.y_device()
+                .transpose()
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .as_ref(),
+            &plan.layout_varidx_delta_map,
+        ))?;
 
         // if both offsets are null, then we can downgrade to format 1
         // TODO: downgrade to format1 for instancing if possible

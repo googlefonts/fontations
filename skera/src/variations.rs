@@ -59,6 +59,29 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
         let (inner_maps, keep_empty) = args;
+        if let Some(instance) = &plan.instance {
+            let indices = inner_maps
+                .iter()
+                .enumerate()
+                .flat_map(|(outer, map)| {
+                    map.keys().map(move |inner| ((outer as u32) << 16) | *inner)
+                })
+                .collect::<Vec<_>>();
+            let mut transform = crate::instance::StorePlan::new(self, &instance.consumer_axes)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            transform
+                .preserve_original_region_order(self, &instance.consumer_axes)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            let (mut table, _) = transform
+                .rebuild_selected(self, &indices)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            crate::instance::store::prune_regions(&mut table);
+            if table.item_variation_data.is_empty() && !keep_empty {
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+            }
+            return table.subset(plan, s, ());
+        }
+
         if !keep_empty && inner_maps.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
@@ -295,6 +318,18 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
             }
         }
 
+        let encoding = DeltaEncoding::new(has_long, new_word_count as usize)
+            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+        if encoding.long_words != has_long {
+            for size in &mut delta_sz {
+                if *size == DeltaSize::Word {
+                    *size = DeltaSize::NonWord;
+                }
+            }
+        }
+        has_long = encoding.long_words;
+        new_word_count = encoding.word_count as u16;
+
         let mut word_index: u16 = 0;
         let mut non_word_index = new_word_count;
         let mut new_ri_count: u16 = 0;
@@ -316,11 +351,7 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
             new_ri_count += 1;
         }
 
-        let new_word_delta_count = if has_long {
-            new_word_count | 0x8000
-        } else {
-            new_word_count
-        };
+        let new_word_delta_count = encoding.word_delta_count();
         s.embed(new_word_delta_count)?;
         s.embed(new_ri_count)?;
 
@@ -578,10 +609,193 @@ impl<'a> Serialize<'a> for DeltaSetIndexMap<'a> {
     }
 }
 
+/// Use the instanced store already planned from retained rows, or subset the
+/// borrowed source store when the variation space is unchanged.
+pub(crate) fn serialize_store(
+    source: &ItemVariationStore,
+    s: &mut Serializer,
+    plan: &Plan,
+    maps: &[IncBiMap],
+    keep_empty: bool,
+    tag: read_fonts::types::Tag,
+    pos: usize,
+) -> Result<(), SerializeErrorFlags> {
+    use crate::offset::SerializeCopy;
+    if let Some(instance) = &plan.instance {
+        let bytes = if tag == read_fonts::types::Tag::new(b"COLR") {
+            instance.color.store.as_ref()
+        } else {
+            instance.layout.stores.get(&tag)
+        };
+        if let Some(bytes) = bytes {
+            Offset32::serialize_copy_from_bytes(bytes, s, pos)
+        } else {
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+        }
+    } else {
+        Offset32::serialize_subset(source, s, plan, (maps, keep_empty), pos)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use skrifa::raw::{FontData, FontRead};
+
+    #[test]
+    fn long_store_narrowing_preserves_word_count_boundaries() {
+        for count in [32767, 32768, 32769] {
+            let source = write_fonts::tables::variations::ItemVariationData {
+                item_count: 1,
+                word_delta_count: 0x8000,
+                region_indexes: vec![0; count + 3],
+                delta_sets: (0..count)
+                    .map(|_| 128i16)
+                    .chain([1; 3])
+                    .flat_map(i16::to_be_bytes)
+                    .collect(),
+            };
+            let bytes = write_fonts::dump_table(&source).unwrap();
+            let source = ItemVariationData::read(FontData::new(&bytes)).unwrap();
+            assert!(source.delta_set(0).take(count).all(|delta| delta == 128));
+            let mut rows = IncBiMap::default();
+            rows.add(0);
+            let mut regions = IncBiMap::default();
+            regions.add(0);
+            let mut serializer = Serializer::new(262144).unwrap();
+            serializer.start_serialize().unwrap();
+            source
+                .subset(&Plan::default(), &mut serializer, (&rows, &regions))
+                .unwrap();
+            serializer.end_serialize();
+            assert!(!serializer.in_error());
+            let bytes = serializer.copy_bytes();
+            let output = ItemVariationData::read(FontData::new(&bytes)).unwrap();
+            let deltas = output.delta_set(0).collect::<Vec<_>>();
+            assert_eq!(deltas.len(), count + 3);
+            assert!(
+                deltas[..count].iter().all(|&delta| delta == 128),
+                "first deltas: {:?}",
+                &deltas[..4]
+            );
+            assert_eq!(&deltas[count..], &[1; 3]);
+        }
+    }
+
+    fn subset_delta_rows(rows: &[[i32; 3]], keep: &[u32]) -> Vec<u8> {
+        let source = write_fonts::tables::variations::ItemVariationData {
+            item_count: rows.len() as u16,
+            word_delta_count: 0x8002,
+            region_indexes: vec![0, 1, 2],
+            delta_sets: rows
+                .iter()
+                .flat_map(|row| {
+                    row[..2]
+                        .iter()
+                        .flat_map(|v| v.to_be_bytes())
+                        .chain((row[2] as i16).to_be_bytes())
+                })
+                .collect(),
+        };
+        let bytes = write_fonts::dump_table(&source).unwrap();
+        let source = ItemVariationData::read(FontData::new(&bytes)).unwrap();
+        let mut inner_map = IncBiMap::default();
+        for &row in keep {
+            inner_map.add(row);
+        }
+        let mut regions = IncBiMap::default();
+        for region in 0..3 {
+            regions.add(region);
+        }
+        let mut serializer = Serializer::new(1024).unwrap();
+        serializer.start_serialize().unwrap();
+        source
+            .subset(&Plan::default(), &mut serializer, (&inner_map, &regions))
+            .unwrap();
+        serializer.end_serialize();
+        assert!(!serializer.in_error());
+        serializer.copy_bytes()
+    }
+
+    fn check_delta_rows<'a>(bytes: &'a [u8], expected: &[[i32; 3]]) -> ItemVariationData<'a> {
+        let data = ItemVariationData::read(FontData::new(bytes)).unwrap();
+        assert_eq!(data.item_count() as usize, expected.len());
+        for (i, expected) in expected.iter().enumerate() {
+            let mut actual = [0; 3];
+            for (region, delta) in data.region_indexes().iter().zip(data.delta_set(i as u16)) {
+                actual[region.get() as usize] = delta;
+            }
+            assert_eq!(actual, *expected);
+        }
+        data
+    }
+
+    #[test]
+    fn delta_width_reduction_preserves_signed_boundaries() {
+        for delta in [
+            i32::MIN,
+            -65537,
+            -65536,
+            -65535,
+            -32769,
+            -32768,
+            -129,
+            -128,
+            -1,
+            0,
+            1,
+            127,
+            128,
+            32767,
+            32768,
+            65535,
+            65536,
+            65537,
+            i32::MAX,
+        ] {
+            let rows = [[delta, 0, -128], [0, delta, 127]];
+            let bytes = subset_delta_rows(&rows, &[0, 1]);
+            let data = check_delta_rows(&bytes, &rows);
+            assert_eq!(
+                data.word_delta_count() & 0x8000 != 0,
+                i16::try_from(delta).is_err(),
+                "delta={delta}"
+            );
+
+            // Keep a 32-bit column while changing a neighbouring column's
+            // width. This exercises the signed 16-bit limits of long stores.
+            let rows = [[i32::MAX, delta, -128], [i32::MIN, -1, 127]];
+            let bytes = subset_delta_rows(&rows, &[0, 1]);
+            let data = check_delta_rows(&bytes, &rows);
+            assert_eq!(
+                data.word_delta_count(),
+                0x8000 | if i16::try_from(delta).is_err() { 2 } else { 1 }
+            );
+        }
+    }
+
+    #[test]
+    fn delta_widths_depend_only_on_retained_rows() {
+        let rows = [
+            [i32::MAX, i32::MIN, 10],
+            [127, -128, 11],
+            [32767, -32768, 12],
+            [32768, -32769, 13],
+        ];
+        for (keep, expected_count) in [
+            (vec![1], 0),
+            (vec![2], 2),
+            (vec![3], 0x8002),
+            (vec![2, 1], 2),
+            (vec![1, 3], 0x8002),
+        ] {
+            let bytes = subset_delta_rows(&rows, &keep);
+            let expected = keep.iter().map(|&i| rows[i as usize]).collect::<Vec<_>>();
+            let data = check_delta_rows(&bytes, &expected);
+            assert_eq!(data.word_delta_count(), expected_count);
+        }
+    }
+
     #[test]
     fn test_subset_item_varstore() {
         use crate::DEFAULT_LAYOUT_FEATURES;

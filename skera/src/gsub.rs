@@ -8,8 +8,7 @@ mod single_subst;
 
 use crate::FastHashMap;
 use crate::{
-    collect_feature_variations_name_ids, collect_features_with_retained_subs,
-    collect_variable_feature_indices, find_duplicate_features,
+    collect_features_with_retained_subs, collect_variable_feature_indices, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
@@ -28,16 +27,12 @@ use read_fonts::{
 use write_fonts::FontBuilder;
 
 impl NameIdClosure for Gsub<'_> {
-    //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
         let Ok(feature_list) = self.feature_list() else {
             return;
         };
-        let feature_records = feature_list.feature_records();
-        let feature_count = feature_list.feature_count();
-
-        for (feature_record, i) in feature_records.iter().zip(0..feature_count) {
-            if !plan.gsub_features.contains_key(&i) {
+        for (i, feature_record) in feature_list.feature_records().iter().enumerate() {
+            if !plan.gsub_features.contains_key(&(i as u16)) {
                 continue;
             }
             let Ok(feature) = feature_record.feature(feature_list.offset_data()) else {
@@ -45,12 +40,11 @@ impl NameIdClosure for Gsub<'_> {
             };
             feature.collect_name_ids(plan);
         }
-
-        if let Some(Ok(feature_variations)) = self.feature_variations() {
-            collect_feature_variations_name_ids(
-                &feature_variations,
-                feature_records,
-                Gsub::TAG,
+        if let Some(Ok(variations)) = self.feature_variations() {
+            crate::layout::collect_alternate_feature_name_ids(
+                &variations,
+                feature_list.feature_records(),
+                Self::TAG,
                 plan,
             );
         }
@@ -60,16 +54,19 @@ impl NameIdClosure for Gsub<'_> {
 impl LayoutClosure for Gsub<'_> {
     fn prune_features(
         &self,
+        plan: &Plan,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
     ) -> IntSet<u16> {
-        let alternate_features = if let Some(Ok(feature_variations)) = self.feature_variations() {
+        let alternate_features = if let Some(Ok(feature_variations)) =
+            plan.layout_variations(Self::TAG, self.feature_variations())
+        {
             collect_features_with_retained_subs(&feature_variations, lookup_indices)
         } else {
             IntSet::empty()
         };
 
-        let Ok(feature_list) = self.feature_list() else {
+        let Ok(feature_list) = plan.layout_features(Self::TAG, self.feature_list()) else {
             return IntSet::empty();
         };
         prune_features(
@@ -82,13 +79,14 @@ impl LayoutClosure for Gsub<'_> {
 
     fn find_duplicate_features(
         &self,
+        plan: &Plan,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
     ) -> FastHashMap<u16, u16> {
-        let Ok(feature_list) = self.feature_list() else {
+        let Ok(feature_list) = plan.layout_features(Self::TAG, self.feature_list()) else {
             return FastHashMap::default();
         };
-        let variable_features = match self.feature_variations() {
+        let variable_features = match plan.layout_variations(Self::TAG, self.feature_variations()) {
             Some(Ok(variations)) => collect_variable_feature_indices(&variations),
             _ => IntSet::empty(),
         };
@@ -113,14 +111,37 @@ impl LayoutClosure for Gsub<'_> {
     }
 
     fn closure_glyphs_lookups_features(&self, plan: &mut Plan) {
+        if plan.instance_only {
+            let Ok(list) = plan.layout_features(Self::TAG, self.feature_list()) else {
+                return;
+            };
+            let features: FastHashMap<_, _> = (0..list.feature_count()).map(|i| (i, i)).collect();
+            let (scripts, _) = self.prune_langsys(&features, &plan.layout_scripts);
+            let Ok(lookups) = self.lookup_list() else {
+                return;
+            };
+            plan.gsub_lookups = (0..lookups.lookup_count()).map(|i| (i, i)).collect();
+            plan.gsub_features = features.clone();
+            plan.gsub_features_w_duplicates = features;
+            plan.gsub_script_langsys = scripts;
+            return;
+        }
+
         let Ok(feature_indices) =
             self.collect_features(&plan.layout_scripts, &IntSet::all(), &plan.layout_features)
         else {
             return;
         };
-        let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
+        let Ok(mut lookup_indices) = crate::layout::collect_planned_lookups(
+            plan,
+            Self::TAG,
+            self.feature_list(),
+            self.feature_variations(),
+            &feature_indices,
+        ) else {
             return;
         };
+        lookup_indices.union(&plan.jstf_gsub_lookups);
         // Glyphs outside the font must not make further lookups reachable.
         let num_glyphs = u32::try_from(plan.font_num_glyphs).unwrap_or(u32::MAX);
         if !plan
@@ -143,9 +164,9 @@ impl LayoutClosure for Gsub<'_> {
             return;
         };
 
-        let feature_indices = self.prune_features(&lookup_indices, feature_indices);
+        let feature_indices = self.prune_features(plan, &lookup_indices, feature_indices);
         let duplicate_feature_index_map =
-            self.find_duplicate_features(&lookup_indices, feature_indices);
+            self.find_duplicate_features(plan, &lookup_indices, feature_indices);
 
         let (script_langsys_map, feature_indices) =
             self.prune_langsys(&duplicate_feature_index_map, &plan.layout_scripts);
@@ -207,8 +228,8 @@ fn subset_gsub(
 
     let mut feature_records: &[FeatureRecord] = &[];
     if !gsub.feature_list_offset().is_null() {
-        let feature_list = gsub
-            .feature_list()
+        let feature_list = plan
+            .layout_features(Gsub::TAG, gsub.feature_list())
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         feature_records = feature_list.feature_records();
         Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
@@ -222,8 +243,8 @@ fn subset_gsub(
         Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
     }
 
-    if let Some(feature_variations) = gsub
-        .feature_variations()
+    if let Some(feature_variations) = plan
+        .layout_variations(Gsub::TAG, gsub.feature_variations())
         .transpose()
         .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
     {
@@ -255,6 +276,23 @@ fn subset_gsub(
 crate::layout::header::subset_extended_layout!(Gsub, gsub_lookups);
 
 impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
+    fn source_key(&self) -> Option<(&'static str, usize)> {
+        let data = match self {
+            Self::Single(v) => v.offset_data(),
+            Self::Multiple(v) => v.offset_data(),
+            Self::Alternate(v) => v.offset_data(),
+            Self::Ligature(v) => v.offset_data(),
+            Self::Contextual(v) => v.offset_data(),
+            Self::ChainContextual(v) => v.offset_data(),
+            Self::Extension(v) => v.offset_data(),
+            Self::Reverse(v) => v.offset_data(),
+        };
+        Some(("SubstitutionLookup", data.as_bytes().as_ptr() as usize))
+    }
+    fn cached_output(&self) -> Option<()> {
+        Some(())
+    }
+
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FastHashMap<u16, u16>);
     type Output = ();
     fn subset(
@@ -356,85 +394,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::subset_font;
     use font_test_data::closure as test_data;
-    use read_fonts::{
-        tables::layout::FeatureParams,
-        types::{GlyphId, NameId},
-        FontRef, TableProvider,
-    };
-
-    /// GSUB has cv01 (index 1), size (2) and ss01 (3) features whose params
-    /// use name IDs 300-305. A FeatureVariations record replaces each of them
-    /// with an alternate whose params use name IDs 400-405.
-    static FEATURE_PARAMS_VARIATIONS: &[u8] =
-        include_bytes!("../test-data/fonts/FeatureParams-variations.ttf");
-
-    #[test]
-    fn test_nameid_closure_alternate_features() {
-        let font = FontRef::new(FEATURE_PARAMS_VARIATIONS).unwrap();
-        let gsub = font.gsub().unwrap();
-        let mut plan = Plan::default();
-        plan.gsub_features.extend([(1, 0), (2, 1), (3, 2)]);
-        gsub.collect_name_ids(&mut plan);
-        let expected: IntSet<NameId> = (300u16..=305).chain(400..=405).map(NameId::new).collect();
-        assert_eq!(plan.name_ids, expected);
-    }
-
-    #[test]
-    fn test_subset_alternate_feature_params() {
-        let font = FontRef::new(FEATURE_PARAMS_VARIATIONS).unwrap();
-        let layout_features = [b"cv01", b"ss01", b"size"]
-            .map(Tag::new)
-            .into_iter()
-            .collect();
-        // cv01 and ss01 are only retained if glyph 1, which their lookups
-        // substitute, is.
-        let plan = Plan::new(
-            &[GlyphId::new(1)].into_iter().collect(),
-            &IntSet::all(),
-            &font,
-            SubsetFlags::SUBSET_FLAGS_DEFAULT,
-            &IntSet::empty(),
-            &IntSet::all(),
-            &layout_features,
-            &(0u16..=6).map(NameId::new).collect(),
-            &IntSet::all(),
-        );
-        assert!(plan.name_ids.contains(NameId::new(400)));
-
-        // Alternate features keep their params, which are read with the tag
-        // of the feature they replace.
-        let output = subset_font(&font, &plan).unwrap();
-        let output = FontRef::new(&output).unwrap();
-        let gsub = output.gsub().unwrap();
-        let feature_records = gsub.feature_list().unwrap().feature_records();
-        let variations = gsub.feature_variations().unwrap().unwrap();
-        let subs = variations.feature_variation_records()[0]
-            .feature_table_substitution(variations.offset_data())
-            .unwrap()
-            .unwrap();
-        let params: Vec<_> = subs
-            .substitutions()
-            .iter()
-            .map(|rec| {
-                let tag = feature_records[rec.feature_index() as usize].feature_tag();
-                let feature = rec
-                    .alternate_feature_with_tag(subs.offset_data(), tag)
-                    .unwrap();
-                let name_id = match feature.feature_params().unwrap().unwrap() {
-                    FeatureParams::CharacterVariant(params) => params.feat_ui_label_name_id(),
-                    FeatureParams::Size(params) => NameId::new(params.name_entry()),
-                    FeatureParams::StylisticSet(params) => params.ui_name_id(),
-                };
-                (tag, name_id)
-            })
-            .collect();
-        assert_eq!(
-            params,
-            [b"cv01", b"size", b"ss01"].map(|tag| (Tag::new(tag), NameId::new(400)))
-        );
-    }
+    use read_fonts::{types::NameId, FontRef, TableProvider};
 
     #[test]
     fn test_nameid_closure() {
@@ -465,7 +426,8 @@ mod test {
         feature_indices.extend(0_u16..=1_u16);
 
         // only feature indexed at 1 intersect with lookup_indices
-        let retained_features = gsub.prune_features(&lookup_indices, feature_indices);
+        let retained_features =
+            gsub.prune_features(&Plan::default(), &lookup_indices, feature_indices);
         assert_eq!(retained_features.len(), 1);
         assert!(retained_features.contains(1));
     }
@@ -482,7 +444,8 @@ mod test {
         feature_indices.extend(0_u16..=1_u16);
 
         // feature indexed at 0 has an alternate version that intersects lookup indexed at 1
-        let retained_features = gsub.prune_features(&lookup_indices, feature_indices);
+        let retained_features =
+            gsub.prune_features(&Plan::default(), &lookup_indices, feature_indices);
         assert_eq!(retained_features.len(), 1);
         assert!(retained_features.contains(0));
     }

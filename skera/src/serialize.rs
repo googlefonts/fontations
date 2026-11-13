@@ -285,6 +285,8 @@ pub struct Serializer {
 
     packed: Vec<PoolIdx>,
     packed_map: PoolIdxHashTable,
+    pub(crate) source_objects: crate::FastHashMap<(&'static str, usize), ObjIdx>,
+    pub(crate) active_sources: crate::FastHashSet<(&'static str, usize)>,
 }
 
 impl Serializer {
@@ -479,6 +481,8 @@ impl Serializer {
     }
 
     fn reset(&mut self) {
+        self.source_objects.clear();
+        self.active_sources.clear();
         self.errors = SerializeErrorFlags::SERIALIZE_ERROR_NONE;
         self.head = self.start;
         self.tail = self.end;
@@ -647,6 +651,8 @@ impl Serializer {
         self.head = snap_head;
         self.tail = snap_tail;
         self.discard_stale_objects();
+        self.source_objects
+            .retain(|_, index| (*index as usize) < self.packed.len());
     }
 
     pub(crate) fn revert_snapshot(&mut self, snapshot: Snapshot) {
@@ -667,6 +673,8 @@ impl Serializer {
             obj.virtual_links.truncate(snapshot.num_virtual_links);
         }
         self.revert(snapshot.head, snapshot.tail);
+        self.source_objects
+            .retain(|_, index| (*index as usize) < self.packed.len());
     }
 
     fn discard_stale_objects(&mut self) {
