@@ -49,6 +49,14 @@ impl From<DecyclerError> for Error {
 /// 6700 nodes.
 const MAX_NODES: u32 = 16384;
 
+/// Maximum number of gradient color stops resolved during a single traversal.
+///
+/// A color line can hold 65535 stops and a gradient can be reached once per
+/// visited node, so [`MAX_NODES`] alone lets a glyph resolve and sort around
+/// a billion stops. The largest total we have seen in a real font is 12672
+/// (Bitcount Ink) and the largest single color line 15.
+const MAX_COLOR_STOPS: u32 = 65536;
+
 pub(super) fn get_clipbox_font_units(
     colr_instance: &ColrInstance,
     glyph: GlyphId,
@@ -72,6 +80,7 @@ pub(super) struct TraversalState<'a> {
     sink: &'a mut dyn PaintSink,
     stops_buf: ColorStopVec,
     nodes_left: u32,
+    color_stops_left: u32,
 }
 
 impl<'a> TraversalState<'a> {
@@ -81,12 +90,18 @@ impl<'a> TraversalState<'a> {
             sink,
             stops_buf: ColorStopVec::new(),
             nodes_left: MAX_NODES,
+            color_stops_left: MAX_COLOR_STOPS,
         }
     }
 
     pub(super) fn resolve_paint(&mut self, paint: &Paint<'a>) -> Result<ResolvedPaint<'a>, Error> {
         self.nodes_left = self.nodes_left.checked_sub(1).ok_or(Error::LimitExceeded)?;
-        super::instance::resolve_paint(&self.instance, paint)
+        let paint = super::instance::resolve_paint(&self.instance, paint)?;
+        self.color_stops_left = self
+            .color_stops_left
+            .checked_sub(paint.color_stop_count() as u32)
+            .ok_or(Error::LimitExceeded)?;
+        Ok(paint)
     }
 }
 
@@ -550,6 +565,33 @@ mod tests {
         let node_count = traverse_with_limit(MAX_NODES).unwrap();
         // Now run with a reduced limit and verify that we get an error
         let result = traverse_with_limit(node_count - 1);
+        assert!(matches!(result, Err(Error::LimitExceeded)));
+    }
+
+    #[test]
+    fn color_stops_limit() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let tables = colr_tables(&font);
+        let model = Font::new(font_test_data::COLRV0V1_VARIABLE.to_vec(), 0).unwrap();
+        let gid = model
+            .charmap()
+            .map_unicode(crate::model::glyph::color::test_glyph_defs::GRADIENT_STOPS_REPEAT[0])
+            .unwrap();
+        let mut sink = NopSink;
+        let mut traverse_with_limit = |limit| {
+            let instance = ColrInstance::new(&tables, &[], &[]);
+            let mut state = TraversalState::new(instance, &mut sink);
+            let mut decycler = PaintDecycler::new();
+            state.color_stops_left = limit;
+            let paint = state.resolve_paint(&state.instance.v1_base_glyph(gid).unwrap().0)?;
+            traverse_with_callbacks(&paint, &mut state, &mut decycler, 0)
+                .map(|_| limit - state.color_stops_left)
+        };
+        // Compute the actual number of color stops resolved for the glyph
+        let stop_count = traverse_with_limit(MAX_COLOR_STOPS).unwrap();
+        assert_ne!(stop_count, 0);
+        // Now run with a reduced limit and verify that we get an error
+        let result = traverse_with_limit(stop_count - 1);
         assert!(matches!(result, Err(Error::LimitExceeded)));
     }
 

@@ -179,6 +179,11 @@ impl<'a> From<VarColorLine<'a>> for ColorStops<'a> {
 }
 
 impl<'a> ColorStops<'a> {
+    /// Returns the number of color stops.
+    pub(super) fn len(&self) -> usize {
+        self.stops.len() + self.var_stops.len()
+    }
+
     /// Returns an iterator yielding resolved color stops with variation
     /// deltas applied.
     pub(super) fn resolve(
@@ -299,6 +304,17 @@ pub(super) enum ResolvedPaint<'a> {
 }
 
 impl<'a> ResolvedPaint<'a> {
+    /// Returns the number of color stops of a gradient, or zero for any other
+    /// paint.
+    pub(super) fn color_stop_count(&self) -> usize {
+        match self {
+            ResolvedPaint::LinearGradient { color_stops, .. }
+            | ResolvedPaint::RadialGradient { color_stops, .. }
+            | ResolvedPaint::SweepGradient { color_stops, .. } => color_stops.len(),
+            _ => 0,
+        }
+    }
+
     pub(super) fn as_transform(&self) -> Option<(Matrix<f32>, Paint<'a>)> {
         match self {
             ResolvedPaint::Rotate {
