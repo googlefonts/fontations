@@ -429,7 +429,11 @@ fn lookup_variations_keep_features_with_no_retained_default_lookups() {
     let input = input();
     let variations = FeatureVariations::read(FontData::new(&input)).unwrap();
     let retained = [7u16].into_iter().collect();
-    let alternate = crate::layout::collect_features_with_retained_subs(&variations, &retained);
+    let alternate = crate::layout::collect_features_with_retained_subs(
+        &variations,
+        &retained,
+        &mut OpsBudget::new(variations.offset_data()),
+    );
     assert_eq!(alternate.iter().collect::<Vec<_>>(), [0]);
     let features = features(&[&[], &[1], &[1]]);
     let table = FeatureList::read(FontData::new(&features)).unwrap();
@@ -438,9 +442,15 @@ fn lookup_variations_keep_features_with_no_retained_default_lookups() {
         &alternate,
         &retained,
         [0u16, 1, 2].into_iter().collect(),
+        &mut OpsBudget::new(table.offset_data()),
     );
     assert_eq!(pruned.iter().collect::<Vec<_>>(), [0]);
-    assert!(features_with_retained_lookups(&variations, &[1u16].into_iter().collect()).is_empty());
+    assert!(features_with_retained_lookups(
+        &variations,
+        &[1u16].into_iter().collect(),
+        &mut OpsBudget::new(variations.offset_data())
+    )
+    .is_empty());
 }
 
 #[test]
@@ -455,6 +465,7 @@ fn lookup_variations_prevent_default_only_feature_deduplication() {
         &retained,
         selected.clone(),
         &IntSet::empty(),
+        &mut OpsBudget::new(table.offset_data()),
     );
     assert_eq!(duplicates.get(&1), Some(&0));
     assert_eq!(duplicates.get(&2), Some(&0));
@@ -462,9 +473,17 @@ fn lookup_variations_prevent_default_only_feature_deduplication() {
     // feature 2 has a lookup variation: it is never merged.
     input[12..14].copy_from_slice(&2u16.to_be_bytes());
     let variations = FeatureVariations::read(FontData::new(&input)).unwrap();
-    let variable = crate::layout::collect_variable_feature_indices(&variations);
-    let duplicates =
-        crate::layout::find_duplicate_features(&table, &retained, selected.clone(), &variable);
+    let variable = crate::layout::collect_variable_feature_indices(
+        &variations,
+        &mut OpsBudget::new(variations.offset_data()),
+    );
+    let duplicates = crate::layout::find_duplicate_features(
+        &table,
+        &retained,
+        selected.clone(),
+        &variable,
+        &mut OpsBudget::new(table.offset_data()),
+    );
     assert_eq!(duplicates.get(&0), Some(&0));
     assert_eq!(duplicates.get(&1), Some(&0));
     assert_eq!(duplicates.get(&2), Some(&2));
@@ -473,8 +492,17 @@ fn lookup_variations_prevent_default_only_feature_deduplication() {
     // still merge into 1, matching harfbuzz.
     input[12..14].fill(0);
     let variations = FeatureVariations::read(FontData::new(&input)).unwrap();
-    let variable = crate::layout::collect_variable_feature_indices(&variations);
-    let duplicates = crate::layout::find_duplicate_features(&table, &retained, selected, &variable);
+    let variable = crate::layout::collect_variable_feature_indices(
+        &variations,
+        &mut OpsBudget::new(variations.offset_data()),
+    );
+    let duplicates = crate::layout::find_duplicate_features(
+        &table,
+        &retained,
+        selected,
+        &variable,
+        &mut OpsBudget::new(table.offset_data()),
+    );
     assert_eq!(duplicates.get(&0), Some(&0));
     assert_eq!(duplicates.get(&1), Some(&1));
     assert_eq!(duplicates.get(&2), Some(&1));
@@ -486,11 +514,62 @@ fn lookup_variations_feature_retention_handles_empty_and_invalid_lists() {
     let mut bytes = input();
     bytes[36..38].fill(0);
     let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
-    assert!(features_with_retained_lookups(&table, &retained).is_empty());
+    assert!(features_with_retained_lookups(
+        &table,
+        &retained,
+        &mut OpsBudget::new(table.offset_data())
+    )
+    .is_empty());
     for range in [14..18, 32..36, 24..28] {
         let mut bytes = input();
         bytes[range].fill(0xff);
         let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
-        assert!(features_with_retained_lookups(&table, &retained).is_empty());
+        assert!(features_with_retained_lookups(
+            &table,
+            &retained,
+            &mut OpsBudget::new(table.offset_data())
+        )
+        .is_empty());
     }
+}
+
+#[test]
+fn lookup_variations_walk_is_bounded_by_table_size() {
+    // `count` LookupVariationRecords for feature 3 that all point at one
+    // FeatureLookups, whose `count` records all point at one LookupIndexList
+    // listing lookups `0..count`.
+    let shared = |count: u16| {
+        let n = u32::from(count);
+        let mut buf = BeBuffer::new().extend([1u16, 1]).extend([0, n]);
+        for _ in 0..n {
+            buf = buf.push(3u16).push(12 + 6 * n);
+        }
+        buf = buf.extend([1u16, 0, 0]).push(n);
+        for _ in 0..n {
+            buf = buf.extend([0, 10 + 8 * n]);
+        }
+        buf.push(count).extend(0..count).to_vec()
+    };
+    let bytes = shared(4);
+    let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
+    let retained = [3u16].into_iter().collect();
+    assert!(features_with_retained_lookups(
+        &table,
+        &retained,
+        &mut OpsBudget::new(table.offset_data())
+    )
+    .iter()
+    .eq([3]));
+
+    // 200 * 200 reads of a 402 byte LookupIndexList: far more than the
+    // table's budget, so the walk gives up instead of reading every path.
+    let bytes = shared(200);
+    let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
+    let retained = [199u16].into_iter().collect();
+    assert!(features_with_retained_lookups(
+        &table,
+        &retained,
+        &mut OpsBudget::new(table.offset_data())
+    )
+    .is_empty());
 }

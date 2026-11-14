@@ -2,6 +2,15 @@ use super::*;
 use crate::{FontData, FontRead};
 use font_test_data::bebuffer::BeBuffer;
 
+/// Collects the lookups of `features` without a limit on the bytes read.
+fn collect_lookups(
+    table: &FeatureVariations,
+    features: &IntSet<u16>,
+) -> Result<IntSet<u16>, ReadError> {
+    let mut ops_left = usize::MAX;
+    table.collect_lookups(features, &mut ops_left)
+}
+
 fn input() -> Vec<u8> {
     BeBuffer::new()
         .push(1u16)
@@ -59,8 +68,7 @@ fn lookup_variations_collect_all_conditional_lookups_for_selected_features() {
     ] {
         let selected = features.into_iter().collect();
         assert_eq!(
-            table
-                .collect_lookups(&selected)
+            collect_lookups(&table, &selected)
                 .unwrap()
                 .iter()
                 .collect::<Vec<_>>(),
@@ -68,8 +76,7 @@ fn lookup_variations_collect_all_conditional_lookups_for_selected_features() {
         );
     }
     assert_eq!(
-        table
-            .collect_lookups(&IntSet::all())
+        collect_lookups(&table, &IntSet::all())
             .unwrap()
             .iter()
             .collect::<Vec<_>>(),
@@ -84,21 +91,20 @@ fn lookup_variations_validate_selected_records_and_skip_unselected_ones() {
     bytes[26..30].fill(0xff);
     let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
     assert_eq!(
-        table
-            .collect_lookups(&selected)
+        collect_lookups(&table, &selected)
             .unwrap()
             .iter()
             .collect::<Vec<_>>(),
         [1, 3, 7]
     );
     assert_eq!(
-        table.collect_lookups(&IntSet::all()),
+        collect_lookups(&table, &IntSet::all()),
         Err(ReadError::OutOfBounds)
     );
     for len in [8, 11, 29] {
         let table = FeatureVariations::read(FontData::new(&bytes[..len])).unwrap();
         assert_eq!(
-            table.collect_lookups(&selected),
+            collect_lookups(&table, &selected),
             Err(ReadError::OutOfBounds)
         );
     }
@@ -107,7 +113,7 @@ fn lookup_variations_validate_selected_records_and_skip_unselected_ones() {
         bytes[range].fill(0xff);
         let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
         assert_eq!(
-            table.collect_lookups(&selected),
+            collect_lookups(&table, &selected),
             Err(ReadError::OutOfBounds)
         );
     }
@@ -115,14 +121,14 @@ fn lookup_variations_validate_selected_records_and_skip_unselected_ones() {
     bytes[36..40].copy_from_slice(&u32::MAX.to_be_bytes());
     let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
     assert_eq!(
-        table.collect_lookups(&selected),
+        collect_lookups(&table, &selected),
         Err(ReadError::OutOfBounds)
     );
     bytes = input();
     bytes[56..58].copy_from_slice(&u16::MAX.to_be_bytes());
     let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
     assert_eq!(
-        table.collect_lookups(&selected),
+        collect_lookups(&table, &selected),
         Err(ReadError::OutOfBounds)
     );
 }

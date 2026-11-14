@@ -369,6 +369,9 @@ pub struct Plan {
     name_table_overrides: FastHashMap<name::RecordKey, Vec<u8>>,
     layout_scripts: IntSet<Tag>,
     layout_features: IntSet<Tag>,
+    /// The layout tables with a walk that ran out of its [`layout::OpsBudget`],
+    /// which fail to subset.
+    layout_ops_exceeded: IntSet<Tag>,
 
     //active old->new feature index map after removing redundant langsys and prune_features
     gsub_features: FastHashMap<u16, u16>,
@@ -1040,24 +1043,30 @@ impl Plan {
         if let Ok(gpos) = font.gpos() {
             gpos.collect_variation_indices(self, &mut varidx_set);
             if let Some(Ok(variations)) = gpos.feature_variations() {
+                let mut budget = layout::OpsBudget::new(gpos.offset_data());
                 layout::collect_feature_variation_condition_indices(
                     &variations,
                     self,
                     &self.gpos_features_w_duplicates,
                     &self.gpos_lookups,
                     &mut varidx_set,
+                    &mut budget,
                 );
+                budget.record(Gpos::TAG, self);
             }
         }
         if let Ok(gsub) = font.gsub() {
             if let Some(Ok(variations)) = gsub.feature_variations() {
+                let mut budget = layout::OpsBudget::new(gsub.offset_data());
                 layout::collect_feature_variation_condition_indices(
                     &variations,
                     self,
                     &self.gsub_features_w_duplicates,
                     &self.gsub_lookups,
                     &mut varidx_set,
+                    &mut budget,
                 );
+                budget.record(Gsub::TAG, self);
             }
         }
         if !self.drop_tables.contains(Math::TAG) {
@@ -1246,10 +1255,12 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
         .selected_glyf_loca(None)
         .map(|(_, loca)| loca.len())
         .unwrap_or_default();
-    let maxp = font
+    // A font without a readable maxp table has no glyphs, as it has for HarfBuzz.
+    let maxp_num_glyphs = font
         .selected_maxp()
-        .expect("Error reading maximum profile table");
-    ret.max(maxp.num_glyphs() as usize)
+        .map(|maxp| maxp.num_glyphs() as usize)
+        .unwrap_or_default();
+    ret.max(maxp_num_glyphs)
 }
 
 pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + TryFrom<usize>>(
@@ -1345,6 +1356,7 @@ pub(crate) trait LayoutClosure {
         &self,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
+        budget: &mut layout::OpsBudget,
     ) -> IntSet<u16>;
 
     /// Return a duplicate feature(after subsetting) index map
@@ -2305,5 +2317,25 @@ mod test {
         assert!(plan.glyphset.contains(GlyphId::new(2)));
         assert!(plan.glyphset.contains(GlyphId::new(4)));
         assert!(plan.glyphset.contains(GlyphId::new(7)));
+    }
+
+    /// A font without a maxp table used to panic when its plan was created.
+    #[test]
+    fn font_without_maxp_has_no_glyphs() {
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
+        assert!(font.maxp().is_err());
+        let plan = Plan::new(
+            &IntSet::empty(),
+            &parse_unicodes("*").unwrap(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &DEFAULT_LAYOUT_FEATURES.iter().copied().collect(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        assert_eq!(plan.font_num_glyphs, 0);
+        assert!(plan.glyphset.is_empty());
     }
 }

@@ -14,6 +14,7 @@ use crate::FastHashMap;
 use crate::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
     collect_variable_feature_indices, find_duplicate_features,
+    layout::OpsBudget,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -22,6 +23,7 @@ use crate::{
 };
 use read_fonts::{
     collections::IntSet,
+    limits::MAX_OPS_EXCEEDED,
     tables::{
         gpos::{ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables},
         layout::{ExtensionLookup, FeatureRecord, Intersect, LookupFlag, Subtables},
@@ -52,12 +54,15 @@ impl NameIdClosure for Gpos<'_> {
         }
 
         if let Some(Ok(feature_variations)) = self.feature_variations() {
+            let mut budget = OpsBudget::new(self.offset_data());
             collect_feature_variations_name_ids(
                 &feature_variations,
                 feature_records,
                 Gpos::TAG,
                 plan,
+                &mut budget,
             );
+            budget.record(Gpos::TAG, plan);
         }
     }
 }
@@ -67,9 +72,10 @@ impl LayoutClosure for Gpos<'_> {
         &self,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
+        budget: &mut OpsBudget,
     ) -> IntSet<u16> {
         let alternate_features = if let Some(Ok(feature_variations)) = self.feature_variations() {
-            collect_features_with_retained_subs(&feature_variations, lookup_indices)
+            collect_features_with_retained_subs(&feature_variations, lookup_indices, budget)
         } else {
             IntSet::empty()
         };
@@ -82,6 +88,7 @@ impl LayoutClosure for Gpos<'_> {
             &alternate_features,
             lookup_indices,
             feature_indices,
+            budget,
         )
     }
 
@@ -93,8 +100,12 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
+        // This reads more than HarfBuzz's sanitizer does only if feature hashes collide,
+        // so running out of this budget is not recorded as a failure. It only stops the
+        // deduplication, which is always valid.
+        let mut budget = OpsBudget::new(self.offset_data());
         let variable_features = match self.feature_variations() {
-            Some(Ok(variations)) => collect_variable_feature_indices(&variations),
+            Some(Ok(variations)) => collect_variable_feature_indices(&variations, &mut budget),
             _ => IntSet::empty(),
         };
         find_duplicate_features(
@@ -102,6 +113,7 @@ impl LayoutClosure for Gpos<'_> {
             lookup_indices,
             feature_indices,
             &variable_features,
+            &mut budget,
         )
     }
 
@@ -124,8 +136,14 @@ impl LayoutClosure for Gpos<'_> {
             return;
         };
 
-        let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
-            return;
+        let mut lookup_indices = match self.collect_lookups(&feature_indices) {
+            Ok(lookup_indices) => lookup_indices,
+            Err(err) => {
+                if err == MAX_OPS_EXCEEDED {
+                    plan.layout_ops_exceeded.insert(Gpos::TAG);
+                }
+                return;
+            }
         };
         if self
             .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
@@ -134,7 +152,9 @@ impl LayoutClosure for Gpos<'_> {
             return;
         };
 
-        let feature_indices = self.prune_features(&lookup_indices, feature_indices);
+        let mut budget = OpsBudget::new(self.offset_data());
+        let feature_indices = self.prune_features(&lookup_indices, feature_indices, &mut budget);
+        budget.record(Gpos::TAG, plan);
         let duplicate_feature_index_map =
             self.find_duplicate_features(&lookup_indices, feature_indices);
 
@@ -170,6 +190,10 @@ fn subset_gpos(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    // HarfBuzz fails to subset a table that its sanitizer rejects.
+    if plan.layout_ops_exceeded.contains(Gpos::TAG) {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+    }
     if gpos.version() >= MajorMinor::new(1, 2) {
         return subset_extended_layout(gpos, plan, font, state, s);
     }
