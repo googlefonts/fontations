@@ -363,6 +363,12 @@ impl Engine<'_> {
         let gs = &mut self.graphics;
         let cvt_entry = self.value_stack.pop_usize()?;
         let point_ix = self.value_stack.pop_usize()?;
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5538>
+        if !gs.is_pedantic && (!gs.in_bounds([(gs.zp0, point_ix)]) || cvt_entry >= self.cvt.len()) {
+            gs.rp0 = point_ix;
+            gs.rp1 = point_ix;
+            return Ok(());
+        }
         let mut distance = self.cvt.get(cvt_entry)?;
         if gs.zp0.is_twilight() {
             // Special behavior for twilight zone.
@@ -1209,6 +1215,28 @@ mod tests {
         engine.op_miap(0).unwrap();
         let point = engine.graphics.zones[1].point(2).unwrap();
         assert_eq!(point.map(F26Dot6::to_bits), Point::new(171, -236));
+    }
+
+    /// An out of bounds CVT entry or point is skipped outside of pedantic
+    /// mode, as FreeType does, rather than failing the program.
+    #[test]
+    fn miap_out_of_bounds() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        let oob_index = 1000;
+        for (point_ix, cvt_ix) in [(1, oob_index), (oob_index, 1)] {
+            engine.graphics.is_pedantic = false;
+            engine.value_stack.push(point_ix).unwrap();
+            engine.value_stack.push(cvt_ix).unwrap();
+            engine.op_miap(1).unwrap();
+            assert_eq!(engine.graphics.rp0, point_ix as usize);
+            assert_eq!(engine.graphics.rp1, point_ix as usize);
+            engine.graphics.is_pedantic = true;
+            engine.value_stack.push(point_ix).unwrap();
+            engine.value_stack.push(cvt_ix).unwrap();
+            assert!(engine.op_miap(1).is_err());
+        }
     }
 
     /// Tests bit 'a' of MDRP which just sets rp0 to the adjusted point
