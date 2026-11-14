@@ -67,7 +67,7 @@ impl<'a> Cpal<'a> {
         + Offset32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    /// Table version number (=0).
+    /// Table version number (0 or 1).
     pub fn version(&self) -> u16 {
         self.data.header().version.get()
     }

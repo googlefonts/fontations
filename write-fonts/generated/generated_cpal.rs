@@ -72,7 +72,7 @@ impl Cpal {
 impl FontWrite for Cpal {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        let version = 0 as u16;
+        let version = self.compute_version() as u16;
         version.write_into(writer);
         self.num_palette_entries.write_into(writer);
         self.num_palettes.write_into(writer);
