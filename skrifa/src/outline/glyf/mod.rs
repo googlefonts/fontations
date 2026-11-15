@@ -968,21 +968,13 @@ impl Scaler for FreeTypeScaler<'_> {
                                 | CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
                             == CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
                     {
-                        // According to FreeType, this algorithm is a "guess"
-                        // and works better than the one documented by Apple.
+                        // According to FreeType, scaling by the length of each
+                        // basis vector is a "guess" that works better than the
+                        // algorithm documented by Apple.
                         // https://github.com/freetype/freetype/blob/b1c90733ee6a04882b133101d61b12e352eeb290/src/truetype/ttgload.c#L1259
-                        fn hypot(a: Fixed, b: Fixed) -> Fixed {
-                            let a = a.to_bits().abs();
-                            let b = b.to_bits().abs();
-                            Fixed::from_bits(if a > b {
-                                a + ((3 * b) >> 3)
-                            } else {
-                                b + ((3 * a) >> 3)
-                            })
-                        }
                         // FreeType uses a fixed point multiplication here.
-                        x = (Fixed::from_bits(x) * hypot(xx, xy)).to_bits();
-                        y = (Fixed::from_bits(y) * hypot(yy, yx)).to_bits();
+                        x = (Fixed::from_bits(x) * hypot_fixed(xx, xy)).to_bits();
+                        y = (Fixed::from_bits(y) * hypot_fixed(yy, yx)).to_bits();
                     }
                     if have_deltas {
                         let delta = self
@@ -1424,6 +1416,71 @@ impl Scaler for HarfBuzzScaler<'_> {
     }
 }
 
+/// Magnitude of the vector (x, y) in 16.16 fixed point.
+///
+/// Port of FreeType's `FT_Hypot`, which is the CORDIC `FT_Vector_Length`
+/// rather than the `FT_HYPOT` approximation. read-fonts' glyf scaler has the
+/// same function.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/fttrigon.c>
+fn hypot_fixed(a: Fixed, b: Fixed) -> Fixed {
+    const TRIG_SCALE: u64 = 0xDBD9_5B16;
+    const TRIG_SAFE_MSB: i32 = 29;
+    const TRIG_MAX_ITERS: i32 = 23;
+    let (mut x, mut y) = (a.to_bits() as i64, b.to_bits() as i64);
+    if x == 0 {
+        return Fixed::from_bits(y.abs() as i32);
+    } else if y == 0 {
+        return Fixed::from_bits(x.abs() as i32);
+    }
+    // ft_trig_prenorm
+    let msb = 63 - (x.unsigned_abs() | y.unsigned_abs()).leading_zeros() as i32;
+    let shift = if msb <= TRIG_SAFE_MSB {
+        let shift = TRIG_SAFE_MSB - msb;
+        x <<= shift;
+        y <<= shift;
+        shift
+    } else {
+        let shift = msb - TRIG_SAFE_MSB;
+        x >>= shift;
+        y >>= shift;
+        -shift
+    };
+    // ft_trig_pseudo_polarize, keeping only the length
+    if y > x {
+        if y > -x {
+            (x, y) = (y, -x);
+        } else {
+            (x, y) = (-x, -y);
+        }
+    } else if y < -x {
+        (x, y) = (-y, x);
+    }
+    let mut b = 1i64;
+    for i in 1..TRIG_MAX_ITERS {
+        let xtemp = if y > 0 {
+            let xtemp = x + ((y + b) >> i);
+            y -= (x + b) >> i;
+            xtemp
+        } else {
+            let xtemp = x - ((y + b) >> i);
+            y += (x + b) >> i;
+            xtemp
+        };
+        x = xtemp;
+        b <<= 1;
+    }
+    // ft_trig_downscale
+    let len = ((x.unsigned_abs() * TRIG_SCALE + 0x4000_0000) >> 32) as i64;
+    let len = if x < 0 { -len } else { len };
+    let len = if shift > 0 {
+        (len + (1 << (shift - 1))) >> shift
+    } else {
+        len << -shift
+    };
+    Fixed::from_bits(len as i32)
+}
+
 /// Magnitude of the vector (x, y)
 fn hypot(x: f32, y: f32) -> f32 {
     x.hypot(y)
@@ -1618,5 +1675,59 @@ mod tests {
                 outlines.compute_hinted_scale(Some(size.round())).scale
             );
         }
+    }
+
+    // A rotated component with SCALED_COMPONENT_OFFSET: FreeType scales the
+    // offset by FT_Hypot(xx, xy), the length of the basis vector.
+    #[test]
+    fn scaled_component_offset_rotated_uses_exact_hypot() {
+        use font_test_data::bebuffer::BeBuffer;
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let mut glyf_buf = BeBuffer::new();
+        // glyph 0: one contour with one point at (0, 0)
+        glyf_buf = glyf_buf.push(1i16);
+        glyf_buf = glyf_buf.extend([0i16; 4]);
+        glyf_buf = glyf_buf.push(0u16); // end pt of contour 0
+        glyf_buf = glyf_buf.push(0u16); // instruction count
+        glyf_buf = glyf_buf.push(
+            SimpleGlyphFlags::ON_CURVE_POINT
+                | SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR
+                | SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR,
+        );
+        let glyph0_end = glyf_buf.len();
+        // glyph 1: component of glyph 0 rotated by 45 degrees, offset (1000, 0)
+        glyf_buf = glyf_buf.push(-1i16);
+        glyf_buf = glyf_buf.extend([0i16; 4]);
+        glyf_buf = glyf_buf.push(
+            CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS
+                | CompositeGlyphFlags::ARGS_ARE_XY_VALUES
+                | CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO
+                | CompositeGlyphFlags::SCALED_COMPONENT_OFFSET,
+        );
+        glyf_buf = glyf_buf.push(0u16); // component gid
+        glyf_buf = glyf_buf.extend([1000i16, 0i16]); // x/y offset
+                                                     // 2x2: cos/sin 45 degrees = 0x2D41 in F2Dot14 (0.70709...)
+        glyf_buf = glyf_buf.extend([0x2D41i16, 0x2D41, -0x2D41, 0x2D41]);
+        let glyph1_end = glyf_buf.len();
+        let mut loca_buf = BeBuffer::new();
+        loca_buf = loca_buf.extend([0u32, glyph0_end as u32, glyph1_end as u32]);
+        let mut outlines = Outlines::new(&font).unwrap();
+        outlines.glyf = Glyf::read(glyf_buf.data().into()).unwrap();
+        outlines.loca = Loca::read(loca_buf.data().into(), true).unwrap();
+        let gid = GlyphId::new(1);
+        let outline = outlines.outline(gid).unwrap();
+        let mut buf = [0u8; 1024];
+        // mac_xscale = FT_Hypot(46340, -46340) ~= 65534 (sqrt(2) * 46340)
+        // FT_MulFix(1000, 65534) = (65534000 + 0x8000) >> 16 = 1000
+        // The outline is then shifted by -pp1.x = lsb - xMin = 250 - 0 (hmtx
+        // of gid 1 in this font), so FreeType places the point at x = 1250.
+        let scaler = FreeTypeScaler::unhinted(&outlines, &outline, &mut buf, None, &[]).unwrap();
+        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
+        assert_eq!(scaled.points[0].x.to_i32(), 1250);
+        // Agrees with the f32 path
+        let mut buf = [0u8; 1024];
+        let scaler = HarfBuzzScaler::unhinted(&outlines, &outline, &mut buf, None, &[]).unwrap();
+        let scaled = scaler.scale(&outline.glyph, gid).unwrap();
+        assert!((scaled.points[0].x - 1250.0).abs() < 1.0);
     }
 }
