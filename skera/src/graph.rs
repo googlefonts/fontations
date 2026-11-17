@@ -837,9 +837,9 @@ impl Graph {
                     link.link_width() as u8
                 };
 
-                let child_weight = child_v.tail - child_v.head
-                    + (1 << (link_width * 8)) * (child_v.space as usize + 1);
-                let child_distance = next_distance + child_weight as u64;
+                let child_weight = (child_v.tail - child_v.head) as u64
+                    + (1u64 << (link_width * 8)) * (u64::from(child_v.space) + 1);
+                let child_distance = next_distance + child_weight;
                 if child_distance < distance_map[child_idx] {
                     distance_map[child_idx] = child_distance;
                     queue.push((child_distance, child_idx));
