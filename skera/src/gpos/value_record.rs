@@ -3,10 +3,9 @@
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetTable,
 };
 use read_fonts::{
-    collections::IntSet,
     tables::{
         gpos::{ValueFormat, ValueRecord},
         layout::DeviceOrVariationIndex,
@@ -147,7 +146,7 @@ impl<'a> SubsetTable<'a> for ValueRecord<'_> {
 }
 
 impl CollectVariationIndices for ValueRecord<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if !self.format().intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
             return;
         }
@@ -178,7 +177,7 @@ impl CollectVariationIndices for ValueRecord<'_> {
             let Ok(device) = device_offset.resolve::<DeviceOrVariationIndex>(font_data) else {
                 return;
             };
-            device.collect_variation_indices(plan, varidx_set);
+            device.collect_variation_indices(c);
             offset += 2;
         }
     }

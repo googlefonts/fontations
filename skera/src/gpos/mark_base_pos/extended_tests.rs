@@ -1,5 +1,6 @@
 use super::*;
 use font_test_data::bebuffer::BeBuffer;
+use read_fonts::collections::IntSet;
 use read_fonts::{
     tables::{gpos::AnchorTable, layout::DeviceOrVariationIndex},
     types::GlyphId24,
@@ -101,7 +102,10 @@ fn extended_mark_base_remaps_classes_anchors_and_variations() {
         let mut indices = IntSet::empty();
         MarkBasePos::read(FontData::new(&input))
             .unwrap()
-            .collect_variation_indices(&plan, &mut indices);
+            .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                &plan,
+                &mut indices,
+            ));
         assert_eq!(
             indices.iter().collect::<Vec<_>>(),
             [0x10002, 0x30004, 0x50006, 0x70008]

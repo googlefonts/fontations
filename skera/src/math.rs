@@ -9,7 +9,8 @@ use crate::{
     layout::variation_index,
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, Subset, SubsetError, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, Subset, SubsetError,
+    SubsetTable,
 };
 use read_fonts::{
     collections::IntSet,
@@ -466,11 +467,10 @@ impl SubsetTable<'_> for MathVariants<'_> {
 fn collect_value_indices(
     record: &MathValueRecord,
     data: FontData,
-    plan: &Plan,
-    indices: &mut IntSet<u32>,
+    c: &mut CollectVariationIndicesContext,
 ) {
     if let Some(Ok(device)) = record.device(data) {
-        device.collect_variation_indices(plan, indices);
+        device.collect_variation_indices(c);
     }
 }
 
@@ -478,72 +478,69 @@ fn collect_covered_value_indices(
     coverage: Result<CoverageTable, ReadError>,
     records: &[MathValueRecord],
     data: FontData,
-    plan: &Plan,
-    indices: &mut IntSet<u32>,
+    c: &mut CollectVariationIndicesContext,
 ) {
     let Ok(coverage) = coverage else { return };
     for (gid, record) in coverage.iter().zip(records) {
-        if plan.glyphset_mathed.contains(gid) {
-            collect_value_indices(record, data, plan, indices);
+        if c.plan.glyphset_mathed.contains(gid) {
+            collect_value_indices(record, data, c);
         }
     }
 }
 
 impl CollectVariationIndices for MathConstants<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         let Ok(records) = constant_value_records(self) else {
             return;
         };
         for record in records {
-            collect_value_indices(record, self.offset_data(), plan, indices);
+            collect_value_indices(record, self.offset_data(), c);
         }
     }
 }
 
 impl CollectVariationIndices for MathItalicsCorrectionInfo<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         collect_covered_value_indices(
             self.coverage(),
             self.italics_correction(),
             self.offset_data(),
-            plan,
-            indices,
+            c,
         );
     }
 }
 
 impl CollectVariationIndices for MathTopAccentAttachment<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         collect_covered_value_indices(
             self.top_accent_coverage(),
             self.top_accent_attachment(),
             self.offset_data(),
-            plan,
-            indices,
+            c,
         );
     }
 }
 
 impl CollectVariationIndices for MathKern<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         for record in self.correction_height().iter().chain(self.kern_values()) {
-            collect_value_indices(record, self.offset_data(), plan, indices);
+            collect_value_indices(record, self.offset_data(), c);
         }
     }
 }
 
 impl CollectVariationIndices for MathKernInfo<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         let Ok(coverage) = self.math_kern_coverage() else {
             return;
         };
         for (gid, record) in coverage.iter().zip(self.math_kern_info_records()) {
-            if !plan.glyphset_mathed.contains(gid) {
+            if !c.plan.glyphset_mathed.contains(gid) {
                 continue;
             }
             for kern in kern_corners(record, self.offset_data()) {
                 if let Some(Ok(kern)) = kern {
-                    kern.collect_variation_indices(plan, indices);
+                    kern.collect_variation_indices(c);
                 }
             }
         }
@@ -551,35 +548,35 @@ impl CollectVariationIndices for MathKernInfo<'_> {
 }
 
 impl CollectVariationIndices for MathGlyphInfo<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Some(Ok(italics)) = self.math_italics_correction_info() {
-            italics.collect_variation_indices(plan, indices);
+            italics.collect_variation_indices(c);
         }
         if let Some(Ok(accents)) = self.math_top_accent_attachment() {
-            accents.collect_variation_indices(plan, indices);
+            accents.collect_variation_indices(c);
         }
         if let Some(Ok(kern_info)) = self.math_kern_info() {
-            kern_info.collect_variation_indices(plan, indices);
+            kern_info.collect_variation_indices(c);
         }
     }
 }
 
 impl CollectVariationIndices for GlyphAssembly<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
-        collect_value_indices(self.italics_correction(), self.offset_data(), plan, indices);
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        collect_value_indices(self.italics_correction(), self.offset_data(), c);
     }
 }
 
 impl CollectVariationIndices for MathGlyphConstruction<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Some(Ok(assembly)) = self.glyph_assembly() {
-            assembly.collect_variation_indices(plan, indices);
+            assembly.collect_variation_indices(c);
         }
     }
 }
 
 impl CollectVariationIndices for MathVariants<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         for (coverage, constructions) in [
             (self.vert_glyph_coverage(), self.vert_glyph_constructions()),
             (
@@ -591,11 +588,11 @@ impl CollectVariationIndices for MathVariants<'_> {
                 continue;
             };
             for (gid, construction) in coverage.iter().zip(constructions.iter()) {
-                if !plan.glyphset_gsub.contains(gid) {
+                if !c.plan.glyphset_gsub.contains(gid) {
                     continue;
                 }
                 if let Ok(construction) = construction {
-                    construction.collect_variation_indices(plan, indices);
+                    construction.collect_variation_indices(c);
                 }
             }
         }
@@ -603,18 +600,18 @@ impl CollectVariationIndices for MathVariants<'_> {
 }
 
 impl CollectVariationIndices for Math<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, indices: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if self.version().major != 1 {
             return;
         }
         if let Ok(constants) = self.math_constants() {
-            constants.collect_variation_indices(plan, indices);
+            constants.collect_variation_indices(c);
         }
         if let Ok(info) = self.math_glyph_info() {
-            info.collect_variation_indices(plan, indices);
+            info.collect_variation_indices(c);
         }
         if let Ok(variants) = self.math_variants() {
-            variants.collect_variation_indices(plan, indices);
+            variants.collect_variation_indices(c);
         }
     }
 }
@@ -703,9 +700,9 @@ mod tests {
             );
 
             let mut indices = IntSet::from_iter([99]);
-            font.math()
-                .unwrap()
-                .collect_variation_indices(&Plan::default(), &mut indices);
+            font.math().unwrap().collect_variation_indices(
+                &mut CollectVariationIndicesContext::new(&Plan::default(), &mut indices),
+            );
             let expected = if major == 1 {
                 vec![99, 0x10002]
             } else {

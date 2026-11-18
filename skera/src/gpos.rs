@@ -18,8 +18,8 @@ use crate::{
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
-    SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, LayoutClosure, NameIdClosure, Plan,
+    PruneLangSysContext, Subset, SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use read_fonts::{
     collections::IntSet,
@@ -199,7 +199,7 @@ fn subset_gpos(
         return subset_extended_layout(gpos, plan, font, state, s);
     }
     let version_pos = s.embed(gpos.version())?;
-    let mut c = SubsetLayoutContext::new(Gpos::TAG);
+    let mut c = SubsetLayoutContext::new(Gpos::TAG, gpos.offset_data());
     let script_list_offset_pos = s.embed(0_u16)?;
     let feature_list_offset_pos = s.embed(0_u16)?;
     let lookup_list_offset_pos = s.embed(0_u16)?;
@@ -370,86 +370,77 @@ where
 /// Collects the variation indices of the lookups that are retained.
 ///
 /// Like the walk that subsets them, this counts the subtables it visits, and
-/// what a subtable reaches before it reads that, against `walk`.
-pub(crate) fn collect_lookup_variation_indices(
-    gpos: &Gpos,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
-    walk: &mut OpsWalk,
-) {
-    let Ok(lookups) = gpos.lookup_list() else {
-        return;
-    };
-
-    let lookups = lookups.lookups();
-    for i in plan.gpos_lookups.keys() {
-        let Ok(lookup) = lookups.get(*i as usize) else {
+/// what a subtable reaches before it reads that, against the walk of `c`.
+impl CollectVariationIndices for Gpos<'_> {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        let Ok(lookups) = self.lookup_list() else {
             return;
         };
 
-        //TODO: support all lookup types
-        let within_budget = match lookup.subtables() {
-            Ok(PositionSubtables::Single(subs)) => {
-                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+        let lookups = lookups.lookups();
+        let plan = c.plan;
+        for i in plan.gpos_lookups.keys() {
+            let Ok(lookup) = lookups.get(*i as usize) else {
+                return;
+            };
+
+            match lookup.subtables() {
+                Ok(subs) => subs.collect_variation_indices(c),
+                Err(ReadError::NullOffset) => continue,
+                Err(_) => return,
             }
-            Ok(PositionSubtables::Pair(subs)) => {
-                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
+            if c.walk.ran_out() {
+                return;
             }
-            Ok(PositionSubtables::Cursive(subs)) => {
-                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
-            }
-            Ok(PositionSubtables::MarkToBase(subs)) => {
-                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
-            }
-            Ok(PositionSubtables::MarkToLig(subs)) => {
-                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
-            }
-            Ok(PositionSubtables::MarkToMark(subs)) => {
-                collect_subtable_variation_indices(&subs, plan, varidx_set, walk)
-            }
-            Ok(_) | Err(ReadError::NullOffset) => continue,
-            Err(_) => return,
-        };
-        if !within_budget {
-            return;
+        }
+    }
+}
+
+//TODO: support all lookup types
+impl CollectVariationIndices for PositionSubtables<'_> {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        match self {
+            PositionSubtables::Single(subtables) => subtables.collect_variation_indices(c),
+            PositionSubtables::Pair(subtables) => subtables.collect_variation_indices(c),
+            PositionSubtables::Cursive(subtables) => subtables.collect_variation_indices(c),
+            PositionSubtables::MarkToBase(subtables) => subtables.collect_variation_indices(c),
+            PositionSubtables::MarkToLig(subtables) => subtables.collect_variation_indices(c),
+            PositionSubtables::MarkToMark(subtables) => subtables.collect_variation_indices(c),
+            _ => (),
         }
     }
 }
 
 /// Collects the variation indices of the subtables of a lookup that intersect
-/// the glyphs of the subset. False once `walk` is out of budget.
-fn collect_subtable_variation_indices<'a, T, Ext>(
-    subtables: &Subtables<'a, T, Ext>,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
-    walk: &mut OpsWalk,
-) -> bool
+/// the glyphs of the subset.
+impl<'a, T, Ext> CollectVariationIndices for Subtables<'a, T, Ext>
 where
     T: CollectVariationIndices + CountOps + Intersect + FontRead<'a, Args = ()> + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
-    if !walk.visit_subtables(subtables.len()) {
-        return false;
-    }
-    for t in subtables.iter().filter_map(|table| match table {
-        Err(ReadError::NullOffset) => None,
-        other => Some(other),
-    }) {
-        let Ok(t) = t else {
-            return true;
-        };
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        if !c.walk.visit_subtables(self.len()) {
+            return;
+        }
+        for t in self.iter().filter_map(|table| match table {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        }) {
+            let Ok(t) = t else {
+                return;
+            };
 
-        match walk.intersects(&t, &plan.glyphset_gsub) {
-            Ok(true) => (),
-            Ok(false) => continue,
-            Err(err) => return err != MAX_OPS_EXCEEDED,
+            match c.walk.intersects(&t, &c.plan.glyphset_gsub) {
+                Ok(true) => (),
+                Ok(false) => continue,
+                Err(_) => return,
+            }
+            if !t.count_ops(&mut c.walk, &c.plan.glyphset_gsub) {
+                return;
+            }
+            t.collect_variation_indices(c);
         }
-        if !t.count_ops(walk, &plan.glyphset_gsub) {
-            return false;
-        }
-        t.collect_variation_indices(plan, varidx_set);
     }
-    true
 }
 
 #[cfg(test)]

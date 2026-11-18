@@ -4,7 +4,7 @@ use crate::{
     layout::for_each_intersected_coverage_index,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetTable,
 };
 use read_fonts::{
     collections::IntSet,
@@ -40,12 +40,11 @@ mark_record_data!(MarkRecord2);
 #[inline]
 pub(crate) fn collect_mark_record_varidx(
     mark_record: &impl MarkRecordData,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
+    c: &mut CollectVariationIndicesContext,
     font_data: FontData,
 ) {
     if let Ok(mark_anchor) = mark_record.mark_anchor(font_data) {
-        mark_anchor.collect_variation_indices(plan, varidx_set);
+        mark_anchor.collect_variation_indices(c);
     };
 }
 
@@ -77,17 +76,16 @@ pub(crate) fn collect_retained_mark_varidx_and_classes(
     coverage: &CoverageTable,
     mark_records: &[impl MarkRecordData],
     mark_array_data: FontData,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
+    c: &mut CollectVariationIndicesContext,
 ) -> IntSet<u16> {
     let mut retained_classes = IntSet::empty();
     let _ = for_each_intersected_coverage_index::<()>(
         coverage,
-        &plan.glyphset_gsub,
+        &c.plan.glyphset_gsub,
         mark_records.len() as u32,
         |index| {
             let record = mark_records.get(index as usize).ok_or(())?;
-            collect_mark_record_varidx(record, plan, varidx_set, mark_array_data);
+            collect_mark_record_varidx(record, c, mark_array_data);
             retained_classes.insert(record.mark_class());
             Ok(())
         },

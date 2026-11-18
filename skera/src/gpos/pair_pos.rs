@@ -13,7 +13,8 @@ use crate::{
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetFlags, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetFlags, SubsetState,
+    SubsetTable,
 };
 
 use crate::FastHashMap;
@@ -668,8 +669,7 @@ subset_class_pairs!(PairPosFormat4, Offset32);
 fn collect_pairset_variation_indices(
     pair_set: &PairSetData,
     pair_set_info: &PairSetInfo,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
+    c: &mut CollectVariationIndicesContext,
 ) {
     if !pair_set.complete() {
         return;
@@ -684,8 +684,8 @@ fn collect_pairset_variation_indices(
     let pair_value_count = pair_set.pair_value_count();
     let bit_storage = 32 - pair_value_count.leading_zeros() as u16;
     let font_data = pair_set.offset_data();
-    if pair_value_count as u64 > plan.glyphset_gsub.len() * bit_storage as u64 {
-        for g in plan.glyphset_gsub.iter() {
+    if pair_value_count as u64 > c.plan.glyphset_gsub.len() * bit_storage as u64 {
+        for g in c.plan.glyphset_gsub.iter() {
             let mut hi = pair_value_count as usize;
             let mut lo = 0;
             while lo < hi {
@@ -705,17 +705,17 @@ fn collect_pairset_variation_indices(
                 } else {
                     let offset = pair_record_offset + pair_set.width();
                     let value_record1 = ValueRecord::new(font_data, offset, value_format1);
-                    value_record1.collect_variation_indices(plan, varidx_set);
+                    value_record1.collect_variation_indices(c);
 
                     let value_record2 =
                         ValueRecord::new(font_data, offset + record1_size, value_format2);
-                    value_record2.collect_variation_indices(plan, varidx_set);
+                    value_record2.collect_variation_indices(c);
                     break;
                 }
             }
         }
     } else {
-        let glyph_set = &plan.glyphset_gsub;
+        let glyph_set = &c.plan.glyphset_gsub;
         for i in 0..pair_value_count as usize {
             let pair_record_offset = pair_set.width() + i * pair_record_size;
             let Ok(glyph_id) = pair_set.second_glyph(pair_record_offset) else {
@@ -728,21 +728,21 @@ fn collect_pairset_variation_indices(
 
             let offset = pair_record_offset + pair_set.width();
             let value_record1 = ValueRecord::new(font_data, offset, value_format1);
-            value_record1.collect_variation_indices(plan, varidx_set);
+            value_record1.collect_variation_indices(c);
 
             let value_record2 = ValueRecord::new(font_data, offset + record1_size, value_format2);
-            value_record2.collect_variation_indices(plan, varidx_set);
+            value_record2.collect_variation_indices(c);
         }
     }
 }
 
 impl CollectVariationIndices for PairPos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
-            Self::Format1(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format2(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format3(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format4(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::Format1(item) => item.collect_variation_indices(c),
+            Self::Format2(item) => item.collect_variation_indices(c),
+            Self::Format3(item) => item.collect_variation_indices(c),
+            Self::Format4(item) => item.collect_variation_indices(c),
         }
     }
 }
@@ -750,7 +750,7 @@ impl CollectVariationIndices for PairPos<'_> {
 macro_rules! collect_glyph_pair_variations {
     ($table:ident, $kind:ident, $glyph_size:literal) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let value_format1 = self.value_format1();
                 let value_format2 = self.value_format2();
 
@@ -764,7 +764,7 @@ macro_rules! collect_glyph_pair_variations {
                     return;
                 };
 
-                let glyph_set = &plan.glyphset_gsub;
+                let glyph_set = &c.plan.glyphset_gsub;
                 let pair_sets = self.pair_sets();
                 let pair_set_count = u32::from(self.pair_set_count());
 
@@ -795,8 +795,7 @@ macro_rules! collect_glyph_pair_variations {
                             collect_pairset_variation_indices(
                                 &PairSetData::from(&pair_set),
                                 &pair_set_info,
-                                plan,
-                                varidx_set,
+                                c,
                             );
                         }
                     }
@@ -814,8 +813,7 @@ macro_rules! collect_glyph_pair_variations {
                         collect_pairset_variation_indices(
                             &PairSetData::from(&pair_set),
                             &pair_set_info,
-                            plan,
-                            varidx_set,
+                            c,
                         );
                     }
                 }
@@ -829,7 +827,7 @@ collect_glyph_pair_variations!(PairPosFormat3, Wide, 3usize);
 macro_rules! collect_class_pair_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let value_format1 = self.value_format1();
                 let value_format2 = self.value_format2();
 
@@ -842,7 +840,7 @@ macro_rules! collect_class_pair_variations {
                     return;
                 };
 
-                let glyph_set = &plan.glyphset_gsub;
+                let glyph_set = &c.plan.glyphset_gsub;
                 let cov_glyphs = coverage.intersect_set(glyph_set);
                 if cov_glyphs.is_empty() {
                     return;
@@ -885,13 +883,13 @@ macro_rules! collect_class_pair_variations {
 
                         if value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
                             let record1 = ValueRecord::new(font_data, offset, value_format1);
-                            record1.collect_variation_indices(plan, varidx_set);
+                            record1.collect_variation_indices(c);
                         }
 
                         if value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
                             let record2 =
                                 ValueRecord::new(font_data, offset + record1_size, value_format2);
-                            record2.collect_variation_indices(plan, varidx_set);
+                            record2.collect_variation_indices(c);
                         }
                     }
                 }
@@ -1058,7 +1056,10 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(57_u32));
 
         let mut varidx_set = IntSet::empty();
-        pairpos_table.collect_variation_indices(&plan, &mut varidx_set);
+        pairpos_table.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 5);
         assert!(varidx_set.contains(0x6f0013_u32));
         assert!(varidx_set.contains(0x3e0004_u32));
@@ -1090,7 +1091,10 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(127_u32));
 
         let mut varidx_set = IntSet::empty();
-        pairpos_table.collect_variation_indices(&plan, &mut varidx_set);
+        pairpos_table.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 9);
         assert!(varidx_set.contains(0x12000f_u32));
         assert!(varidx_set.contains(0x3c0000_u32));
@@ -1157,7 +1161,10 @@ mod test {
         }
 
         let mut varidx_set = IntSet::empty();
-        pairpos.collect_variation_indices(&plan, &mut varidx_set);
+        pairpos.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
 
         // class1 3 and class2 5 both land outside the matrix, so only the two
         // real records contribute. 0x000b000c would mean a read past the end.

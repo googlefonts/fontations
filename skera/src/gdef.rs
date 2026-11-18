@@ -13,7 +13,8 @@ use crate::{
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, Subset, SubsetError, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, Subset, SubsetError,
+    SubsetState, SubsetTable,
 };
 use read_fonts::{
     collections::IntSet,
@@ -550,9 +551,9 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
 }
 
 impl CollectVariationIndices for Gdef<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Some(Ok(lig_caret_list)) = self.lig_caret_list() {
-            lig_caret_list.collect_variation_indices(plan, varidx_set);
+            lig_caret_list.collect_variation_indices(c);
         }
     }
 }
@@ -560,7 +561,7 @@ impl CollectVariationIndices for Gdef<'_> {
 macro_rules! collect_lig_caret_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let Ok(coverage) = self.coverage() else {
                     return;
                 };
@@ -573,10 +574,10 @@ macro_rules! collect_lig_caret_variations {
                     let Ok(lig_glyph) = lig_glyph else {
                         return;
                     };
-                    if !plan.glyphset_gsub.contains(gid) {
+                    if !c.plan.glyphset_gsub.contains(gid) {
                         continue;
                     }
-                    lig_glyph.collect_variation_indices(plan, varidx_set);
+                    lig_glyph.collect_variation_indices(c);
                 }
             }
         }
@@ -586,7 +587,7 @@ collect_lig_caret_variations!(LigCaretList);
 collect_lig_caret_variations!(LigCaretList2);
 
 impl CollectVariationIndices for LigGlyph<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         for caret in self.caret_values().iter_as_nullable() {
             let Some(caret) = caret else {
                 continue;
@@ -594,16 +595,16 @@ impl CollectVariationIndices for LigGlyph<'_> {
             let Ok(caret) = caret else {
                 return;
             };
-            caret.collect_variation_indices(plan, varidx_set);
+            caret.collect_variation_indices(c);
         }
     }
 }
 
 impl CollectVariationIndices for CaretValue<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Self::Format3(item) = self {
             if let Ok(device) = item.device() {
-                device.collect_variation_indices(plan, varidx_set);
+                device.collect_variation_indices(c);
             }
         }
     }
@@ -649,10 +650,10 @@ impl SubsetTable<'_> for read_fonts::tables::gdef::SelectedLigCaretList<'_> {
 }
 
 impl CollectVariationIndices for read_fonts::tables::gdef::SelectedLigCaretList<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
-            Self::Original(t) => t.collect_variation_indices(plan, varidx_set),
-            Self::Extended(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Original(t) => t.collect_variation_indices(c),
+            Self::Extended(t) => t.collect_variation_indices(c),
         }
     }
 }
@@ -673,7 +674,10 @@ mod test {
         let gdef = font.gdef().unwrap();
 
         let mut varidx_set = IntSet::empty();
-        gdef.collect_variation_indices(&plan, &mut varidx_set);
+        gdef.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 3);
         assert!(varidx_set.contains(3));
         assert!(varidx_set.contains(5));

@@ -8,10 +8,9 @@ use crate::{
     layout::{for_each_intersected_coverage_index, for_each_intersected_glyph_and_index},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetState, SubsetTable,
 };
 use read_fonts::{
-    collections::IntSet,
     tables::{
         gpos::{
             CursivePos, CursivePosFormat1, CursivePosFormat2, EntryExitRecord, EntryExitRecord2,
@@ -133,13 +132,13 @@ subset_entry_exit_record!(EntryExitRecord2, Offset24);
 macro_rules! collect_cursive_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let Ok(coverage) = self.coverage() else {
                     return;
                 };
 
                 let font_data = self.offset_data();
-                let glyph_set = &plan.glyphset_gsub;
+                let glyph_set = &c.plan.glyphset_gsub;
                 let entry_exit_records = self.entry_exit_record();
                 let _ = for_each_intersected_coverage_index::<()>(
                     &coverage,
@@ -148,10 +147,10 @@ macro_rules! collect_cursive_variations {
                     |index| {
                         let rec = entry_exit_records.get(index as usize).ok_or(())?;
                         if let Some(Ok(anchor)) = rec.entry_anchor(font_data) {
-                            anchor.collect_variation_indices(plan, varidx_set);
+                            anchor.collect_variation_indices(c);
                         }
                         if let Some(Ok(anchor)) = rec.exit_anchor(font_data) {
-                            anchor.collect_variation_indices(plan, varidx_set);
+                            anchor.collect_variation_indices(c);
                         }
                         Ok(())
                     },
@@ -180,10 +179,10 @@ impl<'a> SubsetTable<'a> for CursivePos<'_> {
 }
 
 impl CollectVariationIndices for CursivePos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
-            Self::Format1(t) => t.collect_variation_indices(plan, varidx_set),
-            Self::Format2(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Format1(t) => t.collect_variation_indices(c),
+            Self::Format2(t) => t.collect_variation_indices(c),
         }
     }
 }
