@@ -202,7 +202,8 @@ trait GlyphClosure {
     }
 }
 
-const CLOSURE_MAX_STAGES: u8 = 12;
+// Match HarfBuzz's allowance for script shaping stages.
+const CLOSURE_MAX_STAGES: u8 = 16;
 impl Gsub<'_> {
     /// Return the set of glyphs reachable from the input set via any substitution.
     /// ref: <https://github.com/harfbuzz/harfbuzz/blob/8d517f7e43f648cb804c46c47ae8009330fe4a47/src/hb-ot-layout.cc#L1616>
