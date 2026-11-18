@@ -343,7 +343,6 @@ impl std::ops::BitOrAssign for SubsetFlags {
 pub struct Plan {
     unicodes: IntSet<u32>,
     glyphs_requested: IntSet<GlyphId>,
-    glyphset_cmaped: IntSet<GlyphId>,
     glyphset_mathed: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
@@ -757,7 +756,6 @@ impl Plan {
             dmap.as_cmap()
                 .closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         }
-        self.glyphset_cmaped = self.glyphset_gsub.clone();
 
         // Preserve MATH-to-GSUB dependencies before layout closure.
         if !self.drop_tables.contains(Math::TAG) {

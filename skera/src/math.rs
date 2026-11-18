@@ -382,7 +382,7 @@ fn collect_coverage_and_indices(
     if let Some(coverage) = coverage {
         let coverage = read_or_fail(s, coverage)?;
         for (index, gid) in coverage.iter().take(count).enumerate() {
-            if plan.glyphset_cmaped.contains(gid) || plan.glyphset_gsub.contains(gid) {
+            if plan.glyphset_gsub.contains(gid) {
                 retained.push(map_glyph(plan, s, gid)?.into());
                 indices.push(index);
             }
@@ -591,7 +591,7 @@ impl CollectVariationIndices for MathVariants<'_> {
                 continue;
             };
             for (gid, construction) in coverage.iter().zip(constructions.iter()) {
-                if !plan.glyphset_cmaped.contains(gid) && !plan.glyphset_gsub.contains(gid) {
+                if !plan.glyphset_gsub.contains(gid) {
                     continue;
                 }
                 if let Ok(construction) = construction {
