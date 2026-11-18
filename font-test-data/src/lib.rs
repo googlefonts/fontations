@@ -423,3 +423,7 @@ pub mod meta {
 pub mod gvar {
     pub static USE_MY_METRICS: &[u8] = include_bytes!("../test_data/ttf/gvar_use_my_metrics.ttf");
 }
+
+/// Context rule applying twenty substitutions at one input position.
+pub static NESTED_CONTEXT_CLOSURE: &[u8] =
+    include_bytes!("../test_data/ttf/nested_context_closure.ttf");

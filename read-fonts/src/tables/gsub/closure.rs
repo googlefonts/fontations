@@ -170,17 +170,42 @@ mod ctx {
             self.output.insert(gid);
         }
 
-        pub(super) fn flush(&mut self) {
-            // Drop glyphs that are not in the font before they join the closure,
-            // so that they can't make other lookups reachable.
-            // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-gsubgpos.hh#L190-L197>
+        // Drop output glyphs that are not in the font before they join the
+        // closure, so that they can't make other lookups reachable.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-gsubgpos.hh#L190-L197>
+        pub(super) fn trim_output(&mut self) {
             if let Some(num_glyphs) = self.num_glyphs {
                 self.output
                     .remove_range(GlyphId::new(num_glyphs)..=GlyphId::new(u32::MAX));
             }
+        }
+
+        pub(super) fn flush(&mut self) {
+            self.trim_output();
             self.glyphs.union(&self.output);
             self.output.clear();
             self.active_glyphs_stack.clear();
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn pending_outputs_are_filtered_without_flushing() {
+            let mut glyphs = [GlyphId::new(1)].into_iter().collect();
+            let mut ctx = ClosureCtx::new(&mut glyphs, Some(22));
+            ctx.output.extend([GlyphId::new(2), GlyphId::new(30)]);
+            ctx.trim_output();
+            // Out-of-font glyph 30 is filtered; the global set is left untouched.
+            assert_eq!(
+                ctx.output.iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+                [2]
+            );
+            assert_eq!(
+                ctx.glyphs().iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+                [1]
+            );
         }
     }
 }
@@ -869,9 +894,11 @@ impl GlyphClosure for ContextFormat1<'_> {
 
                     let mut active_glyphs = IntSet::empty();
                     if !seen_sequence_indices.insert(sequence_idx) {
-                        // During processing, when we see an empty set we will replace
-                        // it with the full current glyph set
-                        active_glyphs.extend(ctx.glyphs().iter());
+                        // Include pending (not yet flushed) outputs so repeated
+                        // records at this position see earlier substitutions.
+                        ctx.trim_output();
+                        active_glyphs.union(ctx.glyphs());
+                        active_glyphs.union(&ctx.output);
                     } else if sequence_idx == 0 {
                         active_glyphs.insert(gid);
                     } else {
@@ -986,7 +1013,12 @@ impl GlyphClosure for ContextFormat2<'_> {
                     }
 
                     let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
-                        ctx.glyphs().clone()
+                        // Include pending (not yet flushed) outputs so repeated
+                        // records at this position see earlier substitutions.
+                        ctx.trim_output();
+                        let mut active = ctx.glyphs().clone();
+                        active.union(&ctx.output);
+                        active
                     } else if sequence_idx == 0 {
                         intersected_class_glyphs(
                             &input_class_def,
@@ -1047,7 +1079,12 @@ impl GlyphClosure for ContextFormat3<'_> {
             }
 
             let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
-                ctx.glyphs().clone()
+                // Include pending (not yet flushed) outputs so repeated records
+                // at this position see earlier substitutions.
+                ctx.trim_output();
+                let mut active = ctx.glyphs().clone();
+                active.union(&ctx.output);
+                active
             } else if seq_idx == 0 {
                 let cov = self.coverage(0)?;
                 cov.intersect_set(ctx.parent_active_glyphs())
