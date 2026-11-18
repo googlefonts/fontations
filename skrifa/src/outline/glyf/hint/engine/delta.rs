@@ -120,7 +120,14 @@ impl Engine<'_> {
                     b += 1;
                 }
                 b *= 1 << (6 - gs.delta_shift as i32);
-                let cvt_val = self.cvt.get(cvt_ix)?;
+                // Out of bounds CVT entries are ignored unless we're in
+                // pedantic mode, matching RCVT/WCVTP and FreeType.
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6630>
+                let cvt_val = match self.cvt.get(cvt_ix) {
+                    Ok(cvt_val) => cvt_val,
+                    Err(e) if gs.is_pedantic => return Err(e),
+                    Err(_) => continue,
+                };
                 self.cvt.set(cvt_ix, cvt_val + F26Dot6::from_bits(b))?;
             }
         }
@@ -200,6 +207,35 @@ mod tests {
             let value = engine.cvt.get(cvt_ix).unwrap();
             assert_eq!(value.to_bits(), -8);
         }
+    }
+
+    /// An out of bounds CVT index is skipped outside of pedantic mode, as
+    /// RCVT/WCVTP do and as FreeType does, rather than failing the program.
+    #[test]
+    fn deltac_out_of_bounds_cvt() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        let ppem = 16;
+        engine.graphics.ppem = ppem;
+        let packed = ((ppem - engine.graphics.delta_base as i32) << 4) | 7;
+        let oob_index = 1000;
+        // (arg, cvt) pairs: an in bounds entry below an out of bounds one
+        let stack = [packed, 0, packed, oob_index, 2];
+        engine.graphics.is_pedantic = false;
+        for value in &stack {
+            engine.value_stack.push(*value).unwrap();
+        }
+        engine.op_deltac(Opcode::DELTAC1).unwrap();
+        assert_eq!(engine.value_stack.len(), 0);
+        assert_eq!(engine.cvt.get(0).unwrap().to_bits(), -8);
+        engine.graphics.is_pedantic = true;
+        for value in &stack {
+            engine.value_stack.push(*value).unwrap();
+        }
+        assert_eq!(
+            engine.op_deltac(Opcode::DELTAC1),
+            Err(HintErrorKind::InvalidCvtIndex(oob_index as _))
+        );
     }
 
     /// Fuzzer detected timeout when the count supplied for deltap was
