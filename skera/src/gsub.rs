@@ -10,6 +10,7 @@ use crate::FastHashMap;
 use crate::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
     collect_variable_feature_indices, find_duplicate_features,
+    layout::OpsBudget,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
@@ -18,6 +19,7 @@ use crate::{
 };
 use read_fonts::{
     collections::IntSet,
+    limits::MAX_OPS_EXCEEDED,
     tables::{
         gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
         layout::{FeatureRecord, LookupFlag},
@@ -47,12 +49,15 @@ impl NameIdClosure for Gsub<'_> {
         }
 
         if let Some(Ok(feature_variations)) = self.feature_variations() {
+            let mut budget = OpsBudget::new(self.offset_data());
             collect_feature_variations_name_ids(
                 &feature_variations,
                 feature_records,
                 Gsub::TAG,
                 plan,
+                &mut budget,
             );
+            budget.record(Gsub::TAG, plan);
         }
     }
 }
@@ -62,9 +67,10 @@ impl LayoutClosure for Gsub<'_> {
         &self,
         lookup_indices: &IntSet<u16>,
         feature_indices: IntSet<u16>,
+        budget: &mut OpsBudget,
     ) -> IntSet<u16> {
         let alternate_features = if let Some(Ok(feature_variations)) = self.feature_variations() {
-            collect_features_with_retained_subs(&feature_variations, lookup_indices)
+            collect_features_with_retained_subs(&feature_variations, lookup_indices, budget)
         } else {
             IntSet::empty()
         };
@@ -77,6 +83,7 @@ impl LayoutClosure for Gsub<'_> {
             &alternate_features,
             lookup_indices,
             feature_indices,
+            budget,
         )
     }
 
@@ -88,8 +95,12 @@ impl LayoutClosure for Gsub<'_> {
         let Ok(feature_list) = self.feature_list() else {
             return FastHashMap::default();
         };
+        // This reads more than HarfBuzz's sanitizer does only if feature hashes collide,
+        // so running out of this budget is not recorded as a failure. It only stops the
+        // deduplication, which is always valid.
+        let mut budget = OpsBudget::new(self.offset_data());
         let variable_features = match self.feature_variations() {
-            Some(Ok(variations)) => collect_variable_feature_indices(&variations),
+            Some(Ok(variations)) => collect_variable_feature_indices(&variations, &mut budget),
             _ => IntSet::empty(),
         };
         find_duplicate_features(
@@ -97,6 +108,7 @@ impl LayoutClosure for Gsub<'_> {
             lookup_indices,
             feature_indices,
             &variable_features,
+            &mut budget,
         )
     }
 
@@ -118,8 +130,14 @@ impl LayoutClosure for Gsub<'_> {
         else {
             return;
         };
-        let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
-            return;
+        let mut lookup_indices = match self.collect_lookups(&feature_indices) {
+            Ok(lookup_indices) => lookup_indices,
+            Err(err) => {
+                if err == MAX_OPS_EXCEEDED {
+                    plan.layout_ops_exceeded.insert(Gsub::TAG);
+                }
+                return;
+            }
         };
         // Glyphs outside the font must not make further lookups reachable.
         let num_glyphs = u32::try_from(plan.font_num_glyphs).unwrap_or(u32::MAX);
@@ -143,7 +161,9 @@ impl LayoutClosure for Gsub<'_> {
             return;
         };
 
-        let feature_indices = self.prune_features(&lookup_indices, feature_indices);
+        let mut budget = OpsBudget::new(self.offset_data());
+        let feature_indices = self.prune_features(&lookup_indices, feature_indices, &mut budget);
+        budget.record(Gsub::TAG, plan);
         let duplicate_feature_index_map =
             self.find_duplicate_features(&lookup_indices, feature_indices);
 
@@ -178,6 +198,10 @@ fn subset_gsub(
     state: &SubsetState,
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
+    // HarfBuzz fails to subset a table that its sanitizer rejects.
+    if plan.layout_ops_exceeded.contains(Gsub::TAG) {
+        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+    }
     if gsub.version() >= MajorMinor::new(1, 2) {
         return subset_extended_layout(gsub, plan, font, state, s);
     }
@@ -357,7 +381,7 @@ where
 mod test {
     use super::*;
     use crate::subset_font;
-    use font_test_data::closure as test_data;
+    use font_test_data::{bebuffer::BeBuffer, closure as test_data};
     use read_fonts::{
         tables::layout::FeatureParams,
         types::{GlyphId, NameId},
@@ -465,7 +489,11 @@ mod test {
         feature_indices.extend(0_u16..=1_u16);
 
         // only feature indexed at 1 intersect with lookup_indices
-        let retained_features = gsub.prune_features(&lookup_indices, feature_indices);
+        let retained_features = gsub.prune_features(
+            &lookup_indices,
+            feature_indices,
+            &mut OpsBudget::new(gsub.offset_data()),
+        );
         assert_eq!(retained_features.len(), 1);
         assert!(retained_features.contains(1));
     }
@@ -482,8 +510,65 @@ mod test {
         feature_indices.extend(0_u16..=1_u16);
 
         // feature indexed at 0 has an alternate version that intersects lookup indexed at 1
-        let retained_features = gsub.prune_features(&lookup_indices, feature_indices);
+        let retained_features = gsub.prune_features(
+            &lookup_indices,
+            feature_indices,
+            &mut OpsBudget::new(gsub.offset_data()),
+        );
         assert_eq!(retained_features.len(), 1);
         assert!(retained_features.contains(0));
+    }
+
+    // HarfBuzz fails to subset a GSUB that its sanitizer rejects for sharing more data than
+    // 64 times the table's size. Such a table must not be subset to one without layout.
+    #[test]
+    fn test_gsub_over_ops_budget_fails_to_subset() {
+        // The default LangSys lists 400 liga features that share one Feature with lookups
+        // `0..400`; `padding` unused bytes come before the FeatureList.
+        let subset = |padding: u16| {
+            let mut buf = BeBuffer::new()
+                .extend([1u16, 0, 10, 828 + padding, 0])
+                .push(1u16)
+                .push(Tag::new(b"DFLT"))
+                .extend([8u16, 4, 0])
+                .extend([0u16, 0xFFFF, 400])
+                .extend(0..400u16)
+                .extend(std::iter::repeat_n(0u8, usize::from(padding)))
+                .push(400u16);
+            for _ in 0..400 {
+                buf = buf.push(Tag::new(b"liga")).push(2402u16);
+            }
+            buf = buf.extend([0u16, 400]).extend(0..400u16);
+
+            let mut builder = FontBuilder::new();
+            builder.add_raw(Gsub::TAG, buf.to_vec());
+            let data = builder.build();
+            let font = FontRef::new(&data).unwrap();
+            let mut plan = Plan {
+                layout_scripts: IntSet::all(),
+                layout_features: IntSet::all(),
+                ..Default::default()
+            };
+            font.gsub()
+                .unwrap()
+                .closure_glyphs_lookups_features(&mut plan);
+            (
+                plan.layout_ops_exceeded.contains(Gsub::TAG),
+                subset_font(&font, &plan),
+            )
+        };
+
+        // 400 reads of the 804 byte Feature are within 64 times 5534 bytes
+        let (ops_exceeded, output) = subset(1500);
+        assert!(!ops_exceeded);
+        assert!(output.is_ok());
+
+        // but not within 64 times 4034 bytes
+        let (ops_exceeded, output) = subset(0);
+        assert!(ops_exceeded);
+        assert!(matches!(
+            output,
+            Err(SubsetError::SubsetTableError(tag)) if tag == Gsub::TAG
+        ));
     }
 }

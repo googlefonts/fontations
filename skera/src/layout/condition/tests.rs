@@ -251,6 +251,7 @@ fn feature_variations_collect_conditional_only_and_earlier_barrier_indices() {
         &features,
         &lookups,
         &mut indices,
+        &mut OpsBudget::new(table.offset_data()),
     );
     assert_eq!(indices.iter().collect::<Vec<_>>(), [0x10002]);
     indices.clear();
@@ -260,6 +261,7 @@ fn feature_variations_collect_conditional_only_and_earlier_barrier_indices() {
         &features,
         &FastHashMap::default(),
         &mut indices,
+        &mut OpsBudget::new(table.offset_data()),
     );
     assert!(indices.is_empty());
 
@@ -294,6 +296,7 @@ fn feature_variations_collect_conditional_only_and_earlier_barrier_indices() {
         &features,
         &lookups,
         &mut indices,
+        &mut OpsBudget::new(table.offset_data()),
     );
     assert_eq!(indices.iter().collect::<Vec<_>>(), [0x10002]);
 }

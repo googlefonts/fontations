@@ -270,6 +270,7 @@ pub(crate) fn collect_feature_variation_condition_indices(
     features: &FastHashMap<u16, u16>,
     lookups: &FastHashMap<u16, u16>,
     indices: &mut IntSet<u32>,
+    budget: &mut OpsBudget,
 ) {
     let Ok(count) = super::num_variation_record_to_retain(variations, features) else {
         return;
@@ -280,6 +281,7 @@ pub(crate) fn collect_feature_variation_condition_indices(
             conditions.collect_variation_indices(plan, indices);
         }
     }
+    let mut ops = budget.walk();
     for record in variations.lookup_variation_records().unwrap_or_default() {
         if !features.contains_key(&record.feature_index())
             || record.feature_lookups_offset().is_null()
@@ -294,6 +296,9 @@ pub(crate) fn collect_feature_variation_condition_indices(
         {
             return;
         }
+        if !ops.visit(&table) {
+            return;
+        }
         for record in table.lookup_condition_records() {
             if record.lookup_index_list_offset().is_null() {
                 continue;
@@ -301,7 +306,7 @@ pub(crate) fn collect_feature_variation_condition_indices(
             let Ok(list) = record.lookup_index_list(table.offset_data()) else {
                 return;
             };
-            if list.min_table_bytes().is_empty() {
+            if list.min_table_bytes().is_empty() || !ops.visit(&list) {
                 return;
             }
             if list
