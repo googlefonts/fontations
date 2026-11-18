@@ -370,7 +370,7 @@ fn math_drops_unmappable_variation_devices_instead_of_the_table() {
 }
 
 #[test]
-fn closure_precedes_gsub_and_only_selected_roots_keep_constructions() {
+fn closure_preserves_math_dependencies_before_and_after_gsub() {
     let bytes = synthetic_font();
     let font = FontRef::new(&bytes).unwrap();
     for retain in [false, true] {
@@ -391,12 +391,26 @@ fn closure_precedes_gsub_and_only_selected_roots_keep_constructions() {
         let math = subset.math().unwrap();
         let variants = math.math_variants().unwrap();
         let root = GlyphId16::new(mapping[&GlyphId::new(2)].to_u32() as u16);
-        for c in [
-            variants.vert_glyph_coverage(),
-            variants.horiz_glyph_coverage(),
-        ] {
-            assert_eq!(c.unwrap().unwrap().iter().collect::<Vec<_>>(), [root]);
-        }
+        let vertical_roots =
+            [2, 5, 8].map(|g| GlyphId16::new(mapping[&GlyphId::new(g)].to_u32() as u16));
+        assert_eq!(
+            variants
+                .vert_glyph_coverage()
+                .unwrap()
+                .unwrap()
+                .iter()
+                .collect::<Vec<_>>(),
+            vertical_roots
+        );
+        assert_eq!(
+            variants
+                .horiz_glyph_coverage()
+                .unwrap()
+                .unwrap()
+                .iter()
+                .collect::<Vec<_>>(),
+            [root]
+        );
         let values = math
             .math_glyph_info()
             .unwrap()
@@ -404,7 +418,7 @@ fn closure_precedes_gsub_and_only_selected_roots_keep_constructions() {
             .unwrap()
             .unwrap();
         let expected =
-            [2, 5, 6, 10, 11].map(|g| GlyphId16::new(mapping[&GlyphId::new(g)].to_u32() as u16));
+            [2, 5, 6, 8, 10, 11].map(|g| GlyphId16::new(mapping[&GlyphId::new(g)].to_u32() as u16));
         assert_eq!(
             values.coverage().unwrap().iter().collect::<Vec<_>>(),
             expected
@@ -415,7 +429,7 @@ fn closure_precedes_gsub_and_only_selected_roots_keep_constructions() {
                 .iter()
                 .map(|v| v.value().to_i16())
                 .collect::<Vec<_>>(),
-            [2, 5, 6, 10, 11]
+            [2, 5, 6, 8, 10, 11]
         );
     }
 }
@@ -480,4 +494,66 @@ fn malformed_required_math_offsets_fail_subsetting() {
         subset_font(&font, &plan(&font, "2", "", SubsetFlags::default())),
         Err(skera::SubsetError::SubsetTableError(t)) if t == tag
     ));
+}
+
+#[test]
+fn gsub_outputs_keep_math_metrics_and_variants() {
+    let bytes = include_bytes!("../test-data/fonts/gsub-math-closure.ttf");
+    let font = FontRef::new(bytes).unwrap();
+    for flags in [
+        SubsetFlags::default(),
+        SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS,
+    ] {
+        let plan = plan(&font, "", "61", flags);
+        let mapping = plan
+            .old_to_new_glyph_mapping()
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for gid in 0..6 {
+            assert!(
+                mapping.contains_key(&GlyphId::new(gid)),
+                "missing glyph {gid}"
+            );
+        }
+        let bytes = subset_font(&font, &plan).unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let math = font.math().unwrap();
+        let info = math.math_glyph_info().unwrap();
+        let alt = GlyphId16::new(mapping[&GlyphId::new(3)].to_u32() as u16);
+        let italics = info.math_italics_correction_info().unwrap().unwrap();
+        assert_eq!(
+            italics.coverage().unwrap().iter().collect::<Vec<_>>(),
+            [alt]
+        );
+        assert_eq!(italics.italics_correction()[0].value().to_i16(), 75);
+        let accents = info.math_top_accent_attachment().unwrap().unwrap();
+        assert_eq!(
+            accents
+                .top_accent_coverage()
+                .unwrap()
+                .iter()
+                .collect::<Vec<_>>(),
+            [alt]
+        );
+        assert_eq!(accents.top_accent_attachment()[0].value().to_i16(), 125);
+        let variants = math.math_variants().unwrap();
+        let roots = [1, 3].map(|g| GlyphId16::new(mapping[&GlyphId::new(g)].to_u32() as u16));
+        assert_eq!(
+            variants
+                .vert_glyph_coverage()
+                .unwrap()
+                .unwrap()
+                .iter()
+                .collect::<Vec<_>>(),
+            roots
+        );
+        let targets = variants
+            .vert_glyph_constructions()
+            .iter()
+            .map(|c| c.unwrap().math_glyph_variant_records()[0].variant_glyph())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            targets,
+            [2, 4].map(|g| GlyphId16::new(mapping[&GlyphId::new(g)].to_u32() as u16))
+        );
+    }
 }

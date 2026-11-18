@@ -343,7 +343,6 @@ impl std::ops::BitOrAssign for SubsetFlags {
 pub struct Plan {
     unicodes: IntSet<u32>,
     glyphs_requested: IntSet<GlyphId>,
-    glyphset_cmaped: IntSet<GlyphId>,
     glyphset_mathed: IntSet<GlyphId>,
     glyphset_gsub: IntSet<GlyphId>,
     glyphset_colred: IntSet<GlyphId>,
@@ -757,31 +756,37 @@ impl Plan {
             dmap.as_cmap()
                 .closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         }
-        self.glyphset_cmaped = self.glyphset_gsub.clone();
 
-        // HarfBuzz closes math variants before layout, color and components.
+        // Preserve MATH-to-GSUB dependencies before layout closure.
         if !self.drop_tables.contains(Math::TAG) {
             math::closure(font, &mut self.glyphset_gsub);
             remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
         }
-        self.glyphset_mathed = self.glyphset_gsub.clone();
-
         // layout closure
         self.layout_populate_gids_to_retain(font);
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
+
+        // GSUB outputs may have MATH metrics and constructions of their own.
+        // These new variants are rendering glyphs; do not feed them into GSUB.
+        self.glyphset_mathed = self.glyphset_gsub.clone();
+        if !self.drop_tables.contains(Math::TAG) {
+            math::closure(font, &mut self.glyphset_mathed);
+            remove_invalid_gids(&mut self.glyphset_mathed, self.font_num_glyphs);
+        }
+        self.glyphset_colred = self.glyphset_mathed.clone();
 
         //glyph closure for COLR
         if !self.drop_tables.contains(Tag::new(b"COLR")) {
             self.colr_closure(font);
             remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
         } else {
-            self.glyphset_colred = self.glyphset_gsub.clone();
+            self.glyphset_colred = self.glyphset_mathed.clone();
         }
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
         if let Ok((glyf, loca)) = font.selected_glyf_loca(None) {
             let operation_count =
-                self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
+                self.glyphset_mathed.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
             for gid in self.glyphset_colred.iter() {
                 glyf_closure_glyphs(
                     &loca,
@@ -898,7 +903,7 @@ impl Plan {
 
     fn colr_closure(&mut self, font: &FontRef) {
         if let Ok(colr) = font.colr() {
-            colr.v0_closure_glyphs(&self.glyphset_gsub, &mut self.glyphset_colred);
+            colr.v0_closure_glyphs(&self.glyphset_mathed, &mut self.glyphset_colred);
             let mut layer_indices = IntSet::empty();
             let mut palette_indices = IntSet::empty();
             let mut variation_indices = IntSet::empty();
@@ -982,7 +987,7 @@ impl Plan {
                 }
             }
         } else {
-            self.glyphset_colred.union(&self.glyphset_gsub);
+            self.glyphset_colred.union(&self.glyphset_mathed);
         }
     }
 
