@@ -225,11 +225,32 @@ mod ctx {
         // Drop output glyphs that are not in the font before they join the
         // closure, so that they can't make other lookups reachable.
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-gsubgpos.hh#L190-L197>
-        pub(super) fn trim_output(&mut self) {
+        fn trim_output(&mut self) {
             if let Some(num_glyphs) = self.num_glyphs {
                 self.output
                     .remove_range(GlyphId::new(num_glyphs)..=GlyphId::new(u32::MAX));
             }
+        }
+
+        /// The active glyphs of a lookup record that revisits a sequence index
+        /// of a rule: the glyphs of the closure and its pending outputs, so
+        /// that the record sees what the records before it substituted. None
+        /// once the budget is spent.
+        ///
+        /// A record is counted once, but each one that revisits an index
+        /// copies the whole glyph set before it recurses, also into a lookup
+        /// that is done or past the nesting limit. So it is charged what it
+        /// copies, as in HarfBuzz.
+        /// ref: <https://github.com/harfbuzz/harfbuzz/blob/86b216cc9/src/hb-ot-layout-gsubgpos.hh#L2533-L2549>
+        pub(super) fn active_glyphs_with_output(&mut self) -> Option<IntSet<GlyphId>> {
+            let cost = self.glyphs.len().saturating_add(2 * self.output.len());
+            if !spend_budget(&mut self.budget, cost) {
+                return None;
+            }
+            self.trim_output();
+            let mut active_glyphs = self.glyphs.clone();
+            active_glyphs.union(&self.output);
+            Some(active_glyphs)
         }
 
         pub(super) fn flush(&mut self) {
@@ -1044,20 +1065,18 @@ impl GlyphClosure for ContextFormat1<'_> {
                         continue;
                     }
 
-                    let mut active_glyphs = IntSet::empty();
-                    if !seen_sequence_indices.insert(sequence_idx) {
-                        // Include pending (not yet flushed) outputs so repeated
-                        // records at this position see earlier substitutions.
-                        ctx.trim_output();
-                        active_glyphs.union(ctx.glyphs());
-                        active_glyphs.union(&ctx.output);
+                    let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
+                        let Some(active_glyphs) = ctx.active_glyphs_with_output() else {
+                            return Ok(());
+                        };
+                        active_glyphs
                     } else if sequence_idx == 0 {
-                        active_glyphs.insert(gid);
+                        IntSet::from([gid])
                     } else {
                         let Some(g) = rule.input_glyph(sequence_idx as usize - 1) else {
                             continue;
                         };
-                        active_glyphs.insert(g);
+                        IntSet::from([g])
                     };
 
                     ctx.recurse(
@@ -1196,12 +1215,10 @@ impl GlyphClosure for ContextFormat2<'_> {
                     }
 
                     let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
-                        // Include pending (not yet flushed) outputs so repeated
-                        // records at this position see earlier substitutions.
-                        ctx.trim_output();
-                        let mut active = ctx.glyphs().clone();
-                        active.union(&ctx.output);
-                        active
+                        let Some(active_glyphs) = ctx.active_glyphs_with_output() else {
+                            return Ok(());
+                        };
+                        active_glyphs
                     } else if sequence_idx == 0 {
                         intersected_class_glyphs(
                             &input_class_def,
@@ -1275,12 +1292,10 @@ impl GlyphClosure for ContextFormat3<'_> {
             }
 
             let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
-                // Include pending (not yet flushed) outputs so repeated records
-                // at this position see earlier substitutions.
-                ctx.trim_output();
-                let mut active = ctx.glyphs().clone();
-                active.union(&ctx.output);
-                active
+                let Some(active_glyphs) = ctx.active_glyphs_with_output() else {
+                    return Ok(());
+                };
+                active_glyphs
             } else if seq_idx == 0 {
                 let cov = self.coverage(0)?;
                 cov.intersect_set(ctx.parent_active_glyphs())
@@ -2089,6 +2104,50 @@ mod tests {
         // one subtable too many, whatever its size
         assert_eq!(closure(16383, 1).0, Ok(()));
         assert_eq!(closure(16384, 1).0, Err(MAX_OPS_EXCEEDED));
+    }
+
+    /// GSUB with a contextual lookup whose `records` lookup records all apply
+    /// lookup 1, a single substitution of no glyphs, at the one input glyph,
+    /// which may be any of the glyphs `0..=65535`.
+    fn gsub_with_repeated_sequence_index(records: u16) -> BeBuffer {
+        let lookup1 = 32 + 4 * records;
+        BeBuffer::new()
+            // header: version 1.0, no scripts or features, lookupList offset
+            .extend([1u16, 0, 0, 0, 10])
+            // LookupList: 2 lookups
+            .extend([2u16, 6, lookup1])
+            // Lookup 0: type 5, no flags, one subtable that follows it
+            .extend([5u16, 0, 1, 8])
+            // SequenceContextFormat3: one input glyph, its coverage follows
+            // the lookup records
+            .extend([3u16, 1, records, 8 + 4 * records])
+            .extend(std::iter::repeat_n([0u16, 1], records as usize).flatten())
+            // Coverage format 2: glyphs 0..=65535
+            .extend([2u16, 1, 0, u16::MAX, 0])
+            // Lookup 1: type 1, no flags, one subtable that follows it
+            .extend([1u16, 0, 1, 8])
+            // SingleSubstFormat1 of an empty coverage, which follows it
+            .extend([1u16, 6, 0])
+            .extend([1u16, 0])
+    }
+
+    /// Each lookup record after the first copies all the glyphs of the closure
+    /// into its active glyphs, and is charged that.
+    #[test]
+    fn closure_glyphs_budget_charges_revisited_sequence_indices() {
+        use crate::{FontData, FontRead};
+
+        let closure = |records: u16| {
+            let data = gsub_with_repeated_sequence_index(records);
+            let gsub = Gsub::read(FontData::new(&data)).unwrap();
+            let mut glyphs = (0..=u16::MAX).map(GlyphId::from).collect();
+            gsub.closure_glyphs(&IntSet::all(), &mut glyphs)
+        };
+
+        // 999 copies of 65536 glyphs
+        assert_eq!(closure(1000), Ok(()));
+        // 4999 copies are more than the 2^28 records of the budget
+        assert_eq!(closure(5000), Err(MAX_OPS_EXCEEDED));
     }
 
     /// GSUB with one ligature lookup whose `count` subtable offsets all point
