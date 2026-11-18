@@ -10,7 +10,7 @@ use crate::FastHashMap;
 use crate::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
     collect_variable_feature_indices, find_duplicate_features,
-    layout::OpsBudget,
+    layout::{OpsBudget, OpsWalk},
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
@@ -144,22 +144,26 @@ impl LayoutClosure for Gsub<'_> {
         if !plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE)
-            && self
-                .closure_glyphs_with_num_glyphs(
-                    &lookup_indices,
-                    &mut plan.glyphset_gsub,
-                    num_glyphs,
-                )
-                .is_err()
         {
+            if let Err(err) = self.closure_glyphs_with_num_glyphs(
+                &lookup_indices,
+                &mut plan.glyphset_gsub,
+                num_glyphs,
+            ) {
+                // A closure that ran out of its budget stopped early. Subsetting the
+                // table would walk it all again, so the table is not subset.
+                if err == MAX_OPS_EXCEEDED {
+                    plan.layout_ops_exceeded.insert(Gsub::TAG);
+                }
+                return;
+            }
+        }
+        if let Err(err) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) {
+            if err == MAX_OPS_EXCEEDED {
+                plan.layout_ops_exceeded.insert(Gsub::TAG);
+            }
             return;
-        };
-        if self
-            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
-            .is_err()
-        {
-            return;
-        };
+        }
 
         let mut budget = OpsBudget::new(self.offset_data());
         let feature_indices = self.prune_features(&lookup_indices, feature_indices, &mut budget);
@@ -202,6 +206,7 @@ fn subset_gsub(
     if plan.layout_ops_exceeded.contains(Gsub::TAG) {
         return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
     }
+    s.set_layout_walk(OpsWalk::new(gsub.offset_data()));
     if gsub.version() >= MajorMinor::new(1, 2) {
         return subset_extended_layout(gsub, plan, font, state, s);
     }
@@ -570,5 +575,122 @@ mod test {
             output,
             Err(SubsetError::SubsetTableError(tag)) if tag == Gsub::TAG
         ));
+    }
+
+    // HarfBuzz stops a glyph closure that walks more than its budget. The closure is then
+    // incomplete, so such a table must not be subset.
+    #[test]
+    fn test_gsub_over_closure_budget_fails_to_subset() {
+        // The liga feature has one lookup, whose `subtables` subtable offsets all point to
+        // one SingleSubst that maps each of the glyphs `1..=glyphs` to glyph `glyphs + 1`.
+        let subset = |subtables: u16, glyphs: u16| {
+            let subtable_len = 6 + 2 * glyphs;
+            let buf = BeBuffer::new()
+                .extend([1u16, 0, 10, 30, 44])
+                .push(1u16)
+                .push(Tag::new(b"DFLT"))
+                .extend([8u16, 4, 0])
+                .extend([0u16, 0xFFFF, 1, 0])
+                .push(1u16)
+                .push(Tag::new(b"liga"))
+                .extend([8u16, 0, 1, 0])
+                .extend([1u16, 4])
+                .extend([1u16, 0, subtables])
+                .extend(std::iter::repeat_n(
+                    6 + 2 * subtables,
+                    usize::from(subtables),
+                ))
+                .extend([2u16, subtable_len, glyphs])
+                .extend(std::iter::repeat_n(glyphs + 1, usize::from(glyphs)))
+                .extend([1u16, glyphs])
+                .extend(1..=glyphs);
+
+            let mut builder = FontBuilder::new();
+            builder.add_raw(Gsub::TAG, buf.to_vec());
+            let data = builder.build();
+            let font = FontRef::new(&data).unwrap();
+            let mut plan = Plan {
+                layout_scripts: IntSet::all(),
+                layout_features: IntSet::all(),
+                glyphset_gsub: IntSet::from([GlyphId::new(1)]),
+                ..Default::default()
+            };
+            font.gsub()
+                .unwrap()
+                .closure_glyphs_lookups_features(&mut plan);
+            (
+                plan.layout_ops_exceeded.contains(Gsub::TAG),
+                subset_font(&font, &plan),
+            )
+        };
+
+        // 100 visits of the 100 glyph subtable are within the budget
+        let (ops_exceeded, output) = subset(100, 100);
+        assert!(!ops_exceeded);
+        assert!(output.is_ok());
+
+        // but 16000 visits of the 32000 glyph subtable are not
+        let (ops_exceeded, output) = subset(16000, 32000);
+        assert!(ops_exceeded);
+        assert!(matches!(
+            output,
+            Err(SubsetError::SubsetTableError(tag)) if tag == Gsub::TAG
+        ));
+    }
+
+    // Any number of offsets can lead to one lookup or subtable. Like HarfBuzz's sanitizer, a
+    // walk of the lookups reads at most 64 times the table's size, and visits fewer than
+    // 16384 subtables.
+    #[test]
+    fn test_gsub_lookups_over_ops_budget_fail_to_subset() {
+        // The liga feature lists `count` lookups: `count` LookupList offsets lead to one
+        // lookup, whose `count` subtable offsets lead to one SingleSubst of glyph 1.
+        // `padding` unused bytes come before the ScriptList.
+        let subsets = |count: u16, padding: u16| {
+            let lookup_list = 42 + padding + 2 * count;
+            let buf = BeBuffer::new()
+                .extend([1u16, 0, 10 + padding, 30 + padding, lookup_list])
+                .extend(std::iter::repeat_n(0u8, usize::from(padding)))
+                .push(1u16)
+                .push(Tag::new(b"DFLT"))
+                .extend([8u16, 4, 0])
+                .extend([0u16, 0xFFFF, 1, 0])
+                .push(1u16)
+                .push(Tag::new(b"liga"))
+                .extend([8u16, 0, count])
+                .extend(0..count)
+                .push(count)
+                .extend(std::iter::repeat_n(2 + 2 * count, usize::from(count)))
+                .extend([1u16, 0, count])
+                .extend(std::iter::repeat_n(6 + 2 * count, usize::from(count)))
+                .extend([1u16, 6, 1])
+                .extend([1u16, 1, 1]);
+
+            let mut builder = FontBuilder::new();
+            builder.add_raw(Gsub::TAG, buf.to_vec());
+            let data = builder.build();
+            let font = FontRef::new(&data).unwrap();
+            let mut plan = Plan {
+                layout_scripts: IntSet::all(),
+                layout_features: IntSet::all(),
+                glyphset_gsub: IntSet::from([GlyphId::new(1)]),
+                ..Default::default()
+            };
+            font.gsub()
+                .unwrap()
+                .closure_glyphs_lookups_features(&mut plan);
+            subset_font(&font, &plan).is_ok()
+        };
+
+        // subsetting 900 times the 12 byte subtable is within the 16384 bytes that a walk
+        // of any table may read
+        assert!(subsets(30, 0));
+        // 2500 times is not within 64 times the 362 bytes of the table either
+        assert!(!subsets(50, 0));
+
+        // in a table whose walks may read more, 127 lookups of 127 subtables are within
+        // the subtable limit, 128 of 128 are not
+        assert!(subsets(127, 2300));
+        assert!(!subsets(128, 2300));
     }
 }

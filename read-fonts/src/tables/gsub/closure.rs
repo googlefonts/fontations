@@ -2,6 +2,17 @@
 //!
 //! This means taking a set of glyphs and updating it to include any other glyphs
 //! reachable from those glyphs via substitution, recursively.
+
+/// Charges `$cost` records to the budget of the closure `$ctx`, and returns
+/// from the closure of the current table once the budget is spent.
+macro_rules! spend {
+    ($ctx:expr, $cost:expr) => {
+        if !spend_budget(&mut $ctx.budget, $cost as u64) {
+            return Ok(());
+        }
+    };
+}
+
 mod extended;
 
 #[cfg(test)]
@@ -11,6 +22,7 @@ use font_types::GlyphId;
 
 use crate::{
     collections::{FastHashMap, IntSet},
+    limits::{MAX_LOOKUP_SUBTABLES, MAX_OPS_EXCEEDED},
     tables::layout::{ExtensionLookup, Subtables},
     FontRead, ReadError, Tag,
 };
@@ -28,6 +40,9 @@ use crate::tables::layout::{
     LookupClosureCtx, SeqCache,
 };
 
+#[cfg(feature = "std")]
+use crate::tables::layout::charge_records;
+
 // we put ClosureCtx in its own module to enforce visibility rules;
 // specifically we don't want cur_glyphs to be reachable directly
 mod ctx {
@@ -41,9 +56,19 @@ mod ctx {
 
     use super::GlyphClosure as _;
     use super::ReadError;
+    use crate::{limits::MAX_OPS_EXCEEDED, tables::layout::Intersect};
 
     #[cfg(feature = "std")]
-    use crate::limits::{MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH};
+    use crate::limits::{MAX_LAYOUT_CLOSURE_OPS, MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH};
+
+    /// Charges `cost` records to `budget`; false once the budget is spent.
+    ///
+    /// A function of the budget alone, so that it can be charged while other
+    /// fields of the context are borrowed.
+    pub(super) fn spend_budget(budget: &mut i64, cost: u64) -> bool {
+        *budget = budget.saturating_sub(i64::try_from(cost).unwrap_or(i64::MAX));
+        *budget >= 0
+    }
 
     pub(super) struct ClosureCtx<'a> {
         /// the current closure glyphs. This is updated as we go.
@@ -56,6 +81,15 @@ mod ctx {
         lookup_count: u16,
         nesting_level_left: usize,
         done_lookups_glyphs: HashMap<u16, (u64, IntSet<GlyphId>)>,
+        /// What is left of [`MAX_LAYOUT_CLOSURE_OPS`]; negative once it is spent.
+        ///
+        /// The visit count does not bound the work: a visit can walk many times
+        /// the size of the table through shared offsets, and every glyph added
+        /// to the closure makes all lookups visitable again. The tables charge
+        /// what they walk here, and once the budget is spent the closure stops,
+        /// as it does at the visit limit.
+        /// ref: <https://github.com/harfbuzz/harfbuzz/blob/70df3ff27/src/hb-ot-layout-gsubgpos.hh#L97-L103>
+        pub(super) budget: i64,
     }
 
     impl<'a> ClosureCtx<'a> {
@@ -68,11 +102,29 @@ mod ctx {
                 lookup_count: 0,
                 nesting_level_left: MAX_RECURSION_DEPTH,
                 done_lookups_glyphs: Default::default(),
+                budget: MAX_LAYOUT_CLOSURE_OPS,
             }
         }
 
         pub(super) fn lookup_limit_exceed(&self) -> bool {
-            self.lookup_count > MAX_LOOKUP_VISIT_COUNT
+            self.lookup_count > MAX_LOOKUP_VISIT_COUNT || self.budget_exceeded()
+        }
+
+        pub(super) fn budget_exceeded(&self) -> bool {
+            self.budget < 0
+        }
+
+        /// Whether `table` intersects the glyphs of the closure, charging the
+        /// budget for what that reads. Nothing intersects once it is spent.
+        pub(super) fn intersects(&mut self, table: &impl Intersect) -> Result<bool, ReadError> {
+            let mut ops_left = usize::try_from(self.budget).unwrap_or_default();
+            let intersects = table.intersects(self.glyphs, &mut ops_left);
+            if intersects == Err(MAX_OPS_EXCEEDED) {
+                self.budget = -1;
+                return Ok(false);
+            }
+            self.budget = i64::try_from(ops_left).unwrap_or(i64::MAX);
+            intersects
         }
 
         pub(super) fn parent_active_glyphs(&self) -> &IntSet<GlyphId> {
@@ -210,7 +262,7 @@ mod ctx {
     }
 }
 
-use ctx::ClosureCtx;
+use ctx::{spend_budget, ClosureCtx};
 
 /// A trait for tables which participate in closure
 trait GlyphClosure {
@@ -236,6 +288,12 @@ impl Gsub<'_> {
     /// Every glyph id produced by a substitution is added, even if it is not a
     /// glyph in the font. Use [`Self::closure_glyphs_with_num_glyphs`] to drop
     /// those, as harfbuzz does.
+    ///
+    /// The closure may walk at most [`MAX_LAYOUT_CLOSURE_OPS`] records. Beyond
+    /// that it stops, as it does in harfbuzz, and returns [`MAX_OPS_EXCEEDED`];
+    /// `glyphs` then holds the glyphs that were reached so far.
+    ///
+    /// [`MAX_LAYOUT_CLOSURE_OPS`]: crate::limits::MAX_LAYOUT_CLOSURE_OPS
     pub fn closure_glyphs(
         &self,
         lookups: &IntSet<u16>,
@@ -274,6 +332,17 @@ impl Gsub<'_> {
         let mut ctx = ClosureCtx::new(glyphs, num_glyphs);
         let mut iteration_count = 0;
         let mut glyphs_length;
+        // Any number of offsets can lead to one lookup or subtable, so the
+        // lookups that the closure starts from may have as many subtables as
+        // HarfBuzz's sanitizer accepts in all the lookups of a table.
+        let mut subtables_left = MAX_LOOKUP_SUBTABLES - 1;
+        let mut visit_subtables = |lookup: &SubstitutionLookup, iteration_count: u8| {
+            if iteration_count != 0 {
+                return Ok(());
+            }
+            let subtable_count = lookup.of_unit_type().sub_table_count();
+            charge_records(&mut subtables_left, usize::from(subtable_count))
+        };
         loop {
             ctx.reset_lookup_visit_count();
             glyphs_length = ctx.glyphs().len();
@@ -287,6 +356,7 @@ impl Gsub<'_> {
                         Err(ReadError::NullOffset) => continue,
                         other => other,
                     }?;
+                    visit_subtables(&lookup, iteration_count)?;
                     lookup.closure_glyphs(&mut ctx, &lookup_list, i)?;
                     ctx.flush();
                 }
@@ -298,14 +368,21 @@ impl Gsub<'_> {
                         }
                         other => other,
                     }?;
+                    visit_subtables(&lookup, iteration_count)?;
                     lookup.closure_glyphs(&mut ctx, &lookup_list, i)?;
                     ctx.flush();
                 }
             }
-            if iteration_count > CLOSURE_MAX_STAGES || glyphs_length == ctx.glyphs().len() {
+            if iteration_count > CLOSURE_MAX_STAGES
+                || glyphs_length == ctx.glyphs().len()
+                || ctx.budget_exceeded()
+            {
                 break;
             }
             iteration_count += 1;
+        }
+        if ctx.budget_exceeded() {
+            return Err(MAX_OPS_EXCEEDED);
         }
         Ok(())
     }
@@ -349,6 +426,10 @@ impl Gsub<'_> {
     }
 
     /// Update the set of lookup indices with all lookups reachable from specified glyph set and lookup_indices.
+    ///
+    /// The closure may read as much of the lookups as HarfBuzz's sanitizer may
+    /// read of the whole table, and visit as many subtables. Beyond that it
+    /// returns [`MAX_OPS_EXCEEDED`].
     pub fn closure_lookups(
         &self,
         glyphs: &IntSet<GlyphId>,
@@ -358,7 +439,9 @@ impl Gsub<'_> {
             return Ok(());
         }
         let lookup_list = self.lookup_list()?;
-        lookup_list.closure_lookups(glyphs, lookup_indices)
+        // One budget for the whole table, as when HarfBuzz sanitizes it.
+        let max_ops = crate::limits::max_ops(self.offset_data().len());
+        lookup_list.closure_lookups(glyphs, lookup_indices, max_ops)
     }
 }
 
@@ -442,6 +525,10 @@ impl<'a, T: FontRead<'a, Args = ()> + GlyphClosure + 'a, Ext: ExtensionLookup<'a
             Err(ReadError::NullOffset) => None,
             other => Some(other),
         }) {
+            // Every visit of a subtable is charged, and the subtable charges
+            // the records of its coverage table, which it walks at least once.
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/70df3ff27/src/hb-ot-layout-gsubgpos.hh#L73-L79>
+            spend!(ctx, 1);
             t?.closure_glyphs(ctx, lookup_list, lookup_index)?;
         }
         Ok(())
@@ -477,6 +564,11 @@ impl GlyphClosure for SingleSubstFormat1<'_> {
         }
         let coverage = self.coverage()?;
         let num_glyphs = coverage.population();
+        // A range is intersected glyph by glyph, whatever its size in bytes.
+        // HarfBuzz's sanitizer charges the table for half of them before any
+        // closure runs, so each visit is charged the same here.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/OT/Layout/GSUB/SingleSubstFormat1.hh#L126>
+        spend!(ctx, coverage.record_count() + num_glyphs / 2);
         let mask = u16::MAX;
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/fbf5b2aa035d6cd9b796d74252045e2b7156ad02/src/OT/Layout/GSUB/SingleSubstFormat1.hh#L55>
         if num_glyphs >= mask as usize {
@@ -504,6 +596,7 @@ impl GlyphClosure for SingleSubstFormat1<'_> {
             return Ok(());
         }
 
+        spend!(ctx, intersection.len());
         for g in intersection.iter() {
             let new_g = (g.to_u32() as i32 + d) & mask;
             ctx.add(GlyphId::from(new_g as u32));
@@ -523,6 +616,7 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        spend!(ctx, coverage.record_count());
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
             glyph_set
         } else {
@@ -531,6 +625,7 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
         let subs_glyphs = self.substitute_glyph_ids();
 
         if self.glyph_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            spend!(ctx, glyph_set.len());
             ctx.output.extend(
                 glyph_set
                     .iter()
@@ -542,6 +637,7 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
                     }),
             );
         } else {
+            spend!(ctx, subs_glyphs.len());
             ctx.output.extend(
                 coverage
                     .iter()
@@ -565,19 +661,26 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        spend!(ctx, coverage.record_count());
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
             glyph_set
         } else {
             &*ctx.glyphs
         };
         let sequences = self.sequences();
+        // Each sequence that is reached is charged its glyphs.
+        let budget = &mut ctx.budget;
 
         if self.sequence_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            if !spend_budget(budget, glyph_set.len()) {
+                return Ok(());
+            }
             ctx.output.extend(
                 glyph_set
                     .iter()
                     .filter_map(|g| coverage.get(g))
                     .filter_map(|idx| sequences.get(idx as usize).ok())
+                    .take_while(|seq| spend_budget(budget, seq.substitute_glyph_ids().len() as u64))
                     .flat_map(|seq| {
                         seq.substitute_glyph_ids()
                             .iter()
@@ -585,6 +688,9 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
                     }),
             );
         } else {
+            if !spend_budget(budget, self.sequence_count() as u64) {
+                return Ok(());
+            }
             ctx.output.extend(
                 coverage
                     .iter()
@@ -595,6 +701,7 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
                             .then(|| seq.transpose().ok().flatten())
                             .flatten()
                     })
+                    .take_while(|seq| spend_budget(budget, seq.substitute_glyph_ids().len() as u64))
                     .flat_map(|seq| {
                         seq.substitute_glyph_ids()
                             .iter()
@@ -617,18 +724,27 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        spend!(ctx, coverage.record_count());
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
             glyph_set
         } else {
             &*ctx.glyphs
         };
         let alts = self.alternate_sets();
+        // Each alternate set that is reached is charged its glyphs.
+        let budget = &mut ctx.budget;
         if self.alternate_set_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            if !spend_budget(budget, glyph_set.len()) {
+                return Ok(());
+            }
             ctx.output.extend(
                 glyph_set
                     .iter()
                     .filter_map(|g| coverage.get(g))
                     .filter_map(|idx| alts.get(idx as usize).ok())
+                    .take_while(|alt_set| {
+                        spend_budget(budget, alt_set.alternate_glyph_ids().len() as u64)
+                    })
                     .flat_map(|alt_set| {
                         alt_set
                             .alternate_glyph_ids()
@@ -637,6 +753,9 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
                     }),
             );
         } else {
+            if !spend_budget(budget, self.alternate_set_count() as u64) {
+                return Ok(());
+            }
             ctx.output.extend(
                 coverage
                     .iter()
@@ -646,6 +765,9 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
                             .contains(g)
                             .then(|| alt_set.transpose().ok().flatten())
                             .flatten()
+                    })
+                    .take_while(|alt_set| {
+                        spend_budget(budget, alt_set.alternate_glyph_ids().len() as u64)
                     })
                     .flat_map(|alt_set| {
                         alt_set
@@ -670,6 +792,7 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        spend!(ctx, coverage.record_count());
         let ligs = self.ligature_sets();
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
             glyph_set
@@ -677,7 +800,13 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
             &*ctx.glyphs
         };
 
+        // A ligature reads nothing through offsets, so `intersects` has nothing to
+        // charge.
+        let mut unlimited = usize::MAX;
+        // Each ligature set that is reached is charged its ligatures, and each
+        // of those its components.
         if self.ligature_set_count() as u64 > glyph_set.len() {
+            spend!(ctx, glyph_set.len());
             for idx in glyph_set
                 .iter()
                 .filter_map(|g| coverage.get(g))
@@ -687,16 +816,19 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
                     Err(ReadError::NullOffset) => continue,
                     other => other,
                 }?;
+                spend!(ctx, lig_set.ligatures().len());
                 for lig in lig_set.ligatures().iter_as_nullable() {
                     let Some(lig) = lig.transpose()? else {
                         continue;
                     };
-                    if lig.intersects(ctx.glyphs())? {
+                    spend!(ctx, lig.component_count());
+                    if lig.intersects(ctx.glyphs(), &mut unlimited)? {
                         ctx.output.insert(GlyphId::from(lig.ligature_glyph()));
                     }
                 }
             }
         } else {
+            spend!(ctx, self.ligature_set_count());
             for idx in coverage
                 .iter()
                 .enumerate()
@@ -707,11 +839,13 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
                     Err(ReadError::NullOffset) => continue,
                     other => other,
                 }?;
+                spend!(ctx, lig_set.ligatures().len());
                 for lig in lig_set.ligatures().iter_as_nullable() {
                     let Some(lig) = lig.transpose()? else {
                         continue;
                     };
-                    if lig.intersects(ctx.glyphs())? {
+                    spend!(ctx, lig.component_count());
+                    if lig.intersects(ctx.glyphs(), &mut unlimited)? {
                         ctx.output.insert(GlyphId::from(lig.ligature_glyph()));
                     }
                 }
@@ -728,11 +862,17 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
-        if !self.intersects(ctx.glyphs())? {
+        // The backtrack and lookahead coverages are charged as they are looked
+        // at, which is all of them only if the subtable intersects the glyphs.
+        if !ctx.intersects(self)? {
             return Ok(());
         }
 
         let coverage = self.coverage()?;
+        spend!(
+            ctx,
+            coverage.record_count() + self.substitute_glyph_ids().len()
+        );
         let sub_glyphs = self.substitute_glyph_ids();
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
             glyph_set
@@ -847,9 +987,13 @@ impl GlyphClosure for ContextFormat1<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
+        spend!(ctx, coverage.record_count() + self.rule_set_count());
 
         let lookups = lookup_list.lookups();
         let mut seen_sequence_indices = IntSet::new();
+        // A rule reads nothing through offsets, so `intersects` has nothing to
+        // charge.
+        let mut unlimited = usize::MAX;
         for (gid, rule_set) in coverage
             .iter()
             .zip(self.rule_sets())
@@ -862,14 +1006,19 @@ impl GlyphClosure for ContextFormat1<'_> {
                 return Ok(());
             }
 
-            for rule in rule_set?.rules() {
+            // Each rule set that is reached is charged its rules, and each of
+            // those its glyphs and lookup records.
+            let rule_set = rule_set?;
+            spend!(ctx, rule_set.rule_count());
+            for rule in rule_set.rules() {
                 if ctx.lookup_limit_exceed() {
                     return Ok(());
                 }
                 let Some(rule) = rule.transpose()? else {
                     continue;
                 };
-                if !rule.intersects(ctx.glyphs())? {
+                spend!(ctx, rule.record_count());
+                if !rule.intersects(ctx.glyphs(), &mut unlimited)? {
                     continue;
                 }
 
@@ -958,9 +1107,13 @@ impl GlyphClosure for ContextFormat2<'_> {
             return Ok(());
         };
 
+        spend!(ctx, coverage.record_count());
         if !coverage.intersects(ctx.parent_active_glyphs()) {
             return Ok(());
         }
+        // The rule sets are walked once, and so is the class definition to find
+        // the classes of the covered glyphs.
+        spend!(ctx, self.rule_set_count() + input_class_def.record_count());
         let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
         let backtrack_class_def = self.backtrack_class_def().transpose()?;
         let lookahead_class_def = self.lookahead_class_def().transpose()?;
@@ -971,6 +1124,19 @@ impl GlyphClosure for ContextFormat2<'_> {
 
         let mut intersected_class_cache = FastHashMap::default();
         let mut seq_cache = SeqCache::default();
+        // A class definition is walked for every class that is looked up in it
+        // for the first time, which the two caches record.
+        let class_def_records = [
+            Some(&input_class_def),
+            backtrack_class_def.as_ref(),
+            lookahead_class_def.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .map(|class_def| class_def.record_count())
+        .max()
+        .unwrap_or_default();
+        let mut classes_walked = 0;
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
@@ -981,28 +1147,42 @@ impl GlyphClosure for ContextFormat2<'_> {
                 return Ok(());
             }
 
-            for rule in rule_set?.rules() {
+            // Each rule set that is reached is charged its rules, each of those
+            // the classes its check reads, and a rule that matches its lookup
+            // records.
+            let rule_set = rule_set?;
+            spend!(ctx, rule_set.rule_count());
+            for rule in rule_set.rules() {
                 if ctx.lookup_limit_exceed() {
                     return Ok(());
                 }
                 let Some(rule) = rule.transpose()? else {
                     continue;
                 };
-                if !rule.intersects(
+                let (intersects, classes_read) = rule.intersects(
                     ctx.glyphs(),
                     &input_class_def,
                     backtrack_class_def.as_ref(),
                     lookahead_class_def.as_ref(),
                     &mut seq_cache,
-                ) {
+                );
+                let classes = seq_cache.class_count() + intersected_class_cache.len();
+                spend!(
+                    ctx,
+                    1 + classes_read + (classes - classes_walked).saturating_mul(class_def_records)
+                );
+                classes_walked = classes;
+                if !intersects {
                     continue;
                 }
 
                 let input_seq = rule.input_sequence();
                 let input_count = input_seq.len() + 1;
+                let lookup_records = rule.lookup_records();
+                spend!(ctx, lookup_records.len());
 
                 seen_sequence_indices.clear();
-                for lookup_record in rule.lookup_records() {
+                for lookup_record in lookup_records {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
                         Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
@@ -1051,6 +1231,11 @@ impl GlyphClosure for ContextFormat2<'_> {
                 }
             }
         }
+        let classes = seq_cache.class_count() + intersected_class_cache.len();
+        spend!(
+            ctx,
+            (classes - classes_walked).saturating_mul(class_def_records)
+        );
         Ok(())
     }
 }
@@ -1062,9 +1247,17 @@ impl GlyphClosure for ContextFormat3<'_> {
         lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
-        if !self.intersects(ctx.glyphs())? {
+        // The coverages are charged as they are looked at, which is all of
+        // them only if the subtable intersects the glyphs. The first one is
+        // then walked again for the glyphs that start a match.
+        if !ctx.intersects(self)? {
             return Ok(());
         }
+        spend!(
+            ctx,
+            self.coverage(0)
+                .map_or(0, |coverage| 2 * coverage.record_count())
+        );
 
         let mut seen_sequence_indices = IntSet::new();
         let input_count = self.input_count();
@@ -1112,17 +1305,25 @@ impl GlyphClosure for ContextFormat3<'_> {
 }
 
 impl SubstitutionLookupList<'_> {
+    /// Update the set of lookup indices with all lookups reachable from the
+    /// specified glyph set and lookup indices.
+    ///
+    /// The closure may read `max_ops` records of the lookups, which should be
+    /// [`max_ops`](crate::limits::max_ops) of the table the lookups are in.
+    /// Beyond that it returns
+    /// [`MAX_OPS_EXCEEDED`].
     pub fn closure_lookups(
         &self,
         glyph_set: &IntSet<GlyphId>,
         lookup_indices: &mut IntSet<u16>,
+        max_ops: usize,
     ) -> Result<(), ReadError> {
         lookup_indices.remove_range(self.lookup_count()..=u16::MAX);
         if lookup_indices.is_empty() {
             return Ok(());
         }
         let lookup_list = LayoutLookupList::Gsub(self);
-        let mut c = LookupClosureCtx::new(glyph_set, &lookup_list);
+        let mut c = LookupClosureCtx::new(glyph_set, &lookup_list, max_ops);
 
         let lookups = self.lookups();
         for idx in lookup_indices.iter() {
@@ -1151,6 +1352,7 @@ impl LookupClosure for SubstitutionLookup<'_> {
         if !c.should_visit_lookup(lookup_index) {
             return Ok(());
         }
+        c.visit_subtables(usize::from(self.of_unit_type().sub_table_count()))?;
 
         let subtables = self.subtables()?;
         // Contextual subtables are checked for intersection as they are
@@ -1162,7 +1364,7 @@ impl LookupClosure for SubstitutionLookup<'_> {
             return subtables.closure_lookups(c, lookup_index);
         }
 
-        if !self.intersects(c.glyphs())? {
+        if !c.intersects(self)? {
             c.set_lookup_inactive(lookup_index);
         }
         Ok(())
@@ -1170,30 +1372,50 @@ impl LookupClosure for SubstitutionLookup<'_> {
 }
 
 impl Intersect for SubstitutionLookup<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            SubstitutionLookup::Single(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::Multiple(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::Alternate(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::Ligature(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::Contextual(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::ChainContextual(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::Extension(inner) => inner.subtables().intersects(glyph_set),
-            SubstitutionLookup::Reverse(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Single(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            SubstitutionLookup::Multiple(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            SubstitutionLookup::Alternate(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            SubstitutionLookup::Ligature(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            SubstitutionLookup::Contextual(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            SubstitutionLookup::ChainContextual(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            SubstitutionLookup::Extension(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            SubstitutionLookup::Reverse(inner) => inner.subtables().intersects(glyph_set, ops_left),
         }
     }
 }
 
 impl Intersect for ExtensionSubtable<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            ExtensionSubtable::Single(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Multiple(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Alternate(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Ligature(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Contextual(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::ChainContextual(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Reverse(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Single(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Multiple(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Alternate(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Ligature(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Contextual(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::ChainContextual(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Reverse(inner) => inner.intersects(glyph_set, ops_left),
         }
     }
 }
@@ -1202,11 +1424,15 @@ impl<'a, T> Intersect for ExtensionSubstFormat1<'a, T>
 where
     T: Intersect + FontRead<'a, Args = ()>,
 {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.extension_offset().is_null() {
             return Ok(false);
         }
-        self.extension()?.intersects(glyph_set)
+        self.extension()?.intersects(glyph_set, ops_left)
     }
 }
 
@@ -1221,18 +1447,26 @@ impl LookupClosure for SubstitutionSubtables<'_> {
 }
 
 impl Intersect for SingleSubst<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(item) => item.intersects(glyph_set),
-            Self::Format2(item) => item.intersects(glyph_set),
-            Self::Format3(item) => item.intersects(glyph_set),
-            Self::Format4(item) => item.intersects(glyph_set),
+            Self::Format1(item) => item.intersects(glyph_set, ops_left),
+            Self::Format2(item) => item.intersects(glyph_set, ops_left),
+            Self::Format3(item) => item.intersects(glyph_set, ops_left),
+            Self::Format4(item) => item.intersects(glyph_set, ops_left),
         }
     }
 }
 
 impl Intersect for SingleSubstFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -1241,7 +1475,11 @@ impl Intersect for SingleSubstFormat1<'_> {
 }
 
 impl Intersect for SingleSubstFormat2<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -1250,7 +1488,11 @@ impl Intersect for SingleSubstFormat2<'_> {
 }
 
 impl Intersect for MultipleSubstFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -1259,7 +1501,11 @@ impl Intersect for MultipleSubstFormat1<'_> {
 }
 
 impl Intersect for AlternateSubstFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -1268,12 +1514,17 @@ impl Intersect for AlternateSubstFormat1<'_> {
 }
 
 impl Intersect for LigatureSubstFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
         let coverage = self.coverage()?;
         let lig_sets = self.ligature_sets();
+        charge_records(ops_left, lig_sets.len())?;
         for lig_set in coverage
             .iter()
             .zip(lig_sets.iter_as_nullable())
@@ -1282,7 +1533,7 @@ impl Intersect for LigatureSubstFormat1<'_> {
             let Some(lig_set) = lig_set.transpose()? else {
                 continue;
             };
-            if lig_set.intersects(glyph_set)? {
+            if lig_set.intersects(glyph_set, ops_left)? {
                 return Ok(true);
             }
         }
@@ -1291,10 +1542,17 @@ impl Intersect for LigatureSubstFormat1<'_> {
 }
 
 impl Intersect for LigatureSet<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         let ligs = self.ligatures();
+        charge_records(ops_left, 1 + ligs.len())?;
         for lig in ligs.iter_as_nullable().flatten() {
-            if lig?.intersects(glyph_set)? {
+            let lig = lig?;
+            charge_records(ops_left, lig.component_glyph_ids().len())?;
+            if lig.intersects(glyph_set, ops_left)? {
                 return Ok(true);
             }
         }
@@ -1303,7 +1561,11 @@ impl Intersect for LigatureSet<'_> {
 }
 
 impl Intersect for Ligature<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         let ret = self
             .component_glyph_ids()
             .iter()
@@ -1313,27 +1575,26 @@ impl Intersect for Ligature<'_> {
 }
 
 impl Intersect for ReverseChainSingleSubstFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
         if !self.coverage()?.intersects(glyph_set) {
             return Ok(false);
         }
-
-        for coverage in self.backtrack_coverages().iter_as_nullable() {
+        for coverage in self
+            .backtrack_coverages()
+            .iter_as_nullable()
+            .chain(self.lookahead_coverages().iter_as_nullable())
+        {
             let Some(coverage) = coverage.transpose()? else {
                 return Ok(false);
             };
-            if !coverage.intersects(glyph_set) {
-                return Ok(false);
-            }
-        }
-
-        for coverage in self.lookahead_coverages().iter_as_nullable() {
-            let Some(coverage) = coverage.transpose()? else {
-                return Ok(false);
-            };
+            charge_records(ops_left, 1 + coverage.record_count())?;
             if !coverage.intersects(glyph_set) {
                 return Ok(false);
             }
@@ -1356,10 +1617,14 @@ impl GlyphClosure for super::MultipleSubst<'_> {
     }
 }
 impl Intersect for super::MultipleSubst<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
@@ -1378,10 +1643,14 @@ impl GlyphClosure for super::AlternateSubst<'_> {
     }
 }
 impl Intersect for super::AlternateSubst<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
@@ -1400,10 +1669,14 @@ impl GlyphClosure for super::LigatureSubst<'_> {
     }
 }
 impl Intersect for super::LigatureSubst<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
@@ -1422,10 +1695,14 @@ impl GlyphClosure for super::ReverseChainSingleSubst<'_> {
     }
 }
 impl Intersect for super::ReverseChainSingleSubst<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
@@ -1760,5 +2037,104 @@ mod tests {
             .collect_features(&IntSet::all(), &IntSet::all(), &IntSet::all())
             .unwrap();
         assert!(ret.is_empty());
+    }
+
+    /// GSUB with one lookup whose `subtables` subtable offsets all point to
+    /// one SingleSubstFormat2, which maps each of the glyphs `1..=glyphs` to
+    /// glyph `glyphs + 1`.
+    fn gsub_with_shared_subtable(subtables: u16, glyphs: u16) -> BeBuffer {
+        let subtable_len = 6 + 2 * glyphs;
+        BeBuffer::new()
+            // header: version 1.0, no scripts or features, lookupList offset
+            .extend([1u16, 0, 0, 0, 10])
+            // LookupList: 1 lookup
+            .extend([1u16, 4])
+            // Lookup: type 1, no flags, `subtables` offsets to the subtable
+            .extend([1u16, 0, subtables])
+            .extend(std::iter::repeat_n(6 + 2 * subtables, subtables as usize))
+            // SingleSubstFormat2, its coverage follows it
+            .extend([2u16, subtable_len, glyphs])
+            .extend(std::iter::repeat_n(glyphs + 1, glyphs as usize))
+            // Coverage format 1
+            .extend([1u16, glyphs])
+            .extend(1..=glyphs)
+    }
+
+    /// Each visit of the shared subtable is charged the records of its
+    /// coverage, so the closure stops once the visits have walked more than
+    /// [`MAX_LAYOUT_CLOSURE_OPS`](crate::limits::MAX_LAYOUT_CLOSURE_OPS). It
+    /// doesn't start from lookups with
+    /// [`MAX_LOOKUP_SUBTABLES`](crate::limits::MAX_LOOKUP_SUBTABLES) subtables.
+    #[test]
+    fn closure_glyphs_budget() {
+        use crate::{FontData, FontRead};
+
+        let closure = |subtables: u16, glyphs: u16| {
+            let data = gsub_with_shared_subtable(subtables, glyphs);
+            let gsub = Gsub::read(FontData::new(&data)).unwrap();
+            let mut glyphs = IntSet::from([GlyphId::new(1)]);
+            let ret = gsub.closure_glyphs(&IntSet::all(), &mut glyphs);
+            (ret, glyphs)
+        };
+
+        // 100 visits of 100 records
+        let (ret, glyphs) = closure(100, 100);
+        assert_eq!(ret, Ok(()));
+        assert_eq!(glyphs, IntSet::from([GlyphId::new(1), GlyphId::new(101)]));
+
+        // 16000 visits of 32000 records
+        let (ret, _) = closure(16000, 32000);
+        assert_eq!(ret, Err(MAX_OPS_EXCEEDED));
+
+        // one subtable too many, whatever its size
+        assert_eq!(closure(16383, 1).0, Ok(()));
+        assert_eq!(closure(16384, 1).0, Err(MAX_OPS_EXCEEDED));
+    }
+
+    /// GSUB with one ligature lookup whose `count` subtable offsets all point
+    /// to one LigatureSubstFormat1: glyph 1 starts 1000 ligatures, which are
+    /// all the same one, with glyph 9 as its second component.
+    fn gsub_with_shared_ligature_subtable(count: u16) -> BeBuffer {
+        let ligatures = 1000u16;
+        BeBuffer::new()
+            // header: version 1.0, no scripts or features, lookupList offset
+            .extend([1u16, 0, 0, 0, 10])
+            // LookupList: 1 lookup
+            .extend([1u16, 4])
+            // Lookup: type 4, no flags, `count` offsets to the subtable
+            .extend([4u16, 0, count])
+            .extend(std::iter::repeat_n(6 + 2 * count, count as usize))
+            // LigatureSubstFormat1: the coverage follows the ligature
+            .extend([1u16, 16 + 2 * ligatures, 1, 8])
+            // LigatureSet: offsets to the Ligature that follows it
+            .push(ligatures)
+            .extend(std::iter::repeat_n(2 + 2 * ligatures, ligatures as usize))
+            // Ligature: glyph 5 for 2 components, the second is glyph 9
+            .extend([5u16, 2, 9])
+            // Coverage format 1: glyph 1
+            .extend([1u16, 1, 1])
+    }
+
+    /// Without glyph 9 no ligature intersects the glyphs, so each visit of the
+    /// shared subtable reads all the ligatures. The closure stops once the
+    /// visits have read more than [`max_ops`](crate::limits::max_ops) allows.
+    #[test]
+    fn closure_lookups_budget() {
+        use crate::{FontData, FontRead};
+
+        let closure = |count: u16| {
+            let data = gsub_with_shared_ligature_subtable(count);
+            let gsub = Gsub::read(FontData::new(&data)).unwrap();
+            let glyphs = IntSet::from([GlyphId::new(1)]);
+            let mut lookups = IntSet::from([0u16]);
+            gsub.closure_lookups(&glyphs, &mut lookups)
+                .map(|()| lookups)
+        };
+
+        // 50 visits of 2002 records are within 64 times the 2142 bytes of the
+        // table, and the lookup that doesn't intersect the glyphs is dropped
+        assert_eq!(closure(50), Ok(IntSet::empty()));
+        // 100 visits are not within 64 times 2242 bytes
+        assert_eq!(closure(100), Err(MAX_OPS_EXCEEDED));
     }
 }

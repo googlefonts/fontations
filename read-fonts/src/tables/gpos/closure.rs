@@ -14,7 +14,9 @@ use crate::{
 use font_types::Scalar;
 
 #[cfg(feature = "std")]
-use crate::tables::layout::{Intersect, LayoutLookupList, LookupClosure, LookupClosureCtx};
+use crate::tables::layout::{
+    charge_records, Intersect, LayoutLookupList, LookupClosure, LookupClosureCtx,
+};
 
 impl Gpos<'_> {
     /// Return a set of all feature indices underneath the specified scripts, languages and features
@@ -63,22 +65,32 @@ impl Gpos<'_> {
             return Ok(());
         }
         let lookup_list = self.lookup_list()?;
-        lookup_list.closure_lookups(glyphs, lookup_indices)
+        // One budget for the whole table, as when HarfBuzz sanitizes it.
+        let max_ops = crate::limits::max_ops(self.offset_data().len());
+        lookup_list.closure_lookups(glyphs, lookup_indices, max_ops)
     }
 }
 
 impl PositionLookupList<'_> {
+    /// Update the set of lookup indices with all lookups reachable from the
+    /// specified glyph set and lookup indices.
+    ///
+    /// The closure may read `max_ops` records of the lookups, which should be
+    /// [`max_ops`](crate::limits::max_ops) of the table the lookups are in.
+    /// Beyond that it returns
+    /// [`MAX_OPS_EXCEEDED`](crate::limits::MAX_OPS_EXCEEDED).
     pub fn closure_lookups(
         &self,
         glyph_set: &IntSet<GlyphId>,
         lookup_indices: &mut IntSet<u16>,
+        max_ops: usize,
     ) -> Result<(), ReadError> {
         lookup_indices.remove_range(self.lookup_count()..=u16::MAX);
         if lookup_indices.is_empty() {
             return Ok(());
         }
         let lookup_list = LayoutLookupList::Gpos(self);
-        let mut c = LookupClosureCtx::new(glyph_set, &lookup_list);
+        let mut c = LookupClosureCtx::new(glyph_set, &lookup_list, max_ops);
 
         let lookups = self.lookups();
         for idx in lookup_indices.iter() {
@@ -107,6 +119,7 @@ impl LookupClosure for PositionLookup<'_> {
         if !c.should_visit_lookup(lookup_index) {
             return Ok(());
         }
+        c.visit_subtables(usize::from(self.of_unit_type().sub_table_count()))?;
 
         let subtables = self.subtables()?;
         // Contextual subtables are checked for intersection as they are
@@ -118,7 +131,7 @@ impl LookupClosure for PositionLookup<'_> {
             return subtables.closure_lookups(c, lookup_index);
         }
 
-        if !self.intersects(c.glyphs())? {
+        if !c.intersects(self)? {
             c.set_lookup_inactive(lookup_index);
         }
         Ok(())
@@ -136,32 +149,42 @@ impl LookupClosure for PositionSubtables<'_> {
 }
 
 impl Intersect for PositionLookup<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            PositionLookup::Single(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::Pair(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::Cursive(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::MarkToBase(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::MarkToLig(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::MarkToMark(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::Contextual(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::ChainContextual(inner) => inner.subtables().intersects(glyph_set),
-            PositionLookup::Extension(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::Single(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::Pair(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::Cursive(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::MarkToBase(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::MarkToLig(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::MarkToMark(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::Contextual(inner) => inner.subtables().intersects(glyph_set, ops_left),
+            PositionLookup::ChainContextual(inner) => {
+                inner.subtables().intersects(glyph_set, ops_left)
+            }
+            PositionLookup::Extension(inner) => inner.subtables().intersects(glyph_set, ops_left),
         }
     }
 }
 
 impl Intersect for ExtensionSubtable<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            ExtensionSubtable::Single(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Pair(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Cursive(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::MarkToBase(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::MarkToLig(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::MarkToMark(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::Contextual(inner) => inner.intersects(glyph_set),
-            ExtensionSubtable::ChainContextual(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Single(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Pair(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Cursive(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::MarkToBase(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::MarkToLig(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::MarkToMark(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::Contextual(inner) => inner.intersects(glyph_set, ops_left),
+            ExtensionSubtable::ChainContextual(inner) => inner.intersects(glyph_set, ops_left),
         }
     }
 }
@@ -170,27 +193,39 @@ impl<'a, T> Intersect for ExtensionPosFormat1<'a, T>
 where
     T: Intersect + FontRead<'a, Args = ()>,
 {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.extension_offset().is_null() {
             return Ok(false);
         }
-        self.extension()?.intersects(glyph_set)
+        self.extension()?.intersects(glyph_set, ops_left)
     }
 }
 
 impl Intersect for SinglePos<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(item) => item.intersects(glyph_set),
-            Self::Format2(item) => item.intersects(glyph_set),
-            Self::Format3(item) => item.intersects(glyph_set),
-            Self::Format4(item) => item.intersects(glyph_set),
+            Self::Format1(item) => item.intersects(glyph_set, ops_left),
+            Self::Format2(item) => item.intersects(glyph_set, ops_left),
+            Self::Format3(item) => item.intersects(glyph_set, ops_left),
+            Self::Format4(item) => item.intersects(glyph_set, ops_left),
         }
     }
 }
 
 impl Intersect for SinglePosFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -199,7 +234,11 @@ impl Intersect for SinglePosFormat1<'_> {
 }
 
 impl Intersect for SinglePosFormat2<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -208,12 +247,16 @@ impl Intersect for SinglePosFormat2<'_> {
 }
 
 impl Intersect for PairPos<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(item) => item.intersects(glyph_set),
-            Self::Format2(item) => item.intersects(glyph_set),
-            Self::Format3(item) => item.intersects(glyph_set),
-            Self::Format4(item) => item.intersects(glyph_set),
+            Self::Format1(item) => item.intersects(glyph_set, ops_left),
+            Self::Format2(item) => item.intersects(glyph_set, ops_left),
+            Self::Format3(item) => item.intersects(glyph_set, ops_left),
+            Self::Format4(item) => item.intersects(glyph_set, ops_left),
         }
     }
 }
@@ -225,6 +268,7 @@ fn pair_pos_intersects<'a, T, O>(
     pair_sets: ArrayOfOffsets<'a, T, O>,
     count: u32,
     glyphs: &IntSet<GlyphId>,
+    ops_left: &mut usize,
 ) -> Result<bool, ReadError>
 where
     T: FontRead<'a> + Intersect,
@@ -241,11 +285,12 @@ where
                 Err(ReadError::NullOffset) => continue,
                 other => other,
             }?;
-            if set.intersects(glyphs)? {
+            if set.intersects(glyphs, ops_left)? {
                 return Ok(true);
             }
         }
     } else {
+        charge_records(ops_left, count as usize)?;
         for (gid, set) in coverage.iter().zip(pair_sets.iter_as_nullable()) {
             if !glyphs.contains(gid) {
                 continue;
@@ -253,7 +298,7 @@ where
             let Some(set) = set.transpose()? else {
                 continue;
             };
-            if set.intersects(glyphs)? {
+            if set.intersects(glyphs, ops_left)? {
                 return Ok(true);
             }
         }
@@ -262,7 +307,11 @@ where
 }
 
 impl Intersect for PairPosFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -271,12 +320,18 @@ impl Intersect for PairPosFormat1<'_> {
             self.pair_sets(),
             u32::from(self.pair_set_count()),
             glyph_set,
+            ops_left,
         )
     }
 }
 
 impl Intersect for PairSet<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
+        charge_records(ops_left, 1 + usize::from(self.pair_value_count()))?;
         for record in self.pair_value_records().iter() {
             let second_glyph = record?.second_glyph();
             if glyph_set.contains(GlyphId::from(second_glyph)) {
@@ -288,19 +343,28 @@ impl Intersect for PairSet<'_> {
 }
 
 impl Intersect for PairPosFormat2<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null()
             || self.class_def1_offset().is_null()
             || self.class_def2_offset().is_null()
         {
             return Ok(false);
         }
-        Ok(self.coverage()?.intersects(glyph_set) && self.class_def2()?.intersects(glyph_set)?)
+        Ok(self.coverage()?.intersects(glyph_set)
+            && self.class_def2()?.intersects(glyph_set, ops_left)?)
     }
 }
 
 impl Intersect for CursivePosFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() {
             return Ok(false);
         }
@@ -309,7 +373,11 @@ impl Intersect for CursivePosFormat1<'_> {
 }
 
 impl Intersect for MarkBasePosFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.mark_coverage_offset().is_null() || self.base_coverage_offset().is_null() {
             return Ok(false);
         }
@@ -319,7 +387,11 @@ impl Intersect for MarkBasePosFormat1<'_> {
 }
 
 impl Intersect for MarkLigPosFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.mark_coverage_offset().is_null() || self.ligature_coverage_offset().is_null() {
             return Ok(false);
         }
@@ -329,7 +401,11 @@ impl Intersect for MarkLigPosFormat1<'_> {
 }
 
 impl Intersect for MarkMarkPosFormat1<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyph_set: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.mark1_coverage_offset().is_null() || self.mark2_coverage_offset().is_null() {
             return Ok(false);
         }
@@ -339,37 +415,53 @@ impl Intersect for MarkMarkPosFormat1<'_> {
 }
 
 impl Intersect for super::CursivePos<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
 
 impl Intersect for super::MarkBasePos<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
 
 impl Intersect for super::MarkLigPos<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }
 
 impl Intersect for super::MarkMarkPos<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         match self {
-            Self::Format1(table) => table.intersects(glyphs),
-            Self::Format2(table) => table.intersects(glyphs),
+            Self::Format1(table) => table.intersects(glyphs, ops_left),
+            Self::Format2(table) => table.intersects(glyphs, ops_left),
         }
     }
 }

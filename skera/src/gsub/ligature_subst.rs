@@ -175,12 +175,15 @@ fn intersects_lig_glyph(
     lig_set: &LigatureSet,
     glyphs: &IntSet<GlyphId>,
 ) -> Result<bool, ReadError> {
+    // A ligature reads nothing through offsets, so `intersects` has nothing to
+    // charge.
+    let mut unlimited = usize::MAX;
     for lig in lig_set.ligatures().iter_as_nullable() {
         let Some(lig) = lig.transpose()? else {
             continue;
         };
         let lig_glyph = lig.ligature_glyph();
-        if glyphs.contains(GlyphId::from(lig_glyph)) && lig.intersects(glyphs)? {
+        if glyphs.contains(GlyphId::from(lig_glyph)) && lig.intersects(glyphs, &mut unlimited)? {
             return Ok(true);
         }
     }

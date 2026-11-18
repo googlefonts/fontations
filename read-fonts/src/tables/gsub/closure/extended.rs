@@ -17,6 +17,8 @@ impl GlyphClosure for SingleSubstFormat3<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        // as for the 16-bit format, half the covered glyphs are charged
+        spend!(ctx, coverage.record_count() + coverage.population() / 2);
         let mask = 0xffffff;
         // Preserve the same degenerate-font guardrails as the 16-bit format.
         if coverage.population() >= mask as usize {
@@ -37,6 +39,7 @@ impl GlyphClosure for SingleSubstFormat3<'_> {
         {
             return Ok(());
         }
+        spend!(ctx, intersection.len());
         ctx.output.extend(
             intersection
                 .iter()
@@ -57,9 +60,11 @@ impl GlyphClosure for SingleSubstFormat4<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        spend!(ctx, coverage.record_count());
         let glyph_set = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
         let substitutes = self.substitute_glyph_ids();
         if self.glyph_count().to_u32() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            spend!(ctx, glyph_set.len());
             ctx.output.extend(
                 glyph_set
                     .iter()
@@ -68,6 +73,7 @@ impl GlyphClosure for SingleSubstFormat4<'_> {
                     .map(|gid| GlyphId::from(gid.get())),
             );
         } else {
+            spend!(ctx, substitutes.len());
             ctx.output.extend(
                 coverage
                     .iter()
@@ -83,7 +89,11 @@ impl GlyphClosure for SingleSubstFormat4<'_> {
 macro_rules! intersects_coverage {
     ($($table:ident),* $(,)?) => {$(
         impl Intersect for $table<'_> {
-            fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+            fn intersects(
+                &self,
+                glyphs: &IntSet<GlyphId>,
+                _ops_left: &mut usize,
+            ) -> Result<bool, ReadError> {
                 if self.coverage_offset().is_null() {
                     return Ok(false);
                 }
@@ -113,19 +123,29 @@ macro_rules! closure_array_sets {
                     return Ok(());
                 }
                 let coverage = self.coverage()?;
+                spend!(ctx, coverage.record_count());
                 let glyph_set = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
                 let sets = self.$sets();
+                // Each set that is reached is charged its glyphs.
+                let budget = &mut ctx.budget;
                 if self.$count().to_u32() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                    if !spend_budget(budget, glyph_set.len()) {
+                        return Ok(());
+                    }
                     ctx.output.extend(
                         glyph_set
                             .iter()
                             .filter_map(|gid| coverage.get(gid))
                             .filter_map(|index| sets.get(index as usize).ok())
+                            .take_while(|set| spend_budget(budget, set.$glyphs().len() as u64))
                             .flat_map(|set| {
                                 set.$glyphs().iter().map(|gid| GlyphId::from(gid.get()))
                             }),
                     );
                 } else {
+                    if !spend_budget(budget, u64::from(self.$count().to_u32())) {
+                        return Ok(());
+                    }
                     ctx.output.extend(
                         coverage
                             .iter()
@@ -137,6 +157,7 @@ macro_rules! closure_array_sets {
                                     None
                                 }
                             })
+                            .take_while(|set| spend_budget(budget, set.$glyphs().len() as u64))
                             .flat_map(|set| {
                                 set.$glyphs().iter().map(|gid| GlyphId::from(gid.get()))
                             }),
@@ -161,9 +182,14 @@ closure_array_sets!(
     alternate_glyph_ids
 );
 
+/// Calls `visit` for the ligatures of the sets of `glyphs`, until it returns true.
+///
+/// A glyph closure passes its `budget`, which is charged for what is walked;
+/// the walk also stops once that is spent.
 fn visit_ligatures<'a>(
     table: &LigatureSubstFormat2<'a>,
     glyphs: &IntSet<GlyphId>,
+    mut budget: Option<&mut i64>,
     mut visit: impl FnMut(Ligature2<'a>) -> Result<bool, ReadError>,
 ) -> Result<bool, ReadError> {
     if table.coverage_offset().is_null() || table.ligature_set_count().to_u32() == 0 {
@@ -171,22 +197,37 @@ fn visit_ligatures<'a>(
     }
     let coverage = table.coverage()?;
     let sets = table.ligature_sets();
+    let set_count = u64::from(table.ligature_set_count().to_u32());
+    let by_glyph = set_count > glyphs.len() * coverage.cost() as u64;
+    let mut spent = |cost: u64| {
+        budget
+            .as_deref_mut()
+            .is_some_and(|budget| !spend_budget(budget, cost))
+    };
+    if spent(coverage.record_count() as u64 + if by_glyph { glyphs.len() } else { set_count }) {
+        return Ok(true);
+    }
+    // Each ligature set that is reached is charged its ligatures, and each of
+    // those its components.
     let mut visit_set = |index: usize| {
         let set = match sets.get(index) {
             Err(ReadError::NullOffset) => return Ok(false),
             other => other?,
         };
+        if spent(set.ligatures().len() as u64) {
+            return Ok(true);
+        }
         for ligature in set.ligatures().iter_as_nullable() {
             let Some(ligature) = ligature.transpose()? else {
                 continue;
             };
-            if visit(ligature)? {
+            if spent(u64::from(ligature.component_count())) || visit(ligature)? {
                 return Ok(true);
             }
         }
         Ok(false)
     };
-    if table.ligature_set_count().to_u32() as u64 > glyphs.len() * coverage.cost() as u64 {
+    if by_glyph {
         for index in glyphs.iter().filter_map(|gid| coverage.get(gid)) {
             if visit_set(index as usize)? {
                 return Ok(true);
@@ -210,8 +251,11 @@ impl GlyphClosure for LigatureSubstFormat2<'_> {
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
         let active = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
-        visit_ligatures(self, active, |ligature| {
-            if ligature.intersects(ctx.glyphs)? {
+        // A ligature reads nothing through offsets, so `intersects` has nothing to
+        // charge.
+        let mut unlimited = usize::MAX;
+        visit_ligatures(self, active, Some(&mut ctx.budget), |ligature| {
+            if ligature.intersects(ctx.glyphs, &mut unlimited)? {
                 ctx.output.insert(ligature.ligature_glyph().into());
             }
             Ok(false)
@@ -221,15 +265,27 @@ impl GlyphClosure for LigatureSubstFormat2<'_> {
 }
 
 impl Intersect for LigatureSubstFormat2<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        visit_ligatures(self, glyphs, |ligature| ligature.intersects(glyphs))
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
+        charge_records(ops_left, self.ligature_set_count().to_u32() as usize)?;
+        visit_ligatures(self, glyphs, None, |ligature| {
+            charge_records(ops_left, 1 + usize::from(ligature.component_count()))?;
+            ligature.intersects(glyphs, ops_left)
+        })
     }
 }
 
 impl Intersect for LigatureSet2<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         for ligature in self.ligatures().iter_as_nullable().flatten() {
-            if ligature?.intersects(glyphs)? {
+            if ligature?.intersects(glyphs, ops_left)? {
                 return Ok(true);
             }
         }
@@ -238,7 +294,11 @@ impl Intersect for LigatureSet2<'_> {
 }
 
 impl Intersect for Ligature2<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        _ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         Ok(self
             .component_glyph_ids()
             .iter()
@@ -247,7 +307,11 @@ impl Intersect for Ligature2<'_> {
 }
 
 impl Intersect for ReverseChainSingleSubstFormat2<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        ops_left: &mut usize,
+    ) -> Result<bool, ReadError> {
         if self.coverage_offset().is_null() || !self.coverage()?.intersects(glyphs) {
             return Ok(false);
         }
@@ -259,6 +323,7 @@ impl Intersect for ReverseChainSingleSubstFormat2<'_> {
             let Some(coverage) = coverage.transpose()? else {
                 return Ok(false);
             };
+            charge_records(ops_left, 1 + coverage.record_count())?;
             if !coverage.intersects(glyphs) {
                 return Ok(false);
             }
@@ -274,10 +339,16 @@ impl GlyphClosure for ReverseChainSingleSubstFormat2<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
-        if !self.intersects(ctx.glyphs())? {
+        // as for the 16-bit format, the backtrack and lookahead coverages are
+        // charged as they are looked at
+        if !ctx.intersects(self)? {
             return Ok(());
         }
         let coverage = self.coverage()?;
+        spend!(
+            ctx,
+            coverage.record_count() + self.substitute_glyph_ids().len()
+        );
         let glyphs = ctx.active_glyphs_stack.last().unwrap_or(&*ctx.glyphs);
         let substitutes = self.substitute_glyph_ids();
         if self.glyph_count().to_u32() as u64 > glyphs.len() * coverage.cost() as u64 {
@@ -648,10 +719,11 @@ mod tests {
         for (backtrack, lookahead) in [(0, 38), (30, 0), (0xffffff, 38), (30, 0xffffff)] {
             let bytes = reverse_subtable(backtrack, lookahead);
             let subtable = ReverseChainSingleSubstFormat2::read(FontData::new(&bytes)).unwrap();
+            let mut unlimited = usize::MAX;
             if backtrack == 0 || lookahead == 0 {
-                assert!(!subtable.intersects(&glyphs).unwrap());
+                assert!(!subtable.intersects(&glyphs, &mut unlimited).unwrap());
             } else {
-                assert!(subtable.intersects(&glyphs).is_err());
+                assert!(subtable.intersects(&glyphs, &mut unlimited).is_err());
             }
         }
     }
