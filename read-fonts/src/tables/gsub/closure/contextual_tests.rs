@@ -461,3 +461,24 @@ fn wide_class_context_closure_handles_null_invalid_offsets_and_gpos() {
         assert_eq!(lookups.iter().collect::<Vec<_>>(), [0, 1]);
     }
 }
+
+#[test]
+fn sequential_context_lookups_see_pending_substitutions() {
+    use crate::{FontRef, TableProvider};
+    let font = FontRef::new(font_test_data::NESTED_CONTEXT_CLOSURE).unwrap();
+    let gsub = font.gsub().unwrap();
+    let roots = [20u16].into_iter().collect();
+    for num_glyphs in [None, Some(22)] {
+        let mut glyphs = [GlyphId::new(1)].into_iter().collect();
+        if let Some(count) = num_glyphs {
+            gsub.closure_glyphs_with_num_glyphs(&roots, &mut glyphs, count)
+                .unwrap();
+        } else {
+            gsub.closure_glyphs(&roots, &mut glyphs).unwrap();
+        }
+        assert_eq!(
+            glyphs.iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+            (1..=21).collect::<Vec<_>>()
+        );
+    }
+}

@@ -43,7 +43,9 @@ mod ctx {
     use super::ReadError;
 
     #[cfg(feature = "std")]
-    use crate::limits::{MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH};
+    use crate::limits::{
+        MAX_GSUB_CLOSURE_OUTPUT_COPY_WORK, MAX_LOOKUP_VISIT_COUNT, MAX_RECURSION_DEPTH,
+    };
 
     pub(super) struct ClosureCtx<'a> {
         /// the current closure glyphs. This is updated as we go.
@@ -56,6 +58,8 @@ mod ctx {
         lookup_count: u16,
         nesting_level_left: usize,
         done_lookups_glyphs: HashMap<u16, (u64, IntSet<GlyphId>)>,
+        // Additional pending-output processing, shared across outer passes.
+        remaining_output_copy_work: u64,
     }
 
     impl<'a> ClosureCtx<'a> {
@@ -68,6 +72,7 @@ mod ctx {
                 lookup_count: 0,
                 nesting_level_left: MAX_RECURSION_DEPTH,
                 done_lookups_glyphs: Default::default(),
+                remaining_output_copy_work: MAX_GSUB_CLOSURE_OUTPUT_COPY_WORK,
             }
         }
 
@@ -170,17 +175,58 @@ mod ctx {
             self.output.insert(gid);
         }
 
-        pub(super) fn flush(&mut self) {
-            // Drop glyphs that are not in the font before they join the closure,
-            // so that they can't make other lookups reachable.
-            // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-gsubgpos.hh#L190-L197>
+        pub(super) fn active_glyphs_with_output(&mut self) -> Result<IntSet<GlyphId>, ReadError> {
+            // Charge filtering and union work for the added pending-output pass.
+            // Keep the existing global-set copying and lookup/nesting limits.
+            self.remaining_output_copy_work = self
+                .remaining_output_copy_work
+                .checked_sub(self.output.len().saturating_mul(2))
+                .ok_or(ReadError::MalformedData(
+                    "GSUB closure pending-output budget exceeded",
+                ))?;
+            self.trim_output();
+            let mut glyphs = self.glyphs.clone();
+            glyphs.union(&self.output);
+            Ok(glyphs)
+        }
+
+        fn trim_output(&mut self) {
             if let Some(num_glyphs) = self.num_glyphs {
                 self.output
                     .remove_range(GlyphId::new(num_glyphs)..=GlyphId::new(u32::MAX));
             }
+        }
+
+        pub(super) fn flush(&mut self) {
+            // Drop glyphs that are not in the font before they join the closure,
+            // so that they can't make other lookups reachable.
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/a69b43c1fd86f43d66f6d84e087d79a5b1e0cf04/src/hb-ot-layout-gsubgpos.hh#L190-L197>
+            self.trim_output();
             self.glyphs.union(&self.output);
             self.output.clear();
             self.active_glyphs_stack.clear();
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn pending_outputs_are_filtered_and_budgeted_without_flushing() {
+            let mut glyphs = [GlyphId::new(1)].into_iter().collect();
+            let mut ctx = ClosureCtx::new(&mut glyphs, Some(22));
+            ctx.output.extend([GlyphId::new(2), GlyphId::new(30)]);
+            let active = ctx.active_glyphs_with_output().unwrap();
+            assert_eq!(
+                active.iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+                [1, 2]
+            );
+            assert_eq!(
+                ctx.glyphs().iter().map(GlyphId::to_u32).collect::<Vec<_>>(),
+                [1]
+            );
+            ctx.remaining_output_copy_work = 0;
+            assert!(ctx.active_glyphs_with_output().is_err());
         }
     }
 }
@@ -868,9 +914,7 @@ impl GlyphClosure for ContextFormat1<'_> {
 
                     let mut active_glyphs = IntSet::empty();
                     if !seen_sequence_indices.insert(sequence_idx) {
-                        // During processing, when we see an empty set we will replace
-                        // it with the full current glyph set
-                        active_glyphs.extend(ctx.glyphs().iter());
+                        active_glyphs = ctx.active_glyphs_with_output()?;
                     } else if sequence_idx == 0 {
                         active_glyphs.insert(gid);
                     } else {
@@ -985,7 +1029,7 @@ impl GlyphClosure for ContextFormat2<'_> {
                     }
 
                     let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
-                        ctx.glyphs().clone()
+                        ctx.active_glyphs_with_output()?
                     } else if sequence_idx == 0 {
                         intersected_class_glyphs(
                             &input_class_def,
@@ -1046,7 +1090,7 @@ impl GlyphClosure for ContextFormat3<'_> {
             }
 
             let active_glyphs = if !seen_sequence_indices.insert(seq_idx) {
-                ctx.glyphs().clone()
+                ctx.active_glyphs_with_output()?
             } else if seq_idx == 0 {
                 let cov = self.coverage(0)?;
                 cov.intersect_set(ctx.parent_active_glyphs())

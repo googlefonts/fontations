@@ -75,3 +75,10 @@ pub const MAX_FEATURE_INDICES: u16 = 8000;
 /// [`hb-limits.hh`]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-limits.hh
 #[cfg(feature = "std")]
 pub const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
+
+/// Work allowance for filtering and copying pending GSUB closure outputs.
+///
+/// Shared across all outer closure passes; lookup and recursion limits apply
+/// independently. Only the additional pending-output processing uses this cap.
+#[cfg(feature = "std")]
+pub(crate) const MAX_GSUB_CLOSURE_OUTPUT_COPY_WORK: u64 = 1 << 28;
