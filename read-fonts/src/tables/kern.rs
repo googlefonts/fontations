@@ -311,8 +311,14 @@ impl Subtable2ClassTable<'_> {
 impl Subtable3<'_> {
     /// Returns the kerning adjustment for the given pair.
     pub fn kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
-        let left_class = self.left_class().get(left.to_u32() as usize).copied()? as usize;
-        let right_class = self.right_class().get(right.to_u32() as usize).copied()? as usize;
+        let left_class = self.left_class().get(left.to_u32() as usize).copied()?;
+        let right_class = self.right_class().get(right.to_u32() as usize).copied()?;
+        // Class values must be below the class counts, otherwise the index
+        // below lands in a different row of kernIndex
+        if left_class >= self.left_class_count() || right_class >= self.right_class_count() {
+            return None;
+        }
+        let (left_class, right_class) = (left_class as usize, right_class as usize);
         let index = self
             .kern_index()
             .get(left_class * self.right_class_count() as usize + right_class)
@@ -632,5 +638,27 @@ mod tests {
                 "left = {left}, right = {right}"
             );
         }
+    }
+
+    #[test]
+    fn format_3_class_out_of_range() {
+        let mut buf = BeBuffer::new();
+        buf = buf.push(3u16); // glyphCount
+        buf = buf.push(4u8); // kernValueCount
+        buf = buf.push(2u8); // leftClassCount
+        buf = buf.push(2u8); // rightClassCount
+        buf = buf.push(0u8); // unused flags
+        buf = buf.extend([0i16, -10, -20, 12]); // kernValues
+        buf = buf.extend([0u8, 1, 2]); // leftClass
+        buf = buf.extend([0u8, 1, 2]); // rightClass
+        buf = buf.extend([0u8, 1, 2, 3]); // kernIndex
+        let format3 = Subtable3::read(FontData::new(buf.as_slice())).unwrap();
+        assert_eq!(format3.kerning(0u32.into(), 1u32.into()), Some(-10));
+        assert_eq!(format3.kerning(1u32.into(), 1u32.into()), Some(12));
+        // Right class 2 is past rightClassCount and must not spill into the
+        // next row of kernIndex
+        assert_eq!(format3.kerning(0u32.into(), 2u32.into()), None);
+        // Left class 2 is past leftClassCount
+        assert_eq!(format3.kerning(2u32.into(), 0u32.into()), None);
     }
 }
