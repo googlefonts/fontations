@@ -202,3 +202,48 @@ fn seac_components_join_the_glyph_mapping() {
         }
     }
 }
+
+#[test]
+fn removing_notdef_outline_preserves_encoded_width() {
+    let bytes = include_bytes!("../test-data/fonts/cff1-notdef-outline.otf");
+    let font = FontRef::new(bytes).unwrap();
+    for mode in 0..16 {
+        let mut flags = SubsetFlags::default();
+        for (bit, flag) in [
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            SubsetFlags::SUBSET_FLAGS_DESUBROUTINIZE,
+            SubsetFlags::SUBSET_FLAGS_NO_HINTING,
+            SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if mode & (1 << bit) != 0 {
+                flags |= flag;
+            }
+        }
+        let out = subset_font(&font, &plan(&font, flags, "61")).unwrap();
+        let subset = FontRef::new(&out).unwrap();
+        let cff = CffFontRef::new(
+            subset.data_for_tag(Tag::new(b"CFF ")).unwrap().as_bytes(),
+            0,
+            None,
+        )
+        .unwrap();
+        let subfont = cff
+            .subfont(cff.subfont_index(GlyphId::NOTDEF).unwrap(), &[])
+            .unwrap();
+        assert_eq!(
+            cff.evaluate_width(&subfont, GlyphId::NOTDEF, &[])
+                .unwrap()
+                .unwrap()
+                .to_f64(),
+            500.0,
+            "mode {mode}"
+        );
+        let mut path = Vec::<PathElement>::new();
+        cff.draw(&subfont, GlyphId::NOTDEF, &[], None, &mut path)
+            .unwrap();
+        assert_eq!(path.is_empty(), mode & 1 == 0, "mode {mode}");
+    }
+}
