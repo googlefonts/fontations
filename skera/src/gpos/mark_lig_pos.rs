@@ -13,10 +13,9 @@ use crate::{
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetState, SubsetTable,
 };
 use read_fonts::{
-    collections::IntSet,
     tables::{
         gpos::{
             ComponentRecord, ComponentRecord2, LigatureArray, LigatureArray2, LigatureAttach,
@@ -31,7 +30,7 @@ use read_fonts::{
 macro_rules! collect_mark_lig_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let Ok(mark_coverage) = self.mark_coverage() else {
                     return;
                 };
@@ -39,7 +38,7 @@ macro_rules! collect_mark_lig_variations {
                     return;
                 };
 
-                let glyph_set = &plan.glyphset_gsub;
+                let glyph_set = &c.plan.glyphset_gsub;
                 let mark_array_data = mark_array.offset_data();
                 let mark_records = mark_array.mark_records();
 
@@ -47,8 +46,7 @@ macro_rules! collect_mark_lig_variations {
                     &mark_coverage,
                     mark_records,
                     mark_array_data,
-                    plan,
-                    varidx_set,
+                    c,
                 );
 
                 let Ok(lig_coverage) = self.ligature_coverage() else {
@@ -72,7 +70,7 @@ macro_rules! collect_mark_lig_variations {
                             let anchors = component.ligature_anchors(attach.offset_data());
                             for class in retained_mark_classes.iter() {
                                 if let Some(Ok(anchor)) = anchors.get(class as usize) {
-                                    anchor.collect_variation_indices(plan, varidx_set);
+                                    anchor.collect_variation_indices(c);
                                 }
                             }
                         }
@@ -355,10 +353,10 @@ impl<'a> SubsetTable<'a> for MarkLigPos<'_> {
 }
 
 impl CollectVariationIndices for MarkLigPos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
-            Self::Format1(t) => t.collect_variation_indices(plan, varidx_set),
-            Self::Format2(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Format1(t) => t.collect_variation_indices(c),
+            Self::Format2(t) => t.collect_variation_indices(c),
         }
     }
 }
@@ -366,6 +364,7 @@ impl CollectVariationIndices for MarkLigPos<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use read_fonts::collections::IntSet;
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
@@ -389,7 +388,10 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(839_u32));
 
         let mut varidx_set = IntSet::empty();
-        markligpos_table.collect_variation_indices(&plan, &mut varidx_set);
+        markligpos_table.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 3);
         assert!(varidx_set.contains(0x20065_u32));
         assert!(varidx_set.contains(0x20062_u32));

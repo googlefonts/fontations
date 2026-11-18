@@ -45,7 +45,7 @@ use inc_bimap::IncBiMap;
 use layout::{
     collect_feature_variations_name_ids, collect_features_with_retained_subs,
     collect_variable_feature_indices, find_duplicate_features, prune_features,
-    remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
+    remap_feature_indices, OpsWalk, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
     parse_glyph_map, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
@@ -1082,15 +1082,16 @@ impl Plan {
             return;
         };
         let mut varidx_set = IntSet::empty();
-        gdef.collect_variation_indices(self, &mut varidx_set);
+        gdef.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            self,
+            &mut varidx_set,
+        ));
 
         if let Ok(gpos) = font.gpos() {
             let mut budget = layout::OpsBudget::new(gpos.offset_data());
-            gpos::collect_lookup_variation_indices(
-                &gpos,
-                self,
-                &mut varidx_set,
-                &mut budget.walk(),
+            gpos.collect_variation_indices(
+                &mut CollectVariationIndicesContext::new(self, &mut varidx_set)
+                    .with_walk(budget.walk()),
             );
             budget.record(Gpos::TAG, self);
             if let Some(Ok(variations)) = gpos.feature_variations() {
@@ -1120,7 +1121,10 @@ impl Plan {
         }
         if !self.drop_tables.contains(Math::TAG) {
             if let Ok(math) = font.math() {
-                math.collect_variation_indices(self, &mut varidx_set);
+                math.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                    self,
+                    &mut varidx_set,
+                ));
             }
         }
 
@@ -1155,9 +1159,12 @@ impl Plan {
         };
 
         let mut varidx_set = IntSet::empty();
-        {
-            base.collect_variation_indices(self, &mut varidx_set);
-        }
+        // Counts what it reads as subsetting does, which then runs out of
+        // budget wherever this walk does.
+        base.collect_variation_indices(
+            &mut CollectVariationIndicesContext::new(self, &mut varidx_set)
+                .with_walk(OpsWalk::new(base.offset_data())),
+        );
 
         let vardata_count = var_store.item_variation_data_count() as u32;
         remap_variation_indices(vardata_count, &varidx_set, &mut self.base_varidx_delta_map);
@@ -1395,8 +1402,33 @@ pub trait NameIdClosure {
     fn collect_name_ids(&self, plan: &mut Plan);
 }
 
+/// What collecting the variation indices of a table reads and fills in, as
+/// HarfBuzz's `hb_collect_variation_indices_context_t`.
+pub(crate) struct CollectVariationIndicesContext<'a, 'w> {
+    pub(crate) plan: &'a Plan,
+    pub(crate) varidx_set: &'a mut IntSet<u32>,
+    /// What the walk may still read of the tables that offsets can share:
+    /// anything, unless [`Self::with_walk`] said otherwise.
+    pub(crate) walk: OpsWalk<'w>,
+}
+
+impl<'a, 'w> CollectVariationIndicesContext<'a, 'w> {
+    pub(crate) fn new(plan: &'a Plan, varidx_set: &'a mut IntSet<u32>) -> Self {
+        Self {
+            plan,
+            varidx_set,
+            walk: OpsWalk::default(),
+        }
+    }
+
+    /// Limits what the walk may read of the tables that offsets can share.
+    pub(crate) fn with_walk(self, walk: OpsWalk<'w>) -> Self {
+        Self { walk, ..self }
+    }
+}
+
 pub(crate) trait CollectVariationIndices {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>);
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext);
 }
 
 pub(crate) trait LayoutClosure {

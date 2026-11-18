@@ -5,10 +5,10 @@ use crate::{
     offset::{SerializeCopy, SerializeSubset},
     offset_array::IterNullableHelper,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, Subset, SubsetError, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, Subset, SubsetError,
+    SubsetTable,
 };
 use read_fonts::{
-    collections::IntSet,
     tables::base::{
         Axis, Base, BaseCoord, BaseCoordFormat1, BaseCoordFormat2, BaseCoordFormat3,
         BaseLangSysRecord, BaseScript, BaseScriptList, BaseScriptRecord, BaseValues,
@@ -491,121 +491,120 @@ impl SubsetTable<'_> for BaseCoordFormat3<'_> {
 }
 
 impl CollectVariationIndices for Base<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        // Counts what it reads as subsetting does, which then runs out of
-        // budget wherever this walk does.
-        let mut walk = OpsWalk::new(self.offset_data());
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         for axis in [self.horiz_axis(), self.vert_axis()] {
             if let Some(Ok(axis)) = axis {
-                if let Ok(base_scriptlist) = axis.base_script_list() {
-                    collect_script_list_var_indices(&base_scriptlist, plan, varidx_set, &mut walk);
+                axis.collect_variation_indices(c);
+            }
+        }
+    }
+}
+
+impl CollectVariationIndices for Axis<'_> {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        if let Ok(base_scriptlist) = self.base_script_list() {
+            base_scriptlist.collect_variation_indices(c);
+        }
+    }
+}
+
+/// Counts the tables it reads against the walk of `c`, as subsetting does.
+impl CollectVariationIndices for BaseScriptList<'_> {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        for script_record in self.base_script_records().iter() {
+            let script_tag = script_record.base_script_tag();
+            if !c.plan.layout_scripts.contains(script_tag)
+                || script_record.base_script_offset().is_null()
+            {
+                continue;
+            }
+
+            let Ok(base_script) = script_record.base_script(self.offset_data()) else {
+                return;
+            };
+            if c.walk.visit(&base_script) {
+                base_script.collect_variation_indices(c);
+            }
+        }
+    }
+}
+
+impl CollectVariationIndices for BaseScript<'_> {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
+        if let Some(Ok(base_values)) = self.base_values() {
+            if c.walk.visit(&base_values) {
+                base_values.collect_variation_indices(c);
+            }
+        }
+
+        if let Some(Ok(default_min_max)) = self.default_min_max() {
+            if c.walk.visit(&default_min_max) {
+                default_min_max.collect_variation_indices(c);
+            }
+        }
+
+        for record in self.base_lang_sys_records().iter() {
+            if record.min_max_offset().is_null() {
+                continue;
+            }
+            if let Ok(min_max) = record.min_max(self.offset_data()) {
+                if c.walk.visit(&min_max) {
+                    min_max.collect_variation_indices(c);
                 }
             }
         }
     }
 }
 
-fn collect_script_list_var_indices(
-    script_list: &BaseScriptList,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
-    walk: &mut OpsWalk,
-) {
-    for script_record in script_list.base_script_records().iter() {
-        let script_tag = script_record.base_script_tag();
-        if !plan.layout_scripts.contains(script_tag) || script_record.base_script_offset().is_null()
-        {
-            continue;
-        }
-
-        let Ok(base_script) = script_record.base_script(script_list.offset_data()) else {
-            return;
-        };
-        if walk.visit(&base_script) {
-            collect_script_var_indices(&base_script, plan, varidx_set, walk);
-        }
-    }
-}
-
-fn collect_script_var_indices(
-    script: &BaseScript,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
-    walk: &mut OpsWalk,
-) {
-    if let Some(Ok(base_values)) = script.base_values() {
-        if walk.visit(&base_values) {
-            base_values.collect_variation_indices(plan, varidx_set);
-        }
-    }
-
-    if let Some(Ok(default_min_max)) = script.default_min_max() {
-        if walk.visit(&default_min_max) {
-            default_min_max.collect_variation_indices(plan, varidx_set);
-        }
-    }
-
-    for record in script.base_lang_sys_records().iter() {
-        if record.min_max_offset().is_null() {
-            continue;
-        }
-        if let Ok(min_max) = record.min_max(script.offset_data()) {
-            if walk.visit(&min_max) {
-                min_max.collect_variation_indices(plan, varidx_set);
-            }
-        }
-    }
-}
-
 impl CollectVariationIndices for BaseValues<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         for base_coord in self.base_coords().iter_as_nullable().flatten().flatten() {
-            base_coord.collect_variation_indices(plan, varidx_set);
+            base_coord.collect_variation_indices(c);
         }
     }
 }
 
 impl CollectVariationIndices for MinMax<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Some(Ok(min_coord)) = self.min_coord() {
-            min_coord.collect_variation_indices(plan, varidx_set);
+            min_coord.collect_variation_indices(c);
         }
 
         if let Some(Ok(max_coord)) = self.max_coord() {
-            max_coord.collect_variation_indices(plan, varidx_set);
+            max_coord.collect_variation_indices(c);
         }
 
         for record in self.feat_min_max_records().iter() {
             let feature_tag = record.feature_table_tag();
-            if !plan.layout_features.contains(feature_tag) {
+            if !c.plan.layout_features.contains(feature_tag) {
                 continue;
             }
 
             if let Some(Ok(min_coord)) = record.min_coord(self.offset_data()) {
-                min_coord.collect_variation_indices(plan, varidx_set);
+                min_coord.collect_variation_indices(c);
             }
 
             if let Some(Ok(max_coord)) = record.max_coord(self.offset_data()) {
-                max_coord.collect_variation_indices(plan, varidx_set);
+                max_coord.collect_variation_indices(c);
             }
         }
     }
 }
 
 impl CollectVariationIndices for BaseCoord<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Self::Format3(item) = self {
-            item.collect_variation_indices(plan, varidx_set);
+            item.collect_variation_indices(c);
         }
     }
 }
 
 impl CollectVariationIndices for BaseCoordFormat3<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         let Some(Ok(device)) = self.device() else {
             return;
         };
-        device.collect_variation_indices(plan, varidx_set);
+        device.collect_variation_indices(c);
     }
 }
 
@@ -613,6 +612,7 @@ impl CollectVariationIndices for BaseCoordFormat3<'_> {
 mod test {
     use super::*;
     use font_test_data::bebuffer::BeBuffer;
+    use read_fonts::collections::IntSet;
     use read_fonts::{types::Tag, FontRead};
 
     // One BaseScript and one MinMax, each the target of the given number of
@@ -703,19 +703,27 @@ mod test {
 
     #[test]
     fn shared_tables_collect_variation_indices_within_budget() {
+        // the walk of the plan, which counts what it reads as subsetting does
+        fn collect_variation_indices(data: &[u8]) -> IntSet<u32> {
+            let base = Base::read(FontData::new(data)).unwrap();
+            let mut varidx_set = IntSet::empty();
+            let plan = plan();
+            base.collect_variation_indices(
+                &mut CollectVariationIndicesContext::new(&plan, &mut varidx_set)
+                    .with_walk(OpsWalk::new(base.offset_data())),
+            );
+            varidx_set
+        }
+
         // BaseCoordFormat3 with a VariationIndex
         let coord = [3, 100, 6, 1, 2, 0x8000];
         let data = base_with_shared_tables(2, 3, 4, &coord);
-        let base = Base::read(FontData::new(&data)).unwrap();
-        let mut varidx_set = IntSet::empty();
-        base.collect_variation_indices(&plan(), &mut varidx_set);
+        let varidx_set = collect_variation_indices(&data);
         assert_eq!(varidx_set.iter().collect::<Vec<_>>(), [0x10002]);
 
         // a billion feature records, without a budget
         let data = base_with_shared_tables(1000, 1000, 1000, &coord);
-        let base = Base::read(FontData::new(&data)).unwrap();
-        let mut varidx_set = IntSet::empty();
-        base.collect_variation_indices(&plan(), &mut varidx_set);
+        let varidx_set = collect_variation_indices(&data);
         assert!(varidx_set.iter().all(|idx| idx == 0x10002));
     }
 }

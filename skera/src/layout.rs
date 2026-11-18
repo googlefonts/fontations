@@ -25,7 +25,8 @@ use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable, INVALID_GID,
+    CollectVariationIndices, CollectVariationIndicesContext, NameIdClosure, Plan, Serialize,
+    SubsetState, SubsetTable, INVALID_GID,
 };
 use read_fonts::{
     collections::IntSet,
@@ -83,6 +84,7 @@ impl OpsBudget {
         OpsWalk {
             ops_left: self.max_ops,
             subtables_left: MAX_LOOKUP_SUBTABLES - 1,
+            ran_out: false,
             exceeded: Some(&mut self.exceeded),
         }
     }
@@ -101,6 +103,7 @@ impl OpsBudget {
 pub(crate) struct OpsWalk<'a> {
     ops_left: usize,
     subtables_left: usize,
+    ran_out: bool,
     exceeded: Option<&'a mut bool>,
 }
 
@@ -112,6 +115,7 @@ impl OpsWalk<'static> {
         Self {
             ops_left: max_ops(table_data.len()),
             subtables_left: MAX_LOOKUP_SUBTABLES - 1,
+            ran_out: false,
             exceeded: None,
         }
     }
@@ -123,6 +127,7 @@ impl Default for OpsWalk<'_> {
         Self {
             ops_left: usize::MAX,
             subtables_left: usize::MAX,
+            ran_out: false,
             exceeded: None,
         }
     }
@@ -169,7 +174,13 @@ impl OpsWalk<'_> {
         intersects
     }
 
+    /// Whether the walk has run out of budget.
+    pub(crate) fn ran_out(&self) -> bool {
+        self.ran_out
+    }
+
     fn record(&mut self, within_budget: bool) -> bool {
+        self.ran_out |= !within_budget;
         if let Some(exceeded) = self.exceeded.as_deref_mut() {
             *exceeded |= !within_budget;
         }
@@ -357,19 +368,19 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
 }
 
 impl CollectVariationIndices for DeviceOrVariationIndex<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
             Self::Device(_item) => (),
-            Self::VariationIndex(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::VariationIndex(item) => item.collect_variation_indices(c),
         }
     }
 }
 
 impl CollectVariationIndices for VariationIndex<'_> {
-    fn collect_variation_indices(&self, _plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if self.delta_format() == DeltaFormat::VariationIndex {
             let var_idx = variation_index(self);
-            varidx_set.insert(var_idx);
+            c.varidx_set.insert(var_idx);
         }
     }
 }

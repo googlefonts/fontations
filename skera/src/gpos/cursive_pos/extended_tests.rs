@@ -1,5 +1,6 @@
 use super::*;
 use font_test_data::bebuffer::BeBuffer;
+use read_fonts::collections::IntSet;
 use read_fonts::{
     tables::layout::DeviceOrVariationIndex,
     types::{GlyphId, GlyphId24},
@@ -65,7 +66,10 @@ fn extended_cursive_subsetting_preserves_format_anchors_and_variations() {
         let mut indices = IntSet::empty();
         CursivePos::read(FontData::new(&input))
             .unwrap()
-            .collect_variation_indices(&plan, &mut indices);
+            .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                &plan,
+                &mut indices,
+            ));
         assert_eq!(indices.iter().collect::<Vec<_>>(), [0x00010002]);
         let bytes = subset(&input, &plan).unwrap();
         let table = CursivePosFormat2::read(FontData::new(&bytes)).unwrap();
@@ -128,7 +132,10 @@ fn extended_cursive_subsetting_drops_empty_tables_and_checks_offsets() {
     let mut indices = IntSet::empty();
     CursivePos::read(FontData::new(&input))
         .unwrap()
-        .collect_variation_indices(&plan, &mut indices);
+        .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut indices,
+        ));
     assert!(indices.is_empty());
     assert_eq!(
         subset(&input, &plan),
