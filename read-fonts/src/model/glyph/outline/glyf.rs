@@ -78,6 +78,23 @@ impl<'a> GlyfGlyph<'a> {
         plan_buffer_size(&self.plan)
     }
 
+    /// Returns a stored contour point in font units, with variations applied.
+    ///
+    /// Indices use the original `glyf` point order, including off-curve
+    /// controls and expanded composite components. Implied on-curve points
+    /// and phantom points are not included. Returns `None` for an index
+    /// outside the outline. Loading uses the same bounded plan and scratch
+    /// storage as drawing, and preserves fractional variation deltas.
+    pub fn contour_point(&self, index: usize) -> Result<Option<Point<f32>>, Error> {
+        let lengths = self.plan.buffer_lengths::<ScaleF32>();
+        crate::mem::with_scratch(lengths.packed_len::<ScaleF32>(), |buf| {
+            let buffers = Buffers::from_bytes(buf, &lengths)?;
+            let scale = ScaleF32::new(None, self.context.units_per_em);
+            let outline = self.plan.load(&self.context, &scale, buffers, None)?;
+            Ok(outline.points().get(index).copied())
+        })
+    }
+
     pub(crate) fn draw(
         &self,
         options: &DrawOptions,

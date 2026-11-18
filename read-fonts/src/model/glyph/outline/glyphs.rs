@@ -493,6 +493,29 @@ mod tests {
     }
 
     #[test]
+    fn stored_glyf_contour_points_preserve_indices_and_fractional_deltas() {
+        let font = font(font_test_data::GLYF_CONTOUR_POINTS);
+        for coord in [F2Dot14::ZERO, F2Dot14::from_f32(1.0 / 3.0), F2Dot14::ONE] {
+            let instance = font.instance_builder().normalized_coords([coord]).build();
+            let delta = coord.to_f32();
+            for (gid, x, y) in [(1, 400.0, 600.0), (3, 500.0, 800.0)] {
+                let glyph = instance.outline_glyphs().get(GlyphId::new(gid)).unwrap();
+                let OutlineGlyph::Glyf(glyph) = glyph else {
+                    panic!("expected glyf")
+                };
+                let point = glyph.contour_point(1).unwrap().unwrap();
+                assert!((point.x - (x + 100.0 * delta)).abs() < 0.01);
+                assert!((point.y - (y + 100.0 * delta)).abs() < 0.01);
+                // Both consecutive off-curve points retain their indices.
+                assert!(glyph.contour_point(2).unwrap().is_some());
+                // Point 3 would be a phantom point, not a contour point.
+                assert!(glyph.contour_point(3).unwrap().is_none());
+                assert!(glyph.contour_point(usize::MAX).unwrap().is_none());
+            }
+        }
+    }
+
+    #[test]
     fn glyf_font_draws_from_glyf() {
         let font = font(font_test_data::VAZIRMATN_VAR);
         let glyphs = font.outline_glyphs();

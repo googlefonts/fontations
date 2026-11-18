@@ -423,3 +423,6 @@ pub mod meta {
 pub mod gvar {
     pub static USE_MY_METRICS: &[u8] = include_bytes!("../test_data/ttf/gvar_use_my_metrics.ttf");
 }
+
+/// Contour-point attachment: off-curve points, a composite, and gvar deltas.
+pub static GLYF_CONTOUR_POINTS: &[u8] = include_bytes!("../test_data/ttf/glyf_contour_points.ttf");
