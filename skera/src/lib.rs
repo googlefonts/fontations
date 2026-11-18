@@ -659,13 +659,31 @@ impl Plan {
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
     ) {
-        let unicodes = unicode_closure(
+        let mut unicodes = unicode_closure(
             input_unicodes,
             !self
                 .subset_flags
                 .contains(SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE),
         );
         let charmap = font.charmap();
+        // Symbol cmaps alias missing low-byte entries to U+F000..U+F0FF.
+        // Retain the source entries needed to preserve requested aliases, but
+        // respect explicit exclusions in inverted sets and direct low entries.
+        if charmap.is_symbol() && !unicodes.is_inverted() {
+            let direct_low: IntSet<u32> = charmap
+                .mappings()
+                .take_while(|(cp, _)| *cp <= 0xFF)
+                .map(|(cp, _)| cp)
+                .collect();
+            for cp in 0..=0xFF {
+                if unicodes.contains(cp)
+                    && !direct_low.contains(cp)
+                    && charmap.map(cp + 0xF000).is_some()
+                {
+                    unicodes.insert(cp + 0xF000);
+                }
+            }
+        }
         if input_gids.is_empty() && unicodes.len() < (self.font_num_glyphs as u64) {
             let cap: usize = unicodes.len().try_into().unwrap_or(usize::MAX);
             self.unicode_to_new_gid_list.reserve(cap);
