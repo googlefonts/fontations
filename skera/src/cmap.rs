@@ -47,8 +47,14 @@ impl Subset for Cmap<'_> {
         let mut has_ms_bmp = false;
         let mut has_ms_usc4 = false;
         let mut has_format12 = false;
+        let mut has_ms_symbol = false;
 
         for (_, record) in retained_encoding_records.iter() {
+            if record.platform_id() == PlatformId::Windows && record.encoding_id() == 0 {
+                has_ms_symbol |= record
+                    .subtable(self.offset_data())
+                    .is_ok_and(|t| matches!(t.format(), 4 | 12));
+            }
             if record
                 .subtable(self.offset_data())
                 .is_ok_and(|t| t.format() == 12)
@@ -67,11 +73,11 @@ impl Subset for Cmap<'_> {
             }
         }
 
-        if !has_format12 && !has_unicode_bmp && !has_ms_bmp {
+        if !has_format12 && !has_unicode_bmp && !has_ms_bmp && !has_ms_symbol {
             return Err(SubsetTableError(Cmap::TAG));
         }
 
-        if has_format12 && (!has_unicode_usc4 && !has_ms_usc4) {
+        if has_format12 && (!has_unicode_usc4 && !has_ms_usc4 && !has_ms_symbol) {
             return Err(SubsetTableError(Cmap::TAG));
         }
 
@@ -169,6 +175,7 @@ fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), Se
 fn retain_encoding_record_for_subset(record: &EncodingRecord, cmap: &Cmap) -> bool {
     (record.platform_id() == PlatformId::Unicode && record.encoding_id() == 3)
         || (record.platform_id() == PlatformId::Unicode && record.encoding_id() == 4)
+        || (record.platform_id() == PlatformId::Windows && record.encoding_id() == 0)
         || (record.platform_id() == PlatformId::Windows && record.encoding_id() == 1)
         || (record.platform_id() == PlatformId::Windows && record.encoding_id() == 10)
         || record
