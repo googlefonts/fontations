@@ -275,6 +275,20 @@ pub(super) fn programs<F: CffFlavor>(source: &Source, plan: &Plan) -> Result<Pro
                 .subset_flags
                 .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
         {
+            if !F::CFF2 {
+                let fd = source.fd(old)?;
+                let data = source.font.charstrings().get(orig as usize).ok_or(Error)?;
+                let mut actions = ();
+                let mut interpreter =
+                    Interpreter::<F, _, _>::new(source, &mut actions, fd, nohint, &mut stack);
+                interpreter.run(Program::Glyph(orig), data)?;
+                if let Some(width) = interpreter.width {
+                    let mut empty = Vec::new();
+                    encoding::encode(&mut empty, width, false)?;
+                    empty.extend(F::empty_glyph());
+                    chars[gid] = empty;
+                }
+            }
             continue;
         }
         let fd = source.fd(old)?;
