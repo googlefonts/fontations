@@ -3,9 +3,9 @@
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 #[tag = "CPAL"]
 table Cpal {
-    /// Table version number (=0).
+    /// Table version number (0 or 1).
     #[version]
-    #[compile(0)]
+    #[compile(self.compute_version())]
     version: u16,
     /// Number of palette entries in each palette.
     num_palette_entries: u16,
