@@ -261,12 +261,13 @@ impl HintInstance {
             self.cvt
                 .extend(cvt.iter().map(|value| (value.get() as i32) * 64));
         }
-        // More weird scaling. This is due to the fact that CVT values are
-        // already in 26.6
-        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttobjs.c#L996>
-        let scale = Fixed::from_bits(scale >> 6);
+        // The CVT values are in 26.6 at this point. FreeType divides them by
+        // 64 first and then scales by the full 16.16 scale. The result is
+        // sensitive to rounding, so the order matters.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/VER-2-13-3/src/truetype/ttobjs.c#L996>
+        let scale = Fixed::from_bits(scale);
         for value in &mut self.cvt {
-            *value = (Fixed::from_bits(*value) * scale).to_bits();
+            *value = (Fixed::from_bits(*value / 64) * scale).to_bits();
         }
         self.storage.clear();
         self.storage.resize(tables.max_storage as usize, 0);
@@ -324,8 +325,8 @@ mod tests {
         let expected = [
             778, 10, 731, 0, 731, 10, 549, 10, 0, 0, 0, -10, 0, -10, -256, -10, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 95, 137, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 60, 0, 81, 0, 0, 0, 0, 0, 51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 95, 137, 98, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 59, 0, 81, 0, 0, 0, 0, 0, 51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         assert_eq!(&instance.cvt, &expected);
