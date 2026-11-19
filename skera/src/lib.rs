@@ -645,13 +645,17 @@ impl Plan {
         }
 
         this.create_glyph_map_gsub();
-        //update the unicode to new gid list
-        let num = this.unicode_to_new_gid_list.len();
-        for i in 0..num {
-            let old_gid = this.unicode_to_new_gid_list[i].1;
-            let new_gid = this.glyph_map.get(&old_gid).unwrap();
-            this.unicode_to_new_gid_list[i].1 = *new_gid;
-        }
+        // Update the unicode to new gid list. A code point whose glyph isn't
+        // retained is dropped, as HarfBuzz does: cmap may map it to a glyph id
+        // past the glyph count, which is not a glyph of the font.
+        let glyph_map = &this.glyph_map;
+        this.unicode_to_new_gid_list.retain_mut(|(_, gid)| {
+            let Some(new_gid) = glyph_map.get(gid) else {
+                return false;
+            };
+            *gid = *new_gid;
+            true
+        });
         this.collect_base_var_indices(font);
         this
     }

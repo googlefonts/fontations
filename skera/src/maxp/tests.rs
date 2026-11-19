@@ -151,3 +151,42 @@ fn planner_maps_more_than_65535_retained_glyphs() {
         assert_eq!(plan.glyph_map.get(&last), Some(&last));
     }
 }
+
+// cmap may map a code point to a glyph beyond the glyph count, which isn't retained. Planning
+// must drop that mapping rather than panic.
+#[test]
+fn planner_ignores_cmap_glyphs_beyond_glyph_count() {
+    use read_fonts::types::Tag;
+    use skrifa::MetadataProvider;
+    for (maxp_tag, maxp, gid) in [
+        (Maxp::TAG, &[0, 0, 0x50, 0, 0, 27][..], 100_u32),
+        (MaxpExtended::TAG, &[0, 0, 0x50, 0, 1, 0, 0][..], 70000),
+    ] {
+        // format 12 cmap mapping U+0041 to gid
+        let mut cmap = vec![0, 0, 0, 1, 0, 3, 0, 10, 0, 0, 0, 12];
+        cmap.extend([0, 12, 0, 0, 0, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 1]);
+        cmap.extend([0, 0, 0, 0x41, 0, 0, 0, 0x41]);
+        cmap.extend(gid.to_be_bytes());
+        let mut builder = FontBuilder::new();
+        builder.add_raw(maxp_tag, maxp);
+        builder.add_raw(Tag::new(b"cmap"), cmap);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        assert_eq!(font.charmap().map(0x41_u32), Some(GlyphId::new(gid)));
+
+        let plan = Plan::new(
+            &Default::default(),
+            &[0x41].into_iter().collect(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_DEFAULT,
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+        );
+        assert!(plan.font_num_glyphs <= gid as usize);
+        assert!(!plan.glyphset.contains(GlyphId::new(gid)));
+        assert!(plan.unicode_to_new_gid_list.is_empty());
+    }
+}
