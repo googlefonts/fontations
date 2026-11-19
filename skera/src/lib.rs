@@ -645,13 +645,17 @@ impl Plan {
         }
 
         this.create_glyph_map_gsub();
-        //update the unicode to new gid list
-        let num = this.unicode_to_new_gid_list.len();
-        for i in 0..num {
-            let old_gid = this.unicode_to_new_gid_list[i].1;
-            let new_gid = this.glyph_map.get(&old_gid).unwrap();
-            this.unicode_to_new_gid_list[i].1 = *new_gid;
-        }
+        // Update the unicode to new gid list. A code point whose glyph isn't
+        // retained is dropped, as HarfBuzz does: cmap may map it to a glyph id
+        // past the glyph count, which is not a glyph of the font.
+        let glyph_map = &this.glyph_map;
+        this.unicode_to_new_gid_list.retain_mut(|(_, gid)| {
+            let Some(new_gid) = glyph_map.get(gid) else {
+                return false;
+            };
+            *gid = *new_gid;
+            true
+        });
         this.collect_base_var_indices(font);
         this
     }
@@ -1316,7 +1320,13 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
         .selected_maxp()
         .map(|maxp| maxp.num_glyphs() as usize)
         .unwrap_or_default();
-    ret.max(maxp_num_glyphs)
+    // MAXP states up to 2^24 glyphs in 7 bytes, and this count alone bounds the
+    // glyph set, and so the per-glyph maps of the plan. Every glyph of a font
+    // takes at least a byte of some per-glyph table (loca, hmtx, CharStrings),
+    // so a count beyond what maxp can state is limited to the size of the font.
+    // HarfBuzz has no such limit.
+    let limit = font.data().len().max(u16::MAX as usize);
+    ret.max(maxp_num_glyphs.min(limit))
 }
 
 pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + TryFrom<usize>>(

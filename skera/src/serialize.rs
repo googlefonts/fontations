@@ -8,7 +8,10 @@ use std::{
 };
 
 use hashbrown::HashTable;
-use read_fonts::types::{FixedSize, Scalar, Uint24};
+use read_fonts::{
+    types::{FixedSize, Scalar, Uint24},
+    MinByteRange,
+};
 
 /// An error which occurred during the serialization of a table using Serializer.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -291,7 +294,7 @@ pub struct Serializer {
     ops_left: usize,
 
     /// What subsetting the lookups of a layout table, or the tables of BASE,
-    /// may still read.
+    /// CBLC or COLR, may still read.
     layout_walk: OpsWalk<'static>,
 }
 
@@ -329,16 +332,33 @@ impl Serializer {
     }
 
     /// Limits what subsetting the lookups of a layout table, or the tables of
-    /// BASE, may read.
+    /// BASE, CBLC or COLR, may read.
     pub(crate) fn set_layout_walk(&mut self, walk: OpsWalk<'static>) {
         self.layout_walk = walk;
     }
 
     /// What subsetting the lookups of a layout table, or the tables of BASE,
-    /// may still read: anything, unless [`Self::set_layout_walk`] said
-    /// otherwise.
+    /// CBLC or COLR, may still read: anything, unless
+    /// [`Self::set_layout_walk`] said otherwise.
     pub(crate) fn layout_walk(&mut self) -> &mut OpsWalk<'static> {
         &mut self.layout_walk
+    }
+
+    /// Charges a table that subsetting is about to read to the
+    /// [layout walk](Self::layout_walk), and fails the table once its budget
+    /// is spent.
+    ///
+    /// For tables that offsets may share, which are then read once for every
+    /// offset that leads to them.
+    pub(crate) fn visit_table<'a>(
+        &mut self,
+        table: &impl MinByteRange<'a>,
+    ) -> Result<(), SerializeErrorFlags> {
+        if self.layout_walk.visit(table) {
+            Ok(())
+        } else {
+            Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
+        }
     }
 
     /// Charges `count` units of work to the budget of the table, and fails
