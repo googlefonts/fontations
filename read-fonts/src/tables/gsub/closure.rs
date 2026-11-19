@@ -90,10 +90,25 @@ mod ctx {
         /// as it does at the visit limit.
         /// ref: <https://github.com/harfbuzz/harfbuzz/blob/70df3ff27/src/hb-ot-layout-gsubgpos.hh#L97-L103>
         pub(super) budget: i64,
+        /// What is left of what HarfBuzz's sanitizer may read of the table,
+        /// for what it charges a lookup beyond the bytes of its subtables; see
+        /// [`Self::spend_sanitize_ops`].
+        sanitize_ops_left: usize,
+        /// The lookups that the closure has entered.
+        entered_lookups: IntSet<u16>,
+        /// Whether the closure is in a lookup that it entered for the first
+        /// time.
+        first_entry: bool,
     }
 
     impl<'a> ClosureCtx<'a> {
-        pub(super) fn new(glyphs: &'a mut IntSet<GlyphId>, num_glyphs: Option<u32>) -> Self {
+        /// `max_ops` is what HarfBuzz's sanitizer may read of the table, which
+        /// is [`max_ops`](crate::limits::max_ops) of its length.
+        pub(super) fn new(
+            glyphs: &'a mut IntSet<GlyphId>,
+            num_glyphs: Option<u32>,
+            max_ops: usize,
+        ) -> Self {
             Self {
                 glyphs,
                 active_glyphs_stack: Vec::new(),
@@ -103,6 +118,49 @@ mod ctx {
                 nesting_level_left: MAX_RECURSION_DEPTH,
                 done_lookups_glyphs: Default::default(),
                 budget: MAX_LAYOUT_CLOSURE_OPS,
+                sanitize_ops_left: max_ops,
+                entered_lookups: IntSet::empty(),
+                first_entry: false,
+            }
+        }
+
+        /// Records that the closure enters the lookup at `lookup_index`, and
+        /// returns what to hand to [`Self::leave_lookup`].
+        pub(super) fn enter_lookup(&mut self, lookup_index: u16) -> bool {
+            let first_entry = self.entered_lookups.insert(lookup_index);
+            std::mem::replace(&mut self.first_entry, first_entry)
+        }
+
+        /// Records that the closure is back in the lookup, if any, that it was
+        /// in when [`Self::enter_lookup`] returned `outer`.
+        pub(super) fn leave_lookup(&mut self, outer: bool) {
+            self.first_entry = outer;
+        }
+
+        /// Charges `ops` that HarfBuzz's sanitizer charges a subtable beyond its
+        /// bytes; false once the budget is spent, which stops the closure.
+        ///
+        /// The closure budget is the same for every table, so it lets a table of
+        /// a few hundred bytes add millions of glyphs to the closure, each of
+        /// which costs a subsetter far more than the closure did. HarfBuzz
+        /// rejects such a table when it sanitizes it, before any closure runs,
+        /// against a budget that grows with the table. The sanitizer charges a
+        /// lookup once, so this charges only the first time the closure enters a
+        /// lookup, and never more than the sanitizer does.
+        pub(super) fn spend_sanitize_ops(&mut self, ops: usize) -> bool {
+            if !self.first_entry {
+                return true;
+            }
+            match self.sanitize_ops_left.checked_sub(ops) {
+                Some(ops_left) => {
+                    self.sanitize_ops_left = ops_left;
+                    true
+                }
+                None => {
+                    self.sanitize_ops_left = 0;
+                    self.budget = -1;
+                    false
+                }
             }
         }
 
@@ -170,9 +228,11 @@ mod ctx {
             if lookup.may_have_non_1to1()? {
                 seen_seq_indices.insert_range(seq_idx..=end_idx);
             }
-            lookup
-                .subtables()?
-                .closure_glyphs(self, lookup_list, lookup_index)?;
+            let subtables = lookup.subtables()?;
+            let outer = self.enter_lookup(lookup_index);
+            let ret = subtables.closure_glyphs(self, lookup_list, lookup_index);
+            self.leave_lookup(outer);
+            ret?;
 
             self.nesting_level_left += 1;
             self.pop_cur_done_glyphs();
@@ -267,7 +327,7 @@ mod ctx {
         #[test]
         fn pending_outputs_are_filtered_without_flushing() {
             let mut glyphs = [GlyphId::new(1)].into_iter().collect();
-            let mut ctx = ClosureCtx::new(&mut glyphs, Some(22));
+            let mut ctx = ClosureCtx::new(&mut glyphs, Some(22), usize::MAX);
             ctx.output.extend([GlyphId::new(2), GlyphId::new(30)]);
             ctx.trim_output();
             // Out-of-font glyph 30 is filtered; the global set is left untouched.
@@ -350,7 +410,9 @@ impl Gsub<'_> {
         let num_lookups = lookup_list.lookup_count();
         let lookup_offsets = lookup_list.lookups();
 
-        let mut ctx = ClosureCtx::new(glyphs, num_glyphs);
+        // What HarfBuzz's sanitizer may read of the table.
+        let max_ops = crate::limits::max_ops(self.offset_data().len());
+        let mut ctx = ClosureCtx::new(glyphs, num_glyphs, max_ops);
         let mut iteration_count = 0;
         let mut glyphs_length;
         // Any number of offsets can lead to one lookup or subtable, so the
@@ -477,8 +539,11 @@ impl GlyphClosure for SubstitutionLookup<'_> {
         if !ctx.should_visit_lookup(lookup_index) {
             return Ok(());
         }
-        self.subtables()?
-            .closure_glyphs(ctx, lookup_list, lookup_index)
+        let subtables = self.subtables()?;
+        let outer = ctx.enter_lookup(lookup_index);
+        let ret = subtables.closure_glyphs(ctx, lookup_list, lookup_index);
+        ctx.leave_lookup(outer);
+        ret
     }
 
     fn may_have_non_1to1(&self) -> Result<bool, ReadError> {
@@ -590,6 +655,10 @@ impl GlyphClosure for SingleSubstFormat1<'_> {
         // closure runs, so each visit is charged the same here.
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/136b04439/src/OT/Layout/GSUB/SingleSubstFormat1.hh#L126>
         spend!(ctx, coverage.record_count() + num_glyphs / 2);
+        // The sanitizer's own charge, against its own budget.
+        if !ctx.spend_sanitize_ops(num_glyphs / 2) {
+            return Ok(());
+        }
         let mask = u16::MAX;
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/fbf5b2aa035d6cd9b796d74252045e2b7156ad02/src/OT/Layout/GSUB/SingleSubstFormat1.hh#L55>
         if num_glyphs >= mask as usize {
@@ -2104,6 +2173,100 @@ mod tests {
         // one subtable too many, whatever its size
         assert_eq!(closure(16383, 1).0, Ok(()));
         assert_eq!(closure(16384, 1).0, Err(MAX_OPS_EXCEEDED));
+    }
+
+    /// GSUB with one lookup of one SingleSubstFormat1 that adds 1 to each of
+    /// the glyphs `1..=glyphs`, which its coverage holds as one range.
+    fn gsub_with_single_subst_range(glyphs: u16) -> BeBuffer {
+        BeBuffer::new()
+            // header: version 1.0, no scripts or features, lookupList offset
+            .extend([1u16, 0, 0, 0, 10])
+            // LookupList: 1 lookup
+            .extend([1u16, 4])
+            // Lookup: type 1, no flags, one subtable that follows it
+            .extend([1u16, 0, 1, 8])
+            // SingleSubstFormat1: its coverage follows it, delta 1
+            .extend([1u16, 6, 1])
+            // Coverage format 2: one range
+            .extend([2u16, 1, 1, glyphs, 0])
+    }
+
+    /// A SingleSubstFormat1 is charged half the glyphs it covers against what
+    /// HarfBuzz's sanitizer may read of the table, the first time the closure
+    /// enters its lookup.
+    #[test]
+    fn closure_glyphs_charges_sanitizer_once_for_each_lookup() {
+        use crate::{FontData, FontRead};
+
+        let closure = |covered: u16| {
+            let data = gsub_with_single_subst_range(covered);
+            let gsub = Gsub::read(FontData::new(&data)).unwrap();
+            let mut glyphs = IntSet::from([GlyphId::new(1)]);
+            let ret = gsub.closure_glyphs(&IntSet::all(), &mut glyphs);
+            (ret, glyphs)
+        };
+
+        // The closure enters the lookup twice, as the first pass adds glyph 2.
+        // 10000 glyphs are within the 16384 of a table this small once, but
+        // not twice.
+        let (ret, glyphs) = closure(20000);
+        assert_eq!(ret, Ok(()));
+        assert_eq!(glyphs, IntSet::from([GlyphId::new(1), GlyphId::new(2)]));
+
+        // 20000 glyphs are not
+        let (ret, glyphs) = closure(40000);
+        assert_eq!(ret, Err(MAX_OPS_EXCEEDED));
+        assert_eq!(glyphs, IntSet::from([GlyphId::new(1)]));
+    }
+
+    /// GSUB with 24 lookups, each a SingleSubstFormat3 that adds 2^i to each
+    /// of the glyphs `0..2^i`: the closure of glyph 0 is every glyph id of 24
+    /// bits.
+    fn gsub_that_doubles_the_closure() -> Vec<u8> {
+        fn u24(value: u32) -> [u8; 3] {
+            let [_, a, b, c] = value.to_be_bytes();
+            [a, b, c]
+        }
+        const LOOKUPS: u16 = 24;
+        const LOOKUP_LEN: u16 = 8 + 9 + 14;
+        // header: version 1.0, no scripts or features, lookupList offset
+        let mut data = BeBuffer::new()
+            .extend([1u16, 0, 0, 0, 10])
+            // LookupList
+            .push(LOOKUPS)
+            .extend((0..LOOKUPS).map(|i| 2 + 2 * LOOKUPS + i * LOOKUP_LEN))
+            .to_vec();
+        for i in 0..LOOKUPS {
+            // Lookup: type 1, no flags, one subtable that follows it
+            data.extend([0, 1, 0, 0, 0, 1, 0, 8]);
+            // SingleSubstFormat3: its coverage follows it, delta 2^i
+            data.extend([0, 3, 0, 0, 0, 9]);
+            data.extend(u24(1 << i));
+            // Coverage format 4: the range 0..2^i
+            data.extend([0, 4]);
+            data.extend(u24(1));
+            data.extend(u24(0));
+            data.extend(u24((1 << i) - 1));
+            data.extend(u24(0));
+        }
+        data
+    }
+
+    /// The closure budget allows the 804 bytes of this table to add 2^24
+    /// glyphs to the closure. What HarfBuzz's sanitizer may read of the table
+    /// doesn't.
+    #[test]
+    fn closure_glyphs_sanitizer_budget_bounds_the_closure() {
+        use crate::{FontData, FontRead};
+
+        let data = gsub_that_doubles_the_closure();
+        let gsub = Gsub::read(FontData::new(&data)).unwrap();
+        let mut glyphs = IntSet::from([GlyphId::new(0)]);
+        let ret = gsub.closure_glyphs_with_num_glyphs(&IntSet::all(), &mut glyphs, 0xFFFFFF);
+        assert_eq!(ret, Err(MAX_OPS_EXCEEDED));
+        // lookup 16 would be charged 2^15 glyphs, after the 2^15 - 1 of the
+        // lookups before it, which is more than 64 times 804
+        assert_eq!(glyphs.len(), 1 << 16);
     }
 
     /// GSUB with a contextual lookup whose `records` lookup records all apply
