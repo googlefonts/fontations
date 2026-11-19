@@ -71,10 +71,21 @@ impl<'a> Colr<'a> {
 
     /// Returns the COLRv1 clip box for the given glyph identifier.
     pub fn v1_clip_box(&self, glyph_id: GlyphId) -> Option<ClipBox<'a>> {
-        use core::cmp::Ordering;
         let glyph_id: GlyphId16 = glyph_id.try_into().ok()?;
         let list = self.clip_list()?.ok()?;
-        let clips = list.clips();
+        list.clip(glyph_id)?.clip_box(list.offset_data()).ok()
+    }
+}
+
+impl<'a> ClipList<'a> {
+    /// Returns the clip record that covers the given glyph identifier.
+    ///
+    /// The records are found by binary search, as they are meant to be sorted
+    /// by glyph identifier and not to overlap. Of records that do overlap, this
+    /// returns whichever the search finds, or none.
+    pub fn clip(&self, glyph_id: GlyphId16) -> Option<&'a Clip> {
+        use core::cmp::Ordering;
+        let clips = self.clips();
         let ix = clips
             .binary_search_by(|clip| {
                 if glyph_id < clip.start_glyph_id() {
@@ -86,8 +97,7 @@ impl<'a> Colr<'a> {
                 }
             })
             .ok()?;
-        let clip = clips.get(ix)?;
-        clip.clip_box(list.offset_data()).ok()
+        clips.get(ix)
     }
 }
 

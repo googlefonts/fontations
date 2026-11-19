@@ -27,7 +27,7 @@ use read_fonts::{
         },
         variations::{DeltaSetIndexMap, NO_VARIATION_INDEX},
     },
-    types::{GlyphId, GlyphId24, Offset24, Offset32},
+    types::{GlyphId, GlyphId16, GlyphId24, Offset24, Offset32},
     FontRef, MinByteRange, TopLevelTable,
 };
 use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
@@ -403,37 +403,27 @@ impl SubsetTable<'_> for ClipList<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let glyph_set = &plan.glyphset_colred;
-        let glyph_map = &plan.glyph_map;
-        let retained_first_gid = glyph_set.first().unwrap().to_u32();
-        let retained_last_gid = glyph_set.last().unwrap().to_u32();
-
+        // Look up the clip of each retained glyph as skrifa does to draw it, rather
+        // than walk the glyphs of every clip: clips are meant to be sorted and not
+        // to overlap, but nothing stops each of them from covering every glyph.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/f2b79d995cb415dcc30db2dda5da083b620ad77c/src/OT/Color/COLR/COLR.hh#L2185>
         let mut new_gids_set = IntSet::empty();
         let mut new_gids_offset_map = FastHashMap::default();
-        for clip in self.clips() {
+        for gid in plan.glyphset_colred.iter() {
+            let Some(new_gid) = plan.glyph_map.get(&gid) else {
+                continue;
+            };
+            let Some(clip) = GlyphId16::try_from(gid).ok().and_then(|gid| self.clip(gid)) else {
+                continue;
+            };
             let offset = clip.clip_box_offset();
             if offset.is_null() {
                 continue;
             }
-            let start_gid = clip.start_glyph_id().to_u32();
-            let end_gid = clip.end_glyph_id().to_u32();
-            if end_gid < retained_first_gid || start_gid > retained_last_gid {
-                continue;
-            }
-            for gid in start_gid..=end_gid {
-                let g = GlyphId::from(gid);
-                if !glyph_set.contains(g) {
-                    continue;
-                }
 
-                let Some(new_gid) = glyph_map.get(&g) else {
-                    continue;
-                };
-
-                let new_gid = new_gid.to_u32() as u16;
-                new_gids_set.insert(new_gid);
-                new_gids_offset_map.insert(new_gid, offset);
-            }
+            let new_gid = new_gid.to_u32() as u16;
+            new_gids_set.insert(new_gid);
+            new_gids_offset_map.insert(new_gid, offset);
         }
 
         if new_gids_set.is_empty() {
@@ -1852,6 +1842,89 @@ mod test {
 
         let paints = nested_paints(crate::MAX_NESTING_LEVEL);
         assert!(subset_root_paint(&paints).is_err());
+    }
+
+    // Subsets `data`, a ClipList, to glyphs `0..num_glyphs`, and returns the (first glyph, last
+    // glyph, x_min of the box) of each clip of the subset.
+    fn subset_clip_list(data: &[u8], num_glyphs: u32) -> Vec<(u32, u32, i16)> {
+        let clip_list = ClipList::read(FontData::new(data)).unwrap();
+        let mut plan = Plan::default();
+        for gid in 0..num_glyphs {
+            plan.glyphset_colred.insert(GlyphId::from(gid));
+            plan.glyph_map
+                .insert(GlyphId::from(gid), GlyphId::from(gid));
+        }
+
+        let mut s = Serializer::new(1024).unwrap();
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(clip_list.subset(&plan, &mut s, ()), Ok(()));
+        s.end_serialize();
+
+        let subset_data = s.copy_bytes();
+        let subset_clip_list = ClipList::read(FontData::new(&subset_data)).unwrap();
+        subset_clip_list
+            .clips()
+            .iter()
+            .map(|clip| {
+                let Ok(ClipBox::Format1(clip_box)) = clip.clip_box(subset_clip_list.offset_data())
+                else {
+                    panic!("expected ClipBoxFormat1");
+                };
+                (
+                    clip.start_glyph_id().to_u32(),
+                    clip.end_glyph_id().to_u32(),
+                    clip_box.x_min().to_i16(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_subset_clip_list_overlapping_ranges() {
+        // overlapping and reversed clips, with boxes at 33, 42, 51 and 60
+        let mut data = vec![1, 0, 0, 0, 4];
+        data.extend([0, 0, 0xFF, 0xFF, 0, 0, 33]);
+        data.extend([0, 1, 0, 2, 0, 0, 42]);
+        data.extend([0, 2, 0xFF, 0xFF, 0, 0, 51]);
+        data.extend([0, 3, 0, 1, 0, 0, 60]);
+        data.extend([1, 0, 1, 0, 1, 0, 1, 0, 1]);
+        data.extend([1, 0, 2, 0, 2, 0, 2, 0, 2]);
+        data.extend([1, 0, 3, 0, 3, 0, 3, 0, 3]);
+        data.extend([1, 0, 4, 0, 4, 0, 4, 0, 4]);
+
+        // each glyph keeps the box that skrifa draws it with, if any
+        let clip_list = ClipList::read(FontData::new(&data)).unwrap();
+        let expected: Vec<_> = (0..4_u16)
+            .filter_map(|gid| {
+                let clip = clip_list.clip(GlyphId16::new(gid))?;
+                let Ok(ClipBox::Format1(clip_box)) = clip.clip_box(clip_list.offset_data()) else {
+                    panic!("expected ClipBoxFormat1");
+                };
+                Some((gid as u32, clip_box.x_min().to_i16()))
+            })
+            .collect();
+        assert!(!expected.is_empty());
+        let subset: Vec<_> = subset_clip_list(&data, 4)
+            .into_iter()
+            .flat_map(|(first, last, x_min)| (first..=last).map(move |gid| (gid, x_min)))
+            .collect();
+        assert_eq!(subset, expected);
+    }
+
+    #[test]
+    fn test_subset_clip_list_many_overlapping_ranges() {
+        // Thousands of clips covering every glyph id. Walking each of their ranges in full takes
+        // hundreds of millions of steps.
+        const NUM_CLIPS: u32 = 2000;
+        let mut data = vec![1];
+        data.extend(NUM_CLIPS.to_be_bytes());
+        let box_offset = 5 + NUM_CLIPS * 7;
+        for _ in 0..NUM_CLIPS {
+            data.extend([0, 0, 0xFF, 0xFF]);
+            data.extend(&box_offset.to_be_bytes()[1..]);
+        }
+        data.extend([1, 0, 1, 0, 1, 0, 1, 0, 1]);
+        assert_eq!(subset_clip_list(&data, 3), [(0, 2, 1)]);
     }
 
     #[test]
