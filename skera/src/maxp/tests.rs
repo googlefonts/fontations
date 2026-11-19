@@ -1,5 +1,9 @@
 use super::*;
-use read_fonts::{types::GlyphId, FontData, FontRead, TableProvider};
+use read_fonts::{
+    collections::IntSet,
+    types::{GlyphId, Tag},
+    FontData, FontRead, TableProvider,
+};
 
 fn font(wide: bool, version: Version16Dot16) -> Vec<u8> {
     let mut bytes = version.to_be_bytes().to_vec();
@@ -15,6 +19,10 @@ fn font(wide: bool, version: Version16Dot16) -> Vec<u8> {
     }
     let mut builder = FontBuilder::new();
     builder.add_raw(if wide { MaxpExtended::TAG } else { Maxp::TAG }, bytes);
+    if wide {
+        // stands in for the per-glyph tables, see get_font_num_glyphs
+        builder.add_raw(Tag::new(b"test"), vec![0u8; 70001]);
+    }
     builder.build()
 }
 
@@ -94,10 +102,7 @@ fn planner_selects_extended_maximum_profile() {
     let bytes = font(true, Version16Dot16::VERSION_1_0);
     let source = FontRef::new(&bytes).unwrap();
     let mut builder = FontBuilder::new();
-    builder.add_raw(
-        MaxpExtended::TAG,
-        source.data_for_tag(MaxpExtended::TAG).unwrap().as_bytes(),
-    );
+    builder.copy_missing_tables(source);
     builder.add_raw(Maxp::TAG, &[0, 0, 0x50, 0, 0, 123][..]);
     let bytes = builder.build();
     let font = FontRef::new(&bytes).unwrap();
@@ -152,11 +157,39 @@ fn planner_maps_more_than_65535_retained_glyphs() {
     }
 }
 
+// A MAXP table can claim 2^24 glyphs in a font of a few bytes. The count is limited to the size
+// of the font, and to no less than what a maxp table can claim.
+#[test]
+fn planner_limits_extended_glyph_count_to_font_size() {
+    for padding in [0, 70000, 200000] {
+        let mut builder = FontBuilder::new();
+        builder.add_raw(MaxpExtended::TAG, &[0, 0, 0x50, 0, 0xFF, 0xFF, 0xFF][..]);
+        builder.add_raw(Tag::new(b"test"), vec![0u8; padding]);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let num_glyphs = bytes.len().clamp(0xFFFF, 0xFFFFFF);
+        assert_eq!(crate::get_font_num_glyphs(&font), num_glyphs);
+
+        // a request for every glyph retains no more than that
+        let plan = Plan::new(
+            &IntSet::all(),
+            &Default::default(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_DEFAULT,
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+            &Default::default(),
+        );
+        assert_eq!(plan.num_output_glyphs, num_glyphs);
+    }
+}
+
 // cmap may map a code point to a glyph beyond the glyph count, which isn't retained. Planning
 // must drop that mapping rather than panic.
 #[test]
 fn planner_ignores_cmap_glyphs_beyond_glyph_count() {
-    use read_fonts::types::Tag;
     use skrifa::MetadataProvider;
     for (maxp_tag, maxp, gid) in [
         (Maxp::TAG, &[0, 0, 0x50, 0, 0, 27][..], 100_u32),

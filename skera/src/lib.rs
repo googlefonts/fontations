@@ -1320,7 +1320,13 @@ fn get_font_num_glyphs(font: &FontRef) -> usize {
         .selected_maxp()
         .map(|maxp| maxp.num_glyphs() as usize)
         .unwrap_or_default();
-    ret.max(maxp_num_glyphs)
+    // MAXP states up to 2^24 glyphs in 7 bytes, and this count alone bounds the
+    // glyph set, and so the per-glyph maps of the plan. Every glyph of a font
+    // takes at least a byte of some per-glyph table (loca, hmtx, CharStrings),
+    // so a count beyond what maxp can state is limited to the size of the font.
+    // HarfBuzz has no such limit.
+    let limit = font.data().len().max(u16::MAX as usize);
+    ret.max(maxp_num_glyphs.min(limit))
 }
 
 pub(crate) fn remap_indices<T: Domain + std::cmp::Eq + std::hash::Hash + TryFrom<usize>>(
