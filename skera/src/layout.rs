@@ -643,8 +643,11 @@ pub(crate) fn map_gsub_glyph(glyph_map: &[GlyphId], gid: GlyphId) -> Option<Glyp
 ///
 /// Depending on the relative sizes of the coverage and the glyph set, this
 /// either walks the glyph set and looks each glyph up in the coverage, or walks
-/// the coverage and maps each glyph. Iteration stops at the first `Err`
-/// returned by `f`, which is then propagated.
+/// the coverage and maps each glyph. Either way a coverage index is passed to
+/// `f` at most once: a broken Coverage table can state the same index for
+/// several glyphs, and the walk over the glyph set stops when it sees that.
+/// Iteration also stops at the first `Err` returned by `f`, which is then
+/// propagated.
 #[inline]
 pub(crate) fn for_each_intersected_glyph_and_index<E>(
     coverage: &CoverageTable,
@@ -689,11 +692,23 @@ fn for_each_intersection<E>(
 
     if coverage_population as u32 > (glyph_set.len() as u32) * num_bits {
         // Every glyph here is already in glyph_set, so only map if asked to.
+        //
+        // The range formats state the coverage index of each range, so a
+        // broken table can give any number of glyphs the same index. Glyphs
+        // come in increasing order, and so do their indices in a well-formed
+        // table. Stop at one that doesn't increase: the table is broken, and
+        // an array entry is then visited at most once, as in the walk over
+        // the Coverage table below.
+        let mut next_idx = 0;
         for (idx, g) in glyph_set
             .iter()
             .filter_map(|g| coverage.get(g).map(|idx| (idx, g)))
             .filter(|(idx, _)| *idx < array_len)
         {
+            if idx < next_idx {
+                break;
+            }
+            next_idx = idx + 1;
             let g = match glyph_map {
                 Some(glyph_map) => match map_gsub_glyph(glyph_map, g) {
                     Some(new_g) => new_g,
@@ -2007,6 +2022,33 @@ mod test {
         types::GlyphId,
         FontRef, TableProvider,
     };
+
+    #[test]
+    fn intersection_stops_at_broken_coverage() {
+        // Glyph 2 states coverage index 0 again, so the one array entry used
+        // to be visited once per glyph. The walk stops there, before glyph 3.
+        // The last range holds glyphs that aren't retained, which makes the
+        // glyph set the cheaper side to walk.
+        let data = BeBuffer::new()
+            .extend([2u16, 4])
+            .extend([1u16, 1, 0, 2, 2, 0, 3, 3, 1, 4, 1000, 3]);
+        let coverage = CoverageTable::read(data.data().into()).unwrap();
+        let glyph_set: IntSet<GlyphId> = (1..4).map(GlyphId::new).collect();
+        let glyph_map: Vec<GlyphId> = (0..4).map(GlyphId::new).collect();
+        let mut visited = Vec::new();
+        for_each_intersected_glyph_and_index::<()>(
+            &coverage,
+            &glyph_set,
+            &glyph_map,
+            3u32,
+            |idx, g| {
+                visited.push((idx, g.to_u32()));
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(visited, [(0, 1)]);
+    }
 
     /// Build a FeatureList where every feature has `tag`, lookup [0], and the
     /// given (optional) FeatureParams bytes.
