@@ -170,7 +170,7 @@ fn extended_mark_ligature_remaps_classes_anchors_and_preserves_components() {
 }
 
 #[test]
-fn extended_mark_ligature_checks_null_sets_invalid_offsets_and_classes() {
+fn extended_mark_ligature_checks_null_sets_and_invalid_offsets() {
     let input = input();
     let mut plan = plan([1, 2, 3, 4]);
     for range in [2..6, 6..10, 12..16, 16..20] {
@@ -197,12 +197,6 @@ fn extended_mark_ligature_checks_null_sets_invalid_offsets_and_classes() {
         subset(&bytes, &plan),
         Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
     );
-    bytes = input.clone();
-    bytes[50..52].copy_from_slice(&3u16.to_be_bytes());
-    assert_eq!(
-        subset(&bytes, &plan),
-        Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
-    );
     assert_eq!(
         subset(&input[..124], &plan),
         Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
@@ -212,6 +206,53 @@ fn extended_mark_ligature_checks_null_sets_invalid_offsets_and_classes() {
         subset(&input, &plan),
         Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)
     );
+}
+
+#[test]
+fn extended_mark_ligature_drops_marks_with_out_of_range_class() {
+    // The second mark gets class 3 of 3, for which no ligature has an anchor.
+    let mut input = input();
+    input[50..52].copy_from_slice(&3u16.to_be_bytes());
+    let plan = plan([1, 2, 3, 4]);
+    let mut indices = IntSet::empty();
+    MarkLigPos::read(FontData::new(&input))
+        .unwrap()
+        .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut indices,
+        ));
+    assert_eq!(indices.iter().collect::<Vec<_>>(), [0x10002, 0x50006]);
+    let bytes = subset(&input, &plan).unwrap();
+    let table = MarkLigPosFormat2::read(FontData::new(&bytes)).unwrap();
+    assert_eq!(table.mark_class_count(), 1);
+    assert_eq!(
+        table.mark_coverage().unwrap().iter().collect::<Vec<_>>(),
+        [GlyphId::new(1)]
+    );
+    let marks = table.mark_array().unwrap();
+    assert_eq!(marks.mark_count().to_u32(), 1);
+    let mark = &marks.mark_records()[0];
+    assert_eq!(mark.mark_class(), 0);
+    assert_eq!(
+        varidx(mark.mark_anchor(marks.offset_data()).unwrap()),
+        (9 << 16) | 10
+    );
+    assert_eq!(
+        table
+            .ligature_coverage()
+            .unwrap()
+            .iter()
+            .collect::<Vec<_>>(),
+        [GlyphId::new(3)]
+    );
+    let ligatures = table.ligature_array().unwrap();
+    assert_eq!(ligatures.ligature_count().to_u32(), 1);
+    let attach = ligatures.ligature_attaches().get(0).unwrap();
+    assert_eq!(attach.component_count(), 3);
+    let component = attach.component_records().get(0).unwrap();
+    let anchors = component.ligature_anchors(attach.offset_data());
+    assert_eq!(anchors.len(), 1);
+    assert_eq!(varidx(anchors.get(0).unwrap().unwrap()), (13 << 16) | 14);
 }
 
 #[test]
