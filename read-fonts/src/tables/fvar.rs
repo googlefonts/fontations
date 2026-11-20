@@ -142,6 +142,9 @@ impl<'a> Fvar<'a> {
         normalized_coords: &mut [F2Dot14],
     ) {
         normalized_coords.fill(F2Dot14::ZERO);
+        // Only major versions 1 and 2 are defined. FreeType and HarfBuzz
+        // ignore an avar table of any other version rather than read it.
+        let avar = avar.filter(|avar| matches!(avar.version().major, 1 | 2));
         let axes = self.axes().unwrap_or_default();
         let actual_len = axes.len().min(normalized_coords.len());
         let normalized_coords = &mut normalized_coords[..actual_len];
@@ -384,6 +387,28 @@ mod tests {
             );
             assert_eq!(normalized_coords[0], F2Dot14::from_f32(normalized));
         }
+    }
+
+    #[test]
+    fn user_to_normalized_ignores_unknown_avar_version() {
+        let font = FontRef::from_index(font_test_data::VAZIRMATN_VAR, 0).unwrap();
+        let fvar = font.fvar().unwrap();
+        let mut avar_data = font.table_data(Avar::TAG).unwrap().as_bytes().to_vec();
+        // Major version 3 is not defined
+        avar_data[..4].copy_from_slice(&[0, 3, 0, 0]);
+        let avar = Avar::read(FontData::new(&avar_data)).unwrap();
+        let wght = Tag::new(b"wght");
+        let axis = fvar.axes().unwrap()[0];
+        // A version 1 avar maps 0.8 to 0.83875; this one must not
+        let user = axis.default_value().to_f32()
+            + (axis.max_value().to_f32() - axis.default_value().to_f32()) * 0.8;
+        let mut normalized_coords = [F2Dot14::default(); 1];
+        fvar.user_to_normalized(
+            Some(&avar),
+            [(wght, Fixed::from_f64(user as f64))],
+            &mut normalized_coords,
+        );
+        assert_eq!(normalized_coords[0], F2Dot14::from_f32(0.8));
     }
 
     #[test]
