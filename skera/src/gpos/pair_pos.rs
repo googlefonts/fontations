@@ -836,6 +836,11 @@ macro_rules! collect_class_pair_variations {
                 {
                     return;
                 }
+                // A matrix that is not all in the table has records that
+                // can't be read, and subset() rejects the table.
+                if self.min_table_bytes().is_empty() {
+                    return;
+                }
                 let Ok(coverage) = self.coverage() else {
                     return;
                 };
@@ -870,13 +875,18 @@ macro_rules! collect_class_pair_variations {
                 let record_size = record1_size + compute_record_len(value_format2);
                 let font_data = self.offset_data();
 
+                // The ClassDefs can state more classes than the counts. The
+                // sets iterate in ascending order, so the first class outside
+                // the matrix ends a walk, as HarfBuzz leaves those classes
+                // out of its sets.
+                // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Layout/GPOS/PairPosFormat2.hh#L31-L49>
                 for i in class1_set
                     .iter()
-                    .filter(|&i| i < u32::from(self.class1_count()))
+                    .take_while(|&i| i < u32::from(self.class1_count()))
                 {
                     for j in class2_set
                         .iter()
-                        .filter(|&j| j < u32::from(self.class2_count()))
+                        .take_while(|&j| j < u32::from(self.class2_count()))
                     {
                         let offset =
                             records_offset + (i as usize * class2_count + j as usize) * record_size;
@@ -1172,5 +1182,73 @@ mod test {
             varidx_set.iter().collect::<Vec<_>>(),
             vec![0x00010002, 0x00030004]
         );
+    }
+
+    /// A PairPosFormat2 of X_ADVANCE_DEVICE records over 65535 glyphs, where
+    /// a ClassDef that gives glyph i class i serves as both classDef1 and
+    /// classDef2. Only the first `stored_records` records of the matrix are in
+    /// the table, and the first of them leads to VariationIndex (1, 2).
+    fn one_class_per_glyph_pairpos2(
+        class1_count: u16,
+        class2_count: u16,
+        stored_records: u16,
+    ) -> Vec<u8> {
+        use font_test_data::bebuffer::BeBuffer;
+
+        const NUM_GLYPHS: u16 = u16::MAX;
+        let var_index_offset = 16 + 2 * stored_records;
+        let coverage_offset = var_index_offset + 6;
+        let class_def_offset = coverage_offset + 10;
+        BeBuffer::new()
+            // posFormat, coverageOffset
+            .extend([2u16, coverage_offset])
+            // valueFormat1 = X_ADVANCE_DEVICE, valueFormat2
+            .extend([0x0040u16, 0])
+            // classDef1Offset, classDef2Offset
+            .extend([class_def_offset, class_def_offset])
+            .extend([class1_count, class2_count])
+            // the records that are stored: device offsets
+            .extend((0..stored_records).map(|i| if i == 0 { var_index_offset } else { 0 }))
+            // VariationIndex (1, 2)
+            .extend([1u16, 2, 0x8000])
+            // coverage: format 2, one range over every glyph
+            .extend([2u16, 1, 0, NUM_GLYPHS - 1, 0])
+            // classDef: format 1, glyph i -> class i
+            .extend([1u16, 0, NUM_GLYPHS])
+            .extend(0..NUM_GLYPHS)
+            .to_vec()
+    }
+
+    fn collect_one_class_per_glyph_varidx(bytes: &[u8]) -> Vec<u32> {
+        use read_fonts::{FontData, FontRead};
+
+        let pairpos = PairPosFormat2::read(FontData::new(bytes)).unwrap();
+        let mut plan = Plan::default();
+        plan.glyphset_gsub
+            .insert_range(GlyphId::new(0)..=GlyphId::new(u32::from(u16::MAX) - 1));
+
+        let mut varidx_set = IntSet::empty();
+        pairpos.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
+        varidx_set.iter().collect()
+    }
+
+    /// A matrix of 65535 x 65535 records that the table does not hold: no
+    /// record can be read, so there is nothing to walk four billion times.
+    #[test]
+    fn test_collect_variation_indices_pairpos_format2_matrix_past_table() {
+        let bytes = one_class_per_glyph_pairpos2(u16::MAX, u16::MAX, 0);
+        assert!(collect_one_class_per_glyph_varidx(&bytes).is_empty());
+    }
+
+    /// A matrix of 32000 x 1 records, all stored, while classDef2 gives the
+    /// glyphs 65535 classes: a row has one record to read, and the classes
+    /// past class2Count must not be walked for each of the 32000 rows.
+    #[test]
+    fn test_collect_variation_indices_pairpos_format2_classes_past_counts() {
+        let bytes = one_class_per_glyph_pairpos2(32000, 1, 32000);
+        assert_eq!(collect_one_class_per_glyph_varidx(&bytes), [0x00010002]);
     }
 }
