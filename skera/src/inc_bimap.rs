@@ -64,11 +64,21 @@ impl IncBiMap {
 impl FromIterator<u32> for IncBiMap {
     fn from_iter<I: IntoIterator<Item = u32>>(iter: I) -> Self {
         let mut m = IncBiMap::default();
-
-        for lhs in iter {
-            m.add(lhs);
-        }
+        m.extend(iter);
         m
+    }
+}
+
+impl Extend<u32> for IncBiMap {
+    /// Adds every lhs of `iter`, after making room for as many as it says it has.
+    fn extend<I: IntoIterator<Item = u32>>(&mut self, iter: I) {
+        let iter = iter.into_iter();
+        let (min_len, _) = iter.size_hint();
+        self.forw_map.reserve(min_len);
+        self.back_map.reserve(min_len);
+        for lhs in iter {
+            self.add(lhs);
+        }
     }
 }
 
@@ -88,6 +98,18 @@ mod test {
         assert_eq!(bimap.len(), 4);
         assert_eq!(bimap.get(7), Some(&3));
         assert_eq!(bimap.get_backward(0), Some(&13));
+    }
+
+    #[test]
+    fn test_bimap_extend() {
+        let mut bimap: IncBiMap = [13, 8].into_iter().collect();
+        bimap.extend([10, 8, 7]);
+
+        // as if each one had been added in turn
+        assert_eq!(bimap.len(), 4);
+        assert_eq!(bimap.keys().copied().collect::<Vec<_>>(), [13, 8, 10, 7]);
+        assert_eq!(bimap.get(7), Some(&3));
+        assert_eq!(bimap.add(9), 4);
     }
 
     #[test]

@@ -1190,6 +1190,7 @@ fn remap_variation_indices(
         return;
     }
 
+    varidx_delta_map.reserve(varidx_set.len() as usize);
     let mut new_major: u32 = 0;
     let mut new_minor: u32 = 0;
     let mut last_major = varidx_set.first().unwrap() >> 16;
@@ -1222,15 +1223,23 @@ fn generate_varstore_inner_maps(
     }
 
     inner_maps.resize_with(vardata_count as usize, Default::default);
+    // The set gives the indices of one major after those of another, so gather the minors of
+    // a major and add them together, which makes room for all of them at once.
+    let mut minors = Vec::new();
+    let mut cur_major = 0;
     for idx in varidx_set.iter() {
         let major = idx >> 16;
-        let minor = idx & 0xFFFF;
         if major >= vardata_count {
             break;
         }
 
-        inner_maps[major as usize].add(minor);
+        if major != cur_major {
+            inner_maps[cur_major as usize].extend(minors.drain(..));
+            cur_major = major;
+        }
+        minors.push(idx & 0xFFFF);
     }
+    inner_maps[cur_major as usize].extend(minors);
 }
 //
 fn remap_delta_set_indices(
@@ -2054,6 +2063,30 @@ fn retained_glyf_len(font: &FontRef, plan: &Plan, glyf_len: usize) -> Option<usi
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_generate_varstore_inner_maps() {
+        // minors of the majors 0 and 2; major 5 is past the 4 VarData tables
+        let mut varidx_set = IntSet::empty();
+        varidx_set.extend([
+            0x0_0009_u32,
+            0x0_0005,
+            0x2_0007,
+            0x2_0001,
+            0x2_0003,
+            0x5_0000,
+        ]);
+
+        let mut inner_maps = Vec::new();
+        generate_varstore_inner_maps(&varidx_set, 4, &mut inner_maps);
+        let minors: Vec<Vec<u32>> = inner_maps
+            .iter()
+            .map(|m| m.keys().copied().collect())
+            .collect();
+        assert_eq!(minors, [vec![5, 9], vec![], vec![1, 3, 7], vec![]]);
+        // the new minors follow the order of the old ones
+        assert_eq!(inner_maps[2].get(3), Some(&1));
+    }
 
     /// A table's serializer buffer is bounded by twice the font file size, plus
     /// the caller's overrides for name.
