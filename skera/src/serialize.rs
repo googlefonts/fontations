@@ -901,12 +901,22 @@ impl Serializer {
         if from_obj.virtual_links.is_empty() {
             return;
         }
-        let mut from_vec = mem::take(&mut from_obj.virtual_links);
+        let from_vec = mem::take(&mut from_obj.virtual_links);
 
         // Virtual links aren't part of an object's hash (see hash_one_pool_idx), so the
         // hash table entry for `to` stays valid.
         let to_obj = self.object_pool.get_obj_mut(to.0).unwrap();
-        to_obj.virtual_links.append(&mut from_vec);
+        // A virtual link only orders two objects, so a repeated one adds nothing, while the
+        // repacker copies the whole list whenever it duplicates the object. An object that is
+        // merged many times in a row brings the same link every time: the LigatureSets and
+        // Ligatures of a subtable all link to its Coverage. Comparing with the last link drops
+        // those repeats without a scan of the list for every merge. HarfBuzz keeps them all.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-serialize.hh#L848-L853>
+        for link in from_vec {
+            if to_obj.virtual_links.last() != Some(&link) {
+                to_obj.virtual_links.push(link);
+            }
+        }
     }
 
     fn resolve_links(&mut self) {
@@ -1503,6 +1513,35 @@ mod test {
             hash_table.get_with_hash(3, hash_3_new, &data, &obj_pool),
             Some(&(0, 0))
         );
+    }
+
+    #[test]
+    fn test_merge_virtual_links_skips_repeated_link() {
+        let mut s = Serializer::new(100).unwrap();
+        s.start_serialize().unwrap();
+        s.push().unwrap();
+        s.embed(1_u16).unwrap();
+        let target = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        s.embed(3_u16).unwrap();
+        let other = s.pop_pack(false).unwrap();
+
+        // the same object is serialized and merged once for each link, with repeats in a row
+        let mut shared = None;
+        for link_target in [target, target, target, other, other, target] {
+            s.push().unwrap();
+            s.embed(2_u16).unwrap();
+            s.add_virtual_link(link_target).unwrap();
+            let obj_idx = s.pop_pack(true).unwrap();
+            assert_eq!(*shared.get_or_insert(obj_idx), obj_idx);
+        }
+
+        let obj = s
+            .object_pool
+            .get_obj(s.packed[shared.unwrap() as usize])
+            .unwrap();
+        let targets: Vec<_> = obj.virtual_links.iter().map(|l| l.objidx).collect();
+        assert_eq!(targets, [target, other, target]);
     }
 
     #[test]
