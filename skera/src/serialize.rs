@@ -664,14 +664,16 @@ impl Serializer {
         let mut hash = 0_u64;
         // introduce flags to avoid mutable borrow and immutable borrow issues
         let mut obj_duplicate = None;
+        let mut share = share;
         if share {
             hash = hash_one_pool_idx(pool_idx, &self.data, &self.object_pool);
-            if let Some(entry) =
+            let (entry, num_compared) =
                 self.packed_map
-                    .get_with_hash(pool_idx, hash, &self.data, &self.object_pool)
-            {
-                obj_duplicate = Some(*entry);
-            };
+                    .find_with_hash(pool_idx, hash, &self.data, &self.object_pool);
+            obj_duplicate = entry.copied();
+            // Too many distinct objects with this hash already: pack this one unshared rather
+            // than make every later lookup of the hash compare against it too.
+            share = num_compared < MAX_EQUAL_HASH_COMPARISONS;
         }
 
         if let Some(dup_obj_idxes) = obj_duplicate {
@@ -901,12 +903,22 @@ impl Serializer {
         if from_obj.virtual_links.is_empty() {
             return;
         }
-        let mut from_vec = mem::take(&mut from_obj.virtual_links);
+        let from_vec = mem::take(&mut from_obj.virtual_links);
 
         // Virtual links aren't part of an object's hash (see hash_one_pool_idx), so the
         // hash table entry for `to` stays valid.
         let to_obj = self.object_pool.get_obj_mut(to.0).unwrap();
-        to_obj.virtual_links.append(&mut from_vec);
+        // A virtual link only orders two objects, so a repeated one adds nothing, while the
+        // repacker copies the whole list whenever it duplicates the object. An object that is
+        // merged many times in a row brings the same link every time: the LigatureSets and
+        // Ligatures of a subtable all link to its Coverage. Comparing with the last link drops
+        // those repeats without a scan of the list for every merge. HarfBuzz keeps them all.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-serialize.hh#L848-L853>
+        for link in from_vec {
+            if to_obj.virtual_links.last() != Some(&link) {
+                to_obj.virtual_links.push(link);
+            }
+        }
     }
 
     fn resolve_links(&mut self) {
@@ -1161,6 +1173,12 @@ impl ObjectPool {
     }
 }
 
+/// At most this many distinct objects with the same hash are kept in the table that pop_pack
+/// looks up duplicates in, so that a lookup compares at most this many objects in full. The
+/// hash has a fixed seed, so a font can be built to make hashes collide; other than that they
+/// collide only by chance. An object that isn't added is merely not shared.
+const MAX_EQUAL_HASH_COMPARISONS: usize = 32;
+
 // Hash an Object: Virtual links aren't considered for equality since they don't affect the functionality of the object.
 fn hash_one_pool_idx(pool_idx: PoolIdx, data: &[u8], obj_pool: &ObjectPool) -> u64 {
     let mut hasher = foldhash::fast::FixedState::default().build_hasher();
@@ -1168,10 +1186,12 @@ fn hash_one_pool_idx(pool_idx: PoolIdx, data: &[u8], obj_pool: &ObjectPool) -> u
         return hasher.finish();
     };
     // hash data bytes
-    // Only hash at most 128 bytes for Object. Byte objects differ in their early bytes anyway.
-    // reference: <https://github.com/harfbuzz/harfbuzz/blob/622e9c33c39e9c2a6491763841d6d6ad715f6abf/src/hb-serialize.hh#L136>
-    let byte_len = 128.min(obj.tail - obj.head);
-    let data_bytes = data.get(obj.head..obj.head + byte_len);
+    // Unlike HarfBuzz, which hashes at most the first 128 bytes, hash the whole object: objects
+    // with equal hashes are compared in full, so many objects that only differ after a common
+    // prefix would otherwise make packing quadratic. pop_pack has just copied the same bytes, so
+    // this stays linear in the size of the object.
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-serialize.hh#L144>
+    let data_bytes = data.get(obj.head..obj.tail);
     data_bytes.hash(&mut hasher);
     // hash real_links
     obj.real_links.hash(&mut hasher);
@@ -1210,18 +1230,27 @@ struct PoolIdxHashTable {
 }
 
 impl PoolIdxHashTable {
-    fn get_with_hash(
+    /// Returns the entry for an object equal to the one at pool_idx, if any, and the number of
+    /// objects with the same hash that it was compared with.
+    fn find_with_hash(
         &self,
         pool_idx: PoolIdx,
         hash: u64,
         data: &[u8],
         obj_pool: &ObjectPool,
-    ) -> Option<&(PoolIdx, ObjIdx)> {
-        self.hash_table
+    ) -> (Option<&(PoolIdx, ObjIdx)>, usize) {
+        let mut num_compared = 0;
+        let entry = self
+            .hash_table
             .find(hash, |entry: &PoolIdxEntry| {
-                entry.hash == hash && cmp_pool_idx(pool_idx, entry.idx.0, data, obj_pool)
+                if entry.hash != hash {
+                    return false;
+                }
+                num_compared += 1;
+                cmp_pool_idx(pool_idx, entry.idx.0, data, obj_pool)
             })
-            .map(|entry| &entry.idx)
+            .map(|entry| &entry.idx);
+        (entry, num_compared)
     }
 
     fn set_with_hash(&mut self, pool_idx: PoolIdx, hash: u64, obj_idx: ObjIdx) {
@@ -1454,21 +1483,27 @@ mod test {
 
         hash_table.set_with_hash(0, hash_0, 0);
         assert_eq!(
-            hash_table.get_with_hash(1, hash_1, &data, &obj_pool),
+            hash_table.find_with_hash(1, hash_1, &data, &obj_pool).0,
             Some(&(0, 0))
         );
-        assert_eq!(hash_table.get_with_hash(2, hash_2, &data, &obj_pool), None);
-        assert_eq!(hash_table.get_with_hash(3, hash_3, &data, &obj_pool), None);
+        assert_eq!(
+            hash_table.find_with_hash(2, hash_2, &data, &obj_pool).0,
+            None
+        );
+        assert_eq!(
+            hash_table.find_with_hash(3, hash_3, &data, &obj_pool).0,
+            None
+        );
 
         hash_table.set_with_hash(2, hash_2, 2);
         assert_eq!(
-            hash_table.get_with_hash(2, hash_2, &data, &obj_pool),
+            hash_table.find_with_hash(2, hash_2, &data, &obj_pool).0,
             Some(&(2, 2))
         );
 
         hash_table.set_with_hash(3, hash_3, 3);
         assert_eq!(
-            hash_table.get_with_hash(3, hash_3, &data, &obj_pool),
+            hash_table.find_with_hash(3, hash_3, &data, &obj_pool).0,
             Some(&(3, 3))
         );
 
@@ -1490,19 +1525,104 @@ mod test {
         assert_ne!(hash_3, hash_3_new);
         // old entries found with old hash
         assert_eq!(
-            hash_table.get_with_hash(3, hash_3, &data, &obj_pool),
+            hash_table.find_with_hash(3, hash_3, &data, &obj_pool).0,
             Some(&(3, 3))
         );
 
         // test del
         hash_table.del(3, hash_3, &data, &obj_pool);
-        assert_eq!(hash_table.get_with_hash(3, hash_3, &data, &obj_pool), None);
+        assert_eq!(
+            hash_table.find_with_hash(3, hash_3, &data, &obj_pool).0,
+            None
+        );
 
         // duplicate obj_0 entry found with new hash
         assert_eq!(
-            hash_table.get_with_hash(3, hash_3_new, &data, &obj_pool),
+            hash_table.find_with_hash(3, hash_3_new, &data, &obj_pool).0,
             Some(&(0, 0))
         );
+    }
+
+    #[test]
+    fn test_merge_virtual_links_skips_repeated_link() {
+        let mut s = Serializer::new(100).unwrap();
+        s.start_serialize().unwrap();
+        s.push().unwrap();
+        s.embed(1_u16).unwrap();
+        let target = s.pop_pack(false).unwrap();
+        s.push().unwrap();
+        s.embed(3_u16).unwrap();
+        let other = s.pop_pack(false).unwrap();
+
+        // the same object is serialized and merged once for each link, with repeats in a row
+        let mut shared = None;
+        for link_target in [target, target, target, other, other, target] {
+            s.push().unwrap();
+            s.embed(2_u16).unwrap();
+            s.add_virtual_link(link_target).unwrap();
+            let obj_idx = s.pop_pack(true).unwrap();
+            assert_eq!(*shared.get_or_insert(obj_idx), obj_idx);
+        }
+
+        let obj = s
+            .object_pool
+            .get_obj(s.packed[shared.unwrap() as usize])
+            .unwrap();
+        let targets: Vec<_> = obj.virtual_links.iter().map(|l| l.objidx).collect();
+        assert_eq!(targets, [target, other, target]);
+    }
+
+    #[test]
+    fn test_hash_covers_whole_object() {
+        // two objects of 200 bytes that only differ in their last byte
+        let mut data = vec![0_u8; 400];
+        data[399] = 1;
+
+        let mut obj_pool = ObjectPool::default();
+        for (head, tail) in [(0, 200), (200, 400)] {
+            let pool_idx = obj_pool.alloc();
+            let obj = obj_pool.get_obj_mut(pool_idx).unwrap();
+            obj.head = head;
+            obj.tail = tail;
+        }
+
+        assert!(!cmp_pool_idx(0, 1, &data, &obj_pool));
+        assert_ne!(
+            hash_one_pool_idx(0, &data, &obj_pool),
+            hash_one_pool_idx(1, &data, &obj_pool)
+        );
+    }
+
+    #[test]
+    fn test_hash_table_counts_equal_hash_comparisons() {
+        // distinct 2-byte objects, all stored under the same hash as if their hashes collided
+        const HASH: u64 = 7;
+        let num_objects = MAX_EQUAL_HASH_COMPARISONS + 2;
+        let data: Vec<u8> = (0..num_objects as u16).flat_map(u16::to_be_bytes).collect();
+        let mut obj_pool = ObjectPool::default();
+        for i in 0..num_objects {
+            let pool_idx = obj_pool.alloc();
+            let obj = obj_pool.get_obj_mut(pool_idx).unwrap();
+            obj.head = 2 * i;
+            obj.tail = 2 * i + 2;
+        }
+
+        let mut hash_table = PoolIdxHashTable::default();
+        for i in 0..MAX_EQUAL_HASH_COMPARISONS as PoolIdx {
+            let (entry, num_compared) = hash_table.find_with_hash(i, HASH, &data, &obj_pool);
+            assert_eq!((entry, num_compared), (None, i as usize));
+            hash_table.set_with_hash(i, HASH, i);
+        }
+
+        // a new object is compared with every one of them, which tells pop_pack to keep it out
+        let new = MAX_EQUAL_HASH_COMPARISONS as PoolIdx;
+        let (entry, num_compared) = hash_table.find_with_hash(new, HASH, &data, &obj_pool);
+        assert_eq!(entry, None);
+        assert_eq!(num_compared, MAX_EQUAL_HASH_COMPARISONS);
+
+        // while an equal object is still found
+        let (entry, _) = hash_table.find_with_hash(0, HASH, &data, &obj_pool);
+        assert_eq!(entry, Some(&(0, 0)));
     }
 
     #[test]

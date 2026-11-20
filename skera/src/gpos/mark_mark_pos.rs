@@ -5,11 +5,10 @@ mod extended_tests;
 
 use crate::FastHashMap;
 use crate::{
-    gpos::mark_array::{collect_retained_mark_varidx_and_classes, get_mark_class_map},
-    layout::{
-        for_each_intersected_coverage_index, for_each_intersected_glyph_and_index,
-        intersected_glyphs_and_indices,
+    gpos::mark_array::{
+        collect_retained_mark_varidx_and_classes, get_mark_class_map, retained_marks,
     },
+    layout::{for_each_intersected_coverage_index, for_each_intersected_glyph_and_index},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetState, SubsetTable,
@@ -45,6 +44,7 @@ macro_rules! collect_mark_mark_variations {
                     &mark1_coverage,
                     mark1_records,
                     mark1_array_data,
+                    self.mark_class_count(),
                     c,
                 );
 
@@ -106,17 +106,18 @@ macro_rules! subset_mark_mark {
 
                 let glyph_set = &plan.glyphset_gsub;
                 let glyph_map = &plan.glyph_map_gsub;
-                let mark_class_map =
-                    get_mark_class_map(&mark1_coverage, mark1_array.mark_records(), glyph_set);
+                let mark_records = mark1_array.mark_records();
+                let mark_class_map = get_mark_class_map(
+                    &mark1_coverage,
+                    mark_records,
+                    glyph_set,
+                    self.mark_class_count(),
+                );
                 if mark_class_map.is_empty() {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
                 }
 
-                if mark1_array.min_table_bytes().is_empty()
-                    || mark_class_map
-                        .keys()
-                        .any(|class| *class >= self.mark_class_count())
-                {
+                if mark1_array.min_table_bytes().is_empty() {
                     return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 }
                 // format
@@ -135,11 +136,12 @@ macro_rules! subset_mark_mark {
 
                 // mark1 array offset
                 let mark1_array_offset_pos = s.allocate_size($offset::RAW_BYTE_LEN, true)?;
-                let (mark1_glyphs, mark1_record_idxes) = intersected_glyphs_and_indices(
+                let (mark1_glyphs, mark1_record_idxes) = retained_marks(
                     &mark1_coverage,
+                    mark_records,
                     glyph_set,
                     glyph_map,
-                    mark1_array.mark_count(),
+                    &mark_class_map,
                 );
 
                 $offset::serialize_serialize::<CoverageTable>(
