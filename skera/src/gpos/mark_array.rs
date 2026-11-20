@@ -1,7 +1,7 @@
 //! impl subset() for MarkRecord subtable
 use crate::FastHashMap;
 use crate::{
-    layout::for_each_intersected_coverage_index,
+    layout::{for_each_intersected_coverage_index, for_each_intersected_glyph_and_index},
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetTable,
@@ -48,10 +48,16 @@ pub(crate) fn collect_mark_record_varidx(
     };
 }
 
+/// Maps the classes of the retained marks to their new values.
+///
+/// A class that is not below `mark_class_count` gets no entry: the
+/// base/ligature/mark2 records have no anchor for it, so a mark of that
+/// class never attaches and [`retained_marks`] leaves it out.
 pub(crate) fn get_mark_class_map(
     coverage: &CoverageTable,
     mark_records: &[impl MarkRecordData],
     glyph_set: &IntSet<GlyphId>,
+    mark_class_count: u16,
 ) -> FastHashMap<u16, u16> {
     let mut retained_classes = IntSet::<u16>::empty();
     let _ = for_each_intersected_coverage_index::<()>(
@@ -60,7 +66,9 @@ pub(crate) fn get_mark_class_map(
         mark_records.len() as u32,
         |index| {
             if let Some(record) = mark_records.get(index as usize) {
-                retained_classes.insert(record.mark_class());
+                if record.mark_class() < mark_class_count {
+                    retained_classes.insert(record.mark_class());
+                }
             }
             Ok(())
         },
@@ -72,9 +80,49 @@ pub(crate) fn get_mark_class_map(
         .collect()
 }
 
+/// Returns the retained marks whose class is in `mark_class_map`: their new
+/// glyph ids and their indices in `mark_records`.
+///
+/// The two Vecs are parallel: `indices[i]` is the coverage index of
+/// `glyphs[i]`. The mark Coverage table has to be written before the
+/// MarkArray to keep the packing order, so the glyphs are needed up front.
+pub(crate) fn retained_marks(
+    coverage: &CoverageTable,
+    mark_records: &[impl MarkRecordData],
+    glyph_set: &IntSet<GlyphId>,
+    glyph_map: &[GlyphId],
+    mark_class_map: &FastHashMap<u16, u16>,
+) -> (Vec<GlyphId>, Vec<u32>) {
+    let cap = coverage
+        .population()
+        .min(glyph_set.len() as usize)
+        .min(mark_records.len());
+    let mut glyphs = Vec::with_capacity(cap);
+    let mut indices = Vec::with_capacity(cap);
+
+    let _ = for_each_intersected_glyph_and_index::<()>(
+        coverage,
+        glyph_set,
+        glyph_map,
+        mark_records.len() as u32,
+        |idx, g| {
+            if mark_records
+                .get(idx as usize)
+                .is_some_and(|record| mark_class_map.contains_key(&record.mark_class()))
+            {
+                glyphs.push(g);
+                indices.push(idx);
+            }
+            Ok(())
+        },
+    );
+    (glyphs, indices)
+}
+
 /// Collects the variation indices of the retained mark anchors and returns
-/// the classes of the retained marks, limited to the `mark_class_count`
-/// classes for which the base/ligature/mark2 records have an anchor.
+/// the classes of the retained marks. Marks are limited to the
+/// `mark_class_count` classes for which the base/ligature/mark2 records have
+/// an anchor, as in [`get_mark_class_map`].
 pub(crate) fn collect_retained_mark_varidx_and_classes(
     coverage: &CoverageTable,
     mark_records: &[impl MarkRecordData],
@@ -89,13 +137,13 @@ pub(crate) fn collect_retained_mark_varidx_and_classes(
         mark_records.len() as u32,
         |index| {
             let record = mark_records.get(index as usize).ok_or(())?;
-            collect_mark_record_varidx(record, c, mark_array_data);
-            // An out of range class has no anchor on the other side. Callers
-            // look every returned class up in every retained record, so don't
-            // make them search for one: HarfBuzz walks the classes below the
-            // count as well. subset() rejects the table.
+            // An out of range class has no anchor on the other side, so
+            // subset() drops the mark. Callers look every returned class up
+            // in every retained record, so don't make them search for one:
+            // HarfBuzz walks the classes below the count as well.
             // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Layout/GPOS/MarkBasePosFormat1.hh#L50-L62>
             if record.mark_class() < mark_class_count {
+                collect_mark_record_varidx(record, c, mark_array_data);
                 retained_classes.insert(record.mark_class());
             }
             Ok(())
