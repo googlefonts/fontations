@@ -109,6 +109,7 @@ impl Validate for DataMapRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("DataMapRecord", |ctx| {
             ctx.in_field("data", |ctx| {
+                self.data.validate_impl(ctx);
                 self.validate_data_type(ctx);
             });
         })
