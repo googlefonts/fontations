@@ -45,6 +45,7 @@ macro_rules! collect_mark_mark_variations {
                     &mark1_coverage,
                     mark1_records,
                     mark1_array_data,
+                    self.mark_class_count(),
                     c,
                 );
 
