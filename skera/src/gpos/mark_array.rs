@@ -72,10 +72,14 @@ pub(crate) fn get_mark_class_map(
         .collect()
 }
 
+/// Collects the variation indices of the retained mark anchors and returns
+/// the classes of the retained marks, limited to the `mark_class_count`
+/// classes for which the base/ligature/mark2 records have an anchor.
 pub(crate) fn collect_retained_mark_varidx_and_classes(
     coverage: &CoverageTable,
     mark_records: &[impl MarkRecordData],
     mark_array_data: FontData,
+    mark_class_count: u16,
     c: &mut CollectVariationIndicesContext,
 ) -> IntSet<u16> {
     let mut retained_classes = IntSet::empty();
@@ -86,7 +90,14 @@ pub(crate) fn collect_retained_mark_varidx_and_classes(
         |index| {
             let record = mark_records.get(index as usize).ok_or(())?;
             collect_mark_record_varidx(record, c, mark_array_data);
-            retained_classes.insert(record.mark_class());
+            // An out of range class has no anchor on the other side. Callers
+            // look every returned class up in every retained record, so don't
+            // make them search for one: HarfBuzz walks the classes below the
+            // count as well. subset() rejects the table.
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Layout/GPOS/MarkBasePosFormat1.hh#L50-L62>
+            if record.mark_class() < mark_class_count {
+                retained_classes.insert(record.mark_class());
+            }
             Ok(())
         },
     );
@@ -237,5 +248,35 @@ mod test {
             0x00, 0x01, 0x00, 0x64, 0x00, 0xc8,
         ];
         assert_eq!(s.copy_bytes(), expected);
+    }
+
+    /// Base/ligature/mark2 records only have `mark_class_count` anchors, so a
+    /// malformed class at or past it must not be handed back to the callers,
+    /// which try every returned class on every retained record.
+    #[test]
+    fn test_collect_retained_mark_classes_drops_out_of_range_classes() {
+        let raw = mark_array_bytes(0);
+        let mark_array = MarkArray::read(FontData::new(&raw)).unwrap();
+        // CoverageFormat1 with glyphs 1 and 2
+        let coverage_raw: [u8; 8] = [0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x02];
+        let coverage = CoverageTable::read(FontData::new(&coverage_raw)).unwrap();
+        let mut plan = Plan::default();
+        plan.glyphset_gsub.insert(GlyphId::from(1_u32));
+        plan.glyphset_gsub.insert(GlyphId::from(2_u32));
+
+        let retained_classes = |mark_class_count| {
+            collect_retained_mark_varidx_and_classes(
+                &coverage,
+                mark_array.mark_records(),
+                mark_array.offset_data(),
+                mark_class_count,
+                &mut CollectVariationIndicesContext::new(&plan, &mut IntSet::empty()),
+            )
+            .iter()
+            .collect::<Vec<_>>()
+        };
+        assert_eq!(retained_classes(2), [0, 1]);
+        assert_eq!(retained_classes(1), [0]);
+        assert!(retained_classes(0).is_empty());
     }
 }
