@@ -617,11 +617,11 @@ mod test {
         // 60 offsets count 180360 bytes, within 64 times the 3264 of the store
         let out = subset(60).unwrap();
         let store = ItemVariationStore::read(FontData::new(&out)).unwrap();
-        let var_datas = store.item_variation_data();
-        assert_eq!(var_datas.len(), 60);
+        let var_data_offsets = store.item_variation_data();
+        assert_eq!(var_data_offsets.len(), 60);
         // the serializer shares what is the same
         assert_eq!(out.len(), 8 + 4 * 60 + 10 + 9);
-        let var_data = var_datas.get(59).unwrap().unwrap();
+        let var_data = var_data_offsets.get(59).unwrap().unwrap();
         assert_eq!(var_data.region_index_count(), 1);
         assert_eq!(var_data.delta_sets(), [1]);
 
