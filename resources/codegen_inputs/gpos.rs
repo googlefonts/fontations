@@ -355,6 +355,7 @@ record EntryExitRecord {
 ////}
 
 /// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
+#[validate(check_class_count_conformance)]
 table MarkBasePosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
@@ -401,6 +402,7 @@ record BaseRecord<'a> {
 }
 
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
+#[validate(check_class_count_conformance)]
 table MarkLigPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
@@ -461,6 +463,7 @@ record ComponentRecord<'a> {
 }
 
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
+#[validate(check_class_count_conformance)]
 table MarkMarkPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
