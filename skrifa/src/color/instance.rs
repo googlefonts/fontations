@@ -446,7 +446,7 @@ impl<'a> ResolvedPaint<'a> {
                     resolved_stops.last().cloned(),
                 ) {
                     (None, _) | (_, None) => {}
-                    (Some(first_stop), Some(last_stop)) => {
+                    (Some(first_stop), Some(mut last_stop)) => {
                         let mut color_stop_range = last_stop.offset - first_stop.offset;
 
                         // Nothing can be drawn for this situation.
@@ -462,9 +462,8 @@ impl<'a> ResolvedPaint<'a> {
                         // the p0-p3 axis and result in specifying non-normalized color stops to the shader.
 
                         if color_stop_range == 0.0 && extend == &Extend::Pad {
-                            let mut extra_stop = last_stop;
-                            extra_stop.offset += 1.0;
-                            resolved_stops.push(extra_stop);
+                            last_stop.offset += 1.0;
+                            resolved_stops.push(last_stop);
 
                             color_stop_range = 1.0;
                         }
@@ -520,7 +519,7 @@ impl<'a> ResolvedPaint<'a> {
                     resolved_stops.last().cloned(),
                 ) {
                     (None, _) | (_, None) => {}
-                    (Some(first_stop), Some(last_stop)) => {
+                    (Some(first_stop), Some(mut last_stop)) => {
                         let mut color_stop_range = last_stop.offset - first_stop.offset;
                         // Nothing can be drawn for this situation.
                         if color_stop_range == 0.0 && extend != &Extend::Pad {
@@ -531,9 +530,8 @@ impl<'a> ResolvedPaint<'a> {
                         // insert a color stop at the end. See LinearGradient for more details.
 
                         if color_stop_range == 0.0 && extend == &Extend::Pad {
-                            let mut extra_stop = last_stop;
-                            extra_stop.offset += 1.0;
-                            resolved_stops.push(extra_stop);
+                            last_stop.offset += 1.0;
+                            resolved_stops.push(last_stop);
                             color_stop_range = 1.0;
                         }
 
