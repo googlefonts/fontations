@@ -1661,6 +1661,33 @@ impl ItemVariationStore<'_> {
 }
 
 impl<'a> VariationRegion<'a> {
+    /// Computes the region scalar in floating point, without quantizing each
+    /// intermediate product to 16.16 precision.
+    pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
+        let mut scalar = 1f32;
+        for (i, peak, axis) in self.active_region_axes() {
+            let coord = coords.get(i).copied().unwrap_or_default().to_bits() as i32;
+            let peak = peak.to_bits() as i32;
+            if coord == peak {
+                continue;
+            }
+            let start = axis.start_coord().to_bits() as i32;
+            let end = axis.end_coord().to_bits() as i32;
+            if start > peak || peak > end || start < 0 && end > 0 {
+                continue;
+            }
+            if coord <= start || coord >= end {
+                return 0.;
+            }
+            scalar *= if coord < peak {
+                (coord - start) as f32 / (peak - start) as f32
+            } else {
+                (end - coord) as f32 / (end - peak) as f32
+            };
+        }
+        scalar
+    }
+
     /// Computes a scalar value for this region and the specified
     /// normalized variation coordinates.
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Fixed {
@@ -1843,6 +1870,18 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    #[test]
+    fn region_float_scalars_preserve_fractional_products() {
+        let bytes = BeBuffer::new().extend([0i16, 3, 3, 0, 3, 3]);
+        let region = VariationRegion::read_with_args(FontData::new(&bytes), 2).unwrap();
+        let coords = [F2Dot14::from_bits(1); 2];
+        let expected = (1f32 / 3.) * (1f32 / 3.);
+        assert_eq!(region.compute_scalar_f32(&coords), expected);
+        assert_ne!(region.compute_scalar(&coords).to_f32(), expected);
+        assert_eq!(region.compute_scalar_f32(&[]), 0.);
+        assert_eq!(region.compute_scalar_f32(&[F2Dot14::from_bits(3); 2]), 1.);
+    }
 
     #[test]
     fn zero_deltas_still_validate_their_regions() {
