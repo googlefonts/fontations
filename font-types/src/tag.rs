@@ -75,6 +75,14 @@ impl Tag {
         Self::from_be_bytes(src.to_be_bytes())
     }
 
+    /// Convert a `Tag` into a big-endian `u32`
+    ///
+    /// This is provided as a convenience method for interop with code that
+    /// stores tags as big-endian u32s.
+    pub const fn into_u32(self) -> u32 {
+        u32::from_be_bytes(self.to_be_bytes())
+    }
+
     /// Create a tag from raw big-endian bytes.
     ///
     /// Prefer to use [`Tag::new`] (in const contexts) or [`Tag::new_checked`]
