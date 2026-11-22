@@ -192,6 +192,7 @@ impl BitPage {
         let first_elem_idx = first / ELEM_BITS;
         let last_elem_idx = last / ELEM_BITS;
 
+        let mut removed = 0;
         for elem_idx in first_elem_idx..=last_elem_idx {
             let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
             let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
@@ -200,10 +201,12 @@ impl BitPage {
             let mask = u64::MAX << (elem_start + end_shift);
             let mask = !(mask >> end_shift);
 
-            self.storage[elem_idx as usize] &= mask;
+            let elem = &mut self.storage[elem_idx as usize];
+            removed += (*elem & !mask).count_ones();
+            *elem &= mask;
         }
 
-        self.recompute_length();
+        self.length -= removed;
     }
 
     pub(crate) fn clear(&mut self) {
