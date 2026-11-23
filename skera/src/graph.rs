@@ -267,6 +267,9 @@ pub(crate) struct Vertex {
     end: u32,
     incoming_edges: u32,
     has_incoming_virtual_edges: bool,
+    // The vertex's bytes may also be another vertex's (see Graph::duplicate_vertex), so they
+    // have to be copied before they are changed.
+    shares_data: bool,
     parents: Parents,
     virtual_parents: VirtualParents,
 }
@@ -699,7 +702,16 @@ impl Graph {
     }
 
     fn vertex_data_mut(&mut self, obj_idx: ObjIdx) -> Option<&mut [u8]> {
-        let v = self.vertices.get(obj_idx as usize)?;
+        let v = self.vertices.get_mut(obj_idx as usize)?;
+        if v.shares_data {
+            // copy on write, so that the other vertices with these bytes keep them as they are
+            let (head, tail) = (v.head, v.tail);
+            self.data.get(head..tail)?;
+            v.head = self.data.len();
+            self.data.extend_from_within(head..tail);
+            v.tail = self.data.len();
+            v.shares_data = false;
+        }
         self.data.get_mut(v.head..v.tail)
     }
 
@@ -1550,6 +1562,13 @@ impl Graph {
             new_v.head = self.data.len();
             self.data.extend_from_within(v.head..v.tail);
             new_v.tail = self.data.len();
+        } else if table_size > 0 {
+            // Both now use the same bytes, as in HarfBuzz. Subtable splitting edits vertex data
+            // in place, and can run after a failed packing attempt has duplicated vertices, so
+            // whichever of the two is edited first takes a copy (see vertex_data_mut).
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/graph/graph.hh#L1378-L1421>
+            new_v.shares_data = true;
+            self.vertices[obj_idx as usize].shares_data = true;
         }
         let vertices = &mut self.vertices;
 
