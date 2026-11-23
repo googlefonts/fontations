@@ -219,8 +219,13 @@ impl<'a> SubsetTable<'a> for BitmapSize {
     ) -> Result<(), SerializeErrorFlags> {
         let (cblc, cbdt, src_bytes, context) = args;
 
-        if self.start_glyph_index() > plan.glyphset.last().unwrap()
-            || self.end_glyph_index() < plan.glyphset.first().unwrap()
+        // the glyph set is empty when the font has no glyphs at all: nothing is retained
+        let (Some(first_gid), Some(last_gid)) = (plan.glyphset.first(), plan.glyphset.last())
+        else {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        };
+        if self.start_glyph_index() > last_gid
+            || self.end_glyph_index() < first_gid
             || self.index_subtable_list_offset() == 0
             || self.index_subtable_list_size() == 0
         {
@@ -1279,5 +1284,24 @@ mod test {
             cblc[68..72].copy_from_slice(&u32::MAX.to_be_bytes())
         });
         assert_eq!(subset_all_glyphs(&font_data, 2), (true, true));
+    }
+
+    // A font without glyphs (no maxp table, or one with numGlyphs = 0) retains no glyphs at all,
+    // not even .notdef.
+    #[test]
+    fn test_subset_cbdt_empty_glyphset() {
+        let font_data = single_subtable_bitmap_font();
+        let font = FontRef::new(&font_data).unwrap();
+        let cblc = font.cblc().unwrap();
+
+        let plan = Plan::default();
+        let mut builder = FontBuilder::new();
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        cblc.subset(&plan, &font, &mut s, &mut builder).unwrap();
+        s.end_serialize();
+
+        // every strike is dropped
+        assert_eq!(s.copy_bytes(), [0x00, 0x03, 0x00, 0x00, 0, 0, 0, 0]);
     }
 }
