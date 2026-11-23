@@ -1,6 +1,7 @@
 //! Subsetting support for the ISO OFF extended layout formats.
 
 use super::*;
+use read_fonts::tables::layout::RangeRecord2;
 
 pub(super) fn subset_coverage(
     coverage: &CoverageTable,
@@ -59,23 +60,30 @@ impl<'a> Serialize<'a> for CoverageFormat4<'a> {
             .and_then(Uint24::checked_new)
             .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
         s.embed(4_u16)?;
-        s.embed(count)?;
+        // the range records follow the count
+        let pos = s.embed(count)? + Uint24::RAW_BYTE_LEN;
         let Some(first_glyph) = glyphs.first() else {
             return Ok(());
         };
         let mut first = first_glyph.to_u32();
         let mut last = first;
         let mut coverage_index = 0;
+        let mut unsorted = false;
         for (index, gid) in glyphs.iter().enumerate().skip(1) {
             let gid = gid.to_u32();
             if last.checked_add(1) != Some(gid) {
+                unsorted |= gid <= last;
                 serialize_coverage_range24(s, first, last, coverage_index)?;
                 first = gid;
                 coverage_index = index;
             }
             last = gid;
         }
-        serialize_coverage_range24(s, first, last, coverage_index)
+        serialize_coverage_range24(s, first, last, coverage_index)?;
+        if unsorted {
+            sort_coverage_ranges(s, pos, range_count, RangeRecord2::RAW_BYTE_LEN);
+        }
+        Ok(())
     }
 }
 
