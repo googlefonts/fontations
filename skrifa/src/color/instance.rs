@@ -416,21 +416,15 @@ impl<'a> ResolvedPaint<'a> {
                     point_normalized
                 };
 
-                make_sorted_resolved_stops(color_stops, instance, resolved_stops);
-
-                // If p0p1 or p0p2 are degenerate probably nothing should be drawn.
-                // If p0p1 and p0p2 are parallel then one side is the first color and the other side is
-                // the last color, depending on the direction.
-                // For now, just use the first color.
+                // https://learn.microsoft.com/en-us/typography/opentype/spec/colr#linear-gradients
+                // "If either point p₁ or p₂ is the same as point p₀, the gradient is ill-formed
+                // and must not be rendered." and "If line p₀p₂ is parallel to line p₀p₁ [...],
+                // then the gradient is ill-formed and must not be rendered."
                 if p1 == p0 || p2 == p0 || cross_product(p1 - p0, p2 - p0) == 0.0 {
-                    if let Some(stop) = resolved_stops.first() {
-                        return Ok(MaybeBrush::Some(Brush::Solid {
-                            palette_index: stop.palette_index,
-                            alpha: stop.alpha,
-                        }));
-                    };
                     return Ok(MaybeBrush::NonRendering);
                 }
+
+                make_sorted_resolved_stops(color_stops, instance, resolved_stops);
 
                 // Follow implementation note in nanoemoji:
                 // https://github.com/googlefonts/nanoemoji/blob/0ac6e7bb4d8202db692574d8530a9b643f1b3b3c/src/nanoemoji/svg.py#L188
