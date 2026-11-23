@@ -186,11 +186,10 @@ macro_rules! array_value_position {
                     .coverage()
                     .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-                let limit = if $format == 2u16 {
-                    u32::from(self.value_count())
-                } else {
-                    u32::MAX
-                };
+                // Coverage entries past the value records have none and are skipped, as
+                // HarfBuzz does for both formats by zipping the Coverage table with the records.
+                // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Layout/GPOS/SinglePosFormat2.hh#L198-L204>
+                let limit = u32::from(self.value_count());
                 let mut retained_glyphs = Vec::with_capacity(
                     coverage
                         .population()
@@ -215,12 +214,6 @@ macro_rules! array_value_position {
                     return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
                 }
 
-                if retained_rec_idxes
-                    .last()
-                    .is_some_and(|i| i >= u32::from(self.value_count()))
-                {
-                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-                }
                 let (state, font) = args;
                 let value_format = self.value_format();
                 let records_offset = self.value_count_byte_range().end;
