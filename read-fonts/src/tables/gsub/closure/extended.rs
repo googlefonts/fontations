@@ -19,6 +19,10 @@ impl GlyphClosure for SingleSubstFormat3<'_> {
         let coverage = self.coverage()?;
         // as for the 16-bit format, half the covered glyphs are charged
         spend!(ctx, coverage.record_count() + coverage.population() / 2);
+        // The sanitizer's own charge, against its own budget.
+        if !ctx.spend_sanitize_ops(coverage.population() / 2) {
+            return Ok(());
+        }
         let mask = 0xffffff;
         // Preserve the same degenerate-font guardrails as the 16-bit format.
         if coverage.population() >= mask as usize {

@@ -19,16 +19,6 @@ use read_fonts::{
 };
 use write_fonts::FontBuilder;
 
-/// Counts a table that subsetting is about to read against the budget of the
-/// BASE table, and fails the table once the budget is spent.
-fn visit<'a>(s: &mut Serializer, table: &impl MinByteRange<'a>) -> Result<(), SerializeErrorFlags> {
-    if s.layout_walk().visit(table) {
-        Ok(())
-    } else {
-        Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))
-    }
-}
-
 // reference: subset() for BASE in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/fc42cdd68df0ce710b507981184ade7bf1b164e6/src/hb-ot-layout-base-table.hh#L763>
 impl Subset for Base<'_> {
@@ -191,7 +181,7 @@ impl<'a> SubsetTable<'a> for BaseScriptRecord {
         let base_script = self
             .base_script(data)
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-        visit(s, &base_script)?;
+        s.visit_table(&base_script)?;
         Offset16::serialize_subset(&base_script, s, plan, (), base_script_offset_pos)
     }
 }
@@ -212,7 +202,7 @@ impl SubsetTable<'_> for BaseScript<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            visit(s, &base_value)?;
+            s.visit_table(&base_value)?;
             Offset16::serialize_subset(&base_value, s, plan, (), base_values_offset_pos)?;
         }
 
@@ -222,7 +212,7 @@ impl SubsetTable<'_> for BaseScript<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            visit(s, &default_min_max)?;
+            s.visit_table(&default_min_max)?;
             Offset16::serialize_subset(&default_min_max, s, plan, (), default_min_max_offset_pos)
                 .is_empty()?;
         }
@@ -402,7 +392,7 @@ impl<'a> SubsetTable<'a> for BaseLangSysRecord {
         let Ok(min_max) = self.min_max(data) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
         };
-        visit(s, &min_max)?;
+        s.visit_table(&min_max)?;
         Offset16::serialize_subset(&min_max, s, plan, (), min_max_offset_pos)
     }
 }
