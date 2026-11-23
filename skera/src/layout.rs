@@ -599,7 +599,8 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         for (idx, g) in glyphs.iter().enumerate().skip(1) {
             let g = g.to_u32() as u16;
             let range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
-            if last + 1 != g {
+            // must agree with the range count in CoverageTable::serialize: 0xFFFF + 1 is not 0
+            if last.checked_add(1) != Some(g) {
                 //end glyph
                 s.copy_assign(range_pos + 2, last);
                 range += 1;
@@ -2365,6 +2366,23 @@ mod test {
         let subsetted_data = s.copy_bytes();
         let expected_bytes: [u8; 6] = [0x00, 0x01, 0x00, 0x01, 0x00, 0x03];
         assert_eq!(subsetted_data, expected_bytes);
+    }
+
+    #[test]
+    fn test_serialize_coverage_format2_glyph_0_after_glyph_65535() {
+        // Unsorted glyph lists reach the serializer as written in the font.
+        // 0xFFFF + 1 must start a new range, not wrap to 0 and swallow the rest.
+        let glyphs: Vec<_> = [0xFFFF_u32, 0, 1, 2, 3, 4, 5].map(GlyphId::new).into();
+        let mut s = Serializer::new(1024).unwrap();
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(CoverageTable::serialize(&mut s, &glyphs), Ok(()));
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let data = s.copy_bytes();
+        let coverage = CoverageTable::read(FontData::new(&data)).unwrap();
+        assert_eq!(coverage.coverage_format(), 2);
+        assert_eq!(coverage.iter().collect::<Vec<_>>(), glyphs);
     }
 
     #[test]
