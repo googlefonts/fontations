@@ -692,7 +692,9 @@ fn for_each_intersection<E>(
     // array_len of them count when choosing the side to walk.
     let coverage_population = coverage.population().min(array_len as usize);
 
-    if coverage_population as u32 > (glyph_set.len() as u32) * num_bits {
+    // Compare in u64: the ranges of a CoverageFormat4 can name more than
+    // u32::MAX glyphs, and the product can overflow u32.
+    if coverage_population as u64 > glyph_set.len() * u64::from(num_bits) {
         // Every glyph here is already in glyph_set, so only map if asked to.
         //
         // The range formats state the coverage index of each range, so a

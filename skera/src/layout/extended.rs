@@ -180,6 +180,30 @@ mod tests {
         }
     }
 
+    /// The ranges of a CoverageFormat4 can name 2^32 glyphs and more. With that
+    /// number truncated to 32 bits the intersection walked every one of them.
+    #[test]
+    fn intersection_does_not_walk_huge_coverage_ranges() {
+        let mut bytes = BeBuffer::new().push(4u16).push(Uint24::new(256));
+        for _ in 0..256 {
+            bytes = bytes.extend([0, 0xffffff, 0].map(Uint24::new));
+        }
+        let bytes = bytes.to_vec();
+        let coverage = CoverageTable::read(FontData::new(&bytes)).unwrap();
+        let glyph_set = [1, 2].map(GlyphId::new).into_iter().collect();
+        let mut indices = Vec::new();
+        // Walking the ranges finds both glyphs again in each of them.
+        let result = for_each_intersected_coverage_index(&coverage, &glyph_set, u32::MAX, |idx| {
+            if indices.len() == 2 {
+                return Err(());
+            }
+            indices.push(idx);
+            Ok(())
+        });
+        assert_eq!(result, Ok(()));
+        assert_eq!(indices, [1, 2]);
+    }
+
     #[test]
     fn coverage_serialization_rejects_24bit_overflow() {
         let mut s = Serializer::new(1024).unwrap();
