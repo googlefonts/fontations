@@ -64,16 +64,42 @@ impl SubsetTable<'_> for SingleSubstFormat4<'_> {
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let glyph_map = &plan.glyph_map_gsub;
+        let glyph_set = &plan.glyphset_gsub;
+        let glyph_count = self.glyph_count();
+        let cap = coverage
+            .population()
+            .min(glyph_set.len() as usize)
+            .min(glyph_count.to_u32() as usize);
+        let mut retained_glyphs = Vec::with_capacity(cap);
+        let mut sub_glyphs = Vec::with_capacity(cap);
+
+        // Like SingleSubstFormat2, let the helper pick the cheaper side to
+        // walk: a small subtable must not cost a pass over the whole glyph set.
         let substitutes = self.substitute_glyph_ids();
-        subset_pairs(
-            plan.glyphset_gsub.iter().filter_map(|gid| {
-                let index = coverage.get(gid)?;
-                let substitute = substitutes.get(index as usize)?.get();
-                Some((gid, substitute.into()))
-            }),
-            plan,
-            s,
-        )
+        let _ = for_each_intersected_glyph_and_index::<()>(
+            &coverage,
+            glyph_set,
+            glyph_map,
+            glyph_count,
+            |idx, new_g| {
+                let Some(new_sub_g) = substitutes
+                    .get(idx as usize)
+                    .and_then(|sub_g| map_gsub_glyph(glyph_map, GlyphId::from(sub_g.get())))
+                else {
+                    return Ok(());
+                };
+                retained_glyphs.push(new_g);
+                sub_glyphs.push(new_sub_g);
+                Ok(())
+            },
+        );
+
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        SingleSubst::serialize(s, (&retained_glyphs, &sub_glyphs))
     }
 }
 
@@ -252,6 +278,39 @@ mod tests {
             ..Default::default()
         };
         plan.glyphset_gsub.insert(GlyphId::new(65536));
+        plan.glyph_map_gsub[65536] = GlyphId::new(1);
+        plan.glyph_map_gsub[70000] = GlyphId::new(2);
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        table.subset(&plan, &mut s, ()).unwrap();
+        s.end_serialize();
+        let bytes = s.copy_bytes();
+        assert_eq!(
+            substitutes(&SingleSubst::read(FontData::new(&bytes)).unwrap()),
+            [2]
+        );
+    }
+
+    #[test]
+    fn single_subst4_subsetting_walks_coverage_not_large_glyph_set() {
+        // A one-glyph subtable against the largest possible retained glyph
+        // set: the intersection must be driven by the coverage side, so this
+        // stays instant rather than costing one coverage lookup per glyph.
+        let input = BeBuffer::new()
+            .push(4u16)
+            .push(12u32)
+            .push(Uint24::new(1))
+            .push(GlyphId24::new(70000))
+            .push(3u16)
+            .push(Uint24::new(1))
+            .push(Uint24::new(65536));
+        let table = SingleSubstFormat4::read(FontData::new(&input)).unwrap();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 70001],
+            ..Default::default()
+        };
+        plan.glyphset_gsub
+            .insert_range(GlyphId::new(0)..=GlyphId::new(0xffffff));
         plan.glyph_map_gsub[65536] = GlyphId::new(1);
         plan.glyph_map_gsub[70000] = GlyphId::new(2);
         let mut s = Serializer::new(1024).unwrap();

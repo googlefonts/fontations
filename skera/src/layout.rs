@@ -688,7 +688,9 @@ fn for_each_intersection<E>(
     mut f: impl FnMut(u32, GlyphId) -> Result<(), E>,
 ) -> Result<(), E> {
     let num_bits = coverage.cost();
-    let coverage_population = coverage.population();
+    // Coverage entries at or past array_len are skipped, so only the first
+    // array_len of them count when choosing the side to walk.
+    let coverage_population = coverage.population().min(array_len as usize);
 
     if coverage_population as u32 > (glyph_set.len() as u32) * num_bits {
         // Every glyph here is already in glyph_set, so only map if asked to.
@@ -1988,8 +1990,8 @@ mod test {
     fn intersection_stops_at_broken_coverage() {
         // Glyph 2 states coverage index 0 again, so the one array entry used
         // to be visited once per glyph. The walk stops there, before glyph 3.
-        // The last range holds glyphs that aren't retained, which makes the
-        // glyph set the cheaper side to walk.
+        // The last range holds glyphs that aren't retained and the array is
+        // long, which makes the glyph set the cheaper side to walk.
         let data = BeBuffer::new()
             .extend([2u16, 4])
             .extend([1u16, 1, 0, 2, 2, 0, 3, 3, 1, 4, 1000, 3]);
@@ -2001,7 +2003,7 @@ mod test {
             &coverage,
             &glyph_set,
             &glyph_map,
-            3u32,
+            1000u32,
             |idx, g| {
                 visited.push((idx, g.to_u32()));
                 Ok(())
