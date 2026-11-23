@@ -9,7 +9,8 @@ use crate::{
     layout::{for_each_intersected_glyph_and_index, map_gsub_glyph},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
-    CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, Serialize, SubsetFlags,
+    SubsetState, SubsetTable,
 };
 use read_fonts::{
     collections::IntSet,
@@ -333,12 +334,12 @@ array_value_position!(SinglePosFormat2, SinglePosFormat1, 2u16, Offset16, u16);
 array_value_position!(SinglePosFormat4, SinglePosFormat3, 4u16, Offset32, Uint24);
 
 impl CollectVariationIndices for SinglePos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
-            Self::Format1(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format2(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format3(item) => item.collect_variation_indices(plan, varidx_set),
-            Self::Format4(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::Format1(item) => item.collect_variation_indices(c),
+            Self::Format2(item) => item.collect_variation_indices(c),
+            Self::Format3(item) => item.collect_variation_indices(c),
+            Self::Format4(item) => item.collect_variation_indices(c),
         }
     }
 }
@@ -346,7 +347,7 @@ impl CollectVariationIndices for SinglePos<'_> {
 macro_rules! collect_single_value_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 if !self
                     .value_format()
                     .intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
@@ -356,11 +357,10 @@ macro_rules! collect_single_value_variations {
                 let Ok(coverage) = self.coverage() else {
                     return;
                 };
-                if !coverage.intersects(&plan.glyphset_gsub) {
+                if !coverage.intersects(&c.plan.glyphset_gsub) {
                     return;
                 }
-                self.value_record()
-                    .collect_variation_indices(plan, varidx_set);
+                self.value_record().collect_variation_indices(c);
             }
         }
     };
@@ -371,7 +371,7 @@ collect_single_value_variations!(SinglePosFormat3);
 macro_rules! collect_array_value_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let value_format = self.value_format();
                 if !value_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
                     return;
@@ -380,7 +380,7 @@ macro_rules! collect_array_value_variations {
                 let Ok(coverage) = self.coverage() else {
                     return;
                 };
-                let glyph_set = &plan.glyphset_gsub;
+                let glyph_set = &c.plan.glyphset_gsub;
                 let value_count = u32::from(self.value_count());
                 let record_size = compute_record_len(value_format);
                 let records_offset = self.value_count_byte_range().end;
@@ -395,7 +395,7 @@ macro_rules! collect_array_value_variations {
                     {
                         let offset = records_offset + idx as usize * record_size;
                         let value_record = ValueRecord::new(font_data, offset, value_format);
-                        value_record.collect_variation_indices(plan, varidx_set);
+                        value_record.collect_variation_indices(c);
                     }
                 } else {
                     for i in coverage.iter().enumerate().filter_map(|(idx, g)| {
@@ -403,7 +403,7 @@ macro_rules! collect_array_value_variations {
                     }) {
                         let offset = records_offset + i * record_size;
                         let value_record = ValueRecord::new(font_data, offset, value_format);
-                        value_record.collect_variation_indices(plan, varidx_set);
+                        value_record.collect_variation_indices(c);
                     }
                 }
             }
@@ -554,7 +554,10 @@ mod test {
         let mut plan = Plan::default();
         plan.glyphset_gsub.insert(GlyphId::from(20_u32));
         let mut varidx_set = IntSet::empty();
-        singlepos.collect_variation_indices(&plan, &mut varidx_set);
+        singlepos.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 1);
         assert!(varidx_set.contains(0x00030004));
 
@@ -562,7 +565,10 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(10_u32));
         plan.glyphset_gsub.insert(GlyphId::from(30_u32));
         varidx_set.clear();
-        singlepos.collect_variation_indices(&plan, &mut varidx_set);
+        singlepos.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 3);
         assert!(varidx_set.contains(0x00010002));
         assert!(varidx_set.contains(0x00030004));
@@ -820,7 +826,10 @@ mod test {
         }
 
         let mut varidx_set = IntSet::empty();
-        singlepos.collect_variation_indices(&plan, &mut varidx_set);
+        singlepos.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         varidx_set
     }
 
@@ -871,7 +880,10 @@ mod test {
                 plan.glyphset_gsub.insert(GlyphId::from(*g));
             }
             let mut varidx_set = IntSet::empty();
-            singlepos.collect_variation_indices(&plan, &mut varidx_set);
+            singlepos.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                &plan,
+                &mut varidx_set,
+            ));
             varidx_set.iter().collect::<Vec<_>>()
         };
 

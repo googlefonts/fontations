@@ -9,10 +9,12 @@ use read_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for LookupVariationRecord {
+    /// The last argument is what is left of the table's condition budget.
     type ArgsForSubset = (
         FontData<'a>,
         &'a FastHashMap<u16, u16>,
         &'a FastHashMap<u16, u16>,
+        &'a mut usize,
     );
     type Output = ();
 
@@ -22,7 +24,7 @@ impl<'a> SubsetTable<'a> for LookupVariationRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let (data, features, lookups) = args;
+        let (data, features, lookups, condition_ops) = args;
         let Some(index) = features.get(&self.feature_index()) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
@@ -34,20 +36,21 @@ impl<'a> SubsetTable<'a> for LookupVariationRecord {
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         s.embed(*index)?;
         let pos = s.embed(0u32)?;
-        Offset32::serialize_subset(&table, s, plan, lookups, pos)
+        Offset32::serialize_subset(&table, s, plan, (lookups, condition_ops), pos)
     }
 }
 
 impl<'a> SubsetTable<'a> for FeatureLookups<'_> {
-    type ArgsForSubset = &'a FastHashMap<u16, u16>;
+    type ArgsForSubset = (&'a FastHashMap<u16, u16>, &'a mut usize);
     type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        lookups: Self::ArgsForSubset,
+        args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        let (lookups, condition_ops) = args;
         if self.version() != MajorMinor::VERSION_1_0 {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         }
@@ -62,7 +65,7 @@ impl<'a> SubsetTable<'a> for FeatureLookups<'_> {
         let mut count = 0u32;
         for record in self.lookup_condition_records() {
             if !record
-                .subset(plan, s, (self.offset_data(), lookups))
+                .subset(plan, s, (self.offset_data(), lookups, &mut *condition_ops))
                 .is_empty()?
             {
                 count += 1;
@@ -75,7 +78,7 @@ impl<'a> SubsetTable<'a> for FeatureLookups<'_> {
 }
 
 impl<'a> SubsetTable<'a> for LookupConditionRecord {
-    type ArgsForSubset = (FontData<'a>, &'a FastHashMap<u16, u16>);
+    type ArgsForSubset = (FontData<'a>, &'a FastHashMap<u16, u16>, &'a mut usize);
     type Output = ();
 
     fn subset(
@@ -84,7 +87,7 @@ impl<'a> SubsetTable<'a> for LookupConditionRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let (data, lookups) = args;
+        let (data, lookups, condition_ops) = args;
         if self.lookup_index_list_offset().is_null() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
@@ -108,7 +111,7 @@ impl<'a> SubsetTable<'a> for LookupConditionRecord {
             .transpose()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
         {
-            Offset32::serialize_subset(&condition, s, plan, (), condition_pos)?;
+            Offset32::serialize_subset(&condition, s, plan, condition_ops, condition_pos)?;
         }
         Offset32::serialize_subset(&list, s, plan, lookups, list_pos)
     }

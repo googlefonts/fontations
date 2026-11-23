@@ -85,7 +85,10 @@ fn extended_single_positioning_preserves_format_values_and_variations() {
             let plan = plan(mapped);
             let table = SinglePos::read(FontData::new(&input)).unwrap();
             let mut indices = IntSet::empty();
-            table.collect_variation_indices(&plan, &mut indices);
+            table.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                &plan,
+                &mut indices,
+            ));
             assert_eq!(
                 indices.iter().collect::<Vec<_>>(),
                 if array {
@@ -139,7 +142,10 @@ fn extended_single_positioning_collapses_constant_arrays_and_strips_hints() {
     let mut indices = IntSet::empty();
     SinglePos::read(FontData::new(&input))
         .unwrap()
-        .collect_variation_indices(&plan, &mut indices);
+        .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut indices,
+        ));
     assert_eq!(indices.iter().collect::<Vec<_>>(), [0x00030004]);
     let bytes = subset(&input, &plan).unwrap();
     let table = SinglePosFormat3::read(FontData::new(&bytes)).unwrap();

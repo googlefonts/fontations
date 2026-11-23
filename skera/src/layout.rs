@@ -3,6 +3,7 @@
 mod classdef;
 mod condition;
 pub(crate) use condition::collect_feature_variation_condition_indices;
+use condition::condition_ops_budget;
 mod count_ops;
 mod extended;
 pub(crate) mod header;
@@ -24,7 +25,8 @@ use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable, INVALID_GID,
+    CollectVariationIndices, CollectVariationIndicesContext, NameIdClosure, Plan, Serialize,
+    SubsetState, SubsetTable, INVALID_GID,
 };
 use read_fonts::{
     collections::IntSet,
@@ -82,6 +84,7 @@ impl OpsBudget {
         OpsWalk {
             ops_left: self.max_ops,
             subtables_left: MAX_LOOKUP_SUBTABLES - 1,
+            ran_out: false,
             exceeded: Some(&mut self.exceeded),
         }
     }
@@ -100,17 +103,19 @@ impl OpsBudget {
 pub(crate) struct OpsWalk<'a> {
     ops_left: usize,
     subtables_left: usize,
+    ran_out: bool,
     exceeded: Option<&'a mut bool>,
 }
 
 impl OpsWalk<'static> {
-    /// The walk that subsets a GSUB or GPOS table, given the data of the whole
-    /// table. It may read as much as the walks of an [`OpsBudget`], and makes
-    /// the table fail to subset by itself.
+    /// The walk that subsets a GSUB, GPOS or BASE table, given the data of the
+    /// whole table. It may read as much as the walks of an [`OpsBudget`], and
+    /// makes the table fail to subset by itself.
     pub(crate) fn new(table_data: FontData) -> Self {
         Self {
             ops_left: max_ops(table_data.len()),
             subtables_left: MAX_LOOKUP_SUBTABLES - 1,
+            ran_out: false,
             exceeded: None,
         }
     }
@@ -122,6 +127,7 @@ impl Default for OpsWalk<'_> {
         Self {
             ops_left: usize::MAX,
             subtables_left: usize::MAX,
+            ran_out: false,
             exceeded: None,
         }
     }
@@ -138,6 +144,13 @@ impl OpsWalk<'_> {
     /// Counts a table that is about to be read; false once the budget is spent.
     pub(crate) fn visit<'a>(&mut self, table: &impl MinByteRange<'a>) -> bool {
         self.charge(table.min_table_bytes().len())
+    }
+
+    /// Records that the walk ran out of a budget it doesn't hold itself, such
+    /// as the operations of the layout conditions it reaches.
+    pub(crate) fn exceed(&mut self) {
+        self.ops_left = 0;
+        self.record(false);
     }
 
     /// Counts the subtables of a lookup that is about to be read; false once
@@ -161,7 +174,13 @@ impl OpsWalk<'_> {
         intersects
     }
 
+    /// Whether the walk has run out of budget.
+    pub(crate) fn ran_out(&self) -> bool {
+        self.ran_out
+    }
+
     fn record(&mut self, within_budget: bool) -> bool {
+        self.ran_out |= !within_budget;
         if let Some(exceeded) = self.exceeded.as_deref_mut() {
             *exceeded |= !within_budget;
         }
@@ -349,19 +368,19 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
 }
 
 impl CollectVariationIndices for DeviceOrVariationIndex<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
             Self::Device(_item) => (),
-            Self::VariationIndex(item) => item.collect_variation_indices(plan, varidx_set),
+            Self::VariationIndex(item) => item.collect_variation_indices(c),
         }
     }
 }
 
 impl CollectVariationIndices for VariationIndex<'_> {
-    fn collect_variation_indices(&self, _plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if self.delta_format() == DeltaFormat::VariationIndex {
             let var_idx = variation_index(self);
-            varidx_set.insert(var_idx);
+            c.varidx_set.insert(var_idx);
         }
     }
 }
@@ -1203,16 +1222,21 @@ pub(crate) struct SubsetLayoutContext {
     feature_index_count: u16,
     lookup_count: u16,
     table_tag: Tag,
+    // condition operations left for the FeatureVariations table
+    condition_ops: usize,
 }
 
 impl SubsetLayoutContext {
-    pub(crate) fn new(table_tag: Tag) -> Self {
+    /// A context for subsetting the `table_tag` table, given the data of the
+    /// whole GSUB or GPOS table.
+    pub(crate) fn new(table_tag: Tag, table_data: FontData) -> Self {
         Self {
             script_count: 0,
             langsys_count: 0,
             feature_index_count: 0,
             lookup_count: 0,
             table_tag,
+            condition_ops: condition_ops_budget(max_ops(table_data.len())),
         }
     }
 
@@ -1716,7 +1740,16 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
             };
             for record in records {
                 record
-                    .subset(plan, s, (font_data, feature_index_map, lookup_map))
+                    .subset(
+                        plan,
+                        s,
+                        (
+                            font_data,
+                            feature_index_map,
+                            lookup_map,
+                            &mut c.condition_ops,
+                        ),
+                    )
                     .is_empty()?;
             }
         }
@@ -1779,7 +1812,13 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
             .transpose()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
         {
-            Offset32::serialize_subset(&condition_set, s, plan, (), condition_set_offset_pos)?;
+            Offset32::serialize_subset(
+                &condition_set,
+                s,
+                plan,
+                &mut c.condition_ops,
+                condition_set_offset_pos,
+            )?;
         }
 
         let feature_substitutions_offset_pos = s.embed(0_u32)?;
@@ -2536,7 +2575,7 @@ mod test {
         let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
-        let mut c = SubsetLayoutContext::new(Gpos::TAG);
+        let mut c = SubsetLayoutContext::new(Gpos::TAG, font.gpos().unwrap().offset_data());
         gpos_script_list.subset(&plan, &mut s, &mut c).unwrap();
         assert!(!s.in_error());
         s.end_serialize();
@@ -2569,7 +2608,7 @@ mod test {
         let mut s = Serializer::new(1024).unwrap();
         assert_eq!(s.start_serialize(), Ok(()));
 
-        let mut c = SubsetLayoutContext::new(Gpos::TAG);
+        let mut c = SubsetLayoutContext::new(Gpos::TAG, font.gpos().unwrap().offset_data());
         gpos_feature_list.subset(&plan, &mut s, &mut c).unwrap();
         assert!(!s.in_error());
         s.end_serialize();

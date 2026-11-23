@@ -3,10 +3,9 @@
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetFlags, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetFlags, SubsetTable,
 };
 use read_fonts::{
-    collections::IntSet,
     tables::gpos::{AnchorFormat1, AnchorFormat2, AnchorFormat3, AnchorTable},
     types::Offset16,
     MinByteRange,
@@ -132,20 +131,20 @@ impl SubsetTable<'_> for AnchorFormat3<'_> {
 }
 
 impl CollectVariationIndices for AnchorTable<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Self::Format3(item) = self {
-            item.collect_variation_indices(plan, varidx_set)
+            item.collect_variation_indices(c)
         }
     }
 }
 
 impl CollectVariationIndices for AnchorFormat3<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         if let Some(Ok(x_device)) = self.x_device() {
-            x_device.collect_variation_indices(plan, varidx_set);
+            x_device.collect_variation_indices(c);
         }
         if let Some(Ok(y_device)) = self.y_device() {
-            y_device.collect_variation_indices(plan, varidx_set);
+            y_device.collect_variation_indices(c);
         }
     }
 }

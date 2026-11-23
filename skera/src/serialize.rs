@@ -290,7 +290,8 @@ pub struct Serializer {
     /// What is left of [`MAX_SUBSET_TABLE_OPS`].
     ops_left: usize,
 
-    /// What subsetting the lookups of a layout table may still read.
+    /// What subsetting the lookups of a layout table, or the tables of BASE,
+    /// may still read.
     layout_walk: OpsWalk<'static>,
 }
 
@@ -327,13 +328,15 @@ impl Serializer {
         })
     }
 
-    /// Limits what subsetting the lookups of a layout table may read.
+    /// Limits what subsetting the lookups of a layout table, or the tables of
+    /// BASE, may read.
     pub(crate) fn set_layout_walk(&mut self, walk: OpsWalk<'static>) {
         self.layout_walk = walk;
     }
 
-    /// What subsetting the lookups of a layout table may still read: anything,
-    /// unless [`Self::set_layout_walk`] said otherwise.
+    /// What subsetting the lookups of a layout table, or the tables of BASE,
+    /// may still read: anything, unless [`Self::set_layout_walk`] said
+    /// otherwise.
     pub(crate) fn layout_walk(&mut self) -> &mut OpsWalk<'static> {
         &mut self.layout_walk
     }

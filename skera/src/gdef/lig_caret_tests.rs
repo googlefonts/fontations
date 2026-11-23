@@ -96,7 +96,10 @@ fn ligature_carets_preserve_width_and_remap_glyphs_and_variations() {
     for wide in [false, true] {
         let input = input(wide);
         let mut indices = IntSet::empty();
-        read(&input, wide).collect_variation_indices(&plan, &mut indices);
+        read(&input, wide).collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut indices,
+        ));
         assert_eq!(indices.iter().collect::<Vec<_>>(), [0x10002, 0x30004]);
         let bytes = subset(&input, wide, &plan).unwrap();
         let table = read(&bytes, wide);

@@ -1,5 +1,6 @@
 use super::*;
 use font_test_data::bebuffer::BeBuffer;
+use read_fonts::collections::IntSet;
 use read_fonts::types::GlyphId24;
 use read_fonts::{
     tables::{gpos::AnchorTable, layout::DeviceOrVariationIndex},
@@ -110,7 +111,10 @@ fn extended_mark_ligature_remaps_classes_anchors_and_preserves_components() {
         let mut indices = IntSet::empty();
         MarkLigPos::read(FontData::new(&input))
             .unwrap()
-            .collect_variation_indices(&plan, &mut indices);
+            .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                &plan,
+                &mut indices,
+            ));
         assert_eq!(
             indices.iter().collect::<Vec<_>>(),
             [0x10002, 0x30004, 0x50006, 0x70008]

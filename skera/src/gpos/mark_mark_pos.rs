@@ -12,10 +12,9 @@ use crate::{
     },
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
-    CollectVariationIndices, Plan, SubsetState, SubsetTable,
+    CollectVariationIndices, CollectVariationIndicesContext, Plan, SubsetState, SubsetTable,
 };
 use read_fonts::{
-    collections::IntSet,
     tables::{
         gpos::{
             Mark2Array, Mark2Array2, Mark2Record, Mark2Record2, MarkMarkPos, MarkMarkPosFormat1,
@@ -30,7 +29,7 @@ use read_fonts::{
 macro_rules! collect_mark_mark_variations {
     ($table:ident) => {
         impl CollectVariationIndices for $table<'_> {
-            fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+            fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
                 let Ok(mark1_coverage) = self.mark1_coverage() else {
                     return;
                 };
@@ -38,7 +37,7 @@ macro_rules! collect_mark_mark_variations {
                     return;
                 };
 
-                let glyph_set = &plan.glyphset_gsub;
+                let glyph_set = &c.plan.glyphset_gsub;
                 let mark1_array_data = mark1_array.offset_data();
                 let mark1_records = mark1_array.mark_records();
 
@@ -46,8 +45,7 @@ macro_rules! collect_mark_mark_variations {
                     &mark1_coverage,
                     mark1_records,
                     mark1_array_data,
-                    plan,
-                    varidx_set,
+                    c,
                 );
 
                 let Ok(mark2_coverage) = self.mark2_coverage() else {
@@ -67,7 +65,7 @@ macro_rules! collect_mark_mark_variations {
                         let anchors = record.mark2_anchors(mark2_array_data);
                         for class in retained_mark_classes.iter() {
                             if let Some(Ok(anchor)) = anchors.get(class as usize) {
-                                anchor.collect_variation_indices(plan, varidx_set);
+                                anchor.collect_variation_indices(c);
                             }
                         }
                         Ok::<(), read_fonts::ReadError>(())
@@ -313,10 +311,10 @@ impl<'a> SubsetTable<'a> for MarkMarkPos<'_> {
 }
 
 impl CollectVariationIndices for MarkMarkPos<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+    fn collect_variation_indices(&self, c: &mut CollectVariationIndicesContext) {
         match self {
-            Self::Format1(t) => t.collect_variation_indices(plan, varidx_set),
-            Self::Format2(t) => t.collect_variation_indices(plan, varidx_set),
+            Self::Format1(t) => t.collect_variation_indices(c),
+            Self::Format2(t) => t.collect_variation_indices(c),
         }
     }
 }
@@ -324,6 +322,7 @@ impl CollectVariationIndices for MarkMarkPos<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use read_fonts::collections::IntSet;
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
@@ -347,7 +346,10 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(583_u32));
 
         let mut varidx_set = IntSet::empty();
-        markmarkpos_table.collect_variation_indices(&plan, &mut varidx_set);
+        markmarkpos_table.collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut varidx_set,
+        ));
         assert_eq!(varidx_set.len(), 5);
         assert!(varidx_set.contains(0x300000_u32));
         assert!(varidx_set.contains(0x6f001a_u32));

@@ -52,7 +52,10 @@ fn extended_class_pairs_preserve_format_matrix_and_variations() {
         let mut indices = IntSet::empty();
         PairPos::read(FontData::new(&input))
             .unwrap()
-            .collect_variation_indices(&plan, &mut indices);
+            .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+                &plan,
+                &mut indices,
+            ));
         assert_eq!(indices.iter().collect::<Vec<_>>(), [0x00050006]);
         let bytes = subset(&input, &plan).unwrap();
         let table = PairPosFormat4::read(FontData::new(&bytes)).unwrap();

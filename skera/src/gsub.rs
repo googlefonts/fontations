@@ -211,7 +211,7 @@ fn subset_gsub(
         return subset_extended_layout(gsub, plan, font, state, s);
     }
     let version_pos = s.embed(gsub.version())?;
-    let mut c = SubsetLayoutContext::new(Gsub::TAG);
+    let mut c = SubsetLayoutContext::new(Gsub::TAG, gsub.offset_data());
     let script_list_offset_pos = s.embed(0_u16)?;
     let feature_list_offset_pos = s.embed(0_u16)?;
     let lookup_list_offset_pos = s.embed(0_u16)?;

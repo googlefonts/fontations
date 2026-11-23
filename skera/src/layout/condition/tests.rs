@@ -33,11 +33,11 @@ fn negate(child: Option<Vec<u8>>) -> Vec<u8> {
 
 fn subset<T>(table: &T, plan: &Plan) -> Result<Vec<u8>, SerializeErrorFlags>
 where
-    for<'a> T: SubsetTable<'a, ArgsForSubset = (), Output = ()>,
+    for<'a> T: SubsetTable<'a, ArgsForSubset = &'a mut usize, Output = ()>,
 {
     let mut s = Serializer::new(1024 * 1024).unwrap();
     s.start_serialize().unwrap();
-    table.subset(plan, &mut s, ())?;
+    table.subset(plan, &mut s, &mut CONDITION_OPERATIONS.clone())?;
     s.end_serialize();
     if s.in_error() {
         return Err(s.error());
@@ -90,7 +90,14 @@ fn conditions_preserve_all_formats_and_remap_variable_values() {
         }
     }
     let mut indices = IntSet::empty();
-    output.collect_variation_indices(&plan, &mut indices);
+    let mut remaining = CONDITION_OPERATIONS;
+    collect_condition_indices(
+        &output,
+        crate::MAX_NESTING_LEVEL,
+        &mut remaining,
+        &mut indices,
+    )
+    .unwrap();
     assert_eq!(indices.iter().collect::<Vec<_>>(), [0x70008]);
     let bytes = variable(-5, 0x10002);
     let table = Condition::read(FontData::new(&bytes)).unwrap();
@@ -212,7 +219,14 @@ fn condition_serialization_rejects_truncation_and_bounds_tree_work() {
         Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
     );
     let mut indices = IntSet::empty();
-    table.collect_variation_indices(&plan, &mut indices);
+    let mut remaining = CONDITION_OPERATIONS;
+    assert!(collect_condition_indices(
+        &table,
+        crate::MAX_NESTING_LEVEL,
+        &mut remaining,
+        &mut indices
+    )
+    .is_err());
     assert!(indices.contains(0x10002));
     let bytes = BeBuffer::new().push(1u16).to_vec();
     let table = ConditionSet::read(FontData::new(&bytes)).unwrap();
@@ -247,7 +261,6 @@ fn feature_variations_collect_conditional_only_and_earlier_barrier_indices() {
     let mut indices = IntSet::empty();
     collect_feature_variation_condition_indices(
         &table,
-        &Plan::default(),
         &features,
         &lookups,
         &mut indices,
@@ -257,7 +270,6 @@ fn feature_variations_collect_conditional_only_and_earlier_barrier_indices() {
     indices.clear();
     collect_feature_variation_condition_indices(
         &table,
-        &Plan::default(),
         &features,
         &FastHashMap::default(),
         &mut indices,
@@ -292,11 +304,101 @@ fn feature_variations_collect_conditional_only_and_earlier_barrier_indices() {
     let table = FeatureVariations::read(FontData::new(&bytes)).unwrap();
     collect_feature_variation_condition_indices(
         &table,
-        &Plan::default(),
         &features,
         &lookups,
         &mut indices,
         &mut OpsBudget::new(table.offset_data()),
     );
     assert_eq!(indices.iter().collect::<Vec<_>>(), [0x10002]);
+}
+
+// A FeatureVariations 1.1 table for feature 0: `records` LookupVariationRecords
+// share one FeatureLookups whose `conditions` LookupConditionRecords all name
+// AND(255 x variable value 0x10001), then one more record names the
+// condition variable value 0x20002.
+fn shared_lookup_conditions(records: u32, conditions: u32) -> Vec<u8> {
+    let shared = 12 + 6 * (records + 1);
+    let last = shared + 10 + 8 * conditions;
+    let list = last + 18;
+    let heavy = list + 4;
+    let light = heavy + 3 + 3 * 255 + 8;
+    let mut buf = BeBuffer::new().extend([1u16, 1]).extend([0, records + 1]);
+    for i in 0..=records {
+        buf = buf.push(0u16).push(if i < records { shared } else { last });
+    }
+    buf = buf.extend([1u16, 0, 0]).push(conditions);
+    for _ in 0..conditions {
+        buf = buf.extend([heavy - shared, list - shared]);
+    }
+    buf = buf.extend([1u16, 0, 0]).push(1u32);
+    buf = buf.extend([light - last, list - last]).extend([1u16, 0]);
+    buf = buf.push(3u16).push(255u8);
+    for _ in 0..255 {
+        buf = buf.push(Uint24::new(3 + 3 * 255));
+    }
+    let mut bytes = buf.to_vec();
+    bytes.extend(variable(1, 0x10001));
+    bytes.extend(variable(1, 0x20002));
+    bytes
+}
+
+#[test]
+fn feature_variations_conditions_share_one_budget() {
+    let features = [(0, 0)].into_iter().collect();
+    let lookups = [(0, 0)].into_iter().collect();
+    let plan = Plan {
+        gsub_features_w_duplicates: [(0, 0)].into_iter().collect(),
+        gsub_lookups: [(0, 0)].into_iter().collect(),
+        ..Default::default()
+    };
+    // The FeatureVariations table at `bytes`, in a GSUB table of `table_data`.
+    let collect = |bytes: &[u8], table_data: FontData| {
+        let table = FeatureVariations::read(FontData::new(bytes)).unwrap();
+        let mut indices = IntSet::empty();
+        let mut budget = OpsBudget::new(table_data);
+        collect_feature_variation_condition_indices(
+            &table,
+            &features,
+            &lookups,
+            &mut indices,
+            &mut budget,
+        );
+        let mut plan = Plan::default();
+        budget.record(Gsub::TAG, &mut plan);
+        let exceeded = plan.layout_ops_exceeded.contains(Gsub::TAG);
+        (indices.iter().collect::<Vec<_>>(), exceeded)
+    };
+    let subset = |bytes: &[u8], table_data: FontData| {
+        let table = FeatureVariations::read(FontData::new(bytes)).unwrap();
+        let mut s = Serializer::new(1024 * 1024).unwrap();
+        s.start_serialize().unwrap();
+        let mut context = SubsetLayoutContext::new(Gsub::TAG, table_data);
+        let ret = table.subset(&plan, &mut s, (&[], &mut context));
+        s.end_serialize();
+        ret
+    };
+
+    // 4 x 4 walks of the 256 operation condition fit the table's budget.
+    let bytes = shared_lookup_conditions(4, 4);
+    let data = FontData::new(&bytes);
+    assert_eq!(collect(&bytes, data), (vec![0x10001, 0x20002], false));
+    assert_eq!(subset(&bytes, data), Ok(()));
+
+    // 40 x 40 walks do not: each record no longer gets a budget of its own, so
+    // the walks stop before they reach the last record, and the plan records
+    // that the table can't be subset.
+    let bytes = shared_lookup_conditions(40, 40);
+    let data = FontData::new(&bytes);
+    assert_eq!(collect(&bytes, data), (vec![0x10001], true));
+    assert_eq!(
+        subset(&bytes, data),
+        Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+    );
+
+    // The budget is that of the whole GSUB table: in one of 8000 bytes, the
+    // same records fit it.
+    let gsub = [0; 8000];
+    let data = FontData::new(&gsub);
+    assert_eq!(collect(&bytes, data), (vec![0x10001, 0x20002], false));
+    assert_eq!(subset(&bytes, data), Ok(()));
 }

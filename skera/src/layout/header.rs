@@ -53,7 +53,7 @@ macro_rules! subset_extended_layout {
             let script32_pos = s.embed(0u32)?;
             let feature32_pos = s.embed(0u32)?;
             let lookup32_pos = s.embed(0u32)?;
-            let mut c = SubsetLayoutContext::new($table::TAG);
+            let mut c = SubsetLayoutContext::new($table::TAG, table.offset_data());
 
             if !script_offset.is_null() || !table.script_list_offset().is_null() {
                 let list = table
