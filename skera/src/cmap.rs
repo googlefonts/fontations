@@ -43,12 +43,13 @@ impl Subset for Cmap<'_> {
             s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             return Err(SubsetTableError(Cmap::TAG));
         }
-        let retained_encoding_records: Vec<(usize, &EncodingRecord)> = self
-            .encoding_records()
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| retain_encoding_record_for_subset(r, self))
-            .collect();
+        // The records that are subset: of those that retain_encoding_record_for_subset keeps,
+        // the ones whose subtable has a format that is subset, and only the first of each
+        // platform and encoding; see is_first_record_for_encoding. Nothing after this loop
+        // sees another record, so can_drop_format12 can only drop a format 12 subtable for a
+        // subtable that is written.
+        let mut retained_encoding_records: Vec<&EncodingRecord> = Vec::new();
+        let mut seen_encodings = IntSet::empty();
 
         let mut has_unicode_bmp = false;
         let mut has_unicode_usc4 = false;
@@ -57,16 +58,22 @@ impl Subset for Cmap<'_> {
         let mut has_format12 = false;
         let mut has_ms_symbol = false;
 
-        for (_, record) in retained_encoding_records.iter() {
-            if record.platform_id() == PlatformId::Windows && record.encoding_id() == 0 {
-                has_ms_symbol |= record
-                    .subtable(self.offset_data())
-                    .is_ok_and(|t| matches!(t.format(), 4 | 12));
+        for record in self
+            .encoding_records()
+            .iter()
+            .filter(|r| retain_encoding_record_for_subset(r, self))
+        {
+            let format = record.subtable(self.offset_data()).ok().map(|t| t.format());
+            if let Some(format @ (4 | 12 | 14 | 15)) = format {
+                if is_first_record_for_encoding(record, format, &mut seen_encodings) {
+                    retained_encoding_records.push(record);
+                }
             }
-            if record
-                .subtable(self.offset_data())
-                .is_ok_and(|t| t.format() == 12)
-            {
+
+            if record.platform_id() == PlatformId::Windows && record.encoding_id() == 0 {
+                has_ms_symbol |= matches!(format, Some(4 | 12));
+            }
+            if format == Some(12) {
                 has_format12 = true;
             }
 
@@ -127,6 +134,7 @@ fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), Se
     let count_pos = s.embed(0u16)?;
     let mut count = 0;
     let variation_index = dmap.uvs_subtable().map(|(index, _)| index as usize);
+    let mut seen_encodings = IntSet::empty();
     for (index, record) in dmap.encoding_records().iter().enumerate() {
         let retain = retain_encoding_record_for_subset(record, dmap)
             || (record.platform_id() == PlatformId::Unicode
@@ -141,6 +149,9 @@ fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), Se
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         }
         if matches!(subtable.format(), 14 | 15) && Some(index) != variation_index {
+            continue;
+        }
+        if !is_first_record_for_encoding(record, subtable.format(), &mut seen_encodings) {
             continue;
         }
         let truncated = match &subtable {
@@ -196,11 +207,35 @@ fn retain_encoding_record_for_subset(record: &EncodingRecord, cmap: &Cmap) -> bo
             .is_ok_and(|t| matches!(t.format(), 14 | 15))
 }
 
+/// Returns whether `record`, whose subtable has `format`, is the first encoding record of its
+/// platform and encoding, and notes that pair in `seen_encodings` as HarfBuzz does: the platform
+/// id in the high 16 bits and the encoding id in the low ones.
+///
+/// Only the first record of a pair is subset, as in HarfBuzz: a lookup finds one record per pair,
+/// and a valid cmap has no more. Subsetting a record costs time in proportion to the retained
+/// codepoints while repeating one costs a font 8 bytes. The records of variation selector
+/// subtables are exempt, so that a font with a format 14 and a format 15 subtable keeps both.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L2585-L2603>
+fn is_first_record_for_encoding(
+    record: &EncodingRecord,
+    format: u16,
+    seen_encodings: &mut IntSet<u32>,
+) -> bool {
+    if matches!(format, 14 | 15) {
+        return true;
+    }
+    let encoding = ((record.platform_id() as u32) << 16) | u32::from(record.encoding_id());
+    seen_encodings.insert(encoding)
+}
+
+/// Whether the format 12 subtable of `cmap12_record` can be left out: it has no codepoint past
+/// the BMP, and the BMP record of its platform and language in `retained_encoding_records`,
+/// which are the records that are subset, maps the same codepoints.
 fn can_drop_format12(
     cmap12_record: &EncodingRecord,
     cmap12_subset_unicodes: &IntSet<u32>,
     cmap: &Cmap,
-    retained_encoding_records: &[(usize, &EncodingRecord)],
+    retained_encoding_records: &[&EncodingRecord],
     unicodes_cache: &mut SubtableUnicodeCache,
     subset_unicodes: &IntSet<u32>,
     num_glyphs: usize,
@@ -227,7 +262,7 @@ fn can_drop_format12(
         .unwrap()
         .language();
 
-    for (rec_idx, rec) in retained_encoding_records.iter() {
+    for rec in retained_encoding_records.iter() {
         let Ok(subtable) = rec.subtable(cmap.offset_data()) else {
             continue;
         };
@@ -238,7 +273,7 @@ fn can_drop_format12(
             continue;
         }
 
-        let Some(sibling_unicodes) = unicodes_cache.set_for(*rec_idx, &subtable, num_glyphs) else {
+        let Some(sibling_unicodes) = unicodes_cache.set_for(rec, &subtable, num_glyphs) else {
             continue;
         };
 
@@ -277,11 +312,14 @@ fn cmap_mappings(
         .collect()
 }
 
+/// Subsets the subtables of `retained_encoding_records`, which are the records that
+/// `Cmap::subset` collects: each has a subtable of format 4, 12, 14 or 15, and none repeats
+/// the platform and encoding of another, the records of variation selector subtables aside.
 fn serialize_cmap(
     cmap: &Cmap,
     s: &mut Serializer,
     plan: &Plan,
-    retained_encoding_records: &[(usize, &EncodingRecord)],
+    retained_encoding_records: &[&EncodingRecord],
     has_dmap: bool,
 ) -> Result<(), SerializeErrorFlags> {
     // allocate header: version + numTables
@@ -291,10 +329,12 @@ fn serialize_cmap(
     let mut format12_objidx = None;
     let mut format14_objidx = None;
     let mut format15_objidx = None;
+    // the variation selector subtables that subset to nothing, by offset
+    let mut empty_uvs_subtables = IntSet::empty();
     //TODO: add support for cmap_cache in plan accelerator
     let mut unicodes_cache =
         SubtableUnicodeCache::new(cmap.offset_data().as_bytes().as_ptr() as usize);
-    for (rec_idx, record) in retained_encoding_records.iter() {
+    for record in retained_encoding_records.iter() {
         if s.in_error() {
             return Err(s.error());
         }
@@ -304,13 +344,9 @@ fn serialize_cmap(
         };
 
         let format = subtable.format();
-        if !matches!(format, 4 | 12 | 14 | 15) {
-            continue;
-        }
-
         if format == 4 {
             let Some(unicodes_set) =
-                unicodes_cache.set_for(*rec_idx, &subtable, plan.font_num_glyphs)
+                unicodes_cache.set_for(record, &subtable, plan.font_num_glyphs)
             else {
                 continue;
             };
@@ -340,7 +376,7 @@ fn serialize_cmap(
             }
         } else if format == 12 {
             let Some(unicodes_set) =
-                unicodes_cache.set_for(*rec_idx, &subtable, plan.font_num_glyphs)
+                unicodes_cache.set_for(record, &subtable, plan.font_num_glyphs)
             else {
                 continue;
             };
@@ -372,6 +408,13 @@ fn serialize_cmap(
                 false,
             )?;
         } else if format == 14 || format == 15 {
+            // Every record of a variation selector subtable is kept, and a subtable that
+            // subsets to nothing writes no record and leaves no object to link the next
+            // record to. Don't subset it again for each record that names it.
+            let offset = record.subtable_offset().to_u32();
+            if empty_uvs_subtables.contains(offset) {
+                continue;
+            }
             let objidx = if format == 14 {
                 &mut format14_objidx
             } else {
@@ -386,6 +429,9 @@ fn serialize_cmap(
                 *objidx,
                 false,
             )?;
+            if objidx.is_none() {
+                empty_uvs_subtables.insert(offset);
+            }
         }
     }
 
@@ -1361,18 +1407,24 @@ impl SubtableUnicodeCache {
         }
     }
 
+    /// The codepoints of the subtable of `record`. Records that share a subtable share the set,
+    /// as in HarfBuzz.
+    /// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L1899-L1918>
     fn set_for(
         &mut self,
-        record_idx: usize,
+        record: &EncodingRecord,
         cmap_subtable: &CmapSubtable,
         num_glyphs: usize,
     ) -> Option<&IntSet<u32>> {
-        self.cached_unicodes.entry(record_idx).or_insert_with(|| {
-            let mut subtable_unicodes_set = IntSet::empty();
-            cmap_subtable.collect_unicodes(num_glyphs, &mut subtable_unicodes_set);
-            subtable_unicodes_set
-        });
-        self.cached_unicodes.get(&record_idx)
+        let subtable_offset = record.subtable_offset().to_u32() as usize;
+        self.cached_unicodes
+            .entry(subtable_offset)
+            .or_insert_with(|| {
+                let mut subtable_unicodes_set = IntSet::empty();
+                cmap_subtable.collect_unicodes(num_glyphs, &mut subtable_unicodes_set);
+                subtable_unicodes_set
+            });
+        self.cached_unicodes.get(&subtable_offset)
     }
 }
 
