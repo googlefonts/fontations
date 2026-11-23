@@ -778,21 +778,73 @@ impl FixedTransform {
     }
 }
 
-/// Approximate magnitude of a transform basis vector.
+/// Magnitude of a transform basis vector, used by both fixed point modes to
+/// scale a component offset that asks to be scaled.
 ///
-/// According to FreeType this algorithm is a "guess" that works better than the
-/// one Apple documents, so both fixed point modes use it to scale a component
-/// offset that asks to be scaled.
+/// FreeType scales the offset by `FT_Hypot` of each basis vector (the
+/// "guess" its comment mentions is this choice of factor, which works better
+/// than the one Apple documents). `FT_Hypot` is the CORDIC
+/// `FT_Vector_Length`, not the `FT_HYPOT` approximation, and this is a port
+/// of it. skrifa's glyf scaler has the same function.
 ///
 /// <https://github.com/freetype/freetype/blob/b1c90733ee6a04882b133101d61b12e352eeb290/src/truetype/ttgload.c#L1259>
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/fttrigon.c>
 fn hypot_fixed(a: Fixed, b: Fixed) -> Fixed {
-    let a = a.to_bits().abs();
-    let b = b.to_bits().abs();
-    Fixed::from_bits(if a > b {
-        a + ((3 * b) >> 3)
+    const TRIG_SCALE: u64 = 0xDBD9_5B16;
+    const TRIG_SAFE_MSB: i32 = 29;
+    const TRIG_MAX_ITERS: i32 = 23;
+    let (mut x, mut y) = (a.to_bits() as i64, b.to_bits() as i64);
+    if x == 0 {
+        return Fixed::from_bits(y.abs() as i32);
+    } else if y == 0 {
+        return Fixed::from_bits(x.abs() as i32);
+    }
+    // ft_trig_prenorm
+    let msb = 63 - (x.unsigned_abs() | y.unsigned_abs()).leading_zeros() as i32;
+    let shift = if msb <= TRIG_SAFE_MSB {
+        let shift = TRIG_SAFE_MSB - msb;
+        x <<= shift;
+        y <<= shift;
+        shift
     } else {
-        b + ((3 * a) >> 3)
-    })
+        let shift = msb - TRIG_SAFE_MSB;
+        x >>= shift;
+        y >>= shift;
+        -shift
+    };
+    // ft_trig_pseudo_polarize, keeping only the length
+    if y > x {
+        if y > -x {
+            (x, y) = (y, -x);
+        } else {
+            (x, y) = (-x, -y);
+        }
+    } else if y < -x {
+        (x, y) = (-y, x);
+    }
+    let mut b = 1i64;
+    for i in 1..TRIG_MAX_ITERS {
+        let xtemp = if y > 0 {
+            let xtemp = x + ((y + b) >> i);
+            y -= (x + b) >> i;
+            xtemp
+        } else {
+            let xtemp = x - ((y + b) >> i);
+            y += (x + b) >> i;
+            xtemp
+        };
+        x = xtemp;
+        b <<= 1;
+    }
+    // ft_trig_downscale
+    let len = ((x.unsigned_abs() * TRIG_SCALE + 0x4000_0000) >> 32) as i64;
+    let len = if x < 0 { -len } else { len };
+    let len = if shift > 0 {
+        (len + (1 << (shift - 1))) >> shift
+    } else {
+        len << -shift
+    };
+    Fixed::from_bits(len as i32)
 }
 
 /// Computes the deltas for a simple glyph of a varying font, and reports
@@ -914,13 +966,61 @@ mod tests {
         }
     }
 
+    /// A scaled offset of a rotated component is scaled by the exact length of
+    /// each basis vector, as FreeType's `FT_Hypot` computes it.
+    #[test]
+    fn scaled_component_offset_uses_basis_length() {
+        // 45 degree rotation: 0x2D41 is cos/sin 45 in 2.14.
+        let transform = Transform {
+            xx: F2Dot14::from_bits(0x2D41),
+            yx: F2Dot14::from_bits(0x2D41),
+            xy: F2Dot14::from_bits(-0x2D41),
+            yy: F2Dot14::from_bits(0x2D41),
+        };
+        // FT_Hypot(46340, -46340) is 65535, and
+        // FT_MulFix(1000, 65535) = (65535000 + 0x8000) >> 16 = 1000.
+        assert_eq!(
+            hypot_fixed(Fixed::from_bits(46340), Fixed::from_bits(-46340)),
+            Fixed::from_bits(65535)
+        );
+        let offset = Point::new(1000, 1000);
+        let unscaled =
+            Unscaled.component_offset(offset, &transform, true, None, OffsetRounding::default());
+        assert_eq!(unscaled, Point::new(1000, 1000));
+        let fixed = Scale26Dot6::new(None, 1000).component_offset(
+            offset,
+            &transform,
+            true,
+            None,
+            OffsetRounding::default(),
+        );
+        assert_eq!(fixed.map(F26Dot6::to_i32), Point::new(1000, 1000));
+        let float = ScaleF32::new(None, 1000).component_offset(
+            offset,
+            &transform,
+            true,
+            None,
+            OffsetRounding::default(),
+        );
+        assert!((float.x - 1000.0).abs() < 0.5 && (float.y - 1000.0).abs() < 0.5);
+    }
+
+    #[test]
+    fn hypot_fixed_matches_vector_length() {
+        let f = Fixed::from_i32;
+        assert_eq!(hypot_fixed(f(1), f(0)), f(1));
+        assert_eq!(hypot_fixed(f(0), f(-2)), f(2));
+        assert_eq!(hypot_fixed(f(3), f(-4)).round(), f(5));
+        assert_eq!(hypot_fixed(f(-2), f(-2)).round(), f(3));
+    }
+
     /// Every input to `component_offset` is bounded, so the arithmetic cannot
     /// overflow whatever the font says.
     ///
     /// An anchor offset is an `i16`. `FixedTransform` widens an `F2Dot14` to
-    /// at most two, so `hypot_fixed` of a pair is at most 2.75. `to_i32` is a
+    /// at most two, so `hypot_fixed` of a pair is at most 2.83. `to_i32` is a
     /// shift by sixteen, so a delta contributes at most 2^15. The sum stays
-    /// near 2^17; the measured worst case is 122,880, which `i32` clears by a
+    /// near 2^17; the measured worst case is 125,450, which `i32` clears by a
     /// factor of seventeen thousand. A debug build panics
     /// on overflow, so running this is most of the check; the bound is
     /// asserted so a later change that widens an input is caught here.
