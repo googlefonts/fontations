@@ -73,7 +73,11 @@ impl BitmapSize {
                 IndexSubtable::Format4(st) => {
                     location.format = st.image_format();
                     let array = st.glyph_array();
-                    let array_ix = match array
+                    // The last record only marks the end of the last glyph's
+                    // data. Its glyph id is not meaningful (fontTools writes 0),
+                    // so leave it out of the search.
+                    let glyphs = &array[..array.len().saturating_sub(1)];
+                    let array_ix = match glyphs
                         .binary_search_by(|x| x.glyph_id().to_u32().cmp(&glyph_id.to_u32()))
                     {
                         Ok(ix) => ix,
@@ -448,6 +452,10 @@ mod tests {
     }
 
     fn bitmap_size_with_subtable(subtable: &[u8]) -> BeBuffer {
+        bitmap_size_with_subtable_for_glyphs(0, 0, subtable)
+    }
+
+    fn bitmap_size_with_subtable_for_glyphs(first: u16, last: u16, subtable: &[u8]) -> BeBuffer {
         BeBuffer::new()
             .push(BitmapSize::RAW_BYTE_LEN as u32)
             .push((IndexSubtableRecord::RAW_BYTE_LEN + subtable.len()) as u32)
@@ -455,14 +463,14 @@ mod tests {
             .push(0u32)
             .extend([0u8; SbitLineMetrics::RAW_BYTE_LEN])
             .extend([0u8; SbitLineMetrics::RAW_BYTE_LEN])
-            .push(GlyphId16::new(0))
-            .push(GlyphId16::new(0))
+            .push(GlyphId16::new(first))
+            .push(GlyphId16::new(last))
             .push(0u8)
             .push(0u8)
             .push(1u8)
             .push(0u8)
-            .push(GlyphId16::new(0))
-            .push(GlyphId16::new(0))
+            .push(GlyphId16::new(first))
+            .push(GlyphId16::new(last))
             .push(IndexSubtableRecord::RAW_BYTE_LEN as u32)
             .extend(subtable.iter().copied())
     }
@@ -527,6 +535,40 @@ mod tests {
         let location = bitmap_size_location(data.data(), GlyphId::new(0)).unwrap();
         assert_eq!(location.data_offset, 1020);
         assert_eq!(location.data_size, 10);
+    }
+
+    #[test]
+    fn format_4_ignores_glyph_id_of_end_record() {
+        // fontTools writes 0 as the glyph id of the end record, so the
+        // glyph array is not sorted when the end record is included.
+        let data = bitmap_size_with_subtable_for_glyphs(
+            2,
+            9,
+            &BeBuffer::new()
+                .push(4u16) // index format
+                .push(17u16) // image format
+                .push(1000u32) // image data offset
+                .push(3u32) // num glyphs
+                .push(GlyphId16::new(2))
+                .push(0u16) // sbit offset
+                .push(GlyphId16::new(5))
+                .push(10u16)
+                .push(GlyphId16::new(9))
+                .push(30u16)
+                .push(GlyphId16::new(0)) // end record
+                .push(60u16),
+        );
+        for (gid, offset, size) in [(2, 1000, 10), (5, 1010, 20), (9, 1030, 30)] {
+            let location = bitmap_size_location(data.data(), GlyphId::new(gid)).unwrap();
+            assert_eq!(location.data_offset, offset);
+            assert_eq!(location.data_size, size);
+        }
+        for gid in [3, 8] {
+            assert!(matches!(
+                bitmap_size_location(data.data(), GlyphId::new(gid)),
+                Err(ReadError::InvalidCollectionIndex(_))
+            ));
+        }
     }
 
     #[test]
