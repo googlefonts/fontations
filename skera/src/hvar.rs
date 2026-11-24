@@ -835,7 +835,8 @@ mod test {
     #[test]
     fn test_subset_hvar_outer_index_out_of_range() {
         // test_subset_hvar's table, with .notdef's advance map entry
-        // pointing at outer index 2 of a store with two variation datas.
+        // pointing at outer index 2 of a store with two ItemVariationData
+        // subtables.
         let raw_bytes: [u8; 98] = [
             0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x04, 0x00, 0x08, 0x00, 0x04,
