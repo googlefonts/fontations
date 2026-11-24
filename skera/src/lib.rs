@@ -1462,6 +1462,8 @@ fn remap_palette_indices(indices: IntSet<u16>) -> FastHashMap<u16, u16> {
 pub struct SubsetState {
     // whether GDEF ItemVariationStore is retained after subsetting
     has_gdef_varstore: bool,
+    // number of bytes that can still be copied unmodified, see passthrough_table
+    passthrough_budget: usize,
 }
 
 #[derive(Debug, Error)]
@@ -1628,7 +1630,10 @@ trait Serialize<'a> {
 pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::<'a>::default();
 
-    let mut state = SubsetState::default();
+    let mut state = SubsetState {
+        passthrough_budget: font.data().len().saturating_mul(2),
+        ..Default::default()
+    };
     let mut tags_with_dependencies = Vec::with_capacity(5);
     for record in font.table_directory().table_records() {
         let tag = record.tag();
@@ -1791,7 +1796,7 @@ fn subset_table<'a>(
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     if plan.no_subset_tables.contains(tag) {
-        return passthrough_table(tag, font, s);
+        return passthrough_table(tag, font, s, state);
     }
 
     match tag {
@@ -1960,9 +1965,9 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
             .subset(plan, font, s, builder),
 
-        Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s),
+        Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s, state),
         // MVAR/CVT: not supported by read-fonts, but we want to pass through it during subsetting
-        MVAR | CVT => passthrough_table(tag, font, s),
+        MVAR | CVT => passthrough_table(tag, font, s, state),
 
         //Skip, handled by glyf
         Loca::TAG | glyf_loca::LOCA => Ok(()),
@@ -2010,22 +2015,41 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vorg::TAG))?
             .subset(plan, font, s, builder),
 
-        Stat::TAG => passthrough_table(tag, font, s),
+        Stat::TAG => passthrough_table(tag, font, s, state),
 
         _ if plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED) =>
         {
-            passthrough_table(tag, font, s)
+            passthrough_table(tag, font, s, state)
         }
         _ => Ok(()),
     }
 }
 
-fn passthrough_table(tag: Tag, font: &FontRef<'_>, s: &mut Serializer) -> Result<(), SubsetError> {
+/// Copies a table to the output unmodified.
+///
+/// Every table is copied separately, and nothing stops the records of different
+/// tables from sharing the same bytes, so the copies are charged to a budget of
+/// twice the size of the font. Tables that don't overlap can't add up to more than
+/// the font; the rest is room for tables that do share bytes.
+fn passthrough_table(
+    tag: Tag,
+    font: &FontRef<'_>,
+    s: &mut Serializer,
+    state: &mut SubsetState,
+) -> Result<(), SubsetError> {
     if let Some(data) = font.data_for_tag(tag) {
+        let len = data.len();
+        if len > state.passthrough_budget {
+            // fail the subset rather than drop the table as if it subset to empty
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return Err(SubsetError::SubsetTableError(tag));
+        }
         s.embed_bytes(data.as_bytes())
             .map_err(|_| SubsetError::SubsetTableError(tag))?;
+        // charged only once embedded: try_subset retries a table that ran out of room
+        state.passthrough_budget -= len;
     }
     Ok(())
 }
@@ -2779,6 +2803,87 @@ mod test {
         assert!(bytes_budget < 0);
         assert_eq!(gids.len(), 1);
         assert!(gids.contains(GlyphId::new(5)));
+    }
+
+    /// Builds a font with a maxp and `tags.len()` unrecognized tables of 1 KiB, whose
+    /// records either cover disjoint bytes or all share the same bytes.
+    fn font_with_unrecognized_tables(tags: &[[u8; 4]], overlapping: bool) -> Vec<u8> {
+        const TABLE_LEN: u32 = 1024;
+        let num_tables = tags.len() as u16 + 1;
+        let mut bytes = vec![0, 1, 0, 0];
+        bytes.extend(num_tables.to_be_bytes());
+        // searchRange, entrySelector, rangeShift are not used
+        bytes.extend([0; 6]);
+        let maxp_offset = 12 + 16 * num_tables as u32;
+        let data_offset = maxp_offset + 8;
+        let mut records: Vec<([u8; 4], u32, u32)> = tags
+            .iter()
+            .enumerate()
+            .map(|(i, tag)| {
+                let i = if overlapping { 0 } else { i as u32 };
+                (*tag, data_offset + i * TABLE_LEN, TABLE_LEN)
+            })
+            .collect();
+        records.push((*b"maxp", maxp_offset, 6));
+        records.sort();
+        for (tag, offset, len) in records {
+            bytes.extend(tag);
+            bytes.extend(0_u32.to_be_bytes());
+            bytes.extend(offset.to_be_bytes());
+            bytes.extend(len.to_be_bytes());
+        }
+        // maxp version 0.5 with 1 glyph, padded to 8 bytes
+        bytes.extend([0, 0, 0x50, 0, 0, 1, 0, 0]);
+        let num_copies = if overlapping { 1 } else { tags.len() };
+        bytes.extend((0..TABLE_LEN * num_copies as u32).map(|i| i as u8));
+        bytes
+    }
+
+    fn subset_keeping_unrecognized_tables(bytes: &[u8]) -> Result<Vec<u8>, SubsetError> {
+        let font = FontRef::new(bytes).unwrap();
+        let plan = Plan::new(
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED,
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        subset_font(&font, &plan)
+    }
+
+    #[test]
+    fn passthrough_tables_are_limited_by_font_size() {
+        let tags: Vec<[u8; 4]> = (0..8_u8).map(|i| [b'X', b'0', b'0', b'0' + i]).collect();
+
+        let disjoint = font_with_unrecognized_tables(&tags, false);
+        let out = subset_keeping_unrecognized_tables(&disjoint).unwrap();
+        let (font, out) = (
+            FontRef::new(&disjoint).unwrap(),
+            FontRef::new(&out).unwrap(),
+        );
+        for tag in tags.iter().map(Tag::new) {
+            let data = |font: &FontRef| font.table_data(tag).map(|data| data.as_bytes().to_vec());
+            assert_eq!(data(&out), data(&font));
+        }
+
+        // a single table that shares nothing is still copied
+        let single = font_with_unrecognized_tables(&tags[..1], true);
+        assert!(subset_keeping_unrecognized_tables(&single).is_ok());
+
+        // two records sharing the same KiB fit in twice the size of the font
+        let shared = font_with_unrecognized_tables(&tags[..2], true);
+        let out = subset_keeping_unrecognized_tables(&shared).unwrap();
+        assert!(out.len() > shared.len());
+
+        // three no longer do, nor do eight, which would copy it eight times
+        for num_records in [3, 8] {
+            let overlapping = font_with_unrecognized_tables(&tags[..num_records], true);
+            assert!(subset_keeping_unrecognized_tables(&overlapping).is_err());
+        }
     }
 
     #[test]
