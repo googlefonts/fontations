@@ -24,7 +24,7 @@ use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::FontBuilder;
 
 const INVALID_UNICODE_CHAR: u32 = u32::MAX;
-const UNICODE_MAX: u32 = 0x10FFFF_u32;
+pub(crate) const UNICODE_MAX: u32 = 0x10FFFF_u32;
 const HEADER_SIZE: usize = 4;
 // reference: subset() for cmap table in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/b14def8bb32f32c32f2e2e9e1ce3efef2a242ca0/src/hb-ot-cmap-table.hh#L1920>

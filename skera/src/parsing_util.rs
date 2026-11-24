@@ -2,7 +2,14 @@
 use read_fonts::collections::{int_set::Domain, IntSet};
 use read_fonts::types::{GlyphId, NameId, Tag};
 
-use crate::{FastHashMap, SubsetError};
+use crate::{cmap::UNICODE_MAX, FastHashMap, SubsetError};
+
+// Ranges are inserted whole and clamped to the values a font can use: one value at
+// a time, a range like 0-FFFFFFFF would cost billions of steps and hundreds of MiB.
+// Code point ranges end at UNICODE_MAX.
+
+/// Where a range of glyph ids ends: MAXP counts the glyphs of a font in 24 bits.
+const MAX_REQUEST_GID: u32 = 0xFFFFFF;
 
 /// Parses a glyph mapping into `glyph_map`.
 ///
@@ -48,7 +55,9 @@ pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
             if start > end {
                 return Err(SubsetError::InvalidGidRange { start, end });
             }
-            result.extend((start..=end).map(GlyphId::new));
+            if start <= MAX_REQUEST_GID {
+                result.insert_range(GlyphId::new(start)..=GlyphId::new(end.min(MAX_REQUEST_GID)));
+            }
         } else {
             let glyph_id: u32 = gid
                 .parse::<u32>()
@@ -86,7 +95,9 @@ pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
             if start > end {
                 return Err(SubsetError::InvalidUnicodeRange { start, end });
             }
-            result.extend(start..=end);
+            if start <= UNICODE_MAX {
+                result.insert_range(start..=end.min(UNICODE_MAX));
+            }
         } else {
             result.insert(parse_hex(cp)?);
         }
@@ -184,6 +195,25 @@ fn test_parse_unicodes() {
     assert!(output.contains(101_u32));
     assert!(output.contains(102_u32));
     assert!(output.contains(103_u32));
+}
+
+/// Ranges are clamped to the values a font can use, so values past the clamp
+/// select nothing. (The ranges are small enough to stay cheap without the clamp.)
+#[test]
+fn ranges_are_clamped() {
+    let output = parse_unicodes("41-5A,10FF00-11FFFF,110000-1FFFFF").unwrap();
+    assert_eq!(output.len(), 26 + 0x100);
+    assert_eq!(output.iter().last(), Some(0x10FFFF));
+    // single values are kept as given
+    let output = parse_unicodes("41,FFFFFFFF").unwrap();
+    assert_eq!(output.iter().collect::<Vec<_>>(), [0x41, 0xFFFFFFFF]);
+
+    let output = populate_gids("1-5,16777000-17000000,16777216-17825791").unwrap();
+    assert_eq!(output.len(), 5 + 216);
+    assert_eq!(output.iter().last(), Some(GlyphId::new(0xFFFFFF)));
+    let output = populate_gids("5,4294967295").unwrap();
+    assert_eq!(output.len(), 2);
+    assert!(output.contains(GlyphId::new(u32::MAX)));
 }
 
 #[test]
