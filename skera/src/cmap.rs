@@ -1448,6 +1448,11 @@ impl CollectUnicodes for Cmap4<'_> {
         let id_deltas = self.id_delta();
         let seg_count = self.seg_count_x2() / 2;
         let glyph_id_array = self.glyph_id_array();
+        // Segments should be in order and disjoint. Skip the codepoints an earlier segment
+        // already covered, as HarfBuzz and Cmap4::iter() do: otherwise a run of overlapping
+        // segments walks the same codepoints again and again.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L618-L629>
+        let mut next_cp = 0_u32;
         for (i, ((start, end), range_offset)) in self
             .start_code()
             .iter()
@@ -1462,16 +1467,21 @@ impl CollectUnicodes for Cmap4<'_> {
 
             let end = end.get() as u32;
             let range_offset = range_offset.get() as u32;
-            out.insert_range(start..=end);
+            let first = start.max(next_cp);
+            if first > end {
+                continue;
+            }
+            next_cp = end + 1;
+            out.insert_range(first..=end);
             if range_offset == 0 {
-                for cp in start..=end {
+                for cp in first..=end {
                     let gid = (cp as u16).wrapping_add_signed(id_deltas[i].get());
                     if gid == 0 {
                         out.remove(cp);
                     }
                 }
             } else {
-                for cp in start..=end {
+                for cp in first..=end {
                     let index = range_offset / 2 + (cp - start) + i as u32 - seg_count as u32;
                     if index as usize >= glyph_id_array.len() {
                         out.remove_range(cp..=end);
@@ -1493,10 +1503,14 @@ impl CollectUnicodes for Cmap4<'_> {
 
 impl CollectUnicodes for Cmap12<'_> {
     fn collect_unicodes(&self, num_glyphs: usize, out: &mut IntSet<u32>) {
+        let mut next_cp = 0;
         for group in self.groups() {
             let mut start = group.start_char_code();
             let mut end = group.end_char_code().min(UNICODE_MAX);
             let mut gid = group.start_glyph_id();
+            if start > end {
+                continue;
+            }
             if gid == 0 {
                 start += 1;
                 gid += 1;
@@ -1509,8 +1523,75 @@ impl CollectUnicodes for Cmap12<'_> {
             if (gid + end - start) as usize >= num_glyphs {
                 end = UNICODE_MAX.min(start + num_glyphs as u32 - gid);
             }
-            out.insert_range(start..=end);
+            // Groups should be in order and disjoint. Skip the codepoints an earlier group
+            // already covered, as Cmap12::iter() does: otherwise a font full of overlapping
+            // groups inserts the same range once per group.
+            let first = start.max(next_cp);
+            if first > end {
+                continue;
+            }
+            next_cp = end + 1;
+            out.insert_range(first..=end);
         }
+    }
+}
+
+#[cfg(test)]
+mod collect_unicodes_tests {
+    use super::*;
+    use font_test_data::{be_buffer, bebuffer::BeBuffer};
+    use read_fonts::{FontData, FontRead};
+
+    fn cmap12_unicodes(data: &[u8]) -> Vec<u32> {
+        let mut unicodes = IntSet::empty();
+        Cmap12::read(FontData::new(data))
+            .unwrap()
+            .collect_unicodes(10, &mut unicodes);
+        unicodes.iter().collect()
+    }
+
+    #[test]
+    fn overlapping_cmap12_groups() {
+        let data = be_buffer! {
+            12u16, 0u16, 52u32, 0u32, 3u32, // format, reserved, length, language, numGroups
+            [0x41u32, 0x43, 1], // startCharCode, endCharCode, startGlyphID
+            [0x41u32, 0x44, 1],
+            [0x30u32, 0x31, 5] // out of order
+        };
+        assert_eq!(cmap12_unicodes(data.data()), [0x41, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn inverted_cmap12_group() {
+        let data = be_buffer! {
+            12u16, 0u16, 40u32, 0u32, 2u32, // format, reserved, length, language, numGroups
+            [0x43u32, 0x41, 1], // startCharCode, endCharCode, startGlyphID
+            [0x44u32, 0x44, 2]
+        };
+        assert_eq!(cmap12_unicodes(data.data()), [0x44]);
+    }
+
+    #[test]
+    fn overlapping_cmap4_segments() {
+        // segments 0x41..=0x43 (delta 0), 0x41..=0x44 (glyph 0 from the
+        // glyph id array for all of them) and the final 0xFFFF segment
+        let data = be_buffer! {
+            4u16, 48u16, 0u16, // format, length, language
+            6u16, 4u16, 1u16, 2u16, // segCountX2, searchRange, entrySelector, rangeShift
+            [0x43u16, 0x44, 0xFFFF], // endCode
+            0u16, // reservedPad
+            [0x41u16, 0x41, 0xFFFF], // startCode
+            [0u16, 0, 1], // idDelta
+            [0u16, 4, 0], // idRangeOffset
+            [0u16, 0, 0, 0] // glyphIdArray
+        };
+        let mut unicodes = IntSet::empty();
+        Cmap4::read(FontData::new(data.data()))
+            .unwrap()
+            .collect_unicodes(10, &mut unicodes);
+        // The second segment only adds 0x44, which maps to glyph 0, and does
+        // not take away the codepoints the first one maps, as for lookups.
+        assert_eq!(unicodes.iter().collect::<Vec<_>>(), [0x41, 0x42, 0x43]);
     }
 }
 
