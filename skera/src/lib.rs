@@ -1635,8 +1635,14 @@ pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, Subse
         ..Default::default()
     };
     let mut tags_with_dependencies = Vec::with_capacity(5);
+    let mut seen_tags = IntSet::<Tag>::empty();
     for record in font.table_directory().table_records() {
         let tag = record.tag();
+        // Tables are looked up by tag, which finds the first record when a tag is
+        // repeated, so further records would only subset the same table again.
+        if !seen_tags.insert(tag) {
+            continue;
+        }
         if should_drop_table(tag, plan) {
             continue;
         }
@@ -2884,6 +2890,32 @@ mod test {
             let overlapping = font_with_unrecognized_tables(&tags[..num_records], true);
             assert!(subset_keeping_unrecognized_tables(&overlapping).is_err());
         }
+    }
+
+    /// Every record of a repeated tag resolves to the same table, which is
+    /// subset (here: copied, and charged to the passthrough budget) only once.
+    #[test]
+    fn repeated_table_tags_are_subset_once() {
+        let tags = [*b"X000"; 8];
+        let font = font_with_unrecognized_tables(&tags, true);
+        let out = subset_keeping_unrecognized_tables(&font).unwrap();
+        let out = FontRef::new(&out).unwrap();
+        let records = out.table_directory().table_records();
+        assert_eq!(
+            records
+                .iter()
+                .filter(|r| r.tag() == Tag::new(b"X000"))
+                .count(),
+            1
+        );
+        let font = FontRef::new(&font).unwrap();
+        let data = |font: &FontRef| {
+            font.table_data(Tag::new(b"X000"))
+                .unwrap()
+                .as_bytes()
+                .to_vec()
+        };
+        assert_eq!(data(&out), data(&font));
     }
 
     #[test]
