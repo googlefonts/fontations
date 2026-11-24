@@ -8,7 +8,7 @@ use crate::{
     SubsetError::{self, SubsetTableError},
 };
 
-use crate::{FastHashMap, FastHashSet};
+use crate::FastHashMap;
 use read_fonts::{
     collections::IntSet,
     tables::cmap::{
@@ -1100,7 +1100,7 @@ serialize_uvs!(
 pub(crate) fn count_uvs_ops(cmap: &Cmap, unicodes: &IntSet<u32>, walk: &mut OpsWalk) -> bool {
     // The closure and the subsetter don't read the same UVS subtable of a cmap
     // with several, so all of them are counted, each once.
-    let mut counted = FastHashSet::default();
+    let mut counted = IntSet::empty();
     cmap.encoding_records().iter().all(|record| {
         if !counted.insert(record.subtable_offset().to_u32()) {
             return true;
