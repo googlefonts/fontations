@@ -106,6 +106,14 @@ pub(crate) type FastHashSet<T> = std::collections::HashSet<T, foldhash::fast::Fi
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: usize = read_fonts::limits::MAX_RECURSION_DEPTH;
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-limits.hh#L170>
+/// The source bytes of all the glyphs retained from glyf, as a multiple of
+/// the length of the table; a plan that retains more fails to subset glyf.
+///
+/// With an ascending loca the retained glyphs add up to at most the table.
+/// loca need not ascend though, and any number of glyph ids may share the
+/// same bytes, which are then walked for each of them.
+const MAX_GLYF_BYTES_FACTOR: i64 = 16;
 // Support 24-bit gids. This should probably be extended to u32::MAX but
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
@@ -371,7 +379,8 @@ pub struct Plan {
     /// The tables with a walk that ran out of its [`layout::OpsBudget`], which
     /// fail to subset: layout tables, and cmap and DMAP for their UVS tables.
     /// Also GDEF, COLR and BASE when their variation store has a subtable that
-    /// can't be read.
+    /// can't be read, and glyf when the retained glyphs exceed
+    /// [`MAX_GLYF_BYTES_FACTOR`].
     layout_ops_exceeded: IntSet<Tag>,
 
     //active old->new feature index map after removing redundant langsys and prune_features
@@ -828,6 +837,8 @@ impl Plan {
         if let Ok((glyf, loca)) = font.selected_glyf_loca(None) {
             let operation_count =
                 self.glyphset_mathed.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
+            let mut bytes_budget =
+                (glyf.offset_data().len() as i64).saturating_mul(MAX_GLYF_BYTES_FACTOR);
             for gid in self.glyphset_colred.iter() {
                 glyf_closure_glyphs(
                     &loca,
@@ -835,8 +846,12 @@ impl Plan {
                     gid,
                     &mut self.glyphset,
                     operation_count as i32,
+                    &mut bytes_budget,
                     0,
                 );
+            }
+            if bytes_budget < 0 {
+                self.layout_ops_exceeded.insert(Glyf::TAG);
             }
             remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
         } else {
@@ -1328,18 +1343,34 @@ fn remap_delta_set_indices(
 
 /// glyph closure for Composite glyphs in glyf table
 /// limit the number of operations through returning an operation count
+///
+/// `bytes_budget` is what is left of [`MAX_GLYF_BYTES_FACTOR`], and is
+/// negative once the retained glyphs exceed it.
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-subset-plan.cc#L395>
 fn glyf_closure_glyphs(
     loca: &Loca,
     glyf: &Glyf,
     gid: GlyphId,
     gids_to_retain: &mut IntSet<GlyphId>,
     operation_count: i32,
+    bytes_budget: &mut i64,
     depth: usize,
 ) -> i32 {
     if gids_to_retain.contains(gid) {
         return operation_count;
     }
     gids_to_retain.insert(gid);
+
+    let glyph = loca.get(gid, glyf).and_then(|g| g.into_glyph());
+
+    // Every retained glyph is walked here and again when glyf is subset.
+    // Charge its untrimmed bytes before the operation count can bail out,
+    // so that a glyph retained past that point is still paid for.
+    let glyph_len = glyph.as_ref().map_or(0, |g| g.offset_data().len());
+    *bytes_budget -= glyph_len as i64;
+    if *bytes_budget < 0 {
+        return operation_count;
+    }
 
     if depth > MAX_NESTING_LEVEL {
         return operation_count;
@@ -1351,7 +1382,7 @@ fn glyf_closure_glyphs(
         return operation_count;
     }
 
-    if let Some(Glyph::Composite(glyph)) = loca.get(gid, glyf).and_then(|g| g.into_glyph()) {
+    if let Some(Glyph::Composite(glyph)) = glyph {
         for child in glyph.components() {
             operation_count = glyf_closure_glyphs(
                 loca,
@@ -1359,6 +1390,7 @@ fn glyf_closure_glyphs(
                 child.glyph,
                 gids_to_retain,
                 operation_count,
+                bytes_budget,
                 depth,
             );
         }
@@ -2677,10 +2709,76 @@ mod test {
         let glyf = font.glyf().unwrap();
         let mut gids = IntSet::empty();
 
-        glyf_closure_glyphs(&loca, &glyf, GlyphId::new(5), &mut gids, 64, 0);
+        let mut bytes_budget = glyf.offset_data().len() as i64;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
         assert_eq!(gids.len(), 2);
         assert!(gids.contains(GlyphId::new(5)));
         assert!(gids.contains(GlyphId::new(1)));
+    }
+
+    #[test]
+    fn glyf_closure_charges_glyph_bytes() {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph_len = |gid: u32| {
+            let glyph = loca.get(GlyphId::new(gid), &glyf).unwrap();
+            glyph.into_glyph().unwrap().offset_data().len() as i64
+        };
+
+        // the composite glyph 5 and its component, glyph 1, are both charged
+        let budget = glyph_len(5) + glyph_len(1);
+        let mut gids = IntSet::empty();
+        let mut bytes_budget = budget;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
+        assert_eq!(bytes_budget, 0);
+        assert_eq!(gids.len(), 2);
+
+        // one byte less, and the budget is exceeded
+        let mut gids = IntSet::empty();
+        let mut bytes_budget = budget - 1;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
+        assert!(bytes_budget < 0);
+
+        // a composite that exceeds the budget is retained but not expanded
+        let mut gids = IntSet::empty();
+        let mut bytes_budget = glyph_len(5) - 1;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
+        assert!(bytes_budget < 0);
+        assert_eq!(gids.len(), 1);
+        assert!(gids.contains(GlyphId::new(5)));
     }
 
     #[test]
