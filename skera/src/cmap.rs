@@ -1520,8 +1520,10 @@ impl CollectUnicodes for Cmap12<'_> {
                 continue;
             }
 
+            // keep the last glyph of the group below num_glyphs
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L911-L914>
             if (gid + end - start) as usize >= num_glyphs {
-                end = UNICODE_MAX.min(start + num_glyphs as u32 - gid);
+                end = UNICODE_MAX.min(start + num_glyphs as u32 - gid - 1);
             }
             // Groups should be in order and disjoint. Skip the codepoints an earlier group
             // already covered, as Cmap12::iter() does: otherwise a font full of overlapping
@@ -1559,6 +1561,17 @@ mod collect_unicodes_tests {
             [0x30u32, 0x31, 5] // out of order
         };
         assert_eq!(cmap12_unicodes(data.data()), [0x41, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn cmap12_group_past_glyph_count() {
+        // The font has 10 glyphs: the group maps 0x41..=0x43 to glyphs 7..=9, and the
+        // rest of it to glyphs that don't exist.
+        let data = be_buffer! {
+            12u16, 0u16, 28u32, 0u32, 1u32, // format, reserved, length, language, numGroups
+            [0x41u32, 0x60, 7] // startCharCode, endCharCode, startGlyphID
+        };
+        assert_eq!(cmap12_unicodes(data.data()), [0x41, 0x42, 0x43]);
     }
 
     #[test]
