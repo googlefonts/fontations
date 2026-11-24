@@ -222,8 +222,11 @@ impl IndexMapSubsetPlan {
 
                 let v = delta_set_index(index_map, old_gid.to_u32(), row_counts)?;
                 let outer = v.outer as usize;
+                // An outer index past the store's data count selects no delta set;
+                // skip the entry, as remap() does, and keep collecting for the
+                // glyphs after it.
                 if outer >= inner_sets.len() {
-                    break;
+                    continue;
                 }
 
                 outer_map.add(v.outer as u32);
@@ -261,8 +264,14 @@ impl IndexMapSubsetPlan {
                 continue;
             }
 
-            let new_outer = outer_map.get(outer as u32).unwrap();
-            let new_inner = inner_maps[outer as usize].get(v.inner as u32).unwrap();
+            // Every in-range entry was collected by new(), but don't rely on that
+            // for a font's data: an entry with nothing to remap to is skipped.
+            let (Some(new_outer), Some(new_inner)) = (
+                outer_map.get(outer as u32),
+                inner_maps[outer as usize].get(v.inner as u32),
+            ) else {
+                continue;
+            };
             let bit_count = (32 - new_inner.leading_zeros()) as u8;
             self.inner_bit_count = bit_count.max(self.inner_bit_count);
             self.output_map
@@ -349,23 +358,21 @@ impl HvarVvarSubsetPlan {
                 .subset_flags
                 .contains(SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS);
 
-        if retain_adv_map {
-            let inner_map = plan
-                .new_to_old_gid_list
+        let mut inner_map = if retain_adv_map {
+            plan.new_to_old_gid_list
                 .iter()
                 .map(|(_, old_gid)| old_gid.to_u32().min(row_counts[0]))
-                .collect();
-            this.inner_maps.push(inner_map);
+                .collect::<IncBiMap>()
         } else {
-            let mut inner_map = adv_set.iter().map(|g| g as u32).collect::<IncBiMap>();
-            inner_sets[0].subtract(&adv_set);
-
-            for i in inner_sets[0].iter() {
-                inner_map.add(i as u32);
-            }
-
-            this.inner_maps.push(inner_map);
+            adv_set.iter().map(|g| g as u32).collect::<IncBiMap>()
+        };
+        // The other index maps (lsb/rsb, tsb/bsb/vorg) may refer to rows of the
+        // first subtable too, whether or not the advance map is retained.
+        inner_sets[0].subtract(&adv_set);
+        for i in inner_sets[0].iter() {
+            inner_map.add(i as u32);
         }
+        this.inner_maps.push(inner_map);
 
         for set in inner_sets.iter().skip(1) {
             let inner_map = set.iter().map(|g| g as u32).collect();
@@ -790,6 +797,181 @@ mod test {
                 rows_and_advance_deltas(&bytes, &[0, 1, 3], retain_gids),
                 (2, vec![11, 0, 0])
             );
+        }
+    }
+
+    #[test]
+    fn test_subset_hvar_outer_index_out_of_range() {
+        // test_subset_hvar's table, with .notdef's advance map entry
+        // pointing at outer index 2 of a store with two variation datas.
+        let raw_bytes: [u8; 98] = [
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x04, 0x00, 0x08, 0x00, 0x04,
+            0x00, 0x06, 0x00, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x26, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x20, 0x00, 0x00, 0x00, 0x10, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x01, 0xfd, 0x20, 0x02, 0x25, 0x05, 0x30, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x02, 0x00, 0x02, 0xc0, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+
+        let hvar = Hvar::read(FontData::new(&raw_bytes)).unwrap();
+        let mut builder = FontBuilder::new();
+
+        //dummy font
+        let font = FontRef::new(&raw_bytes).unwrap();
+
+        let mut plan = Plan::default();
+        plan.new_to_old_gid_list
+            .push((GlyphId::NOTDEF, GlyphId::NOTDEF));
+        plan.new_to_old_gid_list
+            .push((GlyphId::from(1_u32), GlyphId::from(1_u32)));
+        plan.new_to_old_gid_list
+            .push((GlyphId::from(2_u32), GlyphId::from(3_u32)));
+
+        plan.glyphset.insert(GlyphId::NOTDEF);
+        plan.glyphset.insert(GlyphId::from(1_u32));
+        plan.glyphset.insert(GlyphId::from(3_u32));
+
+        let mut s = Serializer::new(1024).unwrap();
+        assert_eq!(s.start_serialize(), Ok(()));
+        let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
+        assert!(ret.is_ok());
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        // .notdef has no delta set to carry over; the other retained
+        // glyphs keep theirs.
+        let subsetted_data = s.copy_bytes();
+        let subsetted = Hvar::read(FontData::new(&subsetted_data)).unwrap();
+        let delta_set = |hvar: &Hvar, gid: u32| -> Option<Vec<i32>> {
+            let index = hvar.advance_width_mapping()?.ok()?.get(gid).ok()?;
+            let store = hvar.item_variation_store().ok()?;
+            let data = store
+                .item_variation_data()
+                .get(index.outer as usize)?
+                .ok()?;
+            Some(data.delta_set(index.inner).collect())
+        };
+        assert_eq!(delta_set(&hvar, 0), None);
+        assert_eq!(delta_set(&subsetted, 1), delta_set(&hvar, 1));
+        assert_eq!(delta_set(&subsetted, 2), delta_set(&hvar, 3));
+        assert_eq!(
+            subsetted
+                .item_variation_store()
+                .unwrap()
+                .item_variation_data_count(),
+            1
+        );
+    }
+
+    // An HVAR without an advance mapping, so glyph g uses row g of the only
+    // subtable, whose 8 rows have the deltas 10 to 13 and 20 to 23. The lsb
+    // mapping sends glyph g to row 4 + g of that same subtable, and the glyphs
+    // from 3 on to row 7.
+    fn hvar_no_adv_map_with_lsb_map() -> [u8; 66] {
+        [
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x3a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x16, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x40, 0x00, 0x40, 0x00,
+            0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x0a, 0x0b, 0x0c, 0x0d, 0x14, 0x15,
+            0x16, 0x17, 0x00, 0x03, 0x00, 0x04, 0x04, 0x05, 0x06, 0x07,
+        ]
+    }
+
+    #[test]
+    fn test_subset_hvar_retain_gids_no_adv_map_with_lsb_map() {
+        use read_fonts::types::F2Dot14;
+
+        let raw_bytes = hvar_no_adv_map_with_lsb_map();
+        let hvar = Hvar::read(FontData::new(&raw_bytes)).unwrap();
+
+        //dummy font
+        let font = FontRef::new(&raw_bytes).unwrap();
+
+        for gids in [[0_u32, 1], [0, 2], [1, 3]] {
+            let mut builder = FontBuilder::new();
+            let mut plan = Plan::default();
+            for gid in gids {
+                plan.new_to_old_gid_list
+                    .push((GlyphId::from(gid), GlyphId::from(gid)));
+                plan.glyphset.insert(GlyphId::from(gid));
+            }
+            plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+
+            let mut s = Serializer::new(1024).unwrap();
+            assert_eq!(s.start_serialize(), Ok(()));
+            let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
+            assert!(ret.is_ok());
+            assert!(!s.in_error());
+            s.end_serialize();
+
+            let subsetted_data = s.copy_bytes();
+            let subsetted_hvar = Hvar::read(FontData::new(&subsetted_data)).unwrap();
+            let coords = [F2Dot14::from_f32(1.0)];
+            for gid in gids {
+                let advance = subsetted_hvar.advance_delta(gid.into(), &coords).unwrap();
+                assert_eq!(advance.to_i32(), 10 + gid as i32);
+                let lsb = subsetted_hvar.lsb_delta(gid.into(), &coords).unwrap();
+                assert_eq!(lsb.to_i32(), 20 + gid as i32);
+            }
+        }
+    }
+
+    /// The rows that only the lsb mapping names come after the rows of the
+    /// glyphs, so the largest row that the lsb mapping names needn't be the one
+    /// with the largest new index. Its entries hold the new indices all the same.
+    #[test]
+    fn test_subset_hvar_lsb_rows_after_a_larger_glyph_row() {
+        use read_fonts::types::F2Dot14;
+
+        let raw_bytes = hvar_no_adv_map_with_lsb_map();
+        let hvar = Hvar::read(FontData::new(&raw_bytes)).unwrap();
+
+        //dummy font
+        let font = FontRef::new(&raw_bytes).unwrap();
+
+        // Rows 0, 1, 2 and 7 of the glyphs become rows 0 to 3. The lsb rows 4, 5
+        // and 6 of the first three glyphs follow as rows 4 to 6, which take a
+        // bit more than row 3, the new index of the lsb row of glyph 7.
+        let gids = [0_u32, 1, 2, 7];
+        for retain_gids in [false, true] {
+            let new_gid = |i: usize| GlyphId::from(if retain_gids { gids[i] } else { i as u32 });
+            let mut plan = Plan::default();
+            for (i, gid) in gids.iter().enumerate() {
+                plan.new_to_old_gid_list
+                    .push((new_gid(i), GlyphId::from(*gid)));
+                plan.glyphset.insert(GlyphId::from(*gid));
+            }
+            if retain_gids {
+                plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+            }
+
+            let mut builder = FontBuilder::new();
+            let mut s = Serializer::new(1024).unwrap();
+            assert_eq!(s.start_serialize(), Ok(()));
+            let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
+            assert!(ret.is_ok());
+            assert!(!s.in_error());
+            s.end_serialize();
+
+            let subsetted_data = s.copy_bytes();
+            let subsetted_hvar = Hvar::read(FontData::new(&subsetted_data)).unwrap();
+            let coords = [F2Dot14::from_f32(1.0)];
+            let deltas = |lsb: bool| -> Vec<i32> {
+                (0..gids.len())
+                    .map(|i| {
+                        if lsb {
+                            subsetted_hvar.lsb_delta(new_gid(i), &coords)
+                        } else {
+                            subsetted_hvar.advance_delta(new_gid(i), &coords)
+                        }
+                        .unwrap()
+                        .to_i32()
+                    })
+                    .collect()
+            };
+            assert_eq!(deltas(false), [10, 11, 12, 23]);
+            assert_eq!(deltas(true), [20, 21, 22, 23]);
         }
     }
 }
