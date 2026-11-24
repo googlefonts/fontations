@@ -319,6 +319,15 @@ impl HvarVvarSubsetPlan {
         // the rows that each subtable has: see delta_set_index
         let row_counts = delta_set_counts(var_store)?;
         let vardata_count = row_counts.len();
+        // An empty store has no delta sets for any index map to refer to, so there
+        // is nothing to remap: keep the store empty and drop every index map (a null
+        // map means "no deltas", as does the empty store).
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/75d8ac5d2313842550174eaab0cbaf653c8f2f77/src/hb-ot-var-hvar-table.hh#L239>
+        if vardata_count == 0 {
+            this.index_map_subset_plans
+                .resize_with(index_maps.len(), Default::default);
+            return Ok(this);
+        }
 
         let mut inner_sets = Vec::new();
         inner_sets.resize(vardata_count, Default::default());
@@ -972,6 +981,50 @@ mod test {
             };
             assert_eq!(deltas(false), [10, 11, 12, 23]);
             assert_eq!(deltas(true), [20, 21, 22, 23]);
+        }
+    }
+
+    #[test]
+    fn test_subset_hvar_empty_var_store() {
+        // itemVariationDataCount = 0, no index maps
+        let no_adv_map: [u8; 32] = [
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ];
+        // same store, with a one-entry advance width mapping
+        let with_adv_map: [u8; 37] = [
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+        ];
+
+        let mut plan = Plan::default();
+        plan.new_to_old_gid_list
+            .push((GlyphId::NOTDEF, GlyphId::NOTDEF));
+        plan.new_to_old_gid_list
+            .push((GlyphId::from(1_u32), GlyphId::from(1_u32)));
+
+        plan.glyphset
+            .insert_range(GlyphId::NOTDEF..=GlyphId::from(1_u32));
+
+        for raw_bytes in [no_adv_map.as_slice(), with_adv_map.as_slice()] {
+            let hvar = Hvar::read(FontData::new(raw_bytes)).unwrap();
+            let mut builder = FontBuilder::new();
+
+            //dummy font
+            let font = FontRef::new(raw_bytes).unwrap();
+
+            let mut s = Serializer::new(1024).unwrap();
+            assert_eq!(s.start_serialize(), Ok(()));
+            let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
+            assert!(ret.is_ok());
+            assert!(!s.in_error());
+            s.end_serialize();
+
+            // the empty store is kept and the index maps are dropped
+            let subsetted_data = s.copy_bytes();
+            assert_eq!(subsetted_data, no_adv_map);
         }
     }
 }
