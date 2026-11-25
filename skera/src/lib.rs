@@ -1201,12 +1201,13 @@ impl Plan {
 /// A variation index can name a delta set that its subtable doesn't have,
 /// which reads as no delta. Such a row is not retained: see
 /// [`remap_variation_indices`] and [`generate_varstore_inner_maps`], which take
-/// these counts.
+/// these counts. HVAR and VVAR, whose index maps can't say "no delta", retain
+/// one row for all of them.
 ///
 /// Fails on a subtable that can't be read. HarfBuzz's sanitizer rejects the
 /// table of such a store, and the table then fails to subset.
 // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-ot-layout-common.hh#L3658>
-fn delta_set_counts(var_store: &ItemVariationStore) -> Result<Vec<u32>, ReadError> {
+pub(crate) fn delta_set_counts(var_store: &ItemVariationStore) -> Result<Vec<u32>, ReadError> {
     var_store
         .item_variation_data()
         .iter()
