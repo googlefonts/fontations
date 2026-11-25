@@ -29,6 +29,13 @@ impl Subset for Base<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        // The variation store has a subtable that can't be read: HarfBuzz fails
+        // to subset a table that its sanitizer rejects. Without an error in the
+        // serializer the table would be dropped as empty, rather than failing.
+        if plan.layout_ops_exceeded.contains(Base::TAG) {
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+            return Err(SubsetError::SubsetTableError(Base::TAG));
+        }
         s.embed(self.version())
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
         // Nothing stops all script records from pointing at one BaseScript and
