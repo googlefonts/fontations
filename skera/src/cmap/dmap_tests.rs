@@ -374,3 +374,112 @@ fn dmap_subset_rejects_bad_uvs_offsets_and_truncated_nominal_groups() {
     let font = FontRef::new(&data).unwrap();
     assert!(subset_font(&font, &plan(&font, &[65, 0xe0100], false)).is_err());
 }
+
+#[test]
+fn repeated_encoding_records_are_subsetted_once() {
+    let nominal = format12(&[(65, 10), (66, 11)]);
+    let overrides = format12(&[(65, 40)]);
+    let uvs14 = uvs(false, &[], &[(65, 20)]);
+    let uvs15 = uvs(true, &[], &[(65, 20)]);
+    let cmap = table(&[
+        (0, 4, &nominal),
+        (0, 4, &nominal),
+        // The records of variation selector subtables are all kept.
+        (0, 5, &uvs14),
+        (0, 5, &uvs14),
+        (0, 5, &uvs15),
+        (3, 10, &nominal),
+        (3, 10, &nominal),
+        (3, 10, &nominal),
+    ]);
+    let dmap = table(&[(0, 4, &overrides), (0, 4, &overrides), (3, 10, &overrides)]);
+    let data = font_with_cmaps(Some(&cmap), Some(&dmap));
+    let font = FontRef::new(&data).unwrap();
+    let plan = plan(&font, &[65, 66, 0xe0100], false);
+    let output = subset_font(&font, &plan).unwrap();
+    let output = FontRef::new(&output).unwrap();
+    let ids = |cmap: Cmap| -> Vec<_> {
+        cmap.encoding_records()
+            .iter()
+            .map(|r| (r.platform_id() as u16, r.encoding_id()))
+            .collect()
+    };
+    assert_eq!(
+        ids(output.cmap().unwrap()),
+        [(0, 4), (0, 5), (0, 5), (0, 5), (3, 10)]
+    );
+    assert_eq!(ids(output.dmap().unwrap().as_cmap()), [(0, 4), (3, 10)]);
+    for (cp, old_gid) in [(65u32, 40), (66, 11)] {
+        assert_eq!(
+            output.charmap().map(cp),
+            Some(plan.glyph_map[&GlyphId::new(old_gid)])
+        );
+    }
+}
+
+/// A format 4 subtable with one segment for each mapping, which must be sorted by codepoint.
+fn format4(language: u16, mappings: &[(u16, u16)]) -> Vec<u8> {
+    let segments: Vec<_> = mappings.iter().copied().chain([(0xffff, 0)]).collect();
+    let seg_count = segments.len() as u16;
+    let entry_selector = seg_count.ilog2() as u16;
+    let search_range = 2 << entry_selector;
+    let header = [
+        4,
+        16 + 8 * seg_count,
+        language,
+        2 * seg_count,
+        search_range,
+        entry_selector,
+        2 * seg_count - search_range,
+    ];
+    let codes = segments.iter().map(|(cp, _)| *cp);
+    let deltas = segments.iter().map(|(cp, gid)| gid.wrapping_sub(*cp));
+    header
+        .into_iter()
+        .chain(codes.clone()) // endCode
+        .chain([0]) // reservedPad
+        .chain(codes) // startCode
+        .chain(deltas)
+        .chain(segments.iter().map(|_| 0)) // idRangeOffset
+        .flat_map(u16::to_be_bytes)
+        .collect()
+}
+
+#[test]
+fn format12_is_only_dropped_for_a_record_that_is_subset() {
+    let records = |font: &FontRef, unicodes: &[u32]| -> Vec<_> {
+        let output = subset_font(font, &plan(font, unicodes, false)).unwrap();
+        let output = FontRef::new(&output).unwrap();
+        let cmap = output.cmap().unwrap();
+        cmap.encoding_records()
+            .iter()
+            .map(|r| {
+                let subtable = r.subtable(cmap.offset_data()).unwrap();
+                let mapped: Vec<_> = (65..=66u32)
+                    .filter(|cp| subtable.map_codepoint(*cp).is_some())
+                    .collect();
+                (r.platform_id() as u16, r.encoding_id(), mapped)
+            })
+            .collect()
+    };
+    let bmp_a = format4(1, &[(65, 10)]);
+    let bmp_ab = format4(0, &[(65, 10), (66, 11)]);
+    let full = format12(&[(65, 10), (66, 11)]);
+
+    // The BMP record has the language and the codepoints of the format 12 subtable, which is
+    // left out.
+    let cmap = table(&[(3, 1, &bmp_ab), (3, 10, &full)]);
+    let data = font_with_cmaps(Some(&cmap), None);
+    let font = FontRef::new(&data).unwrap();
+    assert_eq!(records(&font, &[65, 66]), [(3, 1, vec![65, 66])]);
+
+    // Only the first of two records (3, 1) is subset, and it has neither. The format 12
+    // subtable is not left out for the second one, which alone maps 'B' with it.
+    let cmap = table(&[(3, 1, &bmp_a), (3, 1, &bmp_ab), (3, 10, &full)]);
+    let data = font_with_cmaps(Some(&cmap), None);
+    let font = FontRef::new(&data).unwrap();
+    assert_eq!(
+        records(&font, &[65, 66]),
+        [(3, 1, vec![65]), (3, 10, vec![65, 66])]
+    );
+}

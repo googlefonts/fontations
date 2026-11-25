@@ -63,6 +63,11 @@ fn subset_glyf_inner(
     builder: &mut FontBuilder,
     extended: bool,
 ) -> Result<(), SubsetError> {
+    // The retained glyphs are more of glyf than the plan allows; see
+    // MAX_GLYF_BYTES_FACTOR.
+    if plan.layout_ops_exceeded.contains(Glyf::TAG) {
+        return Err(SubsetTableError(if extended { GLYF } else { Glyf::TAG }));
+    }
     let loca_tag = if extended { LOCA } else { Loca::TAG };
     let loca = if extended {
         font.loca_extended(None)
@@ -674,6 +679,67 @@ mod test {
                 "case {case}"
             );
         }
+    }
+
+    // `num_sharing` glyphs, the even glyph ids, that are each the whole of a
+    // glyf table of one simple glyph.
+    fn subset_font_with_shared_glyph(num_sharing: u16) -> Result<Vec<u8>, SubsetError> {
+        use crate::{subset_font, IntSet};
+
+        let num_points = 1000_u16;
+        let mut glyf = vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+        glyf.extend((num_points - 1).to_be_bytes());
+        glyf.extend([0, 0]);
+        // One point each: REPEAT_FLAG with a repeat count of 0, no coordinate
+        // bytes. The flags stop one point short, so the glyph is walked to its
+        // end and then written as empty, which keeps the output within
+        // max_subset_table_size however many glyph ids share the glyph.
+        glyf.extend([0x38, 0].repeat(num_points as usize - 1));
+        let glyf_len = glyf.len() as u32;
+
+        // 0, L, 0, L, ...: every even glyph id is the whole of glyf
+        let num_glyphs = 2 * num_sharing;
+        let loca: Vec<u8> = (0..=num_glyphs)
+            .flat_map(|i| (if i % 2 == 0 { 0 } else { glyf_len }).to_be_bytes())
+            .collect();
+        let fixture = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let mut head = fixture.head().unwrap().offset_data().as_bytes().to_vec();
+        head[50..52].copy_from_slice(&1_i16.to_be_bytes());
+        let mut maxp = vec![0, 0, 0x50, 0];
+        maxp.extend(num_glyphs.to_be_bytes());
+
+        let mut builder = FontBuilder::new();
+        builder.add_raw(Glyf::TAG, glyf);
+        builder.add_raw(Loca::TAG, loca);
+        builder.add_raw(Head::TAG, head);
+        builder.add_raw(Tag::new(b"maxp"), maxp);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+
+        let gids = (0..num_glyphs).step_by(2).map(GlyphId::from).collect();
+        let empty_tags = IntSet::empty();
+        let plan = Plan::new(
+            &gids,
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+            &empty_tags,
+            &empty_tags,
+            &empty_tags,
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        subset_font(&font, &plan)
+    }
+
+    #[test]
+    fn shared_glyph_data_is_limited() {
+        // 16 is MAX_GLYF_BYTES_FACTOR
+        assert!(subset_font_with_shared_glyph(16).is_ok());
+        assert!(matches!(
+            subset_font_with_shared_glyph(17),
+            Err(SubsetTableError(Glyf::TAG))
+        ));
     }
 
     #[test]

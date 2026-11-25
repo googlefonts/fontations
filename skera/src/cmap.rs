@@ -8,7 +8,7 @@ use crate::{
     SubsetError::{self, SubsetTableError},
 };
 
-use crate::{FastHashMap, FastHashSet};
+use crate::FastHashMap;
 use read_fonts::{
     collections::IntSet,
     tables::cmap::{
@@ -24,7 +24,7 @@ use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::FontBuilder;
 
 const INVALID_UNICODE_CHAR: u32 = u32::MAX;
-const UNICODE_MAX: u32 = 0x10FFFF_u32;
+pub(crate) const UNICODE_MAX: u32 = 0x10FFFF_u32;
 const HEADER_SIZE: usize = 4;
 // reference: subset() for cmap table in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/b14def8bb32f32c32f2e2e9e1ce3efef2a242ca0/src/hb-ot-cmap-table.hh#L1920>
@@ -43,12 +43,13 @@ impl Subset for Cmap<'_> {
             s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
             return Err(SubsetTableError(Cmap::TAG));
         }
-        let retained_encoding_records: Vec<(usize, &EncodingRecord)> = self
-            .encoding_records()
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| retain_encoding_record_for_subset(r, self))
-            .collect();
+        // The records that are subset: of those that retain_encoding_record_for_subset keeps,
+        // the ones whose subtable has a format that is subset, and only the first of each
+        // platform and encoding; see is_first_record_for_encoding. Nothing after this loop
+        // sees another record, so can_drop_format12 can only drop a format 12 subtable for a
+        // subtable that is written.
+        let mut retained_encoding_records: Vec<&EncodingRecord> = Vec::new();
+        let mut seen_encodings = IntSet::empty();
 
         let mut has_unicode_bmp = false;
         let mut has_unicode_usc4 = false;
@@ -57,16 +58,22 @@ impl Subset for Cmap<'_> {
         let mut has_format12 = false;
         let mut has_ms_symbol = false;
 
-        for (_, record) in retained_encoding_records.iter() {
-            if record.platform_id() == PlatformId::Windows && record.encoding_id() == 0 {
-                has_ms_symbol |= record
-                    .subtable(self.offset_data())
-                    .is_ok_and(|t| matches!(t.format(), 4 | 12));
+        for record in self
+            .encoding_records()
+            .iter()
+            .filter(|r| retain_encoding_record_for_subset(r, self))
+        {
+            let format = record.subtable(self.offset_data()).ok().map(|t| t.format());
+            if let Some(format @ (4 | 12 | 14 | 15)) = format {
+                if is_first_record_for_encoding(record, format, &mut seen_encodings) {
+                    retained_encoding_records.push(record);
+                }
             }
-            if record
-                .subtable(self.offset_data())
-                .is_ok_and(|t| t.format() == 12)
-            {
+
+            if record.platform_id() == PlatformId::Windows && record.encoding_id() == 0 {
+                has_ms_symbol |= matches!(format, Some(4 | 12));
+            }
+            if format == Some(12) {
                 has_format12 = true;
             }
 
@@ -127,6 +134,7 @@ fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), Se
     let count_pos = s.embed(0u16)?;
     let mut count = 0;
     let variation_index = dmap.uvs_subtable().map(|(index, _)| index as usize);
+    let mut seen_encodings = IntSet::empty();
     for (index, record) in dmap.encoding_records().iter().enumerate() {
         let retain = retain_encoding_record_for_subset(record, dmap)
             || (record.platform_id() == PlatformId::Unicode
@@ -141,6 +149,9 @@ fn serialize_dmap(dmap: &Cmap, s: &mut Serializer, plan: &Plan) -> Result<(), Se
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         }
         if matches!(subtable.format(), 14 | 15) && Some(index) != variation_index {
+            continue;
+        }
+        if !is_first_record_for_encoding(record, subtable.format(), &mut seen_encodings) {
             continue;
         }
         let truncated = match &subtable {
@@ -196,11 +207,35 @@ fn retain_encoding_record_for_subset(record: &EncodingRecord, cmap: &Cmap) -> bo
             .is_ok_and(|t| matches!(t.format(), 14 | 15))
 }
 
+/// Returns whether `record`, whose subtable has `format`, is the first encoding record of its
+/// platform and encoding, and notes that pair in `seen_encodings` as HarfBuzz does: the platform
+/// id in the high 16 bits and the encoding id in the low ones.
+///
+/// Only the first record of a pair is subset, as in HarfBuzz: a lookup finds one record per pair,
+/// and a valid cmap has no more. Subsetting a record costs time in proportion to the retained
+/// codepoints while repeating one costs a font 8 bytes. The records of variation selector
+/// subtables are exempt, so that a font with a format 14 and a format 15 subtable keeps both.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L2585-L2603>
+fn is_first_record_for_encoding(
+    record: &EncodingRecord,
+    format: u16,
+    seen_encodings: &mut IntSet<u32>,
+) -> bool {
+    if matches!(format, 14 | 15) {
+        return true;
+    }
+    let encoding = ((record.platform_id() as u32) << 16) | u32::from(record.encoding_id());
+    seen_encodings.insert(encoding)
+}
+
+/// Whether the format 12 subtable of `cmap12_record` can be left out: it has no codepoint past
+/// the BMP, and the BMP record of its platform and language in `retained_encoding_records`,
+/// which are the records that are subset, maps the same codepoints.
 fn can_drop_format12(
     cmap12_record: &EncodingRecord,
     cmap12_subset_unicodes: &IntSet<u32>,
     cmap: &Cmap,
-    retained_encoding_records: &[(usize, &EncodingRecord)],
+    retained_encoding_records: &[&EncodingRecord],
     unicodes_cache: &mut SubtableUnicodeCache,
     subset_unicodes: &IntSet<u32>,
     num_glyphs: usize,
@@ -227,7 +262,7 @@ fn can_drop_format12(
         .unwrap()
         .language();
 
-    for (rec_idx, rec) in retained_encoding_records.iter() {
+    for rec in retained_encoding_records.iter() {
         let Ok(subtable) = rec.subtable(cmap.offset_data()) else {
             continue;
         };
@@ -238,7 +273,7 @@ fn can_drop_format12(
             continue;
         }
 
-        let Some(sibling_unicodes) = unicodes_cache.set_for(*rec_idx, &subtable, num_glyphs) else {
+        let Some(sibling_unicodes) = unicodes_cache.set_for(rec, &subtable, num_glyphs) else {
             continue;
         };
 
@@ -277,11 +312,14 @@ fn cmap_mappings(
         .collect()
 }
 
+/// Subsets the subtables of `retained_encoding_records`, which are the records that
+/// `Cmap::subset` collects: each has a subtable of format 4, 12, 14 or 15, and none repeats
+/// the platform and encoding of another, the records of variation selector subtables aside.
 fn serialize_cmap(
     cmap: &Cmap,
     s: &mut Serializer,
     plan: &Plan,
-    retained_encoding_records: &[(usize, &EncodingRecord)],
+    retained_encoding_records: &[&EncodingRecord],
     has_dmap: bool,
 ) -> Result<(), SerializeErrorFlags> {
     // allocate header: version + numTables
@@ -291,10 +329,12 @@ fn serialize_cmap(
     let mut format12_objidx = None;
     let mut format14_objidx = None;
     let mut format15_objidx = None;
+    // the variation selector subtables that subset to nothing, by offset
+    let mut empty_uvs_subtables = IntSet::empty();
     //TODO: add support for cmap_cache in plan accelerator
     let mut unicodes_cache =
         SubtableUnicodeCache::new(cmap.offset_data().as_bytes().as_ptr() as usize);
-    for (rec_idx, record) in retained_encoding_records.iter() {
+    for record in retained_encoding_records.iter() {
         if s.in_error() {
             return Err(s.error());
         }
@@ -304,13 +344,9 @@ fn serialize_cmap(
         };
 
         let format = subtable.format();
-        if !matches!(format, 4 | 12 | 14 | 15) {
-            continue;
-        }
-
         if format == 4 {
             let Some(unicodes_set) =
-                unicodes_cache.set_for(*rec_idx, &subtable, plan.font_num_glyphs)
+                unicodes_cache.set_for(record, &subtable, plan.font_num_glyphs)
             else {
                 continue;
             };
@@ -340,7 +376,7 @@ fn serialize_cmap(
             }
         } else if format == 12 {
             let Some(unicodes_set) =
-                unicodes_cache.set_for(*rec_idx, &subtable, plan.font_num_glyphs)
+                unicodes_cache.set_for(record, &subtable, plan.font_num_glyphs)
             else {
                 continue;
             };
@@ -372,6 +408,13 @@ fn serialize_cmap(
                 false,
             )?;
         } else if format == 14 || format == 15 {
+            // Every record of a variation selector subtable is kept, and a subtable that
+            // subsets to nothing writes no record and leaves no object to link the next
+            // record to. Don't subset it again for each record that names it.
+            let offset = record.subtable_offset().to_u32();
+            if empty_uvs_subtables.contains(offset) {
+                continue;
+            }
             let objidx = if format == 14 {
                 &mut format14_objidx
             } else {
@@ -386,6 +429,9 @@ fn serialize_cmap(
                 *objidx,
                 false,
             )?;
+            if objidx.is_none() {
+                empty_uvs_subtables.insert(offset);
+            }
         }
     }
 
@@ -1054,7 +1100,7 @@ serialize_uvs!(
 pub(crate) fn count_uvs_ops(cmap: &Cmap, unicodes: &IntSet<u32>, walk: &mut OpsWalk) -> bool {
     // The closure and the subsetter don't read the same UVS subtable of a cmap
     // with several, so all of them are counted, each once.
-    let mut counted = FastHashSet::default();
+    let mut counted = IntSet::empty();
     cmap.encoding_records().iter().all(|record| {
         if !counted.insert(record.subtable_offset().to_u32()) {
             return true;
@@ -1361,18 +1407,24 @@ impl SubtableUnicodeCache {
         }
     }
 
+    /// The codepoints of the subtable of `record`. Records that share a subtable share the set,
+    /// as in HarfBuzz.
+    /// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L1899-L1918>
     fn set_for(
         &mut self,
-        record_idx: usize,
+        record: &EncodingRecord,
         cmap_subtable: &CmapSubtable,
         num_glyphs: usize,
     ) -> Option<&IntSet<u32>> {
-        self.cached_unicodes.entry(record_idx).or_insert_with(|| {
-            let mut subtable_unicodes_set = IntSet::empty();
-            cmap_subtable.collect_unicodes(num_glyphs, &mut subtable_unicodes_set);
-            subtable_unicodes_set
-        });
-        self.cached_unicodes.get(&record_idx)
+        let subtable_offset = record.subtable_offset().to_u32() as usize;
+        self.cached_unicodes
+            .entry(subtable_offset)
+            .or_insert_with(|| {
+                let mut subtable_unicodes_set = IntSet::empty();
+                cmap_subtable.collect_unicodes(num_glyphs, &mut subtable_unicodes_set);
+                subtable_unicodes_set
+            });
+        self.cached_unicodes.get(&subtable_offset)
     }
 }
 
@@ -1396,6 +1448,11 @@ impl CollectUnicodes for Cmap4<'_> {
         let id_deltas = self.id_delta();
         let seg_count = self.seg_count_x2() / 2;
         let glyph_id_array = self.glyph_id_array();
+        // Segments should be in order and disjoint. Skip the codepoints an earlier segment
+        // already covered, as HarfBuzz and Cmap4::iter() do: otherwise a run of overlapping
+        // segments walks the same codepoints again and again.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L618-L629>
+        let mut next_cp = 0_u32;
         for (i, ((start, end), range_offset)) in self
             .start_code()
             .iter()
@@ -1410,16 +1467,21 @@ impl CollectUnicodes for Cmap4<'_> {
 
             let end = end.get() as u32;
             let range_offset = range_offset.get() as u32;
-            out.insert_range(start..=end);
+            let first = start.max(next_cp);
+            if first > end {
+                continue;
+            }
+            next_cp = end + 1;
+            out.insert_range(first..=end);
             if range_offset == 0 {
-                for cp in start..=end {
+                for cp in first..=end {
                     let gid = (cp as u16).wrapping_add_signed(id_deltas[i].get());
                     if gid == 0 {
                         out.remove(cp);
                     }
                 }
             } else {
-                for cp in start..=end {
+                for cp in first..=end {
                     let index = range_offset / 2 + (cp - start) + i as u32 - seg_count as u32;
                     if index as usize >= glyph_id_array.len() {
                         out.remove_range(cp..=end);
@@ -1441,10 +1503,14 @@ impl CollectUnicodes for Cmap4<'_> {
 
 impl CollectUnicodes for Cmap12<'_> {
     fn collect_unicodes(&self, num_glyphs: usize, out: &mut IntSet<u32>) {
+        let mut next_cp = 0;
         for group in self.groups() {
             let mut start = group.start_char_code();
             let mut end = group.end_char_code().min(UNICODE_MAX);
             let mut gid = group.start_glyph_id();
+            if start > end {
+                continue;
+            }
             if gid == 0 {
                 start += 1;
                 gid += 1;
@@ -1454,11 +1520,91 @@ impl CollectUnicodes for Cmap12<'_> {
                 continue;
             }
 
+            // keep the last glyph of the group below num_glyphs
+            // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/hb-ot-cmap-table.hh#L911-L914>
             if (gid + end - start) as usize >= num_glyphs {
-                end = UNICODE_MAX.min(start + num_glyphs as u32 - gid);
+                end = UNICODE_MAX.min(start + num_glyphs as u32 - gid - 1);
             }
-            out.insert_range(start..=end);
+            // Groups should be in order and disjoint. Skip the codepoints an earlier group
+            // already covered, as Cmap12::iter() does: otherwise a font full of overlapping
+            // groups inserts the same range once per group.
+            let first = start.max(next_cp);
+            if first > end {
+                continue;
+            }
+            next_cp = end + 1;
+            out.insert_range(first..=end);
         }
+    }
+}
+
+#[cfg(test)]
+mod collect_unicodes_tests {
+    use super::*;
+    use font_test_data::{be_buffer, bebuffer::BeBuffer};
+    use read_fonts::{FontData, FontRead};
+
+    fn cmap12_unicodes(data: &[u8]) -> Vec<u32> {
+        let mut unicodes = IntSet::empty();
+        Cmap12::read(FontData::new(data))
+            .unwrap()
+            .collect_unicodes(10, &mut unicodes);
+        unicodes.iter().collect()
+    }
+
+    #[test]
+    fn overlapping_cmap12_groups() {
+        let data = be_buffer! {
+            12u16, 0u16, 52u32, 0u32, 3u32, // format, reserved, length, language, numGroups
+            [0x41u32, 0x43, 1], // startCharCode, endCharCode, startGlyphID
+            [0x41u32, 0x44, 1],
+            [0x30u32, 0x31, 5] // out of order
+        };
+        assert_eq!(cmap12_unicodes(data.data()), [0x41, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn cmap12_group_past_glyph_count() {
+        // The font has 10 glyphs: the group maps 0x41..=0x43 to glyphs 7..=9, and the
+        // rest of it to glyphs that don't exist.
+        let data = be_buffer! {
+            12u16, 0u16, 28u32, 0u32, 1u32, // format, reserved, length, language, numGroups
+            [0x41u32, 0x60, 7] // startCharCode, endCharCode, startGlyphID
+        };
+        assert_eq!(cmap12_unicodes(data.data()), [0x41, 0x42, 0x43]);
+    }
+
+    #[test]
+    fn inverted_cmap12_group() {
+        let data = be_buffer! {
+            12u16, 0u16, 40u32, 0u32, 2u32, // format, reserved, length, language, numGroups
+            [0x43u32, 0x41, 1], // startCharCode, endCharCode, startGlyphID
+            [0x44u32, 0x44, 2]
+        };
+        assert_eq!(cmap12_unicodes(data.data()), [0x44]);
+    }
+
+    #[test]
+    fn overlapping_cmap4_segments() {
+        // segments 0x41..=0x43 (delta 0), 0x41..=0x44 (glyph 0 from the
+        // glyph id array for all of them) and the final 0xFFFF segment
+        let data = be_buffer! {
+            4u16, 48u16, 0u16, // format, length, language
+            6u16, 4u16, 1u16, 2u16, // segCountX2, searchRange, entrySelector, rangeShift
+            [0x43u16, 0x44, 0xFFFF], // endCode
+            0u16, // reservedPad
+            [0x41u16, 0x41, 0xFFFF], // startCode
+            [0u16, 0, 1], // idDelta
+            [0u16, 4, 0], // idRangeOffset
+            [0u16, 0, 0, 0] // glyphIdArray
+        };
+        let mut unicodes = IntSet::empty();
+        Cmap4::read(FontData::new(data.data()))
+            .unwrap()
+            .collect_unicodes(10, &mut unicodes);
+        // The second segment only adds 0x44, which maps to glyph 0, and does
+        // not take away the codepoints the first one maps, as for lookups.
+        assert_eq!(unicodes.iter().collect::<Vec<_>>(), [0x41, 0x42, 0x43]);
     }
 }
 

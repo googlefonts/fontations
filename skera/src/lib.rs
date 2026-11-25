@@ -106,6 +106,14 @@ pub(crate) type FastHashSet<T> = std::collections::HashSet<T, foldhash::fast::Fi
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: usize = read_fonts::limits::MAX_RECURSION_DEPTH;
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-limits.hh#L170>
+/// The source bytes of all the glyphs retained from glyf, as a multiple of
+/// the length of the table; a plan that retains more fails to subset glyf.
+///
+/// With an ascending loca the retained glyphs add up to at most the table.
+/// loca need not ascend though, and any number of glyph ids may share the
+/// same bytes, which are then walked for each of them.
+const MAX_GLYF_BYTES_FACTOR: i64 = 16;
 // Support 24-bit gids. This should probably be extended to u32::MAX but
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
@@ -371,7 +379,8 @@ pub struct Plan {
     /// The tables with a walk that ran out of its [`layout::OpsBudget`], which
     /// fail to subset: layout tables, and cmap and DMAP for their UVS tables.
     /// Also GDEF, COLR and BASE when their variation store has a subtable that
-    /// can't be read.
+    /// can't be read, and glyf when the retained glyphs exceed
+    /// [`MAX_GLYF_BYTES_FACTOR`].
     layout_ops_exceeded: IntSet<Tag>,
 
     //active old->new feature index map after removing redundant langsys and prune_features
@@ -828,6 +837,8 @@ impl Plan {
         if let Ok((glyf, loca)) = font.selected_glyf_loca(None) {
             let operation_count =
                 self.glyphset_mathed.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as u64);
+            let mut bytes_budget =
+                (glyf.offset_data().len() as i64).saturating_mul(MAX_GLYF_BYTES_FACTOR);
             for gid in self.glyphset_colred.iter() {
                 glyf_closure_glyphs(
                     &loca,
@@ -835,8 +846,12 @@ impl Plan {
                     gid,
                     &mut self.glyphset,
                     operation_count as i32,
+                    &mut bytes_budget,
                     0,
                 );
+            }
+            if bytes_budget < 0 {
+                self.layout_ops_exceeded.insert(Glyf::TAG);
             }
             remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
         } else {
@@ -1328,18 +1343,34 @@ fn remap_delta_set_indices(
 
 /// glyph closure for Composite glyphs in glyf table
 /// limit the number of operations through returning an operation count
+///
+/// `bytes_budget` is what is left of [`MAX_GLYF_BYTES_FACTOR`], and is
+/// negative once the retained glyphs exceed it.
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-subset-plan.cc#L395>
 fn glyf_closure_glyphs(
     loca: &Loca,
     glyf: &Glyf,
     gid: GlyphId,
     gids_to_retain: &mut IntSet<GlyphId>,
     operation_count: i32,
+    bytes_budget: &mut i64,
     depth: usize,
 ) -> i32 {
     if gids_to_retain.contains(gid) {
         return operation_count;
     }
     gids_to_retain.insert(gid);
+
+    let glyph = loca.get(gid, glyf).and_then(|g| g.into_glyph());
+
+    // Every retained glyph is walked here and again when glyf is subset.
+    // Charge its untrimmed bytes before the operation count can bail out,
+    // so that a glyph retained past that point is still paid for.
+    let glyph_len = glyph.as_ref().map_or(0, |g| g.offset_data().len());
+    *bytes_budget -= glyph_len as i64;
+    if *bytes_budget < 0 {
+        return operation_count;
+    }
 
     if depth > MAX_NESTING_LEVEL {
         return operation_count;
@@ -1351,7 +1382,7 @@ fn glyf_closure_glyphs(
         return operation_count;
     }
 
-    if let Some(Glyph::Composite(glyph)) = loca.get(gid, glyf).and_then(|g| g.into_glyph()) {
+    if let Some(Glyph::Composite(glyph)) = glyph {
         for child in glyph.components() {
             operation_count = glyf_closure_glyphs(
                 loca,
@@ -1359,6 +1390,7 @@ fn glyf_closure_glyphs(
                 child.glyph,
                 gids_to_retain,
                 operation_count,
+                bytes_budget,
                 depth,
             );
         }
@@ -1430,6 +1462,8 @@ fn remap_palette_indices(indices: IntSet<u16>) -> FastHashMap<u16, u16> {
 pub struct SubsetState {
     // whether GDEF ItemVariationStore is retained after subsetting
     has_gdef_varstore: bool,
+    // number of bytes that can still be copied unmodified, see passthrough_table
+    passthrough_budget: usize,
 }
 
 #[derive(Debug, Error)]
@@ -1596,10 +1630,19 @@ trait Serialize<'a> {
 pub fn subset_font<'a>(font: &FontRef<'a>, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::<'a>::default();
 
-    let mut state = SubsetState::default();
+    let mut state = SubsetState {
+        passthrough_budget: font.data().len().saturating_mul(2),
+        ..Default::default()
+    };
     let mut tags_with_dependencies = Vec::with_capacity(5);
+    let mut seen_tags = IntSet::<Tag>::empty();
     for record in font.table_directory().table_records() {
         let tag = record.tag();
+        // Tables are looked up by tag, which finds the first record when a tag is
+        // repeated, so further records would only subset the same table again.
+        if !seen_tags.insert(tag) {
+            continue;
+        }
         if should_drop_table(tag, plan) {
             continue;
         }
@@ -1759,7 +1802,7 @@ fn subset_table<'a>(
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
     if plan.no_subset_tables.contains(tag) {
-        return passthrough_table(tag, font, s);
+        return passthrough_table(tag, font, s, state);
     }
 
     match tag {
@@ -1928,9 +1971,9 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
             .subset(plan, font, s, builder),
 
-        Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s),
+        Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s, state),
         // MVAR/CVT: not supported by read-fonts, but we want to pass through it during subsetting
-        MVAR | CVT => passthrough_table(tag, font, s),
+        MVAR | CVT => passthrough_table(tag, font, s, state),
 
         //Skip, handled by glyf
         Loca::TAG | glyf_loca::LOCA => Ok(()),
@@ -1978,22 +2021,41 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vorg::TAG))?
             .subset(plan, font, s, builder),
 
-        Stat::TAG => passthrough_table(tag, font, s),
+        Stat::TAG => passthrough_table(tag, font, s, state),
 
         _ if plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED) =>
         {
-            passthrough_table(tag, font, s)
+            passthrough_table(tag, font, s, state)
         }
         _ => Ok(()),
     }
 }
 
-fn passthrough_table(tag: Tag, font: &FontRef<'_>, s: &mut Serializer) -> Result<(), SubsetError> {
+/// Copies a table to the output unmodified.
+///
+/// Every table is copied separately, and nothing stops the records of different
+/// tables from sharing the same bytes, so the copies are charged to a budget of
+/// twice the size of the font. Tables that don't overlap can't add up to more than
+/// the font; the rest is room for tables that do share bytes.
+fn passthrough_table(
+    tag: Tag,
+    font: &FontRef<'_>,
+    s: &mut Serializer,
+    state: &mut SubsetState,
+) -> Result<(), SubsetError> {
     if let Some(data) = font.data_for_tag(tag) {
+        let len = data.len();
+        if len > state.passthrough_budget {
+            // fail the subset rather than drop the table as if it subset to empty
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return Err(SubsetError::SubsetTableError(tag));
+        }
         s.embed_bytes(data.as_bytes())
             .map_err(|_| SubsetError::SubsetTableError(tag))?;
+        // charged only once embedded: try_subset retries a table that ran out of room
+        state.passthrough_budget -= len;
     }
     Ok(())
 }
@@ -2677,10 +2739,183 @@ mod test {
         let glyf = font.glyf().unwrap();
         let mut gids = IntSet::empty();
 
-        glyf_closure_glyphs(&loca, &glyf, GlyphId::new(5), &mut gids, 64, 0);
+        let mut bytes_budget = glyf.offset_data().len() as i64;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
         assert_eq!(gids.len(), 2);
         assert!(gids.contains(GlyphId::new(5)));
         assert!(gids.contains(GlyphId::new(1)));
+    }
+
+    #[test]
+    fn glyf_closure_charges_glyph_bytes() {
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph_len = |gid: u32| {
+            let glyph = loca.get(GlyphId::new(gid), &glyf).unwrap();
+            glyph.into_glyph().unwrap().offset_data().len() as i64
+        };
+
+        // the composite glyph 5 and its component, glyph 1, are both charged
+        let budget = glyph_len(5) + glyph_len(1);
+        let mut gids = IntSet::empty();
+        let mut bytes_budget = budget;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
+        assert_eq!(bytes_budget, 0);
+        assert_eq!(gids.len(), 2);
+
+        // one byte less, and the budget is exceeded
+        let mut gids = IntSet::empty();
+        let mut bytes_budget = budget - 1;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
+        assert!(bytes_budget < 0);
+
+        // a composite that exceeds the budget is retained but not expanded
+        let mut gids = IntSet::empty();
+        let mut bytes_budget = glyph_len(5) - 1;
+        glyf_closure_glyphs(
+            &loca,
+            &glyf,
+            GlyphId::new(5),
+            &mut gids,
+            64,
+            &mut bytes_budget,
+            0,
+        );
+        assert!(bytes_budget < 0);
+        assert_eq!(gids.len(), 1);
+        assert!(gids.contains(GlyphId::new(5)));
+    }
+
+    /// Builds a font with a maxp and `tags.len()` unrecognized tables of 1 KiB, whose
+    /// records either cover disjoint bytes or all share the same bytes.
+    fn font_with_unrecognized_tables(tags: &[[u8; 4]], overlapping: bool) -> Vec<u8> {
+        const TABLE_LEN: u32 = 1024;
+        let num_tables = tags.len() as u16 + 1;
+        let mut bytes = vec![0, 1, 0, 0];
+        bytes.extend(num_tables.to_be_bytes());
+        // searchRange, entrySelector, rangeShift are not used
+        bytes.extend([0; 6]);
+        let maxp_offset = 12 + 16 * num_tables as u32;
+        let data_offset = maxp_offset + 8;
+        let mut records: Vec<([u8; 4], u32, u32)> = tags
+            .iter()
+            .enumerate()
+            .map(|(i, tag)| {
+                let i = if overlapping { 0 } else { i as u32 };
+                (*tag, data_offset + i * TABLE_LEN, TABLE_LEN)
+            })
+            .collect();
+        records.push((*b"maxp", maxp_offset, 6));
+        records.sort();
+        for (tag, offset, len) in records {
+            bytes.extend(tag);
+            bytes.extend(0_u32.to_be_bytes());
+            bytes.extend(offset.to_be_bytes());
+            bytes.extend(len.to_be_bytes());
+        }
+        // maxp version 0.5 with 1 glyph, padded to 8 bytes
+        bytes.extend([0, 0, 0x50, 0, 0, 1, 0, 0]);
+        let num_copies = if overlapping { 1 } else { tags.len() };
+        bytes.extend((0..TABLE_LEN * num_copies as u32).map(|i| i as u8));
+        bytes
+    }
+
+    fn subset_keeping_unrecognized_tables(bytes: &[u8]) -> Result<Vec<u8>, SubsetError> {
+        let font = FontRef::new(bytes).unwrap();
+        let plan = Plan::new(
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED,
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        subset_font(&font, &plan)
+    }
+
+    #[test]
+    fn passthrough_tables_are_limited_by_font_size() {
+        let tags: Vec<[u8; 4]> = (0..8_u8).map(|i| [b'X', b'0', b'0', b'0' + i]).collect();
+
+        let disjoint = font_with_unrecognized_tables(&tags, false);
+        let out = subset_keeping_unrecognized_tables(&disjoint).unwrap();
+        let (font, out) = (
+            FontRef::new(&disjoint).unwrap(),
+            FontRef::new(&out).unwrap(),
+        );
+        for tag in tags.iter().map(Tag::new) {
+            let data = |font: &FontRef| font.table_data(tag).map(|data| data.as_bytes().to_vec());
+            assert_eq!(data(&out), data(&font));
+        }
+
+        // a single table that shares nothing is still copied
+        let single = font_with_unrecognized_tables(&tags[..1], true);
+        assert!(subset_keeping_unrecognized_tables(&single).is_ok());
+
+        // two records sharing the same KiB fit in twice the size of the font
+        let shared = font_with_unrecognized_tables(&tags[..2], true);
+        let out = subset_keeping_unrecognized_tables(&shared).unwrap();
+        assert!(out.len() > shared.len());
+
+        // three no longer do, nor do eight, which would copy it eight times
+        for num_records in [3, 8] {
+            let overlapping = font_with_unrecognized_tables(&tags[..num_records], true);
+            assert!(subset_keeping_unrecognized_tables(&overlapping).is_err());
+        }
+    }
+
+    /// Every record of a repeated tag resolves to the same table, which is
+    /// subset (here: copied, and charged to the passthrough budget) only once.
+    #[test]
+    fn repeated_table_tags_are_subset_once() {
+        let tags = [*b"X000"; 8];
+        let font = font_with_unrecognized_tables(&tags, true);
+        let out = subset_keeping_unrecognized_tables(&font).unwrap();
+        let out = FontRef::new(&out).unwrap();
+        let records = out.table_directory().table_records();
+        assert_eq!(
+            records
+                .iter()
+                .filter(|r| r.tag() == Tag::new(b"X000"))
+                .count(),
+            1
+        );
+        let font = FontRef::new(&font).unwrap();
+        let data = |font: &FontRef| {
+            font.table_data(Tag::new(b"X000"))
+                .unwrap()
+                .as_bytes()
+                .to_vec()
+        };
+        assert_eq!(data(&out), data(&font));
     }
 
     #[test]
