@@ -538,6 +538,8 @@ struct ClassDefSizeEstimator {
     num_ranges_per_class: Vec<usize>,
     included_classes: IntSet<u16>,
     included_glyphs: IntSet<u32>,
+    // The number of ranges of included_glyphs, kept up to date as classes are added.
+    num_included_ranges: usize,
     format1_size: usize,
     format2_size: usize,
     coverage_size: usize,
@@ -557,6 +559,7 @@ impl ClassDefSizeEstimator {
                 num_ranges_per_class: Vec::new(),
                 included_glyphs: IntSet::empty(),
                 included_classes: IntSet::empty(),
+                num_included_ranges: 0,
                 format1_size: Self::CLASSDEF_FORMAT1_MIN_SIZE,
                 format2_size: Self::CLASSDEF_FORMAT2_MIN_SIZE,
                 coverage_size: Self::COVERAGE_MIN_SIZE,
@@ -582,6 +585,7 @@ impl ClassDefSizeEstimator {
             num_ranges_per_class,
             included_glyphs: IntSet::empty(),
             included_classes: IntSet::empty(),
+            num_included_ranges: 0,
             format1_size: Self::CLASSDEF_FORMAT1_MIN_SIZE,
             format2_size: Self::CLASSDEF_FORMAT2_MIN_SIZE,
             coverage_size: Self::COVERAGE_MIN_SIZE,
@@ -602,11 +606,24 @@ impl ClassDefSizeEstimator {
             return cur_size;
         }
 
-        let num_glyphs = self.included_glyphs.len();
-        self.included_glyphs.union(glyphs);
-        if num_glyphs != self.included_glyphs.len() {
-            self.compute_coverage_size();
+        // A glyph has one class, so none of these glyphs is included yet. Keep the number of
+        // ranges of the included glyphs up to date as HarfBuzz does, instead of counting the
+        // ranges of the whole set for every class, which is quadratic in the number of
+        // classes: each range of the class adds one, and joins each neighbour that is already
+        // included.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/graph/classdef-graph.hh#L213-L231>
+        for range in glyphs.iter_ranges() {
+            self.num_included_ranges += 1;
+            let before = range.start().checked_sub(1);
+            let after = range.end().checked_add(1);
+            for neighbour in [before, after].into_iter().flatten() {
+                if self.included_glyphs.contains(neighbour) {
+                    self.num_included_ranges -= 1;
+                }
+            }
         }
+        self.included_glyphs.union(glyphs);
+        self.compute_coverage_size();
 
         let min_glyph = self.included_glyphs.first().unwrap();
         let max_glyph = self.included_glyphs.last().unwrap();
@@ -627,8 +644,8 @@ impl ClassDefSizeEstimator {
         let format_1_size =
             Self::COVERAGE_MIN_SIZE + Self::BYTES_PER_GLYPH * self.included_glyphs.len() as usize;
 
-        let format_2_size = Self::COVERAGE_MIN_SIZE
-            + Self::BYTES_PER_RANGE * self.included_glyphs.iter_ranges().count();
+        let format_2_size =
+            Self::COVERAGE_MIN_SIZE + Self::BYTES_PER_RANGE * self.num_included_ranges;
 
         self.coverage_size = format_1_size.min(format_2_size);
     }
@@ -639,6 +656,7 @@ impl ClassDefSizeEstimator {
         self.coverage_size = Self::COVERAGE_MIN_SIZE;
         self.included_classes.clear();
         self.included_glyphs.clear();
+        self.num_included_ranges = 0;
     }
 }
 
@@ -1164,5 +1182,92 @@ pub(crate) mod test {
 
         classes.insert(3);
         check_add_class_def_sizes(&mut estimator, &gids_and_classes, 3, &classes);
+    }
+
+    #[test]
+    fn test_running_coverage_size_estimates_with_merging_ranges() {
+        // Adding a class whose glyphs bridge the gaps between ranges that are
+        // already included must reduce the coverage range count.
+        let gids_and_classes = [
+            (GlyphId::from(1_u16), 1),
+            (GlyphId::from(2_u16), 1),
+            (GlyphId::from(3_u16), 1),
+            (GlyphId::from(4_u16), 1),
+            (GlyphId::from(5_u16), 2),
+            (GlyphId::from(6_u16), 1),
+            (GlyphId::from(7_u16), 1),
+            (GlyphId::from(8_u16), 1),
+            (GlyphId::from(9_u16), 1),
+            (GlyphId::from(10_u16), 4),
+            (GlyphId::from(11_u16), 3),
+            (GlyphId::from(12_u16), 3),
+            (GlyphId::from(13_u16), 3),
+            (GlyphId::from(14_u16), 3),
+            (GlyphId::from(15_u16), 3),
+            (GlyphId::from(16_u16), 3),
+        ];
+
+        let mut estimator = ClassDefSizeEstimator::new(&gids_and_classes);
+        let mut classes = IntSet::empty();
+        // ranges: 1-4, 6-9
+        classes.insert(1_u16);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 1, &classes);
+
+        // ranges: 1-9
+        classes.insert(2);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 2, &classes);
+
+        // ranges: 1-9, 11-16
+        classes.insert(3);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 3, &classes);
+
+        // ranges: 1-16
+        classes.insert(4);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 4, &classes);
+
+        estimator.reset();
+        classes.clear();
+        // ranges: 10
+        classes.insert(4);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 4, &classes);
+
+        // ranges: 10-16
+        classes.insert(3);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 3, &classes);
+
+        // ranges: 1-4, 6-16
+        classes.insert(1);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 1, &classes);
+
+        // ranges: 1-16, re-adding an included class changes nothing
+        classes.insert(2);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 2, &classes);
+        check_add_class_def_sizes(&mut estimator, &gids_and_classes, 1, &classes);
+    }
+
+    #[test]
+    fn test_coverage_size_estimates_with_many_fragmented_classes() {
+        // One glyph per class at every other glyph id, so the included glyphs never merge into
+        // fewer ranges. Recounting the ranges after each added class takes N^2 / 2 steps.
+        const NUM_CLASSES: u16 = 20000;
+        let gids_and_classes: Vec<_> = (1..=NUM_CLASSES)
+            .map(|class| (GlyphId::from(2 * class as u32), class))
+            .collect();
+        let mut estimator = ClassDefSizeEstimator::new(&gids_and_classes);
+        for class in 1..=NUM_CLASSES {
+            estimator.add_class_def_size(class);
+        }
+        // format 1: a glyph each, format 2: a range each
+        assert_eq!(
+            estimator.coverage_size(),
+            ClassDefSizeEstimator::COVERAGE_MIN_SIZE
+                + ClassDefSizeEstimator::BYTES_PER_GLYPH * NUM_CLASSES as usize
+        );
+        estimator.reset();
+        estimator.add_class_def_size(1);
+        assert_eq!(
+            estimator.coverage_size(),
+            ClassDefSizeEstimator::COVERAGE_MIN_SIZE + ClassDefSizeEstimator::BYTES_PER_GLYPH
+        );
     }
 }

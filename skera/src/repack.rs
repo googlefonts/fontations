@@ -381,7 +381,14 @@ fn find_lookup_indices(
 
 #[cfg(test)]
 pub(crate) mod test {
-    use read_fonts::{tables::layout::CoverageTable, types::GlyphId};
+    use read_fonts::{
+        tables::{
+            gpos::{MarkBasePos, PositionSubtables},
+            layout::CoverageTable,
+        },
+        types::GlyphId,
+        FontRead,
+    };
 
     use super::*;
     use crate::{
@@ -2429,6 +2436,106 @@ pub(crate) mod test {
         populate_serializer_with_large_mark_base_pos_1(&mut expected, 40, 10, 110, 2);
 
         run_resolve_overflow_test(overflowing, expected, 20, true, false, Gpos::TAG);
+    }
+
+    // Two MarkBasePos subtables, one of them behind an extension, share their MarkArray and mark
+    // Coverage. The first packing attempt duplicates both tables for the extension's space.
+    // Splitting one subtable must not change what the other subtable reads.
+    #[test]
+    fn test_resolve_with_mark_array_shared_across_spaces() {
+        const CLASS_COUNT: u16 = 4;
+
+        // One base glyph with an anchor of its own for each class.
+        fn add_mark_base_pos(
+            s: &mut Serializer,
+            mark_coverage: ObjIdx,
+            base_coverage: ObjIdx,
+            mark_array: ObjIdx,
+            anchor_size: usize,
+        ) -> ObjIdx {
+            let large_bytes = vec![b'a'; anchor_size + CLASS_COUNT as usize];
+            let base_anchors: Vec<ObjIdx> = (0..CLASS_COUNT as usize)
+                .map(|class| add_object(s, &large_bytes, anchor_size + class, false))
+                .collect();
+            start_object(s, &1_u16.to_be_bytes(), 2);
+            for anchor in base_anchors {
+                add_offset(s, anchor);
+            }
+            let base_array = s.pop_pack(false).unwrap();
+
+            start_object(s, &1_u16.to_be_bytes(), 2);
+            add_offset(s, mark_coverage);
+            add_offset(s, base_coverage);
+            s.embed(CLASS_COUNT).unwrap();
+            add_offset(s, mark_array);
+            add_offset(s, base_array);
+            s.pop_pack(false).unwrap()
+        }
+
+        // which subtable is split first depends on the object indices, so try both orders
+        for extension_first in [false, true] {
+            let mut s = Serializer::new(400000).unwrap();
+            s.start_serialize().unwrap();
+
+            let mark_anchors: Vec<ObjIdx> = (0..CLASS_COUNT as u8)
+                .map(|x| add_object(&mut s, &[0, 1, 0, x, 0, 0], 6, false))
+                .collect();
+            start_object(&mut s, &CLASS_COUNT.to_be_bytes(), 2);
+            for (class, anchor) in mark_anchors.into_iter().enumerate() {
+                s.embed(class as u16).unwrap();
+                add_offset(&mut s, anchor);
+            }
+            let mark_array = s.pop_pack(false).unwrap();
+            let mark_coverage = add_coverage(&mut s, 1, CLASS_COUNT, false);
+            let base_coverage = add_coverage(&mut s, 9, 9, false);
+
+            // split before class 2
+            let table_a =
+                add_mark_base_pos(&mut s, mark_coverage, base_coverage, mark_array, 30000);
+            // split before classes 1, 2 and 3
+            let table_b =
+                add_mark_base_pos(&mut s, mark_coverage, base_coverage, mark_array, 40000);
+            let extension_b = add_extension(&mut s, table_b, 4, false);
+
+            start_lookup(&mut s, 9, 1);
+            add_offset(&mut s, extension_b);
+            let lookup_b = finish_lookup(&mut s);
+            start_lookup(&mut s, 4, 1);
+            add_offset(&mut s, table_a);
+            let lookup_a = finish_lookup(&mut s);
+
+            let lookups = if extension_first {
+                [lookup_b, lookup_a]
+            } else {
+                [lookup_a, lookup_b]
+            };
+            let lookup_list = add_lookup_list(&mut s, 2, &lookups);
+            add_gsub_gpos_header(&mut s, lookup_list);
+            s.end_serialize();
+
+            let out = resolve_overflows(s, Gpos::TAG, 32).unwrap();
+            let gpos = Gpos::read(FontData::new(&out)).unwrap();
+            for lookup in gpos.lookup_list().unwrap().lookups().iter() {
+                let PositionSubtables::MarkToBase(subtables) = lookup.unwrap().subtables().unwrap()
+                else {
+                    panic!("expected MarkBasePos subtables");
+                };
+                let mut marks = Vec::new();
+                for subtable in subtables.iter() {
+                    let MarkBasePos::Format1(subtable) = subtable.unwrap() else {
+                        panic!("expected MarkBasePosFormat1");
+                    };
+                    let coverage = subtable.mark_coverage().unwrap();
+                    assert_eq!(
+                        coverage.iter().count(),
+                        subtable.mark_array().unwrap().mark_count() as usize
+                    );
+                    marks.extend(coverage.iter().map(|g| g.to_u32()));
+                }
+                marks.sort();
+                assert_eq!(marks, [1, 2, 3, 4]);
+            }
+        }
     }
 
     #[test]

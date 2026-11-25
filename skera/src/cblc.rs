@@ -88,12 +88,16 @@ impl Subset for Cblc<'_> {
             .embed(num_sizes)
             .map_err(|_| SubsetError::SubsetTableError(Cblc::TAG))?;
 
+        // bitmap_sizes() is empty when numSizes claims more records than the table holds
         let bitmapsize_records = self.bitmap_sizes();
-        let bitmapsize_bytes = self
+        let Some(bitmapsize_bytes) = self
             .offset_data()
             .as_bytes()
             .get(self.bitmap_sizes_byte_range())
-            .unwrap();
+        else {
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+            return Err(SubsetError::SubsetTableError(Cblc::TAG));
+        };
 
         // cbdt out
         let mut cbdt_out = Vec::with_capacity(cbdt.offset_data().len());
@@ -215,8 +219,13 @@ impl<'a> SubsetTable<'a> for BitmapSize {
     ) -> Result<(), SerializeErrorFlags> {
         let (cblc, cbdt, src_bytes, context) = args;
 
-        if self.start_glyph_index() > plan.glyphset.last().unwrap()
-            || self.end_glyph_index() < plan.glyphset.first().unwrap()
+        // the glyph set is empty when the font has no glyphs at all: nothing is retained
+        let (Some(first_gid), Some(last_gid)) = (plan.glyphset.first(), plan.glyphset.last())
+        else {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        };
+        if self.start_glyph_index() > last_gid
+            || self.end_glyph_index() < first_gid
             || self.index_subtable_list_offset() == 0
             || self.index_subtable_list_size() == 0
         {
@@ -411,6 +420,10 @@ impl<'a> SubsetTable<'a> for IndexSubtable1<'a> {
 
         let src_offsets = self.sbit_offsets();
         let src_gid_min = src_gid_min.to_u32() as usize;
+        // sbit_offsets() is empty when the array doesn't fit in the table
+        if src_offsets.len() < src_gid_max.to_u32() as usize - src_gid_min + 2 {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
         // find the last glyph that has image_data
         let mut end_glyph = None;
         for gid in retained_glyphs.iter().rev() {
@@ -466,7 +479,10 @@ impl<'a> SubsetTable<'a> for IndexSubtable1<'a> {
                     last = new_gid.to_u32();
                 }
                 //copy glyph image data into cbdt_out
-                let src_glyph_offset = (self.image_data_offset() + offset_start) as usize;
+                // The sum wraps in 32 bits, as it does in HarfBuzz. The image is then read
+                // from wherever that lands in the CBDT table, or fails the table.
+                // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Color/CBDT/CBDT.hh#L246>
+                let src_glyph_offset = self.image_data_offset().wrapping_add(offset_start) as usize;
                 let len = offset_end - offset_start;
 
                 let Some(glyph_data) = src_cbdt
@@ -530,6 +546,10 @@ impl<'a> SubsetTable<'a> for IndexSubtable3<'a> {
 
         let src_offsets = self.sbit_offsets();
         let src_gid_min = src_gid_min.to_u32() as usize;
+        // sbit_offsets() is empty when the array doesn't fit in the table
+        if src_offsets.len() < src_gid_max.to_u32() as usize - src_gid_min + 2 {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        }
         // find the last glyph that has image_data
         let mut end_glyph = None;
         for gid in retained_glyphs.iter().rev() {
@@ -1202,5 +1222,86 @@ mod test {
             assert_eq!(ok, expected, "images of {image_len} bytes");
             assert_eq!(has_cbdt, expected, "images of {image_len} bytes");
         }
+    }
+
+    /// `font_data` with its CBLC table replaced by `edit(cblc)`.
+    fn font_with_edited_cblc(font_data: &[u8], edit: impl FnOnce(&mut Vec<u8>)) -> Vec<u8> {
+        let font = FontRef::new(font_data).unwrap();
+        let mut cblc = font.data_for_tag(Cblc::TAG).unwrap().as_bytes().to_vec();
+        edit(&mut cblc);
+
+        let mut builder = FontBuilder::new();
+        builder.add_raw(Cblc::TAG, cblc);
+        builder.add_raw(
+            Cbdt::TAG,
+            font.data_for_tag(Cbdt::TAG).unwrap().as_bytes().to_vec(),
+        );
+        builder.build()
+    }
+
+    // read-fonts checks only the header of the table, and returns no BitmapSize records when
+    // numSizes is more than the table holds.
+    #[test]
+    fn rejects_num_sizes_past_end_of_table() {
+        let font_data = single_subtable_font(1, &[0, 4, 8], 8);
+        assert_eq!(subset_all_glyphs(&font_data, 2), (true, true));
+
+        for num_sizes in [2_u32, u32::MAX] {
+            let font_data = font_with_edited_cblc(&font_data, |cblc| {
+                cblc[4..8].copy_from_slice(&num_sizes.to_be_bytes())
+            });
+            assert_eq!(subset_all_glyphs(&font_data, 2), (false, false));
+        }
+    }
+
+    // The table ends with the glyph offsets of the index subtable. Without the last one
+    // read-fonts returns no offsets at all.
+    #[test]
+    fn rejects_truncated_sbit_offsets() {
+        // (index format, size of a glyph offset)
+        for (index_format, offset_size) in [(1, 4), (3, 2)] {
+            let font_data = single_subtable_font(index_format, &[0, 4, 8], 8);
+            assert_eq!(subset_all_glyphs(&font_data, 2), (true, true));
+
+            let font_data =
+                font_with_edited_cblc(&font_data, |cblc| cblc.truncate(cblc.len() - offset_size));
+            assert_eq!(subset_all_glyphs(&font_data, 2), (false, false));
+        }
+    }
+
+    // imageDataOffset + sbitOffset is a 32 bit sum that may wrap. Here it wraps to the image
+    // data, 4 bytes into the CBDT table, so the table is subset as if the sum had been written
+    // without wrapping.
+    #[test]
+    fn wraps_format1_image_offsets_past_32_bits() {
+        // with the imageDataOffset of 4 the second image ends past the table
+        let font_data = single_subtable_font(1, &[5, 9, 13], 8);
+        assert_eq!(subset_all_glyphs(&font_data, 2), (false, false));
+
+        // imageDataOffset follows the 8 byte header, the BitmapSize record, the
+        // IndexSubtableRecord and the two formats of the index subtable
+        let font_data = font_with_edited_cblc(&font_data, |cblc| {
+            cblc[68..72].copy_from_slice(&u32::MAX.to_be_bytes())
+        });
+        assert_eq!(subset_all_glyphs(&font_data, 2), (true, true));
+    }
+
+    // A font without glyphs (no maxp table, or one with numGlyphs = 0) retains no glyphs at all,
+    // not even .notdef.
+    #[test]
+    fn test_subset_cbdt_empty_glyphset() {
+        let font_data = single_subtable_bitmap_font();
+        let font = FontRef::new(&font_data).unwrap();
+        let cblc = font.cblc().unwrap();
+
+        let plan = Plan::default();
+        let mut builder = FontBuilder::new();
+        let mut s = Serializer::new(1024).unwrap();
+        s.start_serialize().unwrap();
+        cblc.subset(&plan, &font, &mut s, &mut builder).unwrap();
+        s.end_serialize();
+
+        // every strike is dropped
+        assert_eq!(s.copy_bytes(), [0x00, 0x03, 0x00, 0x00, 0, 0, 0, 0]);
     }
 }

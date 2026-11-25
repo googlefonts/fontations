@@ -1,6 +1,7 @@
 //! Subsetting support for the ISO OFF extended layout formats.
 
 use super::*;
+use read_fonts::tables::layout::RangeRecord2;
 
 pub(super) fn subset_coverage(
     coverage: &CoverageTable,
@@ -59,23 +60,30 @@ impl<'a> Serialize<'a> for CoverageFormat4<'a> {
             .and_then(Uint24::checked_new)
             .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW))?;
         s.embed(4_u16)?;
-        s.embed(count)?;
+        // the range records follow the count
+        let pos = s.embed(count)? + Uint24::RAW_BYTE_LEN;
         let Some(first_glyph) = glyphs.first() else {
             return Ok(());
         };
         let mut first = first_glyph.to_u32();
         let mut last = first;
         let mut coverage_index = 0;
+        let mut unsorted = false;
         for (index, gid) in glyphs.iter().enumerate().skip(1) {
             let gid = gid.to_u32();
             if last.checked_add(1) != Some(gid) {
+                unsorted |= gid <= last;
                 serialize_coverage_range24(s, first, last, coverage_index)?;
                 first = gid;
                 coverage_index = index;
             }
             last = gid;
         }
-        serialize_coverage_range24(s, first, last, coverage_index)
+        serialize_coverage_range24(s, first, last, coverage_index)?;
+        if unsorted {
+            sort_coverage_ranges(s, pos, range_count, RangeRecord2::RAW_BYTE_LEN);
+        }
+        Ok(())
     }
 }
 
@@ -178,6 +186,30 @@ mod tests {
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
             );
         }
+    }
+
+    /// The ranges of a CoverageFormat4 can name 2^32 glyphs and more. With that
+    /// number truncated to 32 bits the intersection walked every one of them.
+    #[test]
+    fn intersection_does_not_walk_huge_coverage_ranges() {
+        let mut bytes = BeBuffer::new().push(4u16).push(Uint24::new(256));
+        for _ in 0..256 {
+            bytes = bytes.extend([0, 0xffffff, 0].map(Uint24::new));
+        }
+        let bytes = bytes.to_vec();
+        let coverage = CoverageTable::read(FontData::new(&bytes)).unwrap();
+        let glyph_set = [1, 2].map(GlyphId::new).into_iter().collect();
+        let mut indices = Vec::new();
+        // Walking the ranges finds both glyphs again in each of them.
+        let result = for_each_intersected_coverage_index(&coverage, &glyph_set, u32::MAX, |idx| {
+            if indices.len() == 2 {
+                return Err(());
+            }
+            indices.push(idx);
+            Ok(())
+        });
+        assert_eq!(result, Ok(()));
+        assert_eq!(indices, [1, 2]);
     }
 
     #[test]

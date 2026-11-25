@@ -527,9 +527,11 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
         let mut num_ranges = 1_usize;
         let mut last = glyphs[0].to_u32();
         let mut max_gid = last;
+        let mut unsorted = false;
 
         for g in glyphs.iter().skip(1) {
             let gid = g.to_u32();
+            unsorted |= gid < last;
             if last.checked_add(1) != Some(gid) {
                 num_ranges += 1;
             }
@@ -538,18 +540,22 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
             max_gid = max_gid.max(gid);
         }
 
-        // TODO: add support for unsorted glyph list??
-        // ref: <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/Common/Coverage.hh#L143>
+        // A glyph map that doesn't keep the order of the glyphs gives an unsorted glyph list.
+        // As in HarfBuzz, such a list is written as ranges, which are sorted once they are
+        // written: a range states the coverage index of its first glyph, so every glyph keeps
+        // the index it has in the list. An array of glyphs has no room for that.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Layout/Common/Coverage.hh#L163-L177>
+        let use_glyph_array = !unsorted && glyph_count <= num_ranges * 3;
         if max_gid > Uint24::MAX.to_u32() {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW));
         }
         if max_gid > u16::MAX as u32 {
-            if glyph_count <= num_ranges * 3 {
+            if use_glyph_array {
                 return CoverageFormat3::serialize(s, glyphs);
             }
             return CoverageFormat4::serialize(s, (glyphs, num_ranges));
         }
-        if glyph_count <= num_ranges * 3 && glyph_count <= u16::MAX as usize {
+        if use_glyph_array && glyph_count <= u16::MAX as usize {
             CoverageFormat1::serialize(s, glyphs)
         } else {
             let num_ranges = u16::try_from(num_ranges)
@@ -596,10 +602,13 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         s.copy_assign(pos + 4, 0_u16);
 
         let mut range = 0;
+        let mut unsorted = false;
         for (idx, g) in glyphs.iter().enumerate().skip(1) {
             let g = g.to_u32() as u16;
             let range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
-            if last + 1 != g {
+            // must agree with the range count in CoverageTable::serialize: 0xFFFF + 1 is not 0
+            if last.checked_add(1) != Some(g) {
+                unsorted |= g <= last;
                 //end glyph
                 s.copy_assign(range_pos + 2, last);
                 range += 1;
@@ -616,8 +625,26 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
         let last_range_pos = pos + range * RangeRecord::RAW_BYTE_LEN;
         // end glyph
         s.copy_assign(last_range_pos + 2, last);
+        if unsorted {
+            sort_coverage_ranges(s, pos, range_count as usize, RangeRecord::RAW_BYTE_LEN);
+        }
         Ok(())
     }
+}
+
+/// Sorts the `num_ranges` range records of `range_len` bytes at `pos` by their first glyph, as
+/// HarfBuzz does when the glyphs they were made from aren't sorted. The fields of a record are
+/// big-endian and the first glyph comes first, so comparing the bytes of two records compares
+/// their glyphs.
+/// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/OT/Layout/Common/CoverageFormat2.hh#L116-L117>
+fn sort_coverage_ranges(s: &mut Serializer, pos: usize, num_ranges: usize, range_len: usize) {
+    let Some(data) = s.get_mut_data(pos..pos + num_ranges * range_len) else {
+        return;
+    };
+    let mut ranges: Vec<&[u8]> = data.chunks_exact(range_len).collect();
+    ranges.sort_unstable();
+    let sorted = ranges.concat();
+    data.copy_from_slice(&sorted);
 }
 
 #[inline]
@@ -688,9 +715,13 @@ fn for_each_intersection<E>(
     mut f: impl FnMut(u32, GlyphId) -> Result<(), E>,
 ) -> Result<(), E> {
     let num_bits = coverage.cost();
-    let coverage_population = coverage.population();
+    // Coverage entries at or past array_len are skipped, so only the first
+    // array_len of them count when choosing the side to walk.
+    let coverage_population = coverage.population().min(array_len as usize);
 
-    if coverage_population as u32 > (glyph_set.len() as u32) * num_bits {
+    // Compare in u64: the ranges of a CoverageFormat4 can name more than
+    // u32::MAX glyphs, and the product can overflow u32.
+    if coverage_population as u64 > glyph_set.len() * u64::from(num_bits) {
         // Every glyph here is already in glyph_set, so only map if asked to.
         //
         // The range formats state the coverage index of each range, so a
@@ -1988,8 +2019,8 @@ mod test {
     fn intersection_stops_at_broken_coverage() {
         // Glyph 2 states coverage index 0 again, so the one array entry used
         // to be visited once per glyph. The walk stops there, before glyph 3.
-        // The last range holds glyphs that aren't retained, which makes the
-        // glyph set the cheaper side to walk.
+        // The last range holds glyphs that aren't retained and the array is
+        // long, which makes the glyph set the cheaper side to walk.
         let data = BeBuffer::new()
             .extend([2u16, 4])
             .extend([1u16, 1, 0, 2, 2, 0, 3, 3, 1, 4, 1000, 3]);
@@ -2001,7 +2032,7 @@ mod test {
             &coverage,
             &glyph_set,
             &glyph_map,
-            3u32,
+            1000u32,
             |idx, g| {
                 visited.push((idx, g.to_u32()));
                 Ok(())
@@ -2361,6 +2392,65 @@ mod test {
         let subsetted_data = s.copy_bytes();
         let expected_bytes: [u8; 6] = [0x00, 0x01, 0x00, 0x01, 0x00, 0x03];
         assert_eq!(subsetted_data, expected_bytes);
+    }
+
+    #[test]
+    fn test_serialize_coverage_format2_glyph_0_after_glyph_65535() {
+        // Unsorted glyph lists reach the serializer as written in the font.
+        // 0xFFFF + 1 must start a new range, not wrap to 0 and swallow the rest.
+        let glyphs: Vec<_> = [0xFFFF_u32, 0, 1, 2, 3, 4, 5].map(GlyphId::new).into();
+        let mut s = Serializer::new(1024).unwrap();
+        assert_eq!(s.start_serialize(), Ok(()));
+        assert_eq!(CoverageTable::serialize(&mut s, &glyphs), Ok(()));
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let data = s.copy_bytes();
+        let coverage = CoverageTable::read(FontData::new(&data)).unwrap();
+        assert_eq!(coverage.coverage_format(), 2);
+        // the ranges are sorted, and every glyph has the coverage index of its place in the list
+        for (index, glyph) in glyphs.iter().enumerate() {
+            assert_eq!(coverage.get(*glyph), Some(index as u32));
+        }
+    }
+
+    // A glyph map that reorders the glyphs gives an unsorted glyph list. It is written as ranges
+    // sorted by first glyph, in which every glyph keeps the coverage index of its place in the
+    // list, so that the arrays that go with the Coverage table need no reordering.
+    #[test]
+    fn test_serialize_coverage_unsorted_glyphs() {
+        // (glyphs, format of the Coverage table)
+        for (glyphs, format) in [
+            (vec![7_u32, 1, 2, 3, 4, 5, 6], 2),
+            // few enough glyphs for an array of glyphs, which has no room for the indices
+            (vec![5, 3], 2),
+            (vec![3, 5, 4], 2),
+            (vec![70000, 65536, 65537], 4),
+            (vec![65536, 3], 4),
+            // sorted lists are written as before
+            (vec![3, 5], 1),
+            (vec![1, 2, 3, 4, 5, 6, 8], 2),
+            (vec![65536, 70000], 3),
+        ] {
+            let glyphs: Vec<_> = glyphs.into_iter().map(GlyphId::new).collect();
+            let mut s = Serializer::new(1024).unwrap();
+            assert_eq!(s.start_serialize(), Ok(()));
+            // something else comes first, so that the table doesn't start the buffer
+            assert_eq!(s.embed(0xFFFF_u16), Ok(0));
+            assert_eq!(CoverageTable::serialize(&mut s, &glyphs), Ok(()));
+            assert!(!s.in_error());
+            s.end_serialize();
+
+            let data = s.copy_bytes();
+            let coverage = CoverageTable::read(FontData::new(&data[2..])).unwrap();
+            assert_eq!(coverage.coverage_format(), format, "{glyphs:?}");
+            for (index, glyph) in glyphs.iter().enumerate() {
+                assert_eq!(coverage.get(*glyph), Some(index as u32), "{glyphs:?}");
+            }
+            let mut sorted_glyphs = glyphs.clone();
+            sorted_glyphs.sort();
+            assert_eq!(coverage.iter().collect::<Vec<_>>(), sorted_glyphs);
+        }
     }
 
     #[test]

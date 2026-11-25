@@ -177,11 +177,16 @@ fn extended_single_positioning_handles_null_malformed_and_overflow_input() {
             Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)
         );
         if array {
+            // One value record for a Coverage table of two glyphs: the second glyph has no
+            // record and is skipped, as in SinglePosFormat2 and in HarfBuzz.
             bytes = input;
             bytes[8..11].copy_from_slice(&Uint24::new(1).to_be_bytes());
+            let output = subset(&bytes, &plan([1, 2])).unwrap();
+            let table = SinglePosFormat3::read(FontData::new(&output)).unwrap();
+            assert_eq!(table.value_record().x_advance(), Some(100));
             assert_eq!(
-                subset(&bytes, &plan([1, 2])),
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+                table.coverage().unwrap().iter().collect::<Vec<_>>(),
+                [GlyphId::new(1)]
             );
         }
     }
