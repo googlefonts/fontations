@@ -43,6 +43,13 @@ impl Subset for Colr<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        // The variation store has a subtable that can't be read: HarfBuzz fails
+        // to subset a table that its sanitizer rejects. Without an error in the
+        // serializer the table would be dropped as empty, rather than failing.
+        if plan.layout_ops_exceeded.contains(Colr::TAG) {
+            s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+            return Err(SubsetError::SubsetTableError(Colr::TAG));
+        }
         let base_glyph_list = self
             .base_glyph_list()
             .transpose()

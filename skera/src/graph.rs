@@ -460,7 +460,13 @@ impl Vertex {
 
     fn link_positions_valid(&self, num_objs: usize) -> bool {
         let table_size = self.table_size();
-        let mut assigned_bytes = IntSet::empty();
+        // HarfBuzz keeps a set of the bytes assigned so far, and looks every link up in it.
+        // Links mostly come in the order of their positions, and then each one only has to
+        // start after the one before it. Only links that are out of order are sorted to find
+        // the ones that overlap.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de73b08d656f11cf08508f95d90b918cf/src/graph/graph.hh#L193-L235>
+        let mut ascending = true;
+        let mut next_free = 0_u32;
         for l in &self.real_links {
             if l.obj_idx() as usize >= num_objs {
                 return false;
@@ -477,12 +483,20 @@ impl Vertex {
                 return false;
             }
 
-            if assigned_bytes.intersects_range(start..=end) {
-                return false;
-            }
-            assigned_bytes.insert_range(start..=end);
+            ascending &= start >= next_free;
+            next_free = end + 1;
         }
-        true
+        if ascending {
+            return true;
+        }
+
+        let mut ranges: Vec<(u32, u32)> = self
+            .real_links
+            .iter()
+            .map(|l| (l.position(), l.position() + l.link_width() as u32 - 1))
+            .collect();
+        ranges.sort_unstable();
+        ranges.windows(2).all(|w| w[0].1 < w[1].0)
     }
 
     fn has_max_priority(&self) -> bool {
@@ -3010,6 +3024,28 @@ pub(crate) mod test {
             .collect();
         assert_eq!(spaces.len(), NUM_ROOTS as u64);
         assert!(!spaces.contains(0));
+    }
+
+    #[test]
+    fn link_positions_are_checked_in_any_order() {
+        use LinkWidth::{Four, Two};
+        // a 12 byte object with links (position, width) to object 0
+        let valid = |links: &[(u32, LinkWidth)], num_objs: usize| {
+            let links = links.iter().map(|&(pos, width)| Link::new(width, 0, pos));
+            Vertex::from_object(0, 12, links.collect(), Vec::new()).link_positions_valid(num_objs)
+        };
+
+        // in the order of their positions, and not
+        assert!(valid(&[(0, Two), (2, Two), (4, Four), (8, Four)], 1));
+        assert!(valid(&[(4, Four), (8, Four), (0, Two), (2, Two)], 1));
+        // links that overlap, in order and not
+        assert!(!valid(&[(0, Four), (2, Two)], 1));
+        assert!(!valid(&[(2, Two), (2, Two)], 1));
+        assert!(!valid(&[(2, Two), (8, Two), (0, Four)], 1));
+        assert!(!valid(&[(8, Two), (4, Two), (8, Four)], 1));
+        // a link past the end of the object, or to an object that doesn't exist
+        assert!(!valid(&[(0, Two), (11, Two)], 1));
+        assert!(!valid(&[(0, Two)], 0));
     }
 
     // The subtable splitters look up and move many links by position. A vertex built from the

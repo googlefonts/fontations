@@ -146,7 +146,7 @@ fn extended_mark_mark_remaps_classes_anchors_and_variations() {
 }
 
 #[test]
-fn extended_mark_mark_checks_offsets_classes_and_overflow() {
+fn extended_mark_mark_checks_offsets_and_overflow() {
     let input = input();
     let mut plan = plan([1, 2, 3, 4]);
     for range in [2..6, 6..10, 12..16, 16..20] {
@@ -162,12 +162,6 @@ fn extended_mark_mark_checks_offsets_classes_and_overflow() {
             Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
         );
     }
-    let mut bytes = input.clone();
-    bytes[50..52].copy_from_slice(&3u16.to_be_bytes());
-    assert_eq!(
-        subset(&bytes, &plan),
-        Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
-    );
     assert_eq!(
         subset(&input[..107], &plan),
         Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
@@ -177,6 +171,47 @@ fn extended_mark_mark_checks_offsets_classes_and_overflow() {
         subset(&input, &plan),
         Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)
     );
+}
+
+#[test]
+fn extended_mark_mark_drops_marks_with_out_of_range_class() {
+    // The second mark gets class 3 of 3, for which no mark2 has an anchor.
+    let mut input = input();
+    input[50..52].copy_from_slice(&3u16.to_be_bytes());
+    let plan = plan([1, 2, 3, 4]);
+    let mut indices = IntSet::empty();
+    MarkMarkPos::read(FontData::new(&input))
+        .unwrap()
+        .collect_variation_indices(&mut CollectVariationIndicesContext::new(
+            &plan,
+            &mut indices,
+        ));
+    assert_eq!(indices.iter().collect::<Vec<_>>(), [0x10002, 0x50006]);
+    let bytes = subset(&input, &plan).unwrap();
+    let table = MarkMarkPosFormat2::read(FontData::new(&bytes)).unwrap();
+    assert_eq!(table.mark_class_count(), 1);
+    assert_eq!(
+        table.mark1_coverage().unwrap().iter().collect::<Vec<_>>(),
+        [GlyphId::new(1)]
+    );
+    let marks = table.mark1_array().unwrap();
+    assert_eq!(marks.mark_count().to_u32(), 1);
+    let mark = &marks.mark_records()[0];
+    assert_eq!(mark.mark_class(), 0);
+    assert_eq!(
+        varidx(mark.mark_anchor(marks.offset_data()).unwrap()),
+        (9 << 16) | 10
+    );
+    assert_eq!(
+        table.mark2_coverage().unwrap().iter().collect::<Vec<_>>(),
+        [GlyphId::new(3)]
+    );
+    let bases = table.mark2_array().unwrap();
+    assert_eq!(bases.mark2_count(), 1);
+    let record = bases.mark2_records().get(0).unwrap();
+    let anchors = record.mark2_anchors(bases.offset_data());
+    assert_eq!(anchors.len(), 1);
+    assert_eq!(varidx(anchors.get(0).unwrap().unwrap()), (13 << 16) | 14);
 }
 
 #[test]

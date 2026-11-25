@@ -2,6 +2,7 @@
 use crate::FastHashMap;
 use crate::{
     inc_bimap::IncBiMap,
+    layout::OpsWalk,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Serialize, SubsetTable,
@@ -12,6 +13,7 @@ use read_fonts::{
         DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
     },
     types::{BigEndian, F2Dot14, FixedSize, Offset32},
+    MinByteRange,
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
@@ -46,6 +48,15 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
 
         let var_data_array = self.item_variation_data();
+        // Subsetting a subtable scans its region indexes for each retained row.
+        // Any number of offsets can lead to one subtable, and the header of a
+        // subtable can count rows and region indexes that it has no bytes for,
+        // which read as deltas of zero, so the size of the store doesn't bound
+        // the scans. HarfBuzz's sanitizer rejects a subtable without all its
+        // bytes, and counts those bytes for every offset that leads to it; so
+        // does this, for the subtables that have rows to retain, against what
+        // the sanitizer may read from the store on.
+        let mut walk = OpsWalk::new(self.offset_data());
         let mut region_indices = IntSet::empty();
         for (i, inner_map) in inner_maps.iter().enumerate() {
             if inner_map.len() == 0 {
@@ -53,6 +64,11 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             }
             match var_data_array.get(i) {
                 Some(Ok(var_data)) => {
+                    // empty if the subtable doesn't have all its bytes
+                    let bytes = var_data.min_table_bytes();
+                    if bytes.is_empty() || !walk.charge(bytes.len()) {
+                        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+                    }
                     collect_region_refs(&var_data, inner_map, &mut region_indices);
                 }
                 None => continue,
@@ -547,7 +563,106 @@ impl<'a> Serialize<'a> for DeltaSetIndexMap<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use font_test_data::bebuffer::BeBuffer;
     use skrifa::raw::{FontData, FontRead};
+
+    // An ItemVariationStore with one region, whose `count` ItemVariationData
+    // offsets all lead to `var_data`.
+    fn store_with_shared_var_data(count: u16, var_data: &[u8]) -> Vec<u8> {
+        let region_list_offset = 8 + 4 * u32::from(count);
+        let var_data_offset = region_list_offset + 10;
+        let mut buf = BeBuffer::new()
+            .push(1_u16)
+            .push(region_list_offset)
+            .push(count);
+        for _ in 0..count {
+            buf = buf.push(var_data_offset);
+        }
+        let mut bytes = buf
+            .extend([1_u16, 1])
+            .extend([0_i16, 0x4000, 0x4000])
+            .to_vec();
+        bytes.extend_from_slice(var_data);
+        bytes
+    }
+
+    fn subset_store(
+        bytes: &[u8],
+        inner_maps: &[IncBiMap],
+        keep_empty: bool,
+    ) -> Result<Vec<u8>, SerializeErrorFlags> {
+        let store = ItemVariationStore::read(FontData::new(bytes)).unwrap();
+        let mut s = Serializer::new(64 * 1024).unwrap();
+        s.start_serialize().unwrap();
+        store.subset(&Plan::default(), &mut s, (inner_maps, keep_empty))?;
+        s.end_serialize();
+        assert!(!s.in_error());
+        Ok(s.copy_bytes())
+    }
+
+    #[test]
+    fn shared_var_data_counts_once_for_each_offset() {
+        // 1000 region indexes, one row whose delta for the first is 1: 3006
+        // bytes
+        let mut var_data = BeBuffer::new().extend([1_u16, 0, 1000]).to_vec();
+        var_data.resize(var_data.len() + 2 * 1000, 0);
+        var_data.push(1);
+        var_data.resize(var_data.len() + 999, 0);
+        let subset = |count: u16| {
+            let bytes = store_with_shared_var_data(count, &var_data);
+            let inner_maps: Vec<IncBiMap> = (0..count).map(|_| [0].into_iter().collect()).collect();
+            subset_store(&bytes, &inner_maps, false)
+        };
+
+        // 60 offsets count 180360 bytes, within 64 times the 3264 of the store
+        let out = subset(60).unwrap();
+        let store = ItemVariationStore::read(FontData::new(&out)).unwrap();
+        let var_data_offsets = store.item_variation_data();
+        assert_eq!(var_data_offsets.len(), 60);
+        // the serializer shares what is the same
+        assert_eq!(out.len(), 8 + 4 * 60 + 10 + 9);
+        let var_data = var_data_offsets.get(59).unwrap().unwrap();
+        assert_eq!(var_data.region_index_count(), 1);
+        assert_eq!(var_data.delta_sets(), [1]);
+
+        // 100 offsets count 300600 bytes, more than 64 times 3424
+        assert_eq!(
+            subset(100),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+        );
+    }
+
+    #[test]
+    fn var_data_without_all_its_bytes_is_rejected() {
+        // A header-only subtable: 40000 rows of 40000 region indexes, none of
+        // them in the store.
+        let var_data = BeBuffer::new().extend([40000_u16, 0, 40000]).to_vec();
+        let bytes = store_with_shared_var_data(1, &var_data);
+        let inner_maps = [(0..400).collect::<IncBiMap>()];
+        assert_eq!(
+            subset_store(&bytes, &inner_maps, true),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+        );
+
+        // Two rows of one region index, the second of which is missing.
+        let var_data = BeBuffer::new().extend([2_u16, 0, 1, 0]).push(5_u8).to_vec();
+        let bytes = store_with_shared_var_data(1, &var_data);
+        let inner_maps = [(0..2).collect::<IncBiMap>()];
+        assert_eq!(
+            subset_store(&bytes, &inner_maps, true),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)
+        );
+        // with the row, the subtable is subset
+        let var_data = BeBuffer::new()
+            .extend([2_u16, 0, 1, 0])
+            .extend([5_u8, 6])
+            .to_vec();
+        let bytes = store_with_shared_var_data(1, &var_data);
+        let out = subset_store(&bytes, &inner_maps, true).unwrap();
+        let store = ItemVariationStore::read(FontData::new(&out)).unwrap();
+        let var_data = store.item_variation_data().get(0).unwrap().unwrap();
+        assert_eq!(var_data.delta_sets(), [5, 6]);
+    }
     #[test]
     fn test_subset_item_varstore() {
         use crate::DEFAULT_LAYOUT_FEATURES;

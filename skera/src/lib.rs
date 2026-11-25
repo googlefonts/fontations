@@ -86,14 +86,14 @@ use read_fonts::{
         post::Post,
         sbix::Sbix,
         stat::Stat,
-        variations::NO_VARIATION_INDEX,
+        variations::{ItemVariationStore, NO_VARIATION_INDEX},
         vhea::{Vhea, VheaExtended},
         vmtx::{Vmtx, VmtxExtended},
         vorg::Vorg,
         vvar::Vvar,
     },
     types::{GlyphId, NameId, Tag},
-    FontRef, TableProvider, TopLevelTable,
+    FontRef, ReadError, TableProvider, TopLevelTable,
 };
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::MetadataProvider;
@@ -370,6 +370,8 @@ pub struct Plan {
     layout_features: IntSet<Tag>,
     /// The tables with a walk that ran out of its [`layout::OpsBudget`], which
     /// fail to subset: layout tables, and cmap and DMAP for their UVS tables.
+    /// Also GDEF, COLR and BASE when their variation store has a subtable that
+    /// can't be read.
     layout_ops_exceeded: IntSet<Tag>,
 
     //active old->new feature index map after removing redundant langsys and prune_features
@@ -976,7 +978,10 @@ impl Plan {
             // colr_new_deltaset_idx_varidx_map:
             // generate new delta set idx-> new var_idx map if DeltsSetIndexMap exists
             if let Some(Ok(var_store)) = colr.item_variation_store() {
-                let vardata_count = var_store.item_variation_data_count() as u32;
+                let Ok(delta_set_counts) = delta_set_counts(&var_store) else {
+                    self.layout_ops_exceeded.insert(Colr::TAG);
+                    return;
+                };
                 let Ok(var_index_map) = colr.var_index_map().transpose() else {
                     return;
                 };
@@ -999,13 +1004,13 @@ impl Plan {
                     }
                 }
                 remap_variation_indices(
-                    vardata_count,
+                    &delta_set_counts,
                     &variation_indices,
                     &mut self.colr_varidx_delta_map,
                 );
                 generate_varstore_inner_maps(
                     &variation_indices,
-                    vardata_count,
+                    &delta_set_counts,
                     &mut self.colr_varstore_inner_maps,
                 );
 
@@ -1132,16 +1137,19 @@ impl Plan {
             }
         }
 
-        let vardata_count = var_store.item_variation_data_count() as u32;
+        let Ok(delta_set_counts) = delta_set_counts(&var_store) else {
+            self.layout_ops_exceeded.insert(Gdef::TAG);
+            return;
+        };
         remap_variation_indices(
-            vardata_count,
+            &delta_set_counts,
             &varidx_set,
             &mut self.layout_varidx_delta_map,
         );
 
         generate_varstore_inner_maps(
             &varidx_set,
-            vardata_count,
+            &delta_set_counts,
             &mut self.gdef_varstore_inner_maps,
         );
     }
@@ -1170,36 +1178,74 @@ impl Plan {
                 .with_walk(OpsWalk::new(base.offset_data())),
         );
 
-        let vardata_count = var_store.item_variation_data_count() as u32;
-        remap_variation_indices(vardata_count, &varidx_set, &mut self.base_varidx_delta_map);
+        let Ok(delta_set_counts) = delta_set_counts(&var_store) else {
+            self.layout_ops_exceeded.insert(Base::TAG);
+            return;
+        };
+        remap_variation_indices(
+            &delta_set_counts,
+            &varidx_set,
+            &mut self.base_varidx_delta_map,
+        );
         generate_varstore_inner_maps(
             &varidx_set,
-            vardata_count,
+            &delta_set_counts,
             &mut self.base_varstore_inner_maps,
         );
     }
 }
 
 // TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
+/// The number of delta sets that each ItemVariationData of `var_store` has.
+///
+/// A variation index can name a delta set that its subtable doesn't have,
+/// which reads as no delta. Such a row is not retained: see
+/// [`remap_variation_indices`] and [`generate_varstore_inner_maps`], which take
+/// these counts. HVAR and VVAR, whose index maps can't say "no delta", retain
+/// one row for all of them.
+///
+/// Fails on a subtable that can't be read. HarfBuzz's sanitizer rejects the
+/// table of such a store, and the table then fails to subset.
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-ot-layout-common.hh#L3658>
+pub(crate) fn delta_set_counts(var_store: &ItemVariationStore) -> Result<Vec<u32>, ReadError> {
+    var_store
+        .item_variation_data()
+        .iter()
+        .map(|var_data| {
+            let var_data = var_data.transpose()?;
+            Ok(var_data.map_or(0, |var_data| u32::from(var_data.item_count())))
+        })
+        .collect()
+}
+
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-subset-plan-var.cc#L421>
 fn remap_variation_indices(
-    vardata_count: u32,
+    delta_set_counts: &[u32],
     varidx_set: &IntSet<u32>,
     varidx_delta_map: &mut FastHashMap<u32, (u32, i32)>,
 ) {
-    if vardata_count == 0 || varidx_set.is_empty() {
+    if delta_set_counts.is_empty() || varidx_set.is_empty() {
         return;
     }
 
+    varidx_delta_map.reserve(varidx_set.len() as usize);
     let mut new_major: u32 = 0;
     let mut new_minor: u32 = 0;
-    let mut last_major = varidx_set.first().unwrap() >> 16;
+    let mut last_major = None;
     for var_idx in varidx_set.iter() {
         let major = var_idx >> 16;
-        if major >= vardata_count {
+        let Some(delta_set_count) = delta_set_counts.get(major as usize) else {
             break;
+        };
+        // Keep in sync with generate_varstore_inner_maps: a row that the store
+        // doesn't have is not retained, so such an index keeps its meaning (no
+        // delta) instead of taking a new row.
+        if (var_idx & 0xFFFF) >= *delta_set_count {
+            varidx_delta_map.insert(var_idx, (NO_VARIATION_INDEX, 0));
+            continue;
         }
 
-        if major != last_major {
+        if last_major.is_some_and(|last_major| last_major != major) {
             new_minor = 0;
             new_major += 1;
         }
@@ -1208,29 +1254,43 @@ fn remap_variation_indices(
         varidx_delta_map.insert(var_idx, (new_idx, 0));
 
         new_minor += 1;
-        last_major = major;
+        last_major = Some(major);
     }
 }
 
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/3225861de/src/hb-subset-plan-var.cc#L41>
 fn generate_varstore_inner_maps(
     varidx_set: &IntSet<u32>,
-    vardata_count: u32,
+    delta_set_counts: &[u32],
     inner_maps: &mut Vec<IncBiMap>,
 ) {
-    if varidx_set.is_empty() || vardata_count == 0 {
+    if varidx_set.is_empty() || delta_set_counts.is_empty() {
         return;
     }
 
-    inner_maps.resize_with(vardata_count as usize, Default::default);
+    inner_maps.resize_with(delta_set_counts.len(), Default::default);
+    // The set gives the indices of one major after those of another, so gather the minors of
+    // a major and add them together, which makes room for all of them at once.
+    let mut minors = Vec::new();
+    let mut cur_major = 0;
     for idx in varidx_set.iter() {
         let major = idx >> 16;
-        let minor = idx & 0xFFFF;
-        if major >= vardata_count {
+        let Some(delta_set_count) = delta_set_counts.get(major as usize) else {
             break;
-        }
+        };
 
-        inner_maps[major as usize].add(minor);
+        if major != cur_major {
+            inner_maps[cur_major as usize].extend(minors.drain(..));
+            cur_major = major;
+        }
+        // An index past the delta sets of its subtable reads as no delta: don't
+        // retain rows that the store doesn't have.
+        let minor = idx & 0xFFFF;
+        if minor < *delta_set_count {
+            minors.push(minor);
+        }
     }
+    inner_maps[cur_major as usize].extend(minors);
 }
 //
 fn remap_delta_set_indices(
@@ -2054,6 +2114,244 @@ fn retained_glyf_len(font: &FontRef, plan: &Plan, glyf_len: usize) -> Option<usi
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_generate_varstore_inner_maps() {
+        // minors of the majors 0 and 2; major 5 is past the 4 VarData tables
+        let mut varidx_set = IntSet::empty();
+        varidx_set.extend([
+            0x0_0009_u32,
+            0x0_0005,
+            0x2_0007,
+            0x2_0001,
+            0x2_0003,
+            0x5_0000,
+        ]);
+
+        let mut inner_maps = Vec::new();
+        generate_varstore_inner_maps(&varidx_set, &[10, 10, 10, 10], &mut inner_maps);
+        let minors: Vec<Vec<u32>> = inner_maps
+            .iter()
+            .map(|m| m.keys().copied().collect())
+            .collect();
+        assert_eq!(minors, [vec![5, 9], vec![], vec![1, 3, 7], vec![]]);
+        // the new minors follow the order of the old ones
+        assert_eq!(inner_maps[2].get(3), Some(&1));
+    }
+
+    /// An index past the delta sets of its subtable is not a row to retain,
+    /// and is remapped to no variation without taking a new row.
+    #[test]
+    fn variation_indices_without_a_delta_set_are_not_retained() {
+        // the subtables have 6, 0 and 4 delta sets; major 3 is past them
+        let delta_set_counts = [6, 0, 4];
+        let mut varidx_set = IntSet::empty();
+        varidx_set.extend([
+            0x0_0005_u32,
+            0x0_0006,
+            0x0_ffff,
+            0x1_0000,
+            0x2_0001,
+            0x2_0003,
+            0x2_0004,
+            0x3_0000,
+        ]);
+
+        let mut inner_maps = Vec::new();
+        generate_varstore_inner_maps(&varidx_set, &delta_set_counts, &mut inner_maps);
+        let minors: Vec<Vec<u32>> = inner_maps
+            .iter()
+            .map(|m| m.keys().copied().collect())
+            .collect();
+        assert_eq!(minors, [vec![5], vec![], vec![1, 3]]);
+
+        let mut varidx_delta_map = FastHashMap::default();
+        remap_variation_indices(&delta_set_counts, &varidx_set, &mut varidx_delta_map);
+        let new_idx = |var_idx: u32| varidx_delta_map.get(&var_idx).map(|(idx, _)| *idx);
+        assert_eq!(new_idx(0x0_0005), Some(0x0_0000));
+        assert_eq!(new_idx(0x0_0006), Some(NO_VARIATION_INDEX));
+        assert_eq!(new_idx(0x0_ffff), Some(NO_VARIATION_INDEX));
+        // a subtable without a retained row is not written, and takes no new major
+        assert_eq!(new_idx(0x1_0000), Some(NO_VARIATION_INDEX));
+        assert_eq!(new_idx(0x2_0001), Some(0x1_0000));
+        assert_eq!(new_idx(0x2_0003), Some(0x1_0001));
+        assert_eq!(new_idx(0x2_0004), Some(NO_VARIATION_INDEX));
+        assert_eq!(new_idx(0x3_0000), None);
+    }
+
+    /// A store with a subtable that can't be read fails its table, as a table
+    /// that HarfBuzz's sanitizer rejects does there.
+    #[test]
+    fn variation_store_with_an_unreadable_subtable() {
+        use font_test_data::bebuffer::BeBuffer;
+        use read_fonts::{FontData, FontRead};
+
+        // one region; three subtable offsets: a subtable of two delta sets, a
+        // null offset, and `last_offset`
+        let store = |last_offset: u32| {
+            BeBuffer::new()
+                .push(1_u16)
+                .push(20_u32)
+                .push(3_u16)
+                .extend([30_u32, 0, last_offset])
+                .extend([1_u16, 1])
+                .extend([0_i16, 0x4000, 0x4000])
+                .extend([2_u16, 0, 1, 0])
+                .extend([7_u8, 8])
+                .to_vec()
+        };
+        let counts = |bytes: &[u8]| {
+            let store = ItemVariationStore::read(FontData::new(bytes)).unwrap();
+            delta_set_counts(&store)
+        };
+        assert_eq!(counts(&store(30)).unwrap(), [2, 0, 2]);
+        // the offset leads past the table
+        assert!(counts(&store(0x00FF_FFFF)).is_err());
+
+        // GDEF 1.3 with nothing but such a store
+        let mut gdef = BeBuffer::new()
+            .extend([1_u16, 3, 0, 0, 0, 0, 0])
+            .push(18_u32)
+            .to_vec();
+        gdef.extend(store(0x00FF_FFFF));
+        let mut builder = FontBuilder::new();
+        builder.add_raw(Tag::new(b"maxp"), vec![0, 0, 0x50, 0, 0, 3]);
+        builder.add_raw(Gdef::TAG, gdef);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let plan = Plan::new(
+            &(0..3_u32).map(GlyphId::new).collect(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        assert!(plan.layout_ops_exceeded.contains(Gdef::TAG));
+        assert!(matches!(
+            subset_font(&font, &plan),
+            Err(SubsetError::SubsetTableError(Gdef::TAG))
+        ));
+    }
+
+    /// GPOS names two delta sets of a GDEF store that has one: the second is
+    /// not retained, and its device table is dropped.
+    #[test]
+    fn layout_variation_index_without_a_delta_set() {
+        use font_test_data::bebuffer::BeBuffer;
+        use read_fonts::tables::{
+            gpos::{PositionSubtables, SinglePos},
+            layout::DeviceOrVariationIndex,
+        };
+
+        // GDEF 1.3 with a store of one region and one ItemVariationData: one
+        // delta set, of delta 7
+        let gdef = BeBuffer::new()
+            .extend([1_u16, 3, 0, 0, 0, 0, 0])
+            .push(18_u32)
+            .push(1_u16)
+            .push(12_u32)
+            .push(1_u16)
+            .push(22_u32)
+            .extend([1_u16, 1])
+            .extend([0_i16, 0x4000, 0x4000])
+            .extend([1_u16, 0, 1, 0])
+            .push(7_u8)
+            .to_vec();
+        // GPOS with one SinglePosFormat2 lookup: glyph 1 has the device of delta
+        // set (0, 0), glyph 2 that of (0, 5)
+        let gpos = BeBuffer::new()
+            .extend([1_u16, 0, 10, 30, 44])
+            // ScriptList
+            .push(1_u16)
+            .push(Tag::new(b"DFLT"))
+            .extend([8_u16, 4, 0, 0, 0xFFFF, 1, 0])
+            // FeatureList
+            .push(1_u16)
+            .push(Tag::new(b"kern"))
+            .extend([8_u16, 0, 1, 0])
+            // LookupList, Lookup
+            .extend([1_u16, 4, 1, 0, 1, 8])
+            // SinglePosFormat2: coverage at 28, x advance and its device
+            .extend([2_u16, 28, 0x0044, 2])
+            .extend([10_u16, 16, 20, 22])
+            .extend([0_u16, 0, 0x8000])
+            .extend([0_u16, 5, 0x8000])
+            // Coverage
+            .extend([1_u16, 2, 1, 2])
+            .to_vec();
+        let mut builder = FontBuilder::new();
+        builder.add_raw(Tag::new(b"maxp"), vec![0, 0, 0x50, 0, 0, 3]);
+        builder.add_raw(Gdef::TAG, gdef);
+        builder.add_raw(Gpos::TAG, gpos);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+
+        let plan = Plan::new(
+            &(0..3_u32).map(GlyphId::new).collect(),
+            &IntSet::empty(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::empty(),
+            &IntSet::empty(),
+        );
+        assert_eq!(plan.layout_varidx_delta_map.get(&0), Some(&(0, 0)));
+        assert_eq!(
+            plan.layout_varidx_delta_map.get(&5),
+            Some(&(NO_VARIATION_INDEX, 0))
+        );
+        assert_eq!(plan.gdef_varstore_inner_maps.len(), 1);
+        assert_eq!(
+            plan.gdef_varstore_inner_maps[0]
+                .keys()
+                .copied()
+                .collect::<Vec<_>>(),
+            [0]
+        );
+
+        let out = subset_font(&font, &plan).unwrap();
+        let out = FontRef::new(&out).unwrap();
+        let store = out.gdef().unwrap().item_var_store().unwrap().unwrap();
+        let var_data = store.item_variation_data().get(0).unwrap().unwrap();
+        assert_eq!(var_data.item_count(), 1);
+        assert_eq!(var_data.delta_sets(), [7]);
+
+        let lookup = out.gpos().unwrap().lookup_list().unwrap().lookups().get(0);
+        let PositionSubtables::Single(subtables) = lookup.unwrap().subtables().unwrap() else {
+            panic!("not a SinglePos lookup");
+        };
+        let SinglePos::Format2(single_pos) = subtables.get(0).unwrap() else {
+            panic!("not SinglePosFormat2");
+        };
+        let records: Vec<_> = single_pos
+            .value_records()
+            .iter()
+            .map(|record| record.unwrap())
+            .collect();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].x_advance(), Some(10));
+        assert_eq!(records[1].x_advance(), Some(20));
+        // the device of glyph 1 names the row that is left
+        let Some(Ok(DeviceOrVariationIndex::VariationIndex(device))) =
+            records[0].x_advance_device()
+        else {
+            panic!("no variation index for glyph 1");
+        };
+        assert_eq!(
+            (
+                device.delta_set_outer_index(),
+                device.delta_set_inner_index()
+            ),
+            (0, 0)
+        );
+        assert!(records[1].x_advance_device().is_none());
+    }
 
     /// A table's serializer buffer is bounded by twice the font file size, plus
     /// the caller's overrides for name.

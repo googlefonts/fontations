@@ -3,6 +3,7 @@
 use crate::offset::SerializeSerialize;
 use crate::FastHashMap;
 use crate::{
+    delta_set_counts,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     variations::DeltaSetIndexMapSerializePlan,
@@ -125,10 +126,36 @@ pub(crate) struct IndexMapSubsetPlan {
     /// the source table was map-less too (for the other maps a null offset
     /// means "no deltas", so dropping would change the meaning).
     can_drop_to_implicit: bool,
-    max_inners: Vec<u16>,
     outer_bit_count: u8,
     inner_bit_count: u8,
     output_map: FastHashMap<u32, u32>,
+}
+
+/// The delta set that `old_gid` has in `index_map`, or the implicit one of its
+/// glyph id without a map, with the inner index limited to `row_counts`.
+///
+/// An index can name a row that its ItemVariationData doesn't have, which
+/// reads as no delta, and the glyphs of a font can name any number of them.
+/// They are all taken for the first row past those of the subtable, the one at
+/// its row count, so one row is retained for them. It is subset as a row of
+/// zeros, which keeps their meaning, and the region scans of the store read no
+/// more rows than the subtable has, and that one.
+fn delta_set_index(
+    index_map: Option<&DeltaSetIndexMap>,
+    old_gid: u32,
+    row_counts: &[u32],
+) -> Result<DeltaSetIndex, ReadError> {
+    let mut index = match index_map {
+        Some(m) => m.get(old_gid)?,
+        None => DeltaSetIndex {
+            outer: (old_gid >> 16) as u16,
+            inner: (old_gid & 0xFFFF) as u16,
+        },
+    };
+    if let Some(row_count) = row_counts.get(index.outer as usize) {
+        index.inner = u32::from(index.inner).min(*row_count) as u16;
+    }
+    Ok(index)
 }
 
 impl IndexMapSubsetPlan {
@@ -138,6 +165,7 @@ impl IndexMapSubsetPlan {
         bypass_empty: bool,
         outer_map: &mut IncBiMap,
         inner_sets: &mut [IntSet<u16>],
+        row_counts: &[u32],
     ) -> Result<Self, ReadError> {
         let mut this = IndexMapSubsetPlan {
             full_map_count: plan
@@ -160,19 +188,11 @@ impl IndexMapSubsetPlan {
             .unwrap_or(EntryFormat::from_bits_truncate(1));
 
         this.outer_bit_count = (entry_format.entry_size() * 8) - entry_format.bit_count();
-        this.max_inners.resize(inner_sets.len(), 0);
 
         let mut last_gid = None;
         let mut last_val = DeltaSetIndex::NO_VARIATION_INDEX;
         for (gid, old_gid) in plan.new_to_old_gid_list.iter().rev() {
-            let old_gid = old_gid.to_u32();
-            let val = match index_map {
-                Some(m) => m.get(old_gid)?,
-                None => DeltaSetIndex {
-                    outer: (old_gid >> 16) as u16,
-                    inner: (old_gid & 0xFFFF) as u16,
-                },
-            };
+            let val = delta_set_index(index_map, old_gid.to_u32(), row_counts)?;
             if last_gid.is_none() {
                 last_gid = Some(*gid);
                 last_val = val;
@@ -190,26 +210,23 @@ impl IndexMapSubsetPlan {
         this.map_count = last_gid.unwrap().to_u32() + 1;
 
         if index_map.is_none() {
+            // the row of a glyph id, or the one past the rows of the subtable
+            let row = |gid: u32| (gid as u16).min(row_counts[0] as u16);
             outer_map.add(0);
-            inner_sets[0].extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
-            this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
+            inner_sets[0].extend(plan.glyphset.iter().map(|g| row(g.to_u32())));
         } else {
             for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
                 if new_gid.to_u32() >= this.map_count {
                     break;
                 }
 
-                let v = index_map.unwrap().get(old_gid.to_u32())?;
+                let v = delta_set_index(index_map, old_gid.to_u32(), row_counts)?;
                 let outer = v.outer as usize;
-                if outer >= this.max_inners.len() {
+                if outer >= inner_sets.len() {
                     break;
                 }
 
                 outer_map.add(v.outer as u32);
-                if v.inner > this.max_inners[outer] {
-                    this.max_inners[outer] = v.inner;
-                }
-
                 inner_sets[outer].insert(v.inner);
             }
         }
@@ -223,35 +240,21 @@ impl IndexMapSubsetPlan {
         index_map: Option<&DeltaSetIndexMap>,
         outer_map: &IncBiMap,
         inner_maps: &[IncBiMap],
+        row_counts: &[u32],
     ) {
+        // The bits that the new inner indices need. The largest old index of a
+        // subtable doesn't always get its largest new one: the row that stands
+        // for the ones a subtable doesn't have comes before the rows that only
+        // the other maps name.
         self.inner_bit_count = 1;
-
-        for (max_inner, inner_map) in self.max_inners.iter().zip(inner_maps) {
-            if inner_map.len() == 0 || *max_inner == 0 {
-                continue;
-            }
-
-            let bit_count = 32
-                - inner_map
-                    .get(*max_inner as u32)
-                    .unwrap_or(&0)
-                    .leading_zeros() as u8;
-            self.inner_bit_count = bit_count.max(self.inner_bit_count);
-        }
 
         for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
             if new_gid.to_u32() >= self.map_count {
                 break;
             }
 
-            let old_gid = old_gid.to_u32();
-            let v = match index_map {
-                Some(m) => m.get(old_gid).unwrap(),
-                None => DeltaSetIndex {
-                    outer: (old_gid >> 16) as u16,
-                    inner: (old_gid & 0xFFFF) as u16,
-                },
-            };
+            // new() read the same entries
+            let v = delta_set_index(index_map, old_gid.to_u32(), row_counts).unwrap();
 
             let outer = v.outer;
             if outer as usize >= inner_maps.len() {
@@ -260,6 +263,8 @@ impl IndexMapSubsetPlan {
 
             let new_outer = outer_map.get(outer as u32).unwrap();
             let new_inner = inner_maps[outer as usize].get(v.inner as u32).unwrap();
+            let bit_count = (32 - new_inner.leading_zeros()) as u8;
+            self.inner_bit_count = bit_count.max(self.inner_bit_count);
             self.output_map
                 .insert(new_gid.to_u32(), (*new_outer << 16) | *new_inner);
         }
@@ -302,7 +307,9 @@ impl HvarVvarSubsetPlan {
         index_maps: &[Option<DeltaSetIndexMap>],
     ) -> Result<Self, ReadError> {
         let mut this = HvarVvarSubsetPlan::default();
-        let vardata_count = var_store.item_variation_data_count() as usize;
+        // the rows that each subtable has: see delta_set_index
+        let row_counts = delta_set_counts(var_store)?;
+        let vardata_count = row_counts.len();
 
         let mut inner_sets = Vec::new();
         inner_sets.resize(vardata_count, Default::default());
@@ -315,6 +322,7 @@ impl HvarVvarSubsetPlan {
             false,
             &mut outer_map,
             &mut inner_sets,
+            &row_counts,
         )?;
         this.index_map_subset_plans.push(index_map_subset_plan);
 
@@ -330,6 +338,7 @@ impl HvarVvarSubsetPlan {
                 true,
                 &mut outer_map,
                 &mut inner_sets,
+                &row_counts,
             )?);
         }
 
@@ -344,7 +353,7 @@ impl HvarVvarSubsetPlan {
             let inner_map = plan
                 .new_to_old_gid_list
                 .iter()
-                .map(|(_, old_gid)| old_gid.to_u32())
+                .map(|(_, old_gid)| old_gid.to_u32().min(row_counts[0]))
                 .collect();
             this.inner_maps.push(inner_map);
         } else {
@@ -367,7 +376,13 @@ impl HvarVvarSubsetPlan {
             .iter_mut()
             .zip(index_maps)
             .for_each(|(index_map_subset_plan, index_map)| {
-                index_map_subset_plan.remap(plan, index_map.as_ref(), &outer_map, &this.inner_maps)
+                index_map_subset_plan.remap(
+                    plan,
+                    index_map.as_ref(),
+                    &outer_map,
+                    &this.inner_maps,
+                    &row_counts,
+                )
             });
         Ok(this)
     }
@@ -672,5 +687,109 @@ mod test {
             0x00, 0x00, 0x40, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         assert_eq!(subsetted_data, expected_data);
+    }
+
+    // An HVAR whose store has one subtable of two rows, with the deltas 10
+    // and 11 for its only region, and an advance mapping of `entries`, if any.
+    fn hvar_with_two_rows(entries: &[(u16, u16)]) -> Vec<u8> {
+        use font_test_data::bebuffer::BeBuffer;
+
+        let mut buf = BeBuffer::new()
+            .extend([1_u16, 0])
+            .push(20_u32)
+            .push(if entries.is_empty() { 0_u32 } else { 52 })
+            .extend([0_u32, 0])
+            // ItemVariationStore, with its region list and its subtable
+            .push(1_u16)
+            .push(12_u32)
+            .push(1_u16)
+            .push(22_u32)
+            .extend([1_u16, 1])
+            .extend([0_i16, 0x4000, 0x4000])
+            .extend([2_u16, 0, 1, 0])
+            .extend([10_u8, 11]);
+        if !entries.is_empty() {
+            // entries of 4 bytes, 16 of their bits for the inner index
+            buf = buf.extend([0_u8, 0x3F]).push(entries.len() as u16);
+            for (outer, inner) in entries {
+                buf = buf.extend([*outer, *inner]);
+            }
+        }
+        buf.to_vec()
+    }
+
+    // Subsets `bytes` to the glyphs `gids`; returns the rows of the subtable
+    // that is left and the advance delta of each glyph.
+    fn rows_and_advance_deltas(bytes: &[u8], gids: &[u32], retain_gids: bool) -> (u16, Vec<i32>) {
+        use read_fonts::types::F2Dot14;
+
+        let hvar = Hvar::read(FontData::new(bytes)).unwrap();
+        //dummy font
+        let font = FontRef::new(bytes).unwrap();
+        let mut plan = Plan::default();
+        let new_gid = |i: usize| GlyphId::from(if retain_gids { gids[i] } else { i as u32 });
+        for (i, gid) in gids.iter().enumerate() {
+            plan.new_to_old_gid_list
+                .push((new_gid(i), GlyphId::from(*gid)));
+            plan.glyphset.insert(GlyphId::from(*gid));
+        }
+        if retain_gids {
+            plan.subset_flags |= SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS;
+        }
+
+        let mut builder = FontBuilder::new();
+        let mut s = Serializer::new(1024).unwrap();
+        assert_eq!(s.start_serialize(), Ok(()));
+        let ret = hvar.subset(&plan, &font, &mut s, &mut builder);
+        assert!(ret.is_ok());
+        assert!(!s.in_error());
+        s.end_serialize();
+
+        let out = s.copy_bytes();
+        let out = Hvar::read(FontData::new(&out)).unwrap();
+        let store = out.item_variation_store().unwrap();
+        let rows = store.item_variation_data().get(0).unwrap().unwrap();
+        let coords = [F2Dot14::from_f32(1.0)];
+        let deltas = (0..gids.len())
+            .map(|i| out.advance_delta(new_gid(i), &coords).unwrap().to_i32())
+            .collect();
+        (rows.item_count(), deltas)
+    }
+
+    /// A glyph can name a row that its subtable doesn't have. One row is kept
+    /// for all of them, and they keep having no delta.
+    #[test]
+    fn test_subset_hvar_rows_past_the_store() {
+        // without an advance mapping, glyph g has row g: only glyphs 0 and 1
+        // have one
+        let bytes = hvar_with_two_rows(&[]);
+        for retain_gids in [false, true] {
+            assert_eq!(
+                rows_and_advance_deltas(&bytes, &[0, 1, 2, 3, 4], retain_gids),
+                (3, vec![10, 11, 0, 0, 0])
+            );
+            assert_eq!(
+                rows_and_advance_deltas(&bytes, &[0, 3, 4], retain_gids),
+                (2, vec![10, 0, 0])
+            );
+            // nothing to fold: the rows are those of the glyphs
+            assert_eq!(
+                rows_and_advance_deltas(&bytes, &[0, 1], retain_gids),
+                (2, vec![10, 11])
+            );
+        }
+
+        // an advance mapping with entries past the rows
+        let bytes = hvar_with_two_rows(&[(0, 1), (0, 7), (0, 0), (0, 0xFFFF), (0, 2)]);
+        for retain_gids in [false, true] {
+            assert_eq!(
+                rows_and_advance_deltas(&bytes, &[0, 1, 2, 3, 4], retain_gids),
+                (3, vec![11, 0, 10, 0, 0])
+            );
+            assert_eq!(
+                rows_and_advance_deltas(&bytes, &[0, 1, 3], retain_gids),
+                (2, vec![11, 0, 0])
+            );
+        }
     }
 }
