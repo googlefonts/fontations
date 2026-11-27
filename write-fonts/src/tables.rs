@@ -21,6 +21,7 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
+pub mod jstf;
 pub mod layout;
 pub mod loca;
 pub mod math;
