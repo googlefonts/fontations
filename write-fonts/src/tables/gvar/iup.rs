@@ -334,6 +334,46 @@ struct OptimizeDpResult {
     chain: Vec<Option<usize>>,
 }
 
+impl OptimizeDpResult {
+    fn circular_solution(&self, n: usize) -> HashSet<usize> {
+        // A candidate ending at i covers one lap if its chain visits i - n.
+        // Number the predecessor tree in preorder so each subtree is an interval.
+        let root = self.chain.len();
+        let mut size = vec![1; root + 1];
+        for (i, parent) in self.chain.iter().enumerate().rev() {
+            size[parent.unwrap_or(root)] += size[i];
+        }
+
+        // Allocate each child's interval from the right of its parent's interval.
+        // Once all children have taken their slots, order[i] is i's own label.
+        let mut order = vec![0; root + 1];
+        order[root] = root;
+        for (i, parent) in self.chain.iter().enumerate() {
+            let parent = parent.unwrap_or(root);
+            order[i] = order[parent];
+            order[parent] -= size[i];
+        }
+
+        let mut best = n - 1; // Its chain always reaches the root.
+        let mut best_cost = self.costs[best];
+        for end in n..self.costs.len() - 1 {
+            let start = end - n;
+            if (order[start]..order[start] + size[start]).contains(&order[end]) {
+                let cost = self.costs[end] - if start == 0 { 0 } else { self.costs[start] };
+                if cost <= best_cost {
+                    best = end;
+                    best_cost = cost;
+                }
+            }
+        }
+
+        std::iter::successors(Some(best), |&i| self.chain[i])
+            .take_while(|&i| Some(i) != best.checked_sub(n))
+            .map(|i| i % n)
+            .collect()
+    }
+}
+
 /// Straightforward Dynamic-Programming.  For each index i, find least-costly encoding of
 /// points 0 to i where i is explicitly encoded.  We find this by considering all previous
 /// explicit points j and check whether interpolation can fill points between j and i.
@@ -528,48 +568,7 @@ fn iup_contour_optimize(
             iup_initial_lookback(deltas),
         )?;
 
-        let mut best_sol = None;
-        let mut best_cost = (n + 1) as i32;
-
-        for start in n - 1..dp_result.costs.len() - 1 {
-            // Assemble solution
-            let mut solution = HashSet::new();
-            let mut i = Some(start);
-
-            // As in Python, this must be true when `i` is non-negative and `start - n` is negative
-            while i > start.checked_sub(n) {
-                let idx = i.unwrap();
-                solution.insert(idx % n);
-                i = dp_result.chain[idx];
-            }
-
-            // this should only be None for the first loop, when start is n - 1
-            if i == start.checked_sub(n) {
-                // Python reads [-1] to get 0, usize doesn't like that
-                let cost = dp_result.costs[start]
-                    - if n < start {
-                        dp_result.costs[start - n]
-                    } else {
-                        0
-                    };
-                if cost <= best_cost {
-                    best_sol = Some(solution);
-                    best_cost = cost;
-                }
-            }
-        }
-
-        let encode = best_sol.ok_or(IupError::AchievedInvalidState(
-            "No best solution identified".to_string(),
-        ))?;
-
-        if !encode.is_superset(&must_encode) {
-            return Err(IupError::AchievedInvalidState(format!(
-                "{encode:?} should contain {must_encode:?}"
-            )));
-        }
-
-        encode
+        dp_result.circular_solution(n)
     };
 
     Ok(deltas
@@ -590,6 +589,25 @@ fn iup_contour_optimize(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    #[rstest::rstest]
+    #[case(0, [0, 7, 11])]
+    #[case(1, [6, 10, 11])]
+    #[case(6, [1, 5, 6])]
+    #[case(11, [0, 1, 8])]
+    fn circular_ties(#[case] rotation: usize, #[case] expected: [usize; 3]) {
+        let mut coords: Vec<_> = (0..12)
+            .map(|i| Point::new(((i + rotation) % 12) as f64, 0.0))
+            .collect();
+        let mut deltas: Vec<_> = coords.iter().map(|p| Vec2::new(10.0 * p.x, 0.0)).collect();
+        let optimized = iup_contour_optimize(&mut deltas, &mut coords, 0.0).unwrap();
+        let required: Vec<_> = optimized
+            .iter()
+            .enumerate()
+            .filter_map(|(i, delta)| delta.required.then_some(i))
+            .collect();
+        assert_eq!(required, expected);
+    }
 
     #[rstest::rstest]
     #[case::fractional_coordinates(
